@@ -1,0 +1,17 @@
+{
+  "name": "dts2",
+  "owner": {
+    "name": "Dobeu Tech Solutions"
+  },
+  "metadata": {
+    "description": "Dobeu Tech Solutions second-generation agent harness."
+  },
+  "plugins": [
+    {
+      "name": "dts2-harness",
+      "source": "./plugins/dts2-harness",
+      "description": "Plan-build-review-verify harness with machine prep, multi-repo scaffolding, auto-scaled agent teams, lessons memory, and an Agent SDK runner.",
+      "version": "2.0.0"
+    }
+  ]
+}
