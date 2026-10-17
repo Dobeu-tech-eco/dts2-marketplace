@@ -5,6 +5,7 @@
   "budget": {
     "claudeEnabledPlugins": 6,
     "claudeUserAgents": 4,
+    "claudePluginAgents": 6,
     "claudeSkillEntries": 5,
     "claudeMdBytes": 4096,
     "codexEnabledPlugins": 10,

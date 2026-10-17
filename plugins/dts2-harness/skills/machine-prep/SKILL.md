@@ -26,6 +26,11 @@ Then explain where plugins are coming from, because this is why disabled plugins
 - `syncedRequiredByOrg` — synced plugins the organization marks required. Only a claude.ai admin can turn these off; say so.
 - `projectEnablesOverridingYou` — plugins the current repo's `.claude/settings.json` enables, which beats the user setting. Fix per repo with `claude plugin disable <id> --scope local`.
 
+Then report agents in two separate counts, because the blueprint's 4-agent rule covers only one of them:
+- `claudeUserAgents` — files in `~/.claude/agents/`. This is the blueprint's 4-agent budget. These never sync to or from claude.ai.
+- `claudePluginAgents` and `pluginAgentsBySource` — agents that come inside enabled plugins, including every synced plugin. claude.ai has no separate agent sync; agents arrive only inside plugins, so turning off `syncClaudeAiPlugins` (or disabling the synced plugin) removes them. Budget is 6, which is exactly dts2-harness's own team (lead, builder, reviewer, verifier, scout, auditor). Name the top sources so the user sees which plugins cost the most.
+- `syncClaudeAiSkills` and `syncedSkillsOnDisk` — claude.ai skills sync separately from plugins into `~/.claude/skills/synced/`. Report only; turning it off also removes always-synced skills such as pdf and xlsx, so leave that choice to the user (`"syncClaudeAiSkills": false` in user settings).
+
 ## 3. Plan the prune
 Run `... machine-prep.py plan` and show the exact diff. With the default profile it sets `syncClaudeAiPlugins: false`, which stops account plugins syncing into Claude Code on this machine (claude.ai and Cowork keep them) and moves the already-synced copies to `~/.claude/plugins/.trash/` on next start.
 

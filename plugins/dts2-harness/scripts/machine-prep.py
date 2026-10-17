@@ -28,6 +28,7 @@ CODEX_ENABLED_LINE: Final[str] = "enabled = true"
 SYNCED_SUFFIX: Final[str] = "@synced"
 SYNC_KEY: Final[str] = "syncClaudeAiPlugins"
 REQUIRED_PREFERENCE: Final[str] = "required"
+INSTALL_RECORDS: Final[str] = "installed_plugins.json"
 
 
 def load_json(path: Path) -> dict:
@@ -46,16 +47,37 @@ def codex_enabled(home: Path) -> int:
     return sum(1 for line in lines if line.strip() == CODEX_ENABLED_LINE)
 
 
-def synced_plugin(manifest: Path) -> dict[str, str]:
-    meta: dict = load_json(manifest.parent.parent.with_suffix(".meta.json"))
-    name: str = load_json(manifest).get("name", manifest.parent.parent.name)
-    return {"id": f"{name}{SYNCED_SUFFIX}", "preference": meta.get("installation_preference", "unknown")}
+def synced_plugin(folder: Path) -> dict[str, str]:
+    meta: dict = load_json(folder.with_suffix(".meta.json"))
+    name: str = load_json(folder / ".claude-plugin" / "plugin.json").get("name", folder.name)
+    return {"id": f"{name}{SYNCED_SUFFIX}", "root": str(folder),
+            "preference": meta.get("installation_preference", "unknown")}
 
 
 def synced_plugins(claude_home: Path) -> list[dict[str, str]]:
     root: Path = claude_home / "plugins" / "synced"
-    manifests: list[Path] = sorted(root.glob("*/*/.claude-plugin/plugin.json")) if root.exists() else []
-    return [synced_plugin(m) for m in manifests]
+    folders: list[Path] = sorted(p for p in root.glob("*/*") if p.is_dir()) if root.exists() else []
+    return [synced_plugin(f) for f in folders]
+
+
+def agent_count(plugin_root: Path) -> int:
+    return count_entries(plugin_root / "agents", "**/*.md")
+
+
+def marketplace_root(claude_home: Path, plugin_id: str, record: dict) -> Path:
+    name, _, market = plugin_id.partition("@")
+    return claude_home / "plugins" / "cache" / market / name / str(record.get("version", ""))
+
+
+def marketplace_agents(claude_home: Path, enabled: list[str]) -> dict[str, int]:
+    records: dict = load_json(claude_home / "plugins" / INSTALL_RECORDS).get("plugins") or {}
+    roots = {p: marketplace_root(claude_home, p, (records.get(p) or [{}])[0]) for p in enabled}
+    return {p: agent_count(r) for p, r in roots.items() if agent_count(r)}
+
+
+def synced_agents(synced: list[dict[str, str]], loading: list[str]) -> dict[str, int]:
+    return {s["id"]: agent_count(Path(s["root"])) for s in synced
+            if s["id"] in loading and agent_count(Path(s["root"]))}
 
 
 def bad_symlinks(claude_home: Path, targets: list[str]) -> list[str]:
@@ -84,15 +106,25 @@ def inventory(home: Path, claude_home: Path, project: Path) -> dict[str, object]
     plugins: dict[str, bool] = settings.get("enabledPlugins") or {}
     synced: list[dict[str, str]] = synced_plugins(claude_home)
     claude_md: Path = claude_home / "CLAUDE.md"
+    enabled: list[str] = sorted(k for k, v in plugins.items() if v and not k.endswith(SYNCED_SUFFIX))
+    overrides: list[str] = project_overrides(project)
+    loading: list[str] = loaded_synced(settings, synced)
+    plugin_agents: dict[str, int] = {**marketplace_agents(claude_home, sorted(set(enabled + overrides))),
+                                     **synced_agents(synced, loading)}
     return {
-        "enabledPlugins": sorted(k for k, v in plugins.items() if v and not k.endswith(SYNCED_SUFFIX)),
+        "enabledPlugins": enabled,
         "syncClaudeAiPlugins": settings.get(SYNC_KEY, "unset (syncing on)"),
         "syncedPluginsOnDisk": len(synced),
-        "syncedPluginsLoading": loaded_synced(settings, synced),
+        "syncedPluginsLoading": loading,
         "syncedRequiredByOrg": [s["id"] for s in synced if s["preference"] == REQUIRED_PREFERENCE],
-        "projectEnablesOverridingYou": project_overrides(project),
+        "projectEnablesOverridingYou": overrides,
         "claudeUserAgents": count_entries(claude_home / "agents", "*.md"),
-        "claudeSkillEntries": count_entries(claude_home / "skills", "*"),
+        "claudePluginAgents": sum(plugin_agents.values()),
+        "pluginAgentsBySource": plugin_agents,
+        "syncClaudeAiSkills": settings.get("syncClaudeAiSkills", "unset (syncing on)"),
+        "syncedSkillsOnDisk": count_entries(claude_home / "skills" / "synced", "*"),
+        "claudeSkillEntries": len([p for p in (claude_home / "skills").glob("*") if p.name != "synced"])
+                              if (claude_home / "skills").exists() else 0,
         "claudeMdBytes": claude_md.stat().st_size if claude_md.exists() else 0,
         "codexEnabledPlugins": codex_enabled(home),
         "codexAgents": count_entries(home / ".codex" / "agents", "*.toml"),

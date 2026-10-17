@@ -1,6 +1,6 @@
 {
   "name": "dts2-harness",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Second-generation plan-build-review-verify harness. Adds machine prep (scan, prune, set up), single and multi-repo scaffolding, auto-scaled agent teams, a lessons memory, and a headless Agent SDK runner. Works on Windows, WSL, Linux, and macOS.",
   "author": {
     "name": "Dobeu Tech Solutions",
