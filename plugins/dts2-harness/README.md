@@ -6,6 +6,7 @@ Second-generation Dobeu Tech Solutions agent harness. It supersedes `harness@har
 | Need | How dts2 handles it |
 |---|---|
 | WSL and Linux | Python core scripts, bash hooks, PowerShell and bash installers. `env-detect.py` finds which Claude home is live, including the WSL wrapper that runs Windows `claude.exe`. |
+| Plugins that keep coming back | `machine-prep` now finds plugins synced from your claude.ai account (loaded as `name@synced` on every start) and turns syncing off with `syncClaudeAiPlugins: false`, or disables them one by one if you keep a short list. It also flags repos whose settings re-enable plugins you turned off. |
 | Scan, prune, set up a machine | `machine-prep` skill plus `auditor` agent and `scripts/machine-prep.py` (audit, plan, apply) driven by `profiles/blueprint.json` from agent-startup-blueprint. Prune means disable, with a settings backup first. |
 | Many repos | `setup` skill in batch mode (one subagent per repo, in parallel) or workspace mode (`.harness-workspace.yaml` with contracts and release order). |
 | Self-learning | `learn` skill keeps `.harness/lessons.md`. The SessionStart hook loads recent lessons into context; lead, builder, and reviewer read them every run. |
@@ -38,3 +39,7 @@ On Claude Code 2.1.275 or later this also works in one step:
 /plugin install dts2-harness --marketplace Dobeu-tech-eco/dts2-marketplace
 ```
 Restart Claude Code, then run `/dts2-harness:onboard`.
+
+## Changelog
+- 2.1.0: machine-prep handles claude.ai synced plugins, org-required plugins, and project-level overrides.
+- 2.0.0: first release.

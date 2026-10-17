@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-"""Audit a machine against a blueprint profile and, with --apply, prune Claude plugins.
+"""Audit a machine against a blueprint profile and, with apply, prune Claude Code plugins.
 
 audit  : read-only inventory and budget check (exit 1 when over budget)
 plan   : show the exact settings.json change apply would make
-apply  : back up settings.json, then disable plugins outside the keep set
+apply  : back up settings.json, then write the change
 
-Never deletes plugins, agents, skills, or credentials. Disabling is reversible.
+Plugins come from two places and both are handled:
+  marketplace plugins  -> enabledPlugins keys such as name@marketplace
+  claude.ai account    -> synced into ~/.claude/plugins/synced/ and loaded as name@synced
+                          on every session start, which is why they keep coming back
+
+Never deletes plugins, agents, skills, or credentials. Every change is reversible.
 """
 from __future__ import annotations
 
@@ -20,6 +25,9 @@ from typing import Final
 DEFAULT_PROFILE: Final[Path] = Path(__file__).resolve().parent.parent / "profiles" / "blueprint.json"
 FORBIDDEN_SCRIPT_DIRS: Final[tuple[str, ...]] = (".codex", ".claude")
 CODEX_ENABLED_LINE: Final[str] = "enabled = true"
+SYNCED_SUFFIX: Final[str] = "@synced"
+SYNC_KEY: Final[str] = "syncClaudeAiPlugins"
+REQUIRED_PREFERENCE: Final[str] = "required"
 
 
 def load_json(path: Path) -> dict:
@@ -38,6 +46,18 @@ def codex_enabled(home: Path) -> int:
     return sum(1 for line in lines if line.strip() == CODEX_ENABLED_LINE)
 
 
+def synced_plugin(manifest: Path) -> dict[str, str]:
+    meta: dict = load_json(manifest.parent.parent.with_suffix(".meta.json"))
+    name: str = load_json(manifest).get("name", manifest.parent.parent.name)
+    return {"id": f"{name}{SYNCED_SUFFIX}", "preference": meta.get("installation_preference", "unknown")}
+
+
+def synced_plugins(claude_home: Path) -> list[dict[str, str]]:
+    root: Path = claude_home / "plugins" / "synced"
+    manifests: list[Path] = sorted(root.glob("*/*/.claude-plugin/plugin.json")) if root.exists() else []
+    return [synced_plugin(m) for m in manifests]
+
+
 def bad_symlinks(claude_home: Path, targets: list[str]) -> list[str]:
     found: list[str] = []
     for folder in (claude_home / "skills", claude_home / "agents"):
@@ -46,13 +66,31 @@ def bad_symlinks(claude_home: Path, targets: list[str]) -> list[str]:
     return found
 
 
-def inventory(home: Path, claude_home: Path) -> dict[str, object]:
+def project_overrides(project: Path) -> list[str]:
+    shared: dict[str, bool] = load_json(project / ".claude" / "settings.json").get("enabledPlugins") or {}
+    local: dict[str, bool] = load_json(project / ".claude" / "settings.local.json").get("enabledPlugins") or {}
+    return sorted(k for k, v in shared.items() if v and local.get(k) is not False)
+
+
+def loaded_synced(settings: dict, synced: list[dict[str, str]]) -> list[str]:
+    if settings.get(SYNC_KEY) is False:
+        return []
+    plugins: dict[str, bool] = settings.get("enabledPlugins") or {}
+    return [s["id"] for s in synced if plugins.get(s["id"]) is not False or s["preference"] == REQUIRED_PREFERENCE]
+
+
+def inventory(home: Path, claude_home: Path, project: Path) -> dict[str, object]:
     settings: dict = load_json(claude_home / "settings.json")
     plugins: dict[str, bool] = settings.get("enabledPlugins") or {}
+    synced: list[dict[str, str]] = synced_plugins(claude_home)
     claude_md: Path = claude_home / "CLAUDE.md"
     return {
-        "enabledPlugins": sorted(k for k, v in plugins.items() if v),
-        "disabledPlugins": sorted(k for k, v in plugins.items() if not v),
+        "enabledPlugins": sorted(k for k, v in plugins.items() if v and not k.endswith(SYNCED_SUFFIX)),
+        "syncClaudeAiPlugins": settings.get(SYNC_KEY, "unset (syncing on)"),
+        "syncedPluginsOnDisk": len(synced),
+        "syncedPluginsLoading": loaded_synced(settings, synced),
+        "syncedRequiredByOrg": [s["id"] for s in synced if s["preference"] == REQUIRED_PREFERENCE],
+        "projectEnablesOverridingYou": project_overrides(project),
         "claudeUserAgents": count_entries(claude_home / "agents", "*.md"),
         "claudeSkillEntries": count_entries(claude_home / "skills", "*"),
         "claudeMdBytes": claude_md.stat().st_size if claude_md.exists() else 0,
@@ -63,8 +101,9 @@ def inventory(home: Path, claude_home: Path) -> dict[str, object]:
 
 def budget_findings(inv: dict[str, object], profile: dict) -> list[str]:
     budget: dict[str, int] = profile.get("budget", {})
+    loading: int = len(inv["enabledPlugins"]) + len(inv["syncedPluginsLoading"])
     actual: dict[str, int] = {**{k: v for k, v in inv.items() if isinstance(v, int)},
-                              "claudeEnabledPlugins": len(inv["enabledPlugins"])}
+                              "claudeEnabledPlugins": loading}
     return [f"{key}={actual[key]} (max {limit})" for key, limit in budget.items()
             if actual.get(key, 0) > limit]
 
@@ -77,17 +116,38 @@ def boundary_findings(home: Path, claude_home: Path, profile: dict) -> list[str]
     return found
 
 
-def plan_plugins(current: dict[str, bool], profile: dict) -> dict[str, bool]:
-    keep: set[str] = set(profile["claude"]["enabledPlugins"])
-    planned: dict[str, bool] = {key: key in keep for key in current}
+def plan_marketplace(current: dict[str, bool], keep: set[str]) -> dict[str, bool]:
+    planned: dict[str, bool] = {k: (k in keep) for k in current if not k.endswith(SYNCED_SUFFIX)}
     for key in keep:
         planned.setdefault(key, True)
     return planned
 
 
-def diff_plugins(current: dict[str, bool], planned: dict[str, bool]) -> list[str]:
-    return [f"{key}: {current.get(key, 'absent')} -> {value}"
-            for key, value in sorted(planned.items()) if current.get(key) != value]
+def plan_synced(current: dict[str, bool], synced: list[dict[str, str]], keep: set[str]) -> dict[str, bool]:
+    ids: list[str] = [s["id"] for s in synced if s["preference"] != REQUIRED_PREFERENCE]
+    planned: dict[str, bool] = {k: v for k, v in current.items() if k.endswith(SYNCED_SUFFIX)}
+    return {**planned, **{i: (i in keep) for i in ids}}
+
+
+def plan_settings(settings: dict, profile: dict, synced: list[dict[str, str]]) -> dict:
+    rules: dict = profile["claude"]
+    current: dict[str, bool] = settings.get("enabledPlugins") or {}
+    plugins: dict[str, bool] = plan_marketplace(current, set(rules["enabledPlugins"]))
+    sync_off: bool = rules.get(SYNC_KEY) is False
+    if sync_off:
+        plugins.update({k: v for k, v in current.items() if k.endswith(SYNCED_SUFFIX)})
+        return {**settings, SYNC_KEY: False, "enabledPlugins": plugins}
+    plugins.update(plan_synced(current, synced, set(rules.get("keepSyncedPlugins", []))))
+    return {**settings, "enabledPlugins": plugins}
+
+
+def diff_settings(before: dict, after: dict) -> list[str]:
+    lines: list[str] = []
+    if before.get(SYNC_KEY) != after.get(SYNC_KEY):
+        lines.append(f"{SYNC_KEY}: {before.get(SYNC_KEY, 'unset')} -> {after.get(SYNC_KEY)}")
+    old: dict[str, bool] = before.get("enabledPlugins") or {}
+    new: dict[str, bool] = after.get("enabledPlugins") or {}
+    return lines + [f"{k}: {old.get(k, 'absent')} -> {v}" for k, v in sorted(new.items()) if old.get(k) != v]
 
 
 def backup(path: Path) -> Path:
@@ -98,9 +158,11 @@ def backup(path: Path) -> Path:
     return target
 
 
-def run_audit(home: Path, claude_home: Path, profile: dict) -> int:
-    inv: dict[str, object] = inventory(home, claude_home)
+def run_audit(home: Path, claude_home: Path, project: Path, profile: dict) -> int:
+    inv: dict[str, object] = inventory(home, claude_home, project)
     issues: list[str] = budget_findings(inv, profile) + boundary_findings(home, claude_home, profile)
+    issues += [f"{p} is enabled by {project}/.claude/settings.json and overrides your user setting"
+               for p in inv["projectEnablesOverridingYou"]]
     keep: set[str] = set(profile["claude"]["enabledPlugins"])
     report = {"claudeHome": str(claude_home), "inventory": inv, "issues": issues,
               "toDisable": sorted(set(inv["enabledPlugins"]) - keep),
@@ -111,18 +173,15 @@ def run_audit(home: Path, claude_home: Path, profile: dict) -> int:
 
 def run_change(claude_home: Path, profile: dict, apply: bool) -> int:
     path: Path = claude_home / "settings.json"
-    if not path.exists():
-        print(f"No settings.json at {path}. Nothing to change.")
-        return 0
     settings: dict = load_json(path)
-    current: dict[str, bool] = settings.get("enabledPlugins") or {}
-    planned: dict[str, bool] = plan_plugins(current, profile)
-    changes: list[str] = diff_plugins(current, planned)
+    planned: dict = plan_settings(settings, profile, synced_plugins(claude_home))
+    changes: list[str] = diff_settings(settings, planned)
     print("\n".join(changes) if changes else "Already matches the profile.")
     if not apply or not changes:
         return 0
-    saved: Path = backup(path)
-    path.write_text(json.dumps({**settings, "enabledPlugins": planned}, indent=2) + "\n", encoding="utf-8")
+    saved: str = str(backup(path)) if path.exists() else "none (no settings.json existed)"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(planned, indent=2) + "\n", encoding="utf-8")
     print(f"Applied. Backup: {saved}. Restart Claude Code to load the change.")
     return 0
 
@@ -133,11 +192,12 @@ def main() -> int:
     parser.add_argument("--profile", type=Path, default=DEFAULT_PROFILE)
     parser.add_argument("--home", type=Path, default=Path.home())
     parser.add_argument("--claude-home", type=Path, help="Override, e.g. /mnt/c/Users/<you>/.claude from WSL")
+    parser.add_argument("--project", type=Path, default=Path.cwd(), help="Repo to check for project overrides")
     args = parser.parse_args()
     profile: dict = load_json(args.profile)
     claude_home: Path = args.claude_home or args.home / ".claude"
     if args.command == "audit":
-        return run_audit(args.home, claude_home, profile)
+        return run_audit(args.home, claude_home, args.project, profile)
     return run_change(claude_home, profile, apply=args.command == "apply")
 
 

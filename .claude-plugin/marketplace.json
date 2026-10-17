@@ -11,7 +11,7 @@
       "name": "dts2-harness",
       "source": "./plugins/dts2-harness",
       "description": "Plan-build-review-verify harness with machine prep, multi-repo scaffolding, auto-scaled agent teams, lessons memory, and an Agent SDK runner.",
-      "version": "2.0.0"
+      "version": "2.1.0"
     }
   ]
 }

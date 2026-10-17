@@ -1,7 +1,7 @@
 {
   "name": "agent-startup-blueprint",
   "source": "https://origin.cursor.com/dobeu/agent-startup-blueprint (commit a62a599)",
-  "note": "dts2-harness@dts2 replaces harness@harness. Enable one of them, not both, or you get two copies of each agent.",
+  "note": "dts2-harness@dts2 replaces harness@harness. Enable one, not both. syncClaudeAiPlugins false stops claude.ai account plugins from re-downloading into Claude Code on every start; claude.ai and Cowork keep them. To keep syncing but allow only some, set it to true and list ids such as baldor-safety-reports@synced in keepSyncedPlugins.",
   "budget": {
     "claudeEnabledPlugins": 6,
     "claudeUserAgents": 4,
@@ -22,19 +22,55 @@
       "figma@claude-plugins-official",
       "thrifty@2389-research"
     ],
+    "syncClaudeAiPlugins": false,
+    "keepSyncedPlugins": [],
     "userAgents": [],
-    "mcpServers": ["GitKraken", "Context7"]
+    "mcpServers": [
+      "GitKraken",
+      "Context7"
+    ]
   },
   "codex": {
-    "enabledPlugins": ["composio@composio"],
-    "agents": ["lead", "builder", "reviewer", "verifier"],
-    "mcpServers": ["GitKraken", "Context7", "Composio", "grok"]
+    "enabledPlugins": [
+      "composio@composio"
+    ],
+    "agents": [
+      "lead",
+      "builder",
+      "reviewer",
+      "verifier"
+    ],
+    "mcpServers": [
+      "GitKraken",
+      "Context7",
+      "Composio",
+      "grok"
+    ]
   },
-  "cursor": { "mcpServers": ["GitKraken", "supabase"] },
-  "antigravity": { "mcpServers": ["Context7"] },
+  "cursor": {
+    "mcpServers": [
+      "GitKraken",
+      "supabase"
+    ]
+  },
+  "antigravity": {
+    "mcpServers": [
+      "Context7"
+    ]
+  },
   "boundaries": {
-    "doNotRsync": ["agents", "skills", "plugins", "rules"],
-    "forbiddenSymlinkTargets": [".agents", "/mnt/c"],
-    "forbiddenScripts": ["sync-from-windows.sh"]
+    "doNotRsync": [
+      "agents",
+      "skills",
+      "plugins",
+      "rules"
+    ],
+    "forbiddenSymlinkTargets": [
+      ".agents",
+      "/mnt/c"
+    ],
+    "forbiddenScripts": [
+      "sync-from-windows.sh"
+    ]
   }
 }

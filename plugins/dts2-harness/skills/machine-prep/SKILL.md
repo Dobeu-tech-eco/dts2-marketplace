@@ -1,6 +1,6 @@
 ---
 name: machine-prep
-description: Scan this computer's agent tooling (Claude Code plugins, agents, skills, CLAUDE.md, Codex, Cursor, MCP servers), compare it to the agent-startup-blueprint profile, prune by disabling everything outside the keep-set, and set up the slim startup. Works on Windows, WSL, Linux, and macOS. Use when the user wants to clean up, slim down, pare down plugins, audit context budget, set up a new machine, or apply the blueprint.
+description: Scan this computer's agent tooling (Claude Code marketplace plugins, plugins synced from the claude.ai account, agents, skills, CLAUDE.md, Codex, Cursor, MCP servers), compare it to the agent-startup-blueprint profile, prune by disabling everything outside the keep-set, and set up the slim startup. Works on Windows, WSL, Linux, and macOS. Use when the user wants to clean up, slim down, pare down plugins, stop disabled plugins from coming back, audit context budget, set up a new machine, or apply the blueprint.
 ---
 
 # Machine prep — scan, prune, set up
@@ -21,8 +21,15 @@ The profile defaults to the plugin's `profiles/blueprint.json`. A `profile` valu
 
 Show the user: enabled plugins vs the keep-set, budget overruns, forbidden symlinks or sync scripts, and what is missing from the keep-set.
 
+Then explain where plugins are coming from, because this is why disabled plugins come back:
+- `syncedPluginsLoading` — plugins enabled on the user's claude.ai account. Claude Code re-downloads them into `~/.claude/plugins/synced/` at every session start and loads them as `<name>@synced`. New ones arrive enabled. This is usually the bulk of the context cost.
+- `syncedRequiredByOrg` — synced plugins the organization marks required. Only a claude.ai admin can turn these off; say so.
+- `projectEnablesOverridingYou` — plugins the current repo's `.claude/settings.json` enables, which beats the user setting. Fix per repo with `claude plugin disable <id> --scope local`.
+
 ## 3. Plan the prune
-Run `... machine-prep.py plan` and show the exact `enabledPlugins` diff. Also list, as manual steps the script does not perform:
+Run `... machine-prep.py plan` and show the exact diff. With the default profile it sets `syncClaudeAiPlugins: false`, which stops account plugins syncing into Claude Code on this machine (claude.ai and Cowork keep them) and moves the already-synced copies to `~/.claude/plugins/.trash/` on next start.
+
+If the user wants to keep some account plugins in Claude Code, copy the profile, set `syncClaudeAiPlugins` to `true`, and list the ones to keep in `keepSyncedPlugins` (for example `baldor-safety-reports@synced`). The plan then writes `"<name>@synced": false` for every other synced plugin instead. Warn that plugins added on claude.ai later arrive enabled in this mode, so it needs re-running. Also list, as manual steps the script does not perform:
 - Extra files in `~/.claude/agents` beyond the budget (suggest moving them to an archive folder).
 - Global MCP servers that belong in one project.
 - Codex plugin flags above budget.
