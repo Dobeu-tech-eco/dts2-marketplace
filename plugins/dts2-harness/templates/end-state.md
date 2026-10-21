@@ -8,6 +8,17 @@
 - status: pending approval
 - continuedAnyway: no
 
+## Deploy
+
+```
+deploy:
+  provider: none
+  productionUrl: null
+  checkCommand: null
+```
+
+Provider is `vercel`, `cloudflare`, `netlify`, `fly`, `render`, `firebase`, `github-workflow` or `none`. When setup plans a deploy that does not exist yet, add `plan: <text>` and `status: planned`; `run` sets `status: live` after the first passing deploy.
+
 ## Related repos
 
 | url | role | tag | note |

@@ -18,6 +18,13 @@ model: opus
    - Add one table row per screen: expected, observed, PASS/FAIL.
    - If no browser is available, add the row `Walkthrough | SKIP | no browser available`.
 
+5. **Production walkthrough** — only when the caller passes `Mode: production` and `URL: <productionUrl>`.
+   - Same screens as the plan's `Done` lines, run against the URL: no local server, no `dev_server`, and skip steps 1-3 (tests, stubs, acceptance).
+   - Drive the browser as in step 4. Save screenshots as `.harness/review/screens/<stamp>/prod-<screen>.png`.
+   - Collect console errors and failed network requests per screen.
+   - Return one row per screen, `Production <screen> | PASS/FAIL | expected / observed / <screenshot> / <console or network errors>`, then `### Verdict: VERIFIED | BLOCKED` and `walkthrough PASS n/n`.
+   - Read-only against production: only GET navigation; never submit forms that create data, never sign in with credentials you were not given.
+
 ## Output
 ```
 ## Verification: <scope>

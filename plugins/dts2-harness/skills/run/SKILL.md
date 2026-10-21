@@ -96,6 +96,25 @@ Do these before the commit so they land in it. Do not narrate the writes.
 3. Append the ship decision to `.harness/state.md` → `## Decisions` as `- <date> <what shipped, receipt path>`.
 4. Include `lessons.md`, `end-state.md`, `state.md`, `action-items.md` (if changed), and `.harness/review/critique-<stamp>.md` (if written) in the commit.
 
+## Deployment verification
+Runs only when `deploy.provider != none` in `.harness/end-state.md`. Read `deploy.provider`, `deploy.productionUrl`, `deploy.checkCommand` and `deploy.status`. The harness never deploys, pushes, or re-runs CI except on an explicit yes inside the troubleshoot round below. It never creates provider accounts or enters credentials; secrets are presence-only.
+
+**Planned deploy.** When `deploy.status` is `planned`, build `deploy.plan` as its own run, before any feature run: the provider config file, a deploy workflow, env and secret names to `.harness/action-items.md` (never values), and DNS, domain and account steps to action items for the user. On the first passing deploy, set `deploy.status` to `live` and run the production walkthrough below.
+
+**Watch.** After the PR is opened, print: `Deploy watch: <provider> — run `<checkCommand>` or tell me when it is live`. Wait for the user to confirm, or for the check output they paste to show the new commit deployed. Never run the deploy yourself.
+
+**Production walkthrough.** Once confirmed, dispatch `dts2-harness:verifier` (`model: opus`) with `Mode: production`, `URL: <productionUrl>`, the plan's `Done` screens and the run stamp. It repeats the walkthrough screens against the URL, saves `prod-<screen>.png`, and returns PASS or FAIL per screen. Record in the receipt: `- Production: <url> | <deploy id or commit> | walkthrough PASS n/n | <ISO time>`.
+
+**Failure.** A FAIL in the deploy check, CI, or the walkthrough → ask exactly: "Production/CI failed at <step>. Investigate and troubleshoot?"
+- **No**: record an open item in the receipt (`Production:` line and Open risks) and in `.harness/state.md`, and end the run.
+- **Yes**: troubleshoot round. Gather evidence (`gh run view <id> --log-failed`, provider logs, the walkthrough's console and network errors), state the root cause, propose a fix, then present these options, each needing its own explicit yes:
+  - (a) follow-up PR (default)
+  - (b) `gh run rerun <id>`
+  - (c) redeploy or push to production with the provider command from `DEPLOY_COMMANDS` in `deploy-detect.py`: vercel `vercel --prod`, cloudflare `wrangler deploy`, netlify `netlify deploy --prod`, fly `fly deploy`, github-workflow `gh workflow run <file>`
+  - (d) roll back to the receipt's rollback point
+
+The troubleshoot round counts toward the 3-round cap. Without that explicit yes the harness never deploys, pushes, or re-runs CI.
+
 ## Add secret mode
 `run add secret NAME`:
 1. Check presence only, as in **Secrets**: `test -n "${NAME:-}"`, `grep -qE '^NAME=.+' .env`, or `gh secret list | grep -qE '^NAME\b'` for a GitHub Actions secret; never print a value. Missing → name the one place to put it and stop.

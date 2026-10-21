@@ -25,3 +25,6 @@
 ### Rollback point
 
 <commit SHA or tag to revert to>
+
+- Production: not deployed yet
+  Once verified: `- Production: <url> | <deploy id> | walkthrough <PASS|FAIL> | <time>`

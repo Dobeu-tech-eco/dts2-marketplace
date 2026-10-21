@@ -13,6 +13,7 @@ tools: Read, Grep, Glob, Bash
 4. Detect context at the repo root:
    - Foreign harness folders: `.omc .flow .beads .conductor .agent .impeccable .agents`, plus `AGENTS.md` and `CLAUDE.md`. List each one found.
    - A marketing surface: a landing or pricing page (routes or files named like `landing`, `pricing`, `index` under a marketing or site folder), or README sections on install or pricing.
+   - A deploy target: run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/deploy-detect.py" <repo>` and report its `provider` and `evidence` (`none` when nothing is found). It only reads files; never run its `checkCommand`.
 5. Return:
 ```
 ## Size: <repo>
@@ -22,6 +23,7 @@ Tier: S | M | L | XL
 Builders: <n>  Reviewers: <axes>
 Harnesses: <list|none>
 Marketing surface: yes/no (<where>)
+Deployment: <provider> (<evidence>)
 Why: <one line>
 ```
 Never run anything that writes.
