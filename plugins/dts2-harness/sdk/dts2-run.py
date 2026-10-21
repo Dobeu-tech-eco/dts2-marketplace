@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """Headless dts2 harness run on the Claude Agent SDK.
 
-Phases: plan (lead) -> approval gate -> build (builder) -> review + verify in parallel.
+Phases: plan -> plan checkpoint -> build -> walkthrough -> review -> ship checkpoint (receipt).
+The lead plans, the builder builds, the reviewer and verifier (which runs the walkthrough) run
+in parallel, then receipt.md is written. The runner never pushes; it commits only with --ship
+when DTS2_SHIP_BRANCH names the current branch and the verdict is VERIFIED. A roster agent in
+handoff mode needs a person, so the run stops (exit 2) unless --live-only is given.
 Outputs land in <repo>/.harness/runs/<stamp>/. Reviewer lesson candidates go to
 <repo>/.harness/lessons-inbox.md for the learn skill to consolidate.
 
@@ -16,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import os
 import re
 import shlex
@@ -24,7 +29,7 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Final
+from typing import Any, Final
 
 PLUGIN_ROOT: Final[Path] = Path(__file__).resolve().parent.parent
 AGENTS_DIR: Final[Path] = PLUGIN_ROOT / "agents"
@@ -33,10 +38,90 @@ KEY_COMMAND_ENV: Final[str] = "DTS2_KEY_COMMAND"
 KEY_COMMAND_TIMEOUT_S: Final[int] = 20
 SECOND_OPINION_TIMEOUT_S: Final[int] = 600
 FRONTMATTER: Final[re.Pattern[str]] = re.compile(r"^---\n(.*?)\n---\n(.*)$", re.S)
+SHIP_BRANCH_ENV: Final[str] = "DTS2_SHIP_BRANCH"
+DEFAULT_CONFIG: Final[str] = ".harness/config.yaml"
+RECEIPT_TEMPLATE: Final[Path] = PLUGIN_ROOT / "templates" / "receipt.md"
+PROFILES_DIR: Final[Path] = PLUGIN_ROOT / "profiles" / "agents"
+HANDOFF_MODE: Final[str] = "handoff"
+EXIT_NEEDS_PERSON: Final[int] = 2
+STATUS_ROW: Final[re.Pattern[str]] = re.compile(r"^\|[^|\n]*\|\s*(PASS|FAIL|SKIP)\s*\|", re.M)
 SECOND_OPINION_COMMANDS: Final[dict[str, list[str]]] = {
     "codex": ["codex", "exec"],
     "gemini": ["gemini", "-p"],
 }
+
+
+def count_statuses(verify: str) -> tuple[int, int, int]:
+    found: list[str] = STATUS_ROW.findall(verify)
+    return found.count("PASS"), found.count("FAIL"), found.count("SKIP")
+
+
+def replace_section(text: str, title: str, body: str) -> str:
+    pattern = re.compile(rf"(### {re.escape(title)}\n\n).*?(?=\n### |\Z)", re.S)
+    return pattern.sub(lambda m: m.group(1) + body + "\n", text, count=1)
+
+
+def build_receipt(verify: str, review: str, approver: str, rollback: str) -> str:
+    passed, failed, skipped = count_statuses(verify)
+    verdict: str = "changes requested" if "BLOCK" in review else "approved"
+    bodies: dict[str, str] = {
+        "Tests run": ("| Command | Pass | Fail | Skip |\n|---|---|---|---|\n"
+                      f"| verifier checks | {passed} | {failed} | {skipped} |\n"),
+        "Review verdict": f"{verdict} (reviewer, {datetime.now():%Y-%m-%d})\n",
+        "Approved by": f"{approver}, {datetime.now():%Y-%m-%d}\n",
+        "Rollback point": f"{rollback}\n",
+    }
+    text: str = RECEIPT_TEMPLATE.read_text(encoding="utf-8")
+    for title, body in bodies.items():
+        text = replace_section(text, title, body.rstrip("\n"))
+    return text
+
+
+def ship_allowed(args: argparse.Namespace, branch: str) -> bool:
+    return bool(args.ship) and os.environ.get(SHIP_BRANCH_ENV) == branch
+
+
+def parse_roster_config(text: str) -> dict[str, Any]:
+    entries: list[dict[str, str]] = []
+    in_block: bool = False
+    for raw in text.splitlines():
+        line: str = raw.strip()
+        if line and not raw.startswith((" ", "\t")):
+            in_block = line == "roster:"
+        elif in_block and line.startswith("- name:"):
+            entries.append({"name": line[len("- name:"):].strip()})
+        elif in_block and line.startswith("mode:") and entries:
+            entries[-1]["mode"] = line[len("mode:"):].strip()
+    return {"roster": entries}
+
+
+def profile_invocation(name: str) -> str:
+    path: Path = PROFILES_DIR / f"{name}.json"
+    if not path.exists():
+        return ""
+    return str(json.loads(path.read_text(encoding="utf-8")).get("invocation", ""))
+
+
+def handoff_lanes(roster: dict[str, Any]) -> list[str]:
+    entries: list[dict[str, str]] = roster.get("roster", [])
+    return [e["name"] for e in entries
+            if e.get("mode", profile_invocation(e["name"])) == HANDOFF_MODE]
+
+
+def read_roster_config(repo: Path, config: Path) -> dict[str, Any]:
+    path: Path = config if config.is_absolute() else repo / config
+    if not path.exists():
+        return {"roster": []}
+    return parse_roster_config(path.read_text(encoding="utf-8"))
+
+
+def git_out(repo: Path, *cmd: str) -> str:
+    return subprocess.run(["git", "-C", str(repo), *cmd], capture_output=True, text=True).stdout.strip()
+
+
+def commit_changes(repo: Path, task: str) -> None:
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-m", f"feat: {task[:60]}"], check=True)
 
 
 def resolve_auth(api_key_env: str | None) -> str:
@@ -125,7 +210,26 @@ async def review_and_verify(task: str, plan: str, repo: Path) -> tuple[str, str]
                                 run_agent("verifier", brief, repo, write=False))
 
 
+def ship_checkpoint(args: argparse.Namespace, repo: Path, run_dir: Path, review: str, verify: str,
+                    rollback: str) -> int:
+    approver: str = git_out(repo, "config", "user.name") or "unknown"
+    save(run_dir, "receipt", build_receipt(verify, review, approver, rollback))
+    receipt_path: Path = run_dir / "receipt.md"
+    if handoff_lanes(read_roster_config(repo, args.config)) and not args.live_only:
+        print(f"Handoff lane needs a person; receipt at {receipt_path}")
+        return EXIT_NEEDS_PERSON
+    verified: bool = "VERIFIED" in verify and "BLOCK" not in review
+    branch: str = git_out(repo, "rev-parse", "--abbrev-ref", "HEAD")
+    if verified and ship_allowed(args, branch):
+        commit_changes(repo, args.task)
+        print(f"Committed on {branch}. Nothing was pushed. Receipt: {receipt_path}")
+        return 0
+    print(f"Nothing was committed or pushed. Receipt: {receipt_path}")
+    return 0 if verified else EXIT_NEEDS_PERSON
+
+
 async def pipeline(args: argparse.Namespace, repo: Path, run_dir: Path) -> int:
+    rollback: str = git_out(repo, "rev-parse", "HEAD")
     plan: str = await run_agent("lead", args.task, repo, write=False)
     save(run_dir, "1-plan", plan)
     if not approve(plan, args.yes):
@@ -139,8 +243,8 @@ async def pipeline(args: argparse.Namespace, repo: Path, run_dir: Path) -> int:
     if args.second_opinion != "none":
         save(run_dir, f"5-{args.second_opinion}", second_opinion(args.second_opinion, git_diff(repo), repo))
     collect_lessons(review, repo)
-    print(f"\n{verify}\n\nRun saved to {run_dir}. Nothing was committed or pushed.")
-    return 0 if "VERIFIED" in verify and "BLOCK" not in review else 2
+    print(f"\n{verify}\n\nRun saved to {run_dir}.")
+    return ship_checkpoint(args, repo, run_dir, review, verify, rollback)
 
 
 def main() -> int:
@@ -150,6 +254,10 @@ def main() -> int:
     parser.add_argument("--yes", action="store_true", help="Skip the plan approval prompt")
     parser.add_argument("--api-key-env", help="Name of an env var holding the key")
     parser.add_argument("--second-opinion", choices=["none", "codex", "gemini"], default="none")
+    parser.add_argument("--ship", action="store_true",
+                        help=f"Commit when verified and ${SHIP_BRANCH_ENV} names the current branch")
+    parser.add_argument("--live-only", action="store_true", help="Ignore handoff-mode roster agents")
+    parser.add_argument("--config", type=Path, default=Path(DEFAULT_CONFIG))
     args = parser.parse_args()
     repo: Path = args.repo.resolve()
     print(f"Auth: {resolve_auth(args.api_key_env)}")
