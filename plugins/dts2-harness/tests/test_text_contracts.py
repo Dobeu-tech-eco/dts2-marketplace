@@ -205,7 +205,7 @@ class ReleaseContract(unittest.TestCase):
 
     def test_readme_credits_upstreams(self) -> None:
         text: str = _read(self.REPO_ROOT / "README.md")
-        for needle in ("oh-my-claudecode", "Impeccable", "marketingskills", "## Acknowledgements", "What's new in 3.0.1", "Known limits"):
+        for needle in ("oh-my-claudecode", "Impeccable", "marketingskills", "## Acknowledgements", "What's new in 3.0.0", "Known limits"):
             self.assertIn(needle, text)
 
     def test_skill_and_agent_counts(self) -> None:
