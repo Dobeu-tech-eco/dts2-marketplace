@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib.util
+from pathlib import Path
 import unittest
 from typing import Final
 
@@ -36,3 +37,40 @@ class KeepListTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MachinePrepKeepListTests(unittest.TestCase):
+    def load(self):  # type: ignore[no-untyped-def]
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "machine_prep_under_test", PLUGIN_ROOT / "scripts" / "machine-prep.py"
+        )
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def test_keep_list_plugins_merge_into_required_by_harness(self) -> None:
+        import tempfile
+        mod = self.load()
+        project: Path = Path(tempfile.mkdtemp(prefix="dts2-keep-"))
+        (project / ".harness").mkdir()
+        (project / ".harness" / "keep.yaml").write_text(
+            "plugins:\n  - dts2-harness@dts2\n  - impeccable@impeccable  # ui\nskills:\n  - name: x\n",
+            encoding="utf-8",
+        )
+        self.assertEqual(
+            mod.keep_list_plugins(project), ["dts2-harness@dts2", "impeccable@impeccable"]
+        )
+        merged: dict = mod.with_keep_list({"requiredByHarness": ["marketing-skills@synced"]}, project)
+        self.assertEqual(
+            merged["requiredByHarness"],
+            ["marketing-skills@synced", "dts2-harness@dts2", "impeccable@impeccable"],
+        )
+
+    def test_no_keep_file_leaves_profile_unchanged(self) -> None:
+        import tempfile
+        mod = self.load()
+        project: Path = Path(tempfile.mkdtemp(prefix="dts2-nokeep-"))
+        profile: dict = {"requiredByHarness": ["a@b"]}
+        self.assertIs(mod.with_keep_list(profile, project), profile)

@@ -174,6 +174,38 @@ def inventory(home: Path, claude_home: Path, project: Path, usage: dict[str, int
     }
 
 
+KEEP_FILE: Final[Path] = Path(".harness") / "keep.yaml"
+
+
+def keep_list_plugins(project: Path) -> list[str]:
+    """Plugin ids under `plugins:` in the project's .harness/keep.yaml (minimal YAML: `- id` lines)."""
+    path: Path = project / KEEP_FILE
+    if not path.exists():
+        return []
+    plugins: list[str] = []
+    in_block: bool = False
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line: str = raw.split("#", 1)[0].rstrip()
+        if not line.strip():
+            continue
+        if not raw.startswith((" ", "\t")):
+            in_block = line.strip() == "plugins:"
+            continue
+        if in_block and line.strip().startswith("- "):
+            plugins.append(line.strip()[2:].strip())
+    return plugins
+
+
+def with_keep_list(profile: dict, project: Path) -> dict:
+    """Return the profile with the project's keep-list plugins added to requiredByHarness."""
+    extra: list[str] = keep_list_plugins(project)
+    if not extra:
+        return profile
+    merged: dict = dict(profile)
+    merged["requiredByHarness"] = list(profile.get("requiredByHarness", [])) + extra
+    return merged
+
+
 def budget_findings(inv: dict[str, object], profile: dict) -> list[str]:
     budget: dict[str, int] = profile.get("budget", {})
     loading: int = len(inv["enabledPlugins"]) + len(inv["syncedPluginsLoading"])
@@ -263,7 +295,7 @@ def main() -> int:
     parser.add_argument("--days", type=int, default=DEFAULT_DAYS, help="Usage window for the usage counts")
     parser.add_argument("--project", type=Path, default=Path.cwd(), help="Repo to check for project overrides")
     args = parser.parse_args()
-    profile: dict = load_json(args.profile)
+    profile: dict = with_keep_list(load_json(args.profile), Path.cwd())
     claude_home: Path = args.claude_home or args.home / ".claude"
     if args.command == "audit":
         return run_audit(args, claude_home, profile)

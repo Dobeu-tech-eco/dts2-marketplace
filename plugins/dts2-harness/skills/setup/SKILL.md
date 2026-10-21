@@ -183,13 +183,14 @@ Gate: `.harness/end-state.md` has `status: approved`, or the user passed `--scaf
 ### Batch (parallel, scaffold-only)
 1. Resolve the repo list. For a folder, list its immediate children that contain `.git`.
 2. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/repo-size.py" --json <repo...>` to show size and tier per repo.
-3. Dispatch one general-purpose subagent per repo in a single message (cap at 8 per wave; run more waves if needed). Each gets the Single steps above with `--scaffold-only` and its repo path, and writes only inside its own repo. Subagents never ask the user anything: an existing `.harness/config.yaml` means merge missing keys only, the roster is the default `- name: claude`, and each such choice (backup, roster when other agents are installed) comes back as an open item.
+3. Dispatch one general-purpose subagent per repo in a single message (cap at 8 per wave; run more waves if needed). Each gets the Single steps above with `--scaffold-only` and its repo path, and writes only inside its own repo. Subagents never ask the user anything: an existing `.harness/config.yaml` means merge missing keys only, the roster is the default `- name: claude`, `.harness/keep.yaml` is copied from the template when absent and never rewritten when present, and each such choice (backup, roster when other agents are installed) comes back as an open item.
 4. Collect results into one table: repo, stack, commands found, commands missing, open items, warnings.
 5. Resolve missing commands and open items with the user in one pass at the end, not per repo.
 
 ### Workspace
 One interview covers the whole workspace; Round 5 already wrote and got approval for every per-repo end state and the root end state.
 1. Scaffold each repo as in Batch.
+1b. Write the workspace keep list next to the manifest: `<workspace root>/.harness/keep.yaml` from `${CLAUDE_PLUGIN_ROOT}/templates/keep.yaml`, filled with the Agents round roster, every skill the user said yes to (with its exact install source), and any plugin named as must-keep. Member repos keep their own `.harness/keep.yaml` from the Batch step; a re-run reads the root one first, then each member's, and never re-asks about anything listed in either.
 2. Write the manifest in the folder chosen in Round 5, using each repo's `role` from the Repos round and the `depends_on`, contracts and release order from Round 3 (never guessed):
 `.harness-workspace.yaml`
 ```yaml
