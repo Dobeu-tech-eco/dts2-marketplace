@@ -121,5 +121,61 @@ class SetupSkillContracts(TextContractMixin):
         self.assertEqual(positions, sorted(positions), "setup rounds are out of order")
 
 
+class BuilderAgentTests(TextContractMixin):
+    PATH: Final[Path] = AGENTS / "builder.md"
+
+    def test_required_phrases(self) -> None:
+        self.assert_contains(self.PATH, [
+            "file set", "SECRET NEEDED: NAME — <what it unlocks> — <where consumed>",
+            "never ask for or print its value", "not-configured path",
+        ])
+
+    def test_retired_phrases(self) -> None:
+        self.assert_absent(self.PATH, ["lane", "Lane"])
+
+
+class RunSkillContracts(TextContractMixin):
+    PATH: Final[Path] = PLUGIN_ROOT / "skills" / "run" / "SKILL.md"
+    ISOLATION_HEADING: Final[str] = "## Workspace or opted-in isolation"
+
+    def test_required_phrases(self) -> None:
+        self.assert_contains(self.PATH, [
+            "Plan checkpoint", "Ship checkpoint", "auto_learn", "provide now", "add later",
+            "action-items.md", "add secret", "never print a value", "Finish pass", "Budget check",
+            "roster.py probe", "costTier", "complexity", "frontier", "impeccable polish",
+            "No end state yet", "evolve", "separate file sets", "Both checkpoints need a human",
+            "escalate with what failed", "receipt",
+            "Here is the plan, the done-criteria, and who does what. Approve, edit, or stop.",
+            "Here is the receipt. Ship, fix the blocking items and re-check, or stop and revert.",
+            "No end state yet; /dts2-harness:setup interviews to one.",
+            "That changes the harness itself; use `/dts2-harness:evolve`.",
+            "Cap at 3 rounds. After 3, stop and escalate with what failed; record it in `.harness/state.md`.",
+            "Finish pass skipped: Impeccable not installed (github.com/pbakaus/impeccable)",
+            "Both checkpoints need a human. Headless runs stop at each and write what a human would have seen.",
+            ".harness/review/critique-<stamp>.md", "ensure-ignored.py", "roster.py\" resolve",
+            "test -n \"${NAME:-}\"", "gh secret set NAME", ".env.example", "deferred wiring",
+            ".harness/handoff/<agent>/<n>.md", "templates/receipt.md", "## Decisions",
+        ])
+
+    def test_retired_phrases(self) -> None:
+        self.assert_absent(self.PATH, ["Gate 1", "Gate 2"])
+
+    def test_single_mode_text_has_no_worktree_or_lane(self) -> None:
+        text: str = _read(self.PATH)
+        cut: int = text.find(self.ISOLATION_HEADING)
+        self.assertNotEqual(cut, -1, "run is missing the isolation heading")
+        head: str = text[:cut].lower()
+        self.assertNotIn("worktree", head)
+        self.assertNotIn("lane", head)
+
+    def test_review_order_walkthrough_before_reviewers(self) -> None:
+        text: str = _read(self.PATH)
+        phase3: int = text.find("## Phase 3")
+        finish: int = text.find("## Phase 3b")
+        self.assertTrue(-1 < phase3 < finish, "run needs Phase 3 then Phase 3b")
+        block: str = text[phase3:finish]
+        self.assertLess(block.find("walkthrough"), block.find("reviewers in parallel"))
+
+
 if __name__ == "__main__":
     unittest.main()

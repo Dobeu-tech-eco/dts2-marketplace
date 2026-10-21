@@ -49,5 +49,23 @@ class HookTests(unittest.TestCase):
         self.assertEqual(out.count("- 2026-10-21 item"), 5)
 
 
+    def test_session_lessons_prints_open_action_items(self) -> None:
+        repo: Path = make_repo()
+        rows: str = "".join(f"| KEY_{i} | feature {i} | src/a.ts | .env | open |\n" for i in range(4))
+        items: str = (
+            "# Action items\n\n## Secrets\n\n| name | unlocks | consumed in | how to add | status |\n"
+            "|---|---|---|---|---|\n| DONE_KEY | x | y | .env | done |\n" + rows +
+            "\n## Decisions\n\n| item | context | status |\n|---|---|---|\n| pick domain | launch | open |\n| pick theme | site | open |\n"
+        )
+        (repo / ".harness" / "action-items.md").write_text(items, encoding="utf-8")
+        out: str = run_hook("session-lessons.sh", repo).stdout
+        self.assertIn("dts2-harness action items (open):", out)
+        self.assertNotIn("DONE_KEY", out)
+        self.assertNotIn("| name |", out)
+        self.assertNotIn("|---", out)
+        self.assertIn("pick domain", out)
+        self.assertNotIn("pick theme", out)
+        self.assertEqual(out.count("| open |"), 5)
+
 if __name__ == "__main__":
     unittest.main()

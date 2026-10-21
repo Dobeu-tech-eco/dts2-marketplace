@@ -26,6 +26,10 @@ EXPECTED: Final[dict[str, list[str]]] = {
         "| url | role | tag | note |", "## Topology", "## Goal", "## Constraints", "## Non-goals",
         "## Acceptance criteria", "- [ ]", "## Assumptions", "## Open questions",
     ],
+    "action-items.md": [
+        "# Action items", "## Secrets", "| name | unlocks | consumed in | how to add | status |",
+        "## Decisions", "| item | context | status |",
+    ],
     "state.md": ["# Harness state", "## Decisions", "## Failures and escalations", "## Open items"],
     "pr-template.md": ["## Summary"] + RECEIPT_HEADINGS,
     "dts2-harness.local.md": [
