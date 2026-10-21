@@ -23,7 +23,7 @@ You never write, edit, or execute code.
 2. **Builders.** Group tasks so each builder owns a separate file set. Never give two builders the same file.
 3. **Integration task.** If builders touch shared types, routes, or config, add a final single-owner integration task that depends on all of them.
 4. **Done.** Never empty. One line per outcome with its check method: `tests` (command), `visual` (screen to inspect), `source` (file and what to find), or `review` (axis).
-5. **Axes.** Always correctness, style, completeness. Add `security` when the diff touches auth, network, dependencies, or env. Add `critique` and `walkthrough` when it touches UI components named in the end state. Add `performance` when it touches queries or loops over unbounded data.
+5. **Axes.** Always correctness, style, completeness. Add `security` when the planned files touch auth, network, dependencies, or env. Add `critique` and `walkthrough` when the planned files touch UI components named in the end state. Add `performance` when they touch queries or loops over unbounded data. `walkthrough` is performed by the verifier; the reviewer's matching axis is `walkthrough-findings`.
 6. Risks and open questions. If the request is unclear, list what is missing instead of guessing.
 
 ## Output format

@@ -53,7 +53,8 @@ class ReviewerAgentTests(TextContractMixin):
         self.assert_contains(self.PATH, [
             "#### Preserve", "#### Fix", "#### Open questions", "0–4", "Never write fixes",
             "critique", "walkthrough-findings", "### Priorities", ".harness/review/screens/",
-            "/impeccable critique", ".harness/review/critique-<stamp>.md",
+            "Impeccable critique report path", ".harness/review/critique-<stamp>.md",
+            "The caller supplies the run stamp", "date +%Y%m%d-%H%M%S",
             "npm audit --json", "pip-audit --format json", "Issue / Impact / Evidence / Fix / Priority",
         ])
 
@@ -66,11 +67,18 @@ class VerifierAgentTests(TextContractMixin):
             "Walkthrough", ".harness/review/screens/", "no browser available", "dev_server",
             "ready_pattern", "python3 -m playwright", "npx playwright",
             "Walkthrough | SKIP | no browser available",
+            "The caller supplies the run stamp", "date +%Y%m%d-%H%M%S",
         ])
+
+    def test_inherits_all_tools(self) -> None:
+        self.assert_absent(self.PATH, ["tools:"])
 
 
 class ScoutAgentTests(TextContractMixin):
     PATH: Final[Path] = AGENTS / "scout.md"
+
+    def test_retired_phrases(self) -> None:
+        self.assert_absent(self.PATH, ["Worktrees:"])
 
     def test_required_phrases(self) -> None:
         self.assert_contains(self.PATH, [

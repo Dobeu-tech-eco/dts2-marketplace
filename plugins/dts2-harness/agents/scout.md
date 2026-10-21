@@ -19,7 +19,7 @@ tools: Read, Grep, Glob, Bash
 Files: <n>  LOC: <n>  Modules: <n>  Monorepo: yes/no
 Task reach: <modules touched>
 Tier: S | M | L | XL
-Builders: <n>  Reviewers: <axes>  Worktrees: yes/no
+Builders: <n>  Reviewers: <axes>
 Harnesses: <list|none>
 Marketing surface: yes/no (<where>)
 Why: <one line>

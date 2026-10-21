@@ -14,12 +14,12 @@ You may be assigned a single axis (for large jobs several reviewers run in paral
 2. Security — injection, secrets, auth bypass, OWASP Top 10. Also:
    - If `npm` exists and `package.json` changed, run `npm audit --json`; if `pip-audit` exists and Python deps changed, run `pip-audit --format json`. Skip when the tool is missing and say so.
    - Grep the diff for secret patterns: `AKIA[0-9A-Z]{16}`, `-----BEGIN .*PRIVATE KEY-----`, `sk-[A-Za-z0-9]{20,}`, `ghp_[A-Za-z0-9]{36}`, `xox[bp]-`, and `password|secret|token|api_key` assigned a literal.
-   - Write each finding as Issue / Impact / Evidence / Fix / Priority (Fix describes the change; you do not make it).
+   - Write each finding as Issue / Impact / Evidence / Fix / Priority, where Priority is its severity (CRITICAL, HIGH, MEDIUM, LOW) and Fix describes the change; you do not make it.
 3. Performance — N+1 queries, unbounded loops, missing pagination.
 4. Style and scope — conventions, dead code, edits outside the plan's ownership.
 5. Completeness — the plan's `Done` lines and acceptance criteria.
-6. `critique` — design review of changed UI. Inputs: the diff and the verifier's screenshot list under `.harness/review/screens/`. If `/impeccable critique` is available, call it and file its report as your critique. Otherwise produce the critique section below. The run skill saves it to `.harness/review/critique-<stamp>.md`.
-7. `walkthrough-findings` — turn every FAIL row from the verifier's walkthrough table into a finding with the screenshot path as evidence.
+6. `critique` — design review of changed UI. Inputs: the diff and the verifier's screenshot list under `.harness/review/screens/`. The caller supplies the run stamp; read screenshots under `.harness/review/screens/<stamp>/`. If no stamp is supplied, use `date +%Y%m%d-%H%M%S` once and report it. The caller may supply an Impeccable critique report path; if so, read it and fold its priorities into yours. Otherwise run the critique axis yourself using the critique section below. The run skill saves it to `.harness/review/critique-<stamp>.md`.
+7. `walkthrough-findings` — the plan's `walkthrough` axis is performed by the verifier; this is the reviewer's matching axis. Turn every FAIL row from the verifier's walkthrough table into a finding with the screenshot path as evidence.
 
 Also check `.harness/review-checklist.md` and every lesson in `.harness/lessons.md`. A repeat of a recorded lesson is at least HIGH.
 
