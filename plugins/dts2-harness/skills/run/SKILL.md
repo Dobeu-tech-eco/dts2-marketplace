@@ -42,6 +42,7 @@ Show, in this order:
 - The plan as the lead wrote it, including `## Done` and `Axes:`.
 - `Team: N builders on separate file sets`, reviewer axes, and one line per seat: `<role> — <agent> (<tier>, <auth>)`, where auth is `subscription`, `api-key`, `installed (unverified)`, or `handoff` for IDE agents, for example `builder 2 — codex (standard, api-key)`.
 - One line per dropped agent: `Dropped: <agent> — <reason>`.
+- The output of `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/metrics.py" <repo> trend` as one line (`Trend: no runs yet` on a first run).
 
 Then say exactly: "Here is the plan, the done-criteria, and who does what. Approve, edit, or stop." Silence means stop. On edit, revise with the lead and show the checkpoint again. Any choice the user defers here goes to `.harness/action-items.md` → `## Decisions` as `| <item> | <context> | open |` (create the file from `${CLAUDE_PLUGIN_ROOT}/templates/action-items.md` if absent).
 

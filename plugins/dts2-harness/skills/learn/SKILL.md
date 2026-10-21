@@ -24,8 +24,16 @@ Lessons live in the repo, so they travel with the code and every agent and machi
 5. Show the diff of `lessons.md` and wait for approval before writing (interactive use). In auto mode, skip the wait; see Auto mode.
 6. After writing, clear the processed entries from the inbox.
 
+## Harness lessons
+A candidate whose text starts with `harness:` is about the plugin, not the repo. Do not put it in `lessons.md`. Write it, with the same one-line format and `[H-NNN]` ids, to `.harness/harness-lessons.md` (create it from `${CLAUDE_PLUGIN_ROOT}/templates/harness-lessons.md` if absent). `evolve` reads that file and offers each line as a plugin change. These writes follow the same approval rule as step 5.
+
+## Run metrics
+After writing lessons in Auto mode, append one line for the run to `.harness/metrics.jsonl`:
+`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/metrics.py" <repo> append --stamp <run stamp> --rounds <N> --duration <seconds> --verdict <VERIFIED|...> --agents <a,b> --failures <category=n,...>`
+Take rounds, agents, and failure categories from the run's reviewer and verifier files. The plan checkpoint prints the Trend line from this file.
+
 ## Auto mode
-When `run` invokes this skill after a ship (it does so unless `auto_learn` is `false` in `.claude/dts2-harness.local.md`), skip the approval wait in step 5, write `lessons.md`; do **not** write promotions. List each promotion offer in the returned summary and add a row `| promote L-NNN to <target> | seen twice | open |` to `.harness/action-items.md` → `## Decisions`. Clear the processed inbox entries, and return the `lessons.md` diff for the ship summary. Interactive use keeps the approval wait.
+When `run` invokes this skill after a ship (it does so unless `auto_learn` is `false` in `.claude/dts2-harness.local.md`), skip the approval wait in step 5, write `lessons.md`; do **not** write promotions. List each promotion offer in the returned summary and add a row `| promote L-NNN to <target> | seen twice | open |` to `.harness/action-items.md` → `## Decisions`. Append the run's metrics (see Run metrics). Clear the processed inbox entries, and return the `lessons.md` diff for the ship summary. Interactive use keeps the approval wait.
 
 ## Optional: promote across repos
 If the same lesson appears in two or more repos of a workspace, offer to add it to the workspace manifest under `shared_lessons:` so `run` applies it everywhere.
