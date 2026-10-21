@@ -8,7 +8,7 @@ lessons_max: 10
 auto_scale: true
 max_builders: 6
 max_reviewers: 4
-use_worktrees: auto        # auto | always | never
+use_worktrees: auto        # auto = one worktree per builder in a git repo (scratch dir per builder without git) | always | never
 # Headless runner (sdk skill)
 second_opinion: none       # none | codex | gemini
 # Machine prep

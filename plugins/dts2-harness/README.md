@@ -54,6 +54,7 @@ Restart Claude Code, then run `/dts2-harness:onboard`.
 
 ## Changelog
 
+- 3.1.0 — Rules 9 (orchestration) and 10 (branches, worktrees, PRs) in discipline.md; worktree per builder by default in git repos; `run review-pr <n>`.
 - 3.0.2 — Gemini is reached through the Antigravity `agy` CLI; roster finds agent CLIs that are off PATH via per-profile `searchPaths` and a `DTS2_BIN_<NAME>` override.
 
 - 3.0.1 — learn skill description no longer contains angle brackets (claude.ai plugin upload rejected it).

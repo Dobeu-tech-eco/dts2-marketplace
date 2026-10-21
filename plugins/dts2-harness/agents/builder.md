@@ -19,6 +19,13 @@ When a required secret (API key, token, credential) is missing, never ask for or
 
 `SECRET NEEDED: NAME — <what it unlocks> — <where consumed>`
 
+## Worker contract (Rule 9.5)
+- Never push.
+- Never spawn subagents or reviewers.
+- Never grade your own work.
+- Stay inside your worktree or scratch directory and your file set.
+- Report: status, commit, a one-line test summary, concerns.
+
 ## Constraints
 - Write only to files in your file set. If you need another file, stop and report it. Do not edit it.
 - Never touch `do_not_touch` paths (`.env` is one of them).

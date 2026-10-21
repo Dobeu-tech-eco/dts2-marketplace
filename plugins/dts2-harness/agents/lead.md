@@ -42,6 +42,7 @@ complexity: <mechanical|normal|design>
 - T3 ...
 ### Handoff briefs
 - <agent>: <what to do, files, done when> (or none)
+  Rules: follow .harness/discipline.md (Rules 8–10)
 ## Done
 - <outcome> — check: tests `<command>` | visual <screen> | source <file: what> | review <axis>
 Axes: <comma-separated>; reviewer skills: <skills or none>
@@ -53,5 +54,6 @@ Axes: <comma-separated>; reviewer skills: <skills or none>
 
 ## Constraints
 - One writer per file across the whole plan.
+- Every builder line names its model tier via `complexity:`; never leave it blank (Rule 9.2).
 - Never assign paths listed in `do_not_touch` or folders of a coexisting harness.
 - Prefer fewer builders when file overlap is unavoidable. Correctness beats parallelism.

@@ -20,6 +20,7 @@ If the request is `run add secret NAME`, skip to **Add secret mode**.
 5. **Settings.** Read `.claude/dts2-harness.local.md`: `auto_scale` (default true), `max_builders` (6), `max_reviewers` (4), `second_opinion` (none), `auto_learn` (true).
 6. **Roster.** `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/roster.py" resolve --config .harness/config.yaml`. On error, show it and stop. Keep the JSON.
 7. **Clean tree.** `git status --porcelain` in every repo involved. If dirty, ask once: stash and restore after, build on top, or stop. Record `git rev-parse HEAD` per repo as the rollback point.
+   **Run branch.** In each git repo, take the run stamp (`date +%Y%m%d-%H%M%S`), create `dts2/<stamp>` from the current branch with `git switch -c dts2/<stamp>`, and record the stamp and branch in `.harness/runs/<stamp>/state.md`. Reuse that stamp for the rest of the run. Non-git folders have no run branch.
 8. If the task is under 10 words or vague, ask one clarifying question.
 9. Production deploys, data deletion, auth, or payments → confirm before anything else.
 
@@ -51,13 +52,13 @@ Show, in this order:
 Then say exactly: "Here is the plan, the done-criteria, and who does what. Approve, edit, or stop." Silence means stop. On edit, revise with the lead and show the checkpoint again. Any choice the user defers here goes to `.harness/action-items.md` → `## Decisions` as `| <item> | <context> | open | | <YYYY-MM-DD> |` (create the file from `${CLAUDE_PLUGIN_ROOT}/templates/action-items.md` if absent).
 
 ## Phase 2 — Build (parallel builders)
-1. Builders = min(builder sections in the plan, scout's builder count, `max_builders`). In single mode every builder works in the same tree on its own file set. In workspace mode, or when the user opted in, follow **Workspace or opted-in isolation** below.
-2. Model per builder from its `complexity`: `mechanical` → `economy`, `normal` → `standard`, `design` → `frontier`. A Claude builder is an Agent dispatch with that `model`. A live non-Claude builder runs through Bash as its profile `command` with the brief as the prompt, passing the resolved model when its CLI accepts one.
+1. Builders = min(builder sections in the plan, scout's builder count, `max_builders`). Each builder works on its own file set in the isolation that **Isolation (Rule 10)** below sets.
+2. Every dispatch names a model (Rule 9.2). Model per builder from its `complexity`: `mechanical` → `economy`, `normal` → `standard`, `design` → `frontier`. A Claude builder is an Agent dispatch with that `model`. A live non-Claude builder runs through Bash as its profile `command` with the brief as the prompt, passing the resolved model when its CLI accepts one.
 3. Dispatch every independent builder in one message so they run at once. Dependent builders start only after their dependencies report done.
 4. **Handoff agents** (in the roster's `handoff` list): write `.harness/handoff/<agent>/<n>.md` (the builder's tasks, files, done-when) and the agent's rules file from its profile `rulesFile`, then pause that builder until the user says done. Record it with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/action-items.py" <repo> add Handoff ".harness/handoff/<agent>/<n>.md builder <n>"` and `… assign <id> <agent>`; mark it `done` when the user reports done.
 5. A builder that asks for a file outside its file set: pause that builder and ask the user.
 6. A builder that reports `SECRET NEEDED`: handle it as in **Secrets** below; the others keep going.
-7. A builder failing 3 times on the same error: stop it, escalate with what failed, and record it in `.harness/state.md` under `## Failures and escalations`. Never retry blindly.
+7. A builder failing on the same error: rounds 1–2 resume the same builder; round 3 goes to a fresh builder one tier up (`economy→standard→frontier`); after round 3 stop it, escalate with what failed, and record it in `.harness/state.md` under `## Failures and escalations`. Three materially identical failures mean change the approach, not retry blindly.
 8. Run the integration task, if any, last. Show `git diff --stat` per repo.
 
 ### Secrets
@@ -68,7 +69,7 @@ A secret's value never passes through the chat, a prompt, or an agent's context.
 The run continues either way. Open secrets appear in the receipt under *Steps outside this change*, and they never block the commit or the PR.
 
 ## Phase 3 — Review and verify
-Take the run stamp once: `date +%Y%m%d-%H%M%S`. Pass it to every reviewer and verifier.
+Use the run stamp taken in preflight. Pass it to every reviewer and verifier.
 1. **Verifier walkthrough first**, when `Axes:` include `walkthrough`: dispatch `dts2-harness:verifier` (`model: opus`, one per repo touched) with the plan, the stamp, and the repo. Wait for its table; the reviewers need its screenshots and FAIL rows. Without the walkthrough axis, dispatch the verifier together with the reviewers in step 3.
 2. **Critique report**, when `Axes:` include `critique`: if `/impeccable` is available, run `/impeccable critique` on the changed screens and save its report to `.harness/review/critique-<stamp>.md`. Otherwise the critique reviewer writes it, and you save its `### Critique` section to that same path.
 3. Then dispatch the reviewers in parallel, in one message: one `dts2-harness:reviewer` per axis (tier S: one reviewer on all axes), capped at `max_reviewers`, each on its assigned agent at `standard`. Give each the diff, the plan, the stamp, and the critique report path when there is one. For `walkthrough-findings`, include the verifier's table.
@@ -97,9 +98,9 @@ The builder that owns the files applies the resulting fix list inside its file s
 1. Merge findings, dedupe by file:line, keep the highest severity.
 2. Build the receipt from `${CLAUDE_PLUGIN_ROOT}/templates/receipt.md` and save it to `.harness/runs/<stamp>/receipt.md`: tests run with pass/fail/skip counts from the verifier, review verdict, approver (left as the template placeholder until ship), steps outside this change (open secrets and decisions from `.harness/action-items.md`, handoff work), open risks, rollback point (the SHA recorded in preflight).
 3. Show the receipt, findings by severity, the verifier verdict, and lesson candidates. Then say exactly: "Here is the receipt. Ship, fix the blocking items and re-check, or stop and revert."
-- **Fix**: send only the CRITICAL and HIGH findings to the builders that own those files, then rerun Phase 3. Cap at 3 rounds. After 3, stop and escalate with what failed; record it in `.harness/state.md`.
+- **Fix**: send only the CRITICAL and HIGH findings to the builders that own those files, then rerun Phase 3. Cap at 3 rounds. After 3, stop and escalate with what failed; record it in `.harness/state.md`. Rounds 1–2 resume the same builder; round 3 goes to a fresh builder one tier up (`economy→standard→frontier`).
 - **Ship**: fill the receipt's `### Approved by` line with `$(git config user.name), $(date +%Y-%m-%d)` (ISO date), replacing the template placeholder; never create a PR from a receipt that still has it. Then do **After ship** below, then propose one commit message per repo and commit only on an explicit yes. Never push. When the user pushes and asks for a PR, create it with `gh pr create --body-file .harness/runs/<stamp>/receipt.md`; open secrets do not block it.
-- **Stop and revert**: revert the run's changes the way the user picks, restore any stash.
+- **Stop and revert**: revert the run's changes the way the user picks, restore any stash, and clean up the run's builder checkouts as **Isolation (Rule 10)** says.
 
 Verifier BLOCKED means not done, unless the user explicitly overrides; the reason then goes in the commit message and `.harness/state.md`.
 
@@ -150,13 +151,20 @@ Check  — verifier VERIFIED, 1 HIGH finding, finish pass done
 Ship   — waiting at the ship checkpoint
 ```
 
-## Workspace or opted-in isolation
-Applies when the mode is `workspace`, or when `.claude/dts2-harness.local.md` sets `use_worktrees: always`. In single mode `use_worktrees` defaults to `never` (`auto` also means never there); builders share the tree on separate file sets.
-- Workspace: builders are grouped per repo; contract owners build before consumers, following the manifest's `release_order`.
-- Worktrees: for each builder run `git worktree add ../<repo>-dts2-<n> -b dts2/<n>` and give that builder only its worktree. Never when `use_worktrees: never`.
-- Merge each builder's branch back into the working branch in plan order once it is done. A merge conflict stops the run and goes to the user.
-- Handoff lanes in a workspace use `.harness/handoff/<agent>/<n>.md` inside the owning repo.
-- On stop and revert, remove the dts2 worktrees and branches after reverting.
+## Isolation (Rule 10)
+Setting: `use_worktrees` in `.claude/dts2-harness.local.md` (`auto` default, `always`, `never`).
+- **Git repo, `auto` or `always`:** one worktree per builder. For builder `<n>` run `git worktree add ../<repo>-dts2-<n> -b dts2/<stamp>/b<n> dts2/<stamp>` and give that builder only its worktree. `never` is the explicit opt-out: builders share the run branch's tree on separate file sets.
+- **Not a git repo:** one scratch directory per builder, `.harness/wt/<n>/`, with a disjoint owned-file list. The lead copies results into the canonical location and keeps a diff summary in `.harness/runs/<stamp>/`.
+- **Workspace:** builders are grouped per repo; contract owners build before consumers, following the manifest's `release_order`. `always` forces worktrees in workspace mode too. Handoff lanes use `.harness/handoff/<agent>/<n>.md` inside the owning repo.
+- **Merge, after green:** when the verifier reports VERIFIED, the lead merges each builder branch into `dts2/<stamp>` in plan order, re-runs the full test suite and every configured check after each merge, and resolves conflicts itself. Then it removes each builder worktree (`git worktree remove`) and deletes its branch. A conflict the lead cannot resolve stops the run and goes to the user.
+- **Stop and revert** removes the run's worktrees and branches after reverting. Never push, never merge to the default branch.
+
+## review-pr mode
+`run review-pr <number>` reviews an existing pull request (Rule 10.6).
+1. Run the Preflight steps that apply (config, ignore guard, roster, clean tree), then `gh pr checkout <number>`. Record the base branch from `gh pr view <number> --json baseRefName`.
+2. Run only Phase 3 (walkthrough, reviewers, final review), Phase 3b, Phase 3c and the verifier, on the PR diff against its base. No plan, no builders, no commits.
+3. Show the findings by severity and the verifier verdict. Post them as a PR comment (`gh pr comment <number> --body-file <findings file>`) only on an explicit yes.
+4. Never build, commit or push on a PR this run did not open.
 
 ## Guardrails
 - Both checkpoints need a human. Headless runs stop at each and write what a human would have seen.
@@ -164,3 +172,5 @@ Applies when the mode is `workspace`, or when `.claude/dts2-harness.local.md` se
 - Never write `do_not_touch` paths. Never push, deploy, or merge to main.
 - Never ask for, print, or log a secret's value.
 - Fix rounds cap at 3; escalations go to `.harness/state.md`.
+- Every dispatch names a model (Rule 9.2).
+- Rulings go to state.md as `Ruling: <what> — <why> — <cost if wrong>`.

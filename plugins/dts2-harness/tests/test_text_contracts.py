@@ -137,7 +137,7 @@ class BuilderAgentTests(TextContractMixin):
 
 class RunSkillContracts(TextContractMixin):
     PATH: Final[Path] = PLUGIN_ROOT / "skills" / "run" / "SKILL.md"
-    ISOLATION_HEADING: Final[str] = "## Workspace or opted-in isolation"
+    ISOLATION_HEADING: Final[str] = "## Isolation (Rule 10)"
 
     def test_required_phrases(self) -> None:
         self.assert_contains(self.PATH, [
@@ -192,7 +192,7 @@ class RunSkillContracts(TextContractMixin):
 
 
 class ReleaseContract(unittest.TestCase):
-    VERSION: Final[str] = "3.0.2"
+    VERSION: Final[str] = "3.1.0"
     SKILL_COUNT: Final[int] = 9
     AGENT_COUNT: Final[int] = 6
     REPO_ROOT: Final[Path] = PLUGIN_ROOT.parent.parent
