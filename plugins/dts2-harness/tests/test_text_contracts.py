@@ -160,6 +160,19 @@ class RunSkillContracts(TextContractMixin):
     def test_retired_phrases(self) -> None:
         self.assert_absent(self.PATH, ["Gate 1", "Gate 2"])
 
+    def test_after_ship_commits_critique_report(self) -> None:
+        text: str = _read(self.PATH)
+        after: str = text[text.find("## After ship"):text.find("## Add secret mode")]
+        self.assertIn(".harness/review/critique-<stamp>.md", after)
+
+    def test_gh_secret_presence_check(self) -> None:
+        self.assert_contains(self.PATH, ["gh secret list | grep -qE '^NAME\\b'"])
+
+    def test_ship_fills_receipt_approver(self) -> None:
+        self.assert_contains(self.PATH, [
+            "### Approved by", "git config user.name", "date +%Y-%m-%d", "replacing the template placeholder",
+        ])
+
     def test_single_mode_text_has_no_worktree_or_lane(self) -> None:
         text: str = _read(self.PATH)
         cut: int = text.find(self.ISOLATION_HEADING)

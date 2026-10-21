@@ -18,7 +18,7 @@ EXPECTED: Final[dict[str, list[str]]] = {
         "Repeat mistake", "State outside the chat", "Auto-add the receipt",
         "Where it bites", "pr-receipt.sh",
     ],
-    "receipt.md": RECEIPT_HEADINGS + ["| Command | Pass | Fail | Skip |"],
+    "receipt.md": RECEIPT_HEADINGS + ["| Command | Pass | Fail | Skip |", "<git config user.name>, <YYYY-MM-DD>"],
     "end-state.md": [
         "# End state: <project>", "rounds:", "clarity:", "threshold:", "thresholdSource:",
         "status: pending approval", "continuedAnyway:", "## Related repos", "## Other harnesses",

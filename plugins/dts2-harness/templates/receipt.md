@@ -12,7 +12,7 @@
 
 ### Approved by
 
-<name, date>
+<git config user.name>, <YYYY-MM-DD> (filled at the ship checkpoint)
 
 ### Steps outside this change
 

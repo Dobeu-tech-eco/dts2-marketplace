@@ -55,7 +55,7 @@ Then say exactly: "Here is the plan, the done-criteria, and who does what. Appro
 
 ### Secrets
 A secret's value never passes through the chat, a prompt, or an agent's context. On a builder's `SECRET NEEDED: NAME — <what it unlocks> — <where consumed>` line, pause that builder only and ask once: **provide now** or **add later**.
-- **provide now**: name the variable and exactly one place to put it: a `NAME=` line in `.env`, the project's secret manager command, or `gh secret set NAME` for CI. Wait for the user to say "done". Check presence only, with `test -n "${NAME:-}"` or `grep -qE '^NAME=.+' .env`; never print a value. Present → resume the builder. Missing → say so and ask again once.
+- **provide now**: name the variable and exactly one place to put it: a `NAME=` line in `.env`, the project's secret manager command, or `gh secret set NAME` for CI. Wait for the user to say "done". Check presence only, never print a value: for `.env` or the environment, `test -n "${NAME:-}"` or `grep -qE '^NAME=.+' .env`; for GitHub Actions (`gh secret set NAME`), `gh secret list | grep -qE '^NAME\b'` (key names only). Present → resume the builder. Missing → say so and ask again once.
 - **add later**: append `| NAME | <what it unlocks> | <where consumed> | <how to add> | open |` to `.harness/action-items.md` → `## Secrets` (create from the template if absent); add `NAME=` with a one-line comment to `.env.example`; let the builder keep its not-configured path. If any wiring was left undone because the secret is missing, write the status as `open, deferred wiring` and say what was deferred in `consumed in`.
 
 The run continues either way. Open secrets appear in the receipt under *Steps outside this change*, and they never block the commit or the PR.
@@ -81,10 +81,10 @@ One round, no loop. Then dispatch the verifier (`model: opus`) to run the config
 
 ## Phase 4 — Ship checkpoint
 1. Merge findings, dedupe by file:line, keep the highest severity.
-2. Build the receipt from `${CLAUDE_PLUGIN_ROOT}/templates/receipt.md` and save it to `.harness/runs/<stamp>/receipt.md`: tests run with pass/fail/skip counts from the verifier, review verdict, approver (filled on ship), steps outside this change (open secrets and decisions from `.harness/action-items.md`, handoff work), open risks, rollback point (the SHA recorded in preflight).
+2. Build the receipt from `${CLAUDE_PLUGIN_ROOT}/templates/receipt.md` and save it to `.harness/runs/<stamp>/receipt.md`: tests run with pass/fail/skip counts from the verifier, review verdict, approver (left as the template placeholder until ship), steps outside this change (open secrets and decisions from `.harness/action-items.md`, handoff work), open risks, rollback point (the SHA recorded in preflight).
 3. Show the receipt, findings by severity, the verifier verdict, and lesson candidates. Then say exactly: "Here is the receipt. Ship, fix the blocking items and re-check, or stop and revert."
 - **Fix**: send only the CRITICAL and HIGH findings to the builders that own those files, then rerun Phase 3. Cap at 3 rounds. After 3, stop and escalate with what failed; record it in `.harness/state.md`.
-- **Ship**: do **After ship** below, then propose one commit message per repo and commit only on an explicit yes. Never push. When the user pushes and asks for a PR, create it with `gh pr create --body-file .harness/runs/<stamp>/receipt.md`; open secrets do not block it.
+- **Ship**: fill the receipt's `### Approved by` line with `$(git config user.name), $(date +%Y-%m-%d)` (ISO date), replacing the template placeholder; never create a PR from a receipt that still has it. Then do **After ship** below, then propose one commit message per repo and commit only on an explicit yes. Never push. When the user pushes and asks for a PR, create it with `gh pr create --body-file .harness/runs/<stamp>/receipt.md`; open secrets do not block it.
 - **Stop and revert**: revert the run's changes the way the user picks, restore any stash.
 
 Verifier BLOCKED means not done, unless the user explicitly overrides; the reason then goes in the commit message and `.harness/state.md`.
@@ -94,11 +94,11 @@ Do these before the commit so they land in it. Do not narrate the writes.
 1. Append the reviewers' lesson candidates to `.harness/lessons-inbox.md`. If `auto_learn` is not `false`, run the `learn` skill in its auto mode on those candidates and put the resulting `lessons.md` diff in the ship summary; no separate approval prompt.
 2. In `.harness/end-state.md`, check the acceptance boxes the plan covered and the verifier confirmed, and update each touched component's status.
 3. Append the ship decision to `.harness/state.md` → `## Decisions` as `- <date> <what shipped, receipt path>`.
-4. Include `lessons.md`, `end-state.md`, `state.md`, and `action-items.md` (if changed) in the commit.
+4. Include `lessons.md`, `end-state.md`, `state.md`, `action-items.md` (if changed), and `.harness/review/critique-<stamp>.md` (if written) in the commit.
 
 ## Add secret mode
 `run add secret NAME`:
-1. Check presence only: `test -n "${NAME:-}"` or `grep -qE '^NAME=.+' .env`; never print a value. Missing → name the one place to put it and stop.
+1. Check presence only, as in **Secrets**: `test -n "${NAME:-}"`, `grep -qE '^NAME=.+' .env`, or `gh secret list | grep -qE '^NAME\b'` for a GitHub Actions secret; never print a value. Missing → name the one place to put it and stop.
 2. Mark the `NAME` row in `.harness/action-items.md` → `## Secrets` as `done`.
 3. If the row said `deferred wiring`, run Phase 0 to After ship with the task "Wire NAME into <consumed in>" and nothing else; both checkpoints apply. Otherwise say the secret is in place and stop.
 
