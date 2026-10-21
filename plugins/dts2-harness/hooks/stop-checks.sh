@@ -5,6 +5,7 @@ source "$(dirname "$0")/lib-settings.sh"
 CHECK_TIMEOUT_S=30
 [[ "$(setting enabled true)" == "true" ]] || exit 0
 [[ "$(setting stop_checks true)" == "true" ]] || exit 0
+[[ -f ".harness/checks.sh" ]] && { timeout "$CHECK_TIMEOUT_S" bash ".harness/checks.sh" 2>&1 | tail -20 >&2 || true; }
 [[ -f "package.json" && -d "node_modules" ]] || exit 0
 command -v npx >/dev/null 2>&1 || exit 0
 if [[ -f "tsconfig.json" ]]; then

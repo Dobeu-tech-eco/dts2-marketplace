@@ -13,6 +13,10 @@ use_worktrees: auto        # auto | always | never
 second_opinion: none       # none | codex | gemini
 # Machine prep
 profile: blueprint         # file name under the plugin's profiles/ folder, or a path
+# End-state clarity gate
+end_state_threshold: 80
+# roster: see .harness/config.yaml (agent roster lives there, not here)
+# dev_server: command to start the app for walkthrough review, set in .harness/config.yaml
 ---
 
 # dts2-harness settings for this project
