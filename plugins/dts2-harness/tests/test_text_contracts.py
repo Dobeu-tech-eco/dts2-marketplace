@@ -5,6 +5,7 @@ self.assert_contains(path, phrases) / self.assert_absent(path, phrases).
 """
 from __future__ import annotations
 
+import json
 import unittest
 from pathlib import Path
 from typing import Final, Sequence
@@ -188,6 +189,30 @@ class RunSkillContracts(TextContractMixin):
         self.assertTrue(-1 < phase3 < finish, "run needs Phase 3 then Phase 3b")
         block: str = text[phase3:finish]
         self.assertLess(block.find("walkthrough"), block.find("reviewers in parallel"))
+
+
+class ReleaseContract(unittest.TestCase):
+    VERSION: Final[str] = "3.0.0"
+    SKILL_COUNT: Final[int] = 9
+    AGENT_COUNT: Final[int] = 6
+    REPO_ROOT: Final[Path] = PLUGIN_ROOT.parent.parent
+
+    def test_manifests_report_release_version(self) -> None:
+        plugin: dict = json.loads((PLUGIN_ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
+        market: dict = json.loads((self.REPO_ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))
+        self.assertEqual(plugin["version"], self.VERSION)
+        self.assertEqual([p["version"] for p in market["plugins"]], [self.VERSION])
+
+    def test_readme_credits_upstreams(self) -> None:
+        text: str = _read(self.REPO_ROOT / "README.md")
+        for needle in ("oh-my-claudecode", "Impeccable", "marketingskills", "## Acknowledgements", "What's new in 3.0.0", "Known limits"):
+            self.assertIn(needle, text)
+
+    def test_skill_and_agent_counts(self) -> None:
+        skills: list[str] = [d.name for d in (PLUGIN_ROOT / "skills").iterdir() if d.is_dir()]
+        self.assertEqual(len(skills), self.SKILL_COUNT)
+        self.assertIn("action-items", skills)
+        self.assertEqual(len(list(AGENTS.iterdir())), self.AGENT_COUNT)
 
 
 if __name__ == "__main__":

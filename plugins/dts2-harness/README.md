@@ -15,12 +15,24 @@ Second-generation Dobeu Tech Solutions agent harness. It supersedes `harness@har
 
 ## Components
 - Agents: lead, builder, reviewer, verifier, scout, auditor
-- Skills: onboard, machine-prep, setup, run, learn, sdk
+- Skills: onboard, machine-prep, setup, run, learn, evolve, gtm, sdk, action-items
 - Hooks: SessionStart (lessons), Stop (typecheck and lint)
 - Settings: `.claude/dts2-harness.local.md` (template in `templates/`)
 
 ## Settings
 Copy `templates/dts2-harness.local.md` to `<repo>/.claude/dts2-harness.local.md`. Keys: `enabled`, `stop_checks`, `lessons_inject`, `lessons_max`, `auto_scale`, `max_builders`, `max_reviewers`, `use_worktrees`, `second_opinion`, `profile`. Restart Claude Code after editing.
+
+## Known limits
+- Login state for gemini, grok, and opencode is self-reported by you; the harness cannot verify it.
+- Impeccable and marketing-skills are external plugins. The harness uses them when installed and does not bundle them.
+- Grok CLI commands are untested.
+- The Sol 6.1 roster slot is user-editable; check it matches what you run.
+
+## Acknowledgements
+dts2-harness builds on patterns from these projects. We learned from them and wrote our own implementation; no code was copied.
+- [oh-my-claudecode](https://github.com/Yeachan-Heo/oh-my-claudecode) (MIT): the deep-interview pattern behind the end-state interview.
+- [Impeccable](https://github.com/pbakaus/impeccable) (Apache-2.0): the critique and polish pattern behind the finish pass.
+- [marketingskills](https://github.com/coreyhaines31/marketingskills) (MIT): the go-to-market sequence behind `gtm`.
 
 ## Requirements
 - Claude Code with plugin support
@@ -41,5 +53,6 @@ On Claude Code 2.1.275 or later this also works in one step:
 Restart Claude Code, then run `/dts2-harness:onboard`.
 
 ## Changelog
+- 3.0.0: end-state interview, Plan and Ship checkpoints, agent roster, harness discipline, deployment verification, action items, GTM, machine-prep tiers. See the root README.
 - 2.1.0: machine-prep handles claude.ai synced plugins, org-required plugins, and project-level overrides.
 - 2.0.0: first release.
