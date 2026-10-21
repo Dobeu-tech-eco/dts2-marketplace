@@ -35,6 +35,9 @@ class TextContractMixin(unittest.TestCase):
 class LeadAgentTests(TextContractMixin):
     PATH: Final[Path] = AGENTS / "lead.md"
 
+    def test_model_and_complexity_line(self) -> None:
+        self.assert_contains(self.PATH, ["\nmodel: opus\n", "complexity: <mechanical|normal|design>"])
+
     def test_required_phrases(self) -> None:
         self.assert_contains(self.PATH, [
             "## Done", "Axes", "Skills table", "separate file sets", "### Builder 1",
@@ -49,6 +52,9 @@ class LeadAgentTests(TextContractMixin):
 class ReviewerAgentTests(TextContractMixin):
     PATH: Final[Path] = AGENTS / "reviewer.md"
 
+    def test_model_is_sonnet(self) -> None:
+        self.assert_contains(self.PATH, ["\nmodel: sonnet\n"])
+
     def test_required_phrases(self) -> None:
         self.assert_contains(self.PATH, [
             "#### Preserve", "#### Fix", "#### Open questions", "0–4", "Never write fixes",
@@ -61,6 +67,9 @@ class ReviewerAgentTests(TextContractMixin):
 
 class VerifierAgentTests(TextContractMixin):
     PATH: Final[Path] = AGENTS / "verifier.md"
+
+    def test_model_is_opus(self) -> None:
+        self.assert_contains(self.PATH, ["\nmodel: opus\n"])
 
     def test_required_phrases(self) -> None:
         self.assert_contains(self.PATH, [

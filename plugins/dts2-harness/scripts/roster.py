@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -18,6 +19,13 @@ IDE_MARKERS: Final[dict[str, str]] = {
     "antigravity": ".agents/antigravity.md",
 }
 ITEM_PREFIX: Final[str] = "- name:"
+PROBE_TIMEOUT_S: Final[int] = 10
+PROBE_PATH_ENV: Final[str] = "DTS2_PROBE_PATH"
+BUDGET_HEADER: Final[str] = "budget:"
+STATUS_PREFIX: Final[str] = "status:"
+SECOND_OPINION: Final[str] = "second-opinion"
+BUDGET_UNKNOWN: Final[str] = "unknown"
+MODEL_TIERS: Final[tuple[str, ...]] = ("frontier", "standard", "economy")
 
 
 class RosterError(Exception):
@@ -90,7 +98,94 @@ def resolve(roster: list[dict[str, Any]], profiles: dict[str, dict[str, Any]]) -
             assignments.setdefault(role, []).append(name)
     handoff: list[str] = [n for n in enabled if profiles[n]["invocation"] == "handoff"]
     live: list[str] = [n for n in enabled if profiles[n]["invocation"] == "live"]
-    return {"enabled": enabled, "assignments": assignments, "handoff": handoff, "live": live}
+    cost_order: list[str] = sorted(enabled, key=lambda n: profiles[n]["costTier"])
+    return {
+        "enabled": enabled, "assignments": assignments, "handoff": handoff,
+        "live": live, "costOrder": cost_order,
+    }
+
+
+def parse_budget(text: str) -> dict[str, str]:
+    """Minimal parser for a top-level `budget:` block of `<agent>:` / `status: <value>` pairs."""
+    budget: dict[str, str] = {}
+    in_block: bool = False
+    current: str = ""
+    for raw in text.splitlines():
+        line: str = raw.strip()
+        if not raw.startswith((" ", "\t")) and line:
+            in_block = line == BUDGET_HEADER
+            current = ""
+            continue
+        if not in_block or not line or line.startswith("#"):
+            continue
+        if line.startswith(STATUS_PREFIX) and current:
+            budget[current] = line[len(STATUS_PREFIX):].strip()
+        elif line.endswith(":"):
+            current = line[:-1].strip()
+    return budget
+
+
+def read_budget(config: Path) -> dict[str, str]:
+    if not config.exists():
+        return {}
+    return parse_budget(config.read_text(encoding="utf-8"))
+
+
+def probe_env() -> dict[str, str]:
+    override: str | None = os.environ.get(PROBE_PATH_ENV)
+    env: dict[str, str] = dict(os.environ)
+    if override is not None:
+        env["PATH"] = override
+    return env
+
+
+def availability(profile: dict[str, Any], env: dict[str, str]) -> tuple[bool, str]:
+    command: list[str] | None = profile["statusCommand"]
+    if command is None:
+        return True, "ok"
+    if shutil.which(command[0], path=env.get("PATH", "")) is None:
+        return False, "not installed"
+    try:
+        result = subprocess.run(
+            command, capture_output=True, timeout=PROBE_TIMEOUT_S, check=False, env=env,
+        )
+    except Exception:
+        return False, "status check failed"
+    return (True, "ok") if result.returncode == 0 else (False, "status check failed")
+
+
+def probe_entry(
+    entry: dict[str, Any], profile: dict[str, Any], budget: str, env: dict[str, str],
+) -> dict[str, Any]:
+    available, reason = availability(profile, env)
+    roles: list[str] = entry_roles(entry, profile)
+    if available and budget == "exhausted":
+        available, reason = False, "budget exhausted"
+    if available and budget == "low":
+        roles = [r for r in roles if r == SECOND_OPINION]
+        if not roles:
+            available, reason = False, "budget low"
+    return {
+        "available": available, "reason": reason, "budget": budget or BUDGET_UNKNOWN,
+        "costTier": profile["costTier"], "roles": roles if available else [],
+    }
+
+
+def probe(
+    roster: list[dict[str, Any]], profiles: dict[str, dict[str, Any]], budgets: dict[str, str],
+) -> dict[str, Any]:
+    env: dict[str, str] = probe_env()
+    agents: dict[str, dict[str, Any]] = {}
+    for entry in roster:
+        name: str = entry["name"]
+        if name not in profiles:
+            raise RosterError(f"unknown agent '{name}'")
+        agents[name] = probe_entry(entry, profiles[name], budgets.get(name, ""), env)
+    usable: list[str] = [n for n, a in agents.items() if a["available"]]
+    dropped: list[dict[str, str]] = [
+        {"name": n, "reason": a["reason"]} for n, a in agents.items() if not a["available"]
+    ]
+    return {"agents": agents, "usable": usable, "dropped": dropped}
 
 
 def copilot_installed() -> bool:
@@ -134,6 +229,26 @@ def run_resolve(config: Path) -> int:
     return 0
 
 
+def run_probe(config: Path) -> int:
+    try:
+        result: dict[str, Any] = probe(read_roster(config), load_profiles(), read_budget(config))
+    except RosterError as error:
+        print(f"roster error: {error}", file=sys.stderr)
+        return 1
+    print(json.dumps(result))
+    return 0
+
+
+def run_model(agent: str, tier: str) -> int:
+    profile: dict[str, Any] | None = load_profiles().get(agent)
+    if profile is None:
+        print(f"roster error: unknown agent '{agent}'", file=sys.stderr)
+        return 1
+    model: str | None = profile["models"][tier]
+    print(model if model else "null")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -141,10 +256,19 @@ def main() -> int:
     det.add_argument("--project", default=".")
     res = sub.add_parser("resolve")
     res.add_argument("--config", default=".harness/config.yaml")
+    prb = sub.add_parser("probe")
+    prb.add_argument("--config", default=".harness/config.yaml")
+    mdl = sub.add_parser("model")
+    mdl.add_argument("--agent", required=True)
+    mdl.add_argument("--tier", required=True, choices=MODEL_TIERS)
     args = parser.parse_args()
     if args.command == "detect":
         print(json.dumps(detect(Path(args.project))))
         return 0
+    if args.command == "probe":
+        return run_probe(Path(args.config))
+    if args.command == "model":
+        return run_model(args.agent, args.tier)
     return run_resolve(Path(args.config))
 
 

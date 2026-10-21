@@ -33,6 +33,7 @@ Tier: <S|M|L|XL>   Team: <n> builders on separate file sets   Lessons applied: <
 Covers: <acceptance criteria, quoted>
 
 ### Builder 1 (<agent>) — skills: <skills or none>
+complexity: <mechanical|normal|design>
 - T1 <goal> | owns: src/a.ts | depends: none | done when: <criteria>
 ### Builder 2 (<agent>) — skills: <skills or none>
 - T2 ...

@@ -10,5 +10,13 @@
     "builder"
   ],
   "specialty": "IDE-based builder that works from a handoff brief inside the editor.",
-  "verified": false
+  "verified": false,
+  "costTier": 2,
+  "statusCommand": null,
+  "models": {
+    "frontier": null,
+    "standard": null,
+    "economy": null
+  },
+  "modelsVerified": false
 }

@@ -13,5 +13,16 @@
     "builder"
   ],
   "specialty": "Provider-flexible terminal agent suited to straightforward implementation tasks.",
-  "verified": true
+  "verified": true,
+  "costTier": 1,
+  "statusCommand": [
+    "opencode",
+    "--version"
+  ],
+  "models": {
+    "frontier": null,
+    "standard": null,
+    "economy": null
+  },
+  "modelsVerified": false
 }

@@ -14,5 +14,17 @@
     "second-opinion"
   ],
   "specialty": "Strong at self-contained implementation and independent second-opinion review.",
-  "verified": true
+  "verified": true,
+  "costTier": 2,
+  "statusCommand": [
+    "codex",
+    "login",
+    "status"
+  ],
+  "models": {
+    "frontier": "gpt-5-codex",
+    "standard": "gpt-5-codex",
+    "economy": "gpt-5-mini"
+  },
+  "modelsVerified": false
 }

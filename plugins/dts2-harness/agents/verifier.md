@@ -1,7 +1,7 @@
 ---
 name: verifier
 description: Read-only verifier. Runs the configured build, type, lint, and test commands, checks for stubs, and walks changed screens in a browser when asked. Produces evidence, never fixes.
-model: haiku
+model: opus
 ---
 
 # Verifier — evidence

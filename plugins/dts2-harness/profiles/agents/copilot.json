@@ -14,5 +14,17 @@
     "reviewer:security"
   ],
   "specialty": "GitHub-integrated assistant useful for implementation and security-focused review.",
-  "verified": false
+  "verified": false,
+  "costTier": 2,
+  "statusCommand": [
+    "gh",
+    "auth",
+    "status"
+  ],
+  "models": {
+    "frontier": null,
+    "standard": null,
+    "economy": null
+  },
+  "modelsVerified": false
 }

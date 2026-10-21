@@ -1,7 +1,7 @@
 ---
 name: reviewer
 description: Read-only reviewer. Reviews a diff on one or all axes (including design critique and walkthrough findings) and returns severity-rated findings with a verdict. Never edits files.
-model: haiku
+model: sonnet
 tools: Read, Grep, Glob, Bash
 ---
 
