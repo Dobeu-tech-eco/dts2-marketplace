@@ -10,6 +10,9 @@ Never edit the installed copy. `plugins/cache` and `plugins/synced` are generate
 ## `evolve deploy`
 This mode changes the current repo's deploy target, not the plugin. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/deploy-detect.py" <repo>`, ask the setup skill's Deploy target question, and rewrite the `deploy:` block in `.harness/end-state.md`. Skip sections 1–6.
 
+## Harness lessons
+When run without a specific change, read `.harness/harness-lessons.md` in the current repo (written by `learn` from `harness:` lessons). Offer each open lesson as a plugin change: quote the line, propose the edit under `plugins/dts2-harness/`, and run sections 1–6 for it. Change nothing until the user gives an explicit yes for that lesson. On an explicit yes and a finished change, mark the line `done` with the commit; on a no, mark it `dropped`.
+
 ## 1. Locate the source
 1. `git remote -v | grep dts2-marketplace` in the current directory. Match → use this checkout.
 2. Else `~/.dts2/marketplace` if it exists.
