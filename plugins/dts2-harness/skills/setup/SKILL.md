@@ -1,37 +1,155 @@
 ---
 name: setup
-description: Scaffold dts2 harness config (.harness/ and .claude/dts2-harness.local.md) in one repo, in many repos at once in parallel, or as a multi-repo workspace with a shared manifest. Use when the user asks to set up, init, or configure the harness for a repo, several repos, a folder of repos, a monorepo, or a workspace.
+description: Interviews the user to an approved end state (.harness/end-state.md), then scaffolds dts2 harness config (.harness/ and .claude/dts2-harness.local.md) in one repo, many repos in parallel, or a linked multi-repo workspace. Use when the user asks to set up, init, or configure the harness, onboard a repo, run the interview, define or revise the end state, or link repos into a workspace. `--scaffold-only` skips the interview.
 ---
 
-# Setup — one repo, many repos, or a workspace
+# Setup — interview to an end state, then scaffold
 
-## Pick the mode
-- One path or the current repo → **single**.
-- Several paths, a folder containing several git repos, or "all my repos" → **batch** (each repo gets its own config, done in parallel).
-- Repos that ship together (shared API, shared types, one release) → **workspace** (batch plus a workspace manifest).
+Setup has two parts. **Part 1** interviews the user until the end state is clear and approved. **Part 2** writes the harness files. Part 2 never starts until the user approves the end state, unless `--scaffold-only` was given.
+
+## Mode
+
+- One path or the current repo → **single**: Part 1, then Part 2.
+- Several paths, a folder of git repos, or "all my repos" → **batch**: Part 2 only, per repo, in parallel (batch is always scaffold-only; run setup in a repo later to interview it).
+- Repos that ship together (shared API, shared types, one release), or any repo tagged `linked` in the Repos round → **workspace**: one interview, then a per-repo end state, a root end state for cross-repo components, and a workspace manifest.
+- `--scaffold-only` → skip Part 1 and run Part 2 directly. Leave any existing `.harness/end-state.md` as it is.
+
 If batch vs workspace is unclear, ask once. Default to batch.
 
-## Single
-1. Confirm the repo root and that `.git` exists (warn if not).
-2. If `.harness/` exists, ask: back up to `.harness.bak-<timestamp>/` and rewrite, merge missing keys only, or abort.
+If `.harness/end-state.md` already exists, show its status and ask once: revise it (resume the interview from its contents), keep it and scaffold (only if its status is `approved`), or start over.
+
+## Part 1 — Interview
+
+Rules for the whole interview:
+- Ask **one question per message**. Plain words, no jargon, no internal names like "dimension" or "weakest".
+- Until the end state is written, the only writes are the temporary ratings file (outside the repo) and any skill installs the user says yes to.
+- Keep a running record as you go: mode (greenfield or brownfield), related repos, harness decisions, roster, components, answers, rounds, clarity.
+
+### Round 1 — Greenfield or brownfield
+
+1. Look at the repo root. **Greenfield** if there is no source code yet (empty, or only README, LICENSE, `.gitignore`, config stubs). Otherwise **brownfield**.
+2. Brownfield: dispatch the `dts2-harness:scout` agent on the repo and keep its output. You need its `Harnesses:` line, its `Marketing surface:` line, and the stack and modules it reports. Also read any existing `.harness/` files (config, lessons, state) for context.
+3. Tell the user in one line what you found, for example: `Brownfield: TypeScript monorepo, 4 packages, marketing site found.`
+
+### Round 2 — Repos
+
+Always ask this before any question about components. Ask exactly:
+
+> Paste any other repos that matter here, one per line. Say "none" if there aren't any.
+
+For each repo the user pastes, ask in one message: **what is it, and what it serves** in relation to this project. Store the answer as its `role`. Then tag it (propose a tag and let the user correct it):
+- `context` — read-only reference for conventions and contracts. The lead and builders may consult it; nothing is ever written to it.
+- `linked` — it ships with this repo and joins a multi-repo workspace. Any `linked` repo switches the mode to **workspace**. Ask for its local path (or offer to clone it next to this repo).
+
+Context repos are cloned only when someone needs to read them: `git clone --depth 1 <url> ~/.dts2/context/<owner>-<repo>`. Never clone into the project.
+
+### Round 2b — Other harnesses
+
+Skip with no message if scout reported `Harnesses: none` or the repo is greenfield.
+
+`CLAUDE.md` and `AGENTS.md` are always read and never rewritten; do not ask about them. For each other folder scout listed (`.omc`, `.flow`, `.beads`, `.conductor`, `.agent`, `.impeccable`, `.agents`), ask once:
+
+> I found `<folder>` from another tool. Should I **import** it (read its specs and plans as input to the end state, leaving it untouched), **coexist** with it (leave it alone; agents may read it, never write to it), or **retire** it (import it, then move it to `.harness.bak-<stamp>/<folder>` because you no longer use that tool)? If you're not sure, I'll coexist.
+
+- No answer or an unclear answer → `coexist`.
+- `import` → read its specs, plans and state now and use them to pre-fill components and answers (an `.omc/specs/deep-interview-*.md` maps almost field for field; `.flow/` plans map to components). Tell the user what you took from it.
+- `retire` → treat as import now; the move happens in Part 2, after approval.
+
+Record each folder and decision for the end state's Other harnesses table.
+
+### Round 2c — Agents
+
+Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/roster.py" detect --project <repo>`.
+
+- `claudeOnly: true` → the roster is `[claude]`. Say one line and ask nothing: `Agents: only Claude is installed, so Claude fills every role.`
+- Otherwise → propose a roster from `installed`, giving each agent the default `roles` from its profile in `${CLAUDE_PLUGIN_ROOT}/profiles/agents/<name>.json`. Show it as a short list (`claude: lead, verifier, builder, reviewer`, `codex: builder, second-opinion`) and ask once: use this roster, or change it? Claude must stay in the roster as lead.
+
+Record the chosen roster for Part 2.
+
+### Round 3 — Topology
+
+1. If you don't yet know what the user is building or changing, ask: `In a sentence or two, what are you building or changing?`
+2. Propose 1 to 6 top-level components (from scout's modules, imported specs, and the answer above). One line each: name and what it does.
+3. Ask the user to confirm, merge, split, or defer any of them. Deferred components go to Non-goals.
+4. When the user confirms, say `Components locked.` and list them. After this, add or remove a component only if the user asks.
+
+### Round 4 — Question loop
+
+Read the threshold from `end_state_threshold` in `.claude/dts2-harness.local.md`. If the file or key is missing, use 80 and record `thresholdSource: default`; otherwise record `thresholdSource: local`.
+
+Each round:
+1. Rate every component from 0 to 100 on each dimension, using only what the user has said and what you have read. Do not inflate. Guide: 0 nothing known, 50 stated but vague, 80 specific and checkable, 100 nothing left to ask.
+   - `goal` — what it must do.
+   - `constraints` — limits it must respect (stack, performance, security, budget, deadlines, must-not-change).
+   - `success` — how we'll know it works (acceptance criteria someone can check).
+   - `context` (brownfield only) — how it fits the existing code.
+2. Write the ratings to a temp file outside the repo (`mktemp`), shaped as
+   `{"mode":"greenfield|brownfield","components":[{"name":"...","goal":0,"constraints":0,"success":0,"context":0}]}`,
+   and run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/clarity-score.py" <file>`. It returns `clarity`, `weakest.component`, `weakest.dimension`.
+3. Start your message with `Clarity: NN%` (the returned `clarity`).
+4. If `clarity` is at or above the threshold, stop the loop.
+5. Otherwise ask **one** question aimed at `weakest.component` and `weakest.dimension`. Name the component, ask in plain words, and offer two or three example answers when that helps. For example, for success on "billing": `Billing — how will we know it works? For example: "an invoice PDF matches the order total", or "a failed card retries 3 times then emails the customer".`
+6. Fold the answer into your record and start the next round.
+
+Ways out of the loop:
+- The clarity reaches the threshold.
+- The user replies with the literal text `Continue anyway`. Nothing else counts; if they say something similar, tell them that typing `Continue anyway` ends the interview below the threshold. Record `continuedAnyway: yes (at NN%)`.
+- 20 rounds. Stop, say so, and list what is still unclear under Open questions.
+
+### Round 4b — Skills
+
+Runs after the loop and before Round 5, when every component and its acceptance criteria are known. Search; do not install anything yet.
+
+1. Search per component, first option that works:
+   - the `find-skills` skill, if present, in search mode;
+   - else `npx skills find <component>`;
+   - else say `No skill search available; skipping skills.` and go to Round 5.
+2. Show at most 3 skills per component, each with its source and a one-line reason.
+3. Ask once which to install **for this project only**. On yes, install into project scope only: `.claude/skills/` or `enabledPlugins` in the project's `.claude/settings.json`. Never install into the user's home folder.
+4. Build the **skill plan**: one row per proposed skill, installed or not, with the columns `skill | source | installed | serves component | phase | order`. Phase is `plan`, `build`, `review` or `verify`. Order is the order a builder uses them within that component. Declined skills stay in the table with `installed: no`.
+
+### Round 5 — Write the end state and ask for approval
+
+1. Copy `${CLAUDE_PLUGIN_ROOT}/templates/end-state.md` to `.harness/end-state.md` and fill it:
+   - metadata: `rounds`, `clarity`, `threshold`, `thresholdSource`, `roster`, `status: pending approval`, `continuedAnyway` (`no`, or `yes (at NN%)`);
+   - Related repos (url, role, tag, note), Other harnesses (folder, decision), Skills (the skill plan table), Topology, Goal, Constraints, Non-goals, Acceptance criteria per component as `- [ ]` items, Assumptions, Open questions.
+2. Show a short summary (components, clarity, open questions) and the file path, then ask: `Approve this end state? Reply "approve", or tell me what to change.`
+3. On changes, edit the file and ask again. On approval, set `status: approved` and go to Part 2.
+
+## Part 2 — Scaffold
+
+Gate: `.harness/end-state.md` has `status: approved`, or the user passed `--scaffold-only`.
+
+### Single
+1. Confirm the repo root and that `.git` exists (warn if not). With `--scaffold-only`, dispatch `dts2-harness:scout` now for its `Harnesses:` and `Marketing surface:` lines; every harness it finds is treated as `coexist`.
+2. If `.harness/config.yaml` exists, ask: back up `.harness/` to `.harness.bak-<timestamp>/` and rewrite, merge missing keys only, or abort. (`end-state.md` is never overwritten here.)
 3. Detect the stack from root files (`package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `Gemfile`, `composer.json`, workspace markers such as `pnpm-workspace.yaml`, `turbo.json`, `nx.json`, `go.work`).
 4. Write:
-   - `.harness/config.yaml` — `project`, `commands` (`test`, `typecheck`, `lint`, `build`, `quick`) taken from real scripts only, `paths` (src, tests, docs, config, generated), `do_not_touch` (`.env`, `.env.*`, `secrets/**`, `**/credentials*`). For a monorepo add `packages:` with each package path and its own commands.
+   - `.harness/config.yaml` — `project`, `commands` (`test`, `typecheck`, `lint`, `build`, `quick`) taken from real scripts only, `paths` (src, tests, docs, config, generated), `do_not_touch` (`.env`, `.env.*`, `secrets/**`, `**/credentials*`), and a `roster:` block from the Agents round (default `- name: claude`; with `--scaffold-only`, run `roster.py detect` and use the default unless other agents are installed, then ask once). For a monorepo add `packages:` with each package path and its own commands.
    - `.harness/review-checklist.md` — correctness, types, tests, security, conventions, scope, tuned to the stack.
    - `.harness/lessons.md` — header only: `# Lessons` and one line explaining the format `- [L-001] <rule> (source: <run or PR>)`.
-   - `.claude/dts2-harness.local.md` — copy `${CLAUDE_PLUGIN_ROOT}/templates/dts2-harness.local.md`.
-5. Append idempotently to `.gitignore`: `.harness/runs/`, `.harness/lessons-inbox.md`, `.harness.bak-*/`, `.claude/*.local.md`. Commit `config.yaml`, `review-checklist.md`, and `lessons.md`.
-6. Show detected commands once and let the user correct them.
+   - `.harness/discipline.md` — copy `${CLAUDE_PLUGIN_ROOT}/templates/discipline.md`.
+   - `.harness/state.md` — copy `${CLAUDE_PLUGIN_ROOT}/templates/state.md` if absent. Append each harness decision from Round 2b as `- <date> <folder>: <decision>`.
+   - `.claude/dts2-harness.local.md` — copy `${CLAUDE_PLUGIN_ROOT}/templates/dts2-harness.local.md`; set `end_state_threshold` if the user chose another value.
+   - `.agents/product-marketing-context.md` — a stub with headings (product, audience, positioning, pricing, voice), **only** if scout reported `Marketing surface: yes` and the file does not exist.
+5. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/roster.py" resolve --config .harness/config.yaml`. If it errors, show the error and fix the roster with the user.
+6. If the Impeccable skill is installed and scout reported a marketing surface or the stack has a UI (a frontend framework, HTML templates, or app screens), run `/impeccable init`.
+7. For each harness the user chose to retire: move it to `.harness.bak-<stamp>/<folder>`. Leave `coexist` folders untouched.
+8. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/ensure-ignored.py" <repo>` to add the harness's ignore entries to `.gitignore`.
+9. Show the detected commands once and let the user correct them. Tell the user `config.yaml`, `review-checklist.md`, `lessons.md`, `discipline.md`, `state.md` and `end-state.md` are meant to be committed.
 
-## Batch (parallel)
+### Batch (parallel, scaffold-only)
 1. Resolve the repo list. For a folder, list its immediate children that contain `.git`.
 2. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/repo-size.py" --json <repo...>` to show size and tier per repo.
-3. Dispatch one general-purpose subagent per repo in a single message (cap at 8 per wave; run more waves if needed). Each gets the Single steps above and its repo path. Each writes only inside its own repo.
+3. Dispatch one general-purpose subagent per repo in a single message (cap at 8 per wave; run more waves if needed). Each gets the Single steps above with `--scaffold-only` and its repo path, and writes only inside its own repo.
 4. Collect results into one table: repo, stack, commands found, commands missing, warnings.
 5. Ask the user to fix missing commands in one pass at the end, not per repo.
 
-## Workspace
-Do Batch, then write a manifest in the parent folder the user picks:
+### Workspace
+One interview covers the whole workspace. In Round 3, mark each component with the repo that owns it, or `cross-repo` when it spans repos.
+1. Write each repo's `.harness/end-state.md` with only its own components, and a root `end-state.md` next to the manifest with the cross-repo components and the contracts between repos. All of them go through the same approval.
+2. Scaffold each repo as in Batch.
+3. Write the manifest in the parent folder the user picks, using each repo's `role` from the Repos round:
 `.harness-workspace.yaml`
 ```yaml
 workspace: <name>
@@ -47,9 +165,12 @@ contracts:            # shared surfaces a change must keep in sync
     consumers: [web]
 release_order: [api, web]
 ```
-The `run` skill reads this to plan cross-repo tasks: one lane per repo, contract owners first, consumers after.
+The `run` skill reads this to plan cross-repo tasks: contract owners first, consumers after.
 
 ## Guardrails
+- Never scaffold before the end state is approved, unless `--scaffold-only` was given.
 - Never overwrite existing config without the user's choice.
 - Never guess commands. Leave them empty and say so.
+- Never write into a context repo, a `coexist` harness folder, `CLAUDE.md` or `AGENTS.md`.
+- Never install skills outside project scope.
 - Never commit or push.

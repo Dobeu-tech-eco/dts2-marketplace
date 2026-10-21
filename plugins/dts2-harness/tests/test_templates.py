@@ -22,12 +22,15 @@ EXPECTED: Final[dict[str, list[str]]] = {
     "end-state.md": [
         "# End state: <project>", "rounds:", "clarity:", "threshold:", "thresholdSource:",
         "status: pending approval", "continuedAnyway:", "## Related repos", "## Other harnesses",
-        "## Skills", "## Topology", "## Goal", "## Constraints", "## Non-goals",
+        "## Skills", "| skill | source | installed | serves component | phase | order |",
+        "| url | role | tag | note |", "## Topology", "## Goal", "## Constraints", "## Non-goals",
         "## Acceptance criteria", "- [ ]", "## Assumptions", "## Open questions",
     ],
     "state.md": ["# Harness state", "## Decisions", "## Failures and escalations", "## Open items"],
     "pr-template.md": ["## Summary"] + RECEIPT_HEADINGS,
-    "dts2-harness.local.md": ["end_state_threshold: 80", "config.yaml", "dev_server:"],
+    "dts2-harness.local.md": [
+        "end_state_threshold: 80", "config.yaml", "dev_server:", "# Learning", "auto_learn: true",
+    ],
 }
 
 

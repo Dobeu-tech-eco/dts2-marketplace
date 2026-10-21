@@ -87,5 +87,30 @@ class ScoutAgentTests(TextContractMixin):
         ])
 
 
+class SetupSkillContracts(TextContractMixin):
+    PATH: Final[Path] = PLUGIN_ROOT / "skills" / "setup" / "SKILL.md"
+
+    def test_required_phrases(self) -> None:
+        self.assert_contains(self.PATH, [
+            "Paste any other repos", "what it serves", "context", "linked", "roster.py detect",
+            "only Claude", "Continue anyway", "Clarity:", "end_state_threshold", "import",
+            "coexist", "retire", "find-skills", "skill plan", "impeccable init",
+            "serves component", "--scaffold-only", "pending approval",
+        ])
+
+    def test_retired_phrases(self) -> None:
+        self.assert_absent(self.PATH, ["worktree"])
+
+    def test_round_order(self) -> None:
+        text: str = _read(self.PATH)
+        markers: list[str] = [
+            "Round 1", "Round 2 ", "Round 2b", "Round 2c", "Round 3", "Round 4 ", "Round 4b",
+            "Round 5", "## Part 2",
+        ]
+        positions: list[int] = [text.find(m) for m in markers]
+        self.assertNotIn(-1, positions, "setup is missing a round heading")
+        self.assertEqual(positions, sorted(positions), "setup rounds are out of order")
+
+
 if __name__ == "__main__":
     unittest.main()
