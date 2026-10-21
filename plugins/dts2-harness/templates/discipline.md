@@ -32,6 +32,7 @@ Applies to every agent provider the roster can dispatch; the lead is always the 
 7. **Rulings are written down.** Every decision the lead makes without the user goes to `.harness/state.md` → `## Decisions` as `Ruling: <what> — <why> — <cost if wrong>`. After a context reset the lead trusts `state.md` and `git log`, never memory, and never re-dispatches a builder whose section is marked done.
 8. **Hard stops.** The lead asks before: pushing, merging to the default branch, publishing, deploying, purchasing, deleting data or branches, touching credentials, or when the plan is broken enough that every path is a guess. Everything else it rules on and continues.
 9. **Scope before spend.** A run checks its scope first (workspace root, member repo, single, none) and pivots to the workspace root when it is inside a member repo. A context spike before the plan checkpoint is a stop signal: stop every agent, write state, re-run setup, resume. Never push through it.
+10. **Never idle, never collide.** While any ready section with a non-overlapping file set exists, a builder is working on it. A stalled builder is parked with an action item and the next ready section is dispatched in the same step; the run ends only when nothing is ready or at a checkpoint. Two writers never share a file, even to stay busy.
 
 ## Rule 10 — Branches, worktrees and pull requests
 

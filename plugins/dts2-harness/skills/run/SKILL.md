@@ -18,7 +18,7 @@ If the request is `run add secret NAME`, skip to **Add secret mode**.
 3. **Ignore guard.** For each repo involved: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/ensure-ignored.py" <repo>`.
 4. **End state.** If `.harness/config.yaml` exists and `.harness/end-state.md` does not, print exactly `No end state yet; /dts2-harness:setup interviews to one.` and continue.
    **Planned deploy.** If `.harness/end-state.md` has `deploy.status: planned`, say `Production target is planned but not built yet; building it first.` and run this pipeline on the task `Build the production target: <deploy.plan>` (both checkpoints apply). Then ask once: `Continue with your task now? (y/n)`
-5. **Settings.** Read `.claude/dts2-harness.local.md`: `auto_scale` (default true), `max_builders` (6), `max_reviewers` (4), `second_opinion` (none), `auto_learn` (true).
+5. **Settings.** Read `.claude/dts2-harness.local.md`: `auto_scale` (default true), `max_builders` (6), `max_reviewers` (4), `second_opinion` (none), `auto_learn` (true), `continuous_dispatch` (true), `builder_timeout_min` (20).
 6. **Roster.** `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/roster.py" resolve --config .harness/config.yaml`. On error, show it and stop. Keep the JSON.
 7. **Clean tree.** `git status --porcelain` in every repo involved. If dirty, ask once: stash and restore after, build on top, or stop. Record `git rev-parse HEAD` per repo as the rollback point.
    **Run branch.** In each git repo, take the run stamp (`date +%Y%m%d-%H%M%S`), create `dts2/<stamp>` from the current branch with `git switch -c dts2/<stamp>`, and record the stamp and branch in `.harness/runs/<stamp>/state.md`. Reuse that stamp for the rest of the run. Non-git folders have no run branch.
@@ -39,6 +39,7 @@ If the request is `run add secret NAME`, skip to **Add secret mode**.
 Dispatch `dts2-harness:lead` with `model` = claude `frontier` (`opus`). Give it: the task verbatim, `.harness/config.yaml`, `.harness/end-state.md`, `.harness/discipline.md`, `.harness/lessons.md`, the scout report, the roster JSON, the probe JSON, and the workspace manifest if present. Tell it:
 - Assign only agents in the probe's `usable` list, by `costTier`: the cheapest available agent whose roles include the seat for builders rated `complexity: mechanical` and for axis reviews; the strongest for the plan, the verifier, and the final review.
 - Rate every `### Builder N` with `complexity: mechanical|normal|design`.
+- Plan from the `## Sections` table and end the plan with `## Ready queue` for sections that are ready but beyond the builder cap.
 
 **Plan checkpoint.** It will not open without the lead's `## Done` section with at least one line. If the section is missing or empty, send the plan back to the lead once with "Add the Done section: one outcome per line with its check method." Still missing → stop and say why.
 
@@ -47,6 +48,7 @@ Show, in this order:
 - `Team: N builders on separate file sets`, reviewer axes, and one line per seat: `<role> — <agent> (<tier>, <auth>)`, where auth is `subscription`, `api-key`, `installed (unverified)`, or `handoff` for IDE agents, for example `builder 2 — codex (standard, api-key)`.
 - One line per dropped agent: `Dropped: <agent> — <reason>`.
 - The output of `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/metrics.py" <repo> trend` as one line (`Trend: no runs yet` on a first run).
+- When `## Sections` exists, the whole batch in one line: `Sections this run: <n> of <total> (ready now: <k>, queued: <q>, blocked: <b>)`.
 
 **Blueprint check.** If `.harness/end-state.md` has a `## Blueprint` block, the plan must carry a `## Blueprint coverage` section mapping every layer to `Builder N` or `unchanged`. A layer with no mapping blocks the checkpoint: send the plan back to the lead once with `Blueprint layer <x> unmapped`. Still unmapped → stop and say why.
 
@@ -68,6 +70,17 @@ A secret's value never passes through the chat, a prompt, or an agent's context.
 - **add later**: append `| NAME | <what it unlocks> | <where consumed> | <how to add> | open | | <YYYY-MM-DD> |` to `.harness/action-items.md` → `## Secrets` (create from the template if absent); add `NAME=` with a one-line comment to `.env.example`; let the builder keep its not-configured path. If any wiring was left undone because the secret is missing, write the status as `open, deferred wiring` and say what was deferred in `consumed in`.
 
 The run continues either way. Open secrets appear in the receipt under *Steps outside this change*, and they never block the commit or the PR.
+
+## Continuous dispatch (never idle)
+Setting: `continuous_dispatch: true` (default) and `builder_timeout_min: 20` in `.claude/dts2-harness.local.md`. With `false`, Phase 2 dispatches the plan once and waits, as before.
+
+Keep `max_builders` (from the tier) builders in flight at all times while the lead's `## Ready queue` is non-empty. On any builder event (finished, reported BLOCKED or NEEDS_CONTEXT, `SECRET NEEDED`, no report within `builder_timeout_min`, or entering fix round 3) do two things in one step:
+- (a) **Handle that builder.** VERIFIED-ready: merge its branch. Stalled: park its section as `blocked` with an action item (Secrets, Decisions or Handoff), write the id into the section cell in `end-state.md` (for example `payments webhook (S2)`), and clean up its builder checkout as **Isolation (Rule 10)** says. If the fix-round cap is hit, escalate per Rule 8.
+- (b) **Dispatch the next ready section(s)** from the queue to fresh builders in the same message. Re-check that each file set does not overlap any in-flight builder; on a conflict skip to the next ready section. If every ready section conflicts, wait for the next event instead of dispatching.
+
+Stuck-but-not-stopped: a parked section never halts the run. The run ends only when the queue is empty and no builder is in flight, at a checkpoint, or on a hard stop or context guard.
+
+Partial ship: at the ship checkpoint, verified sections ship; parked sections are listed in the receipt under `Steps outside this change` with their action-item ids, and the section statuses in `end-state.md` are updated (`done`, `blocked` or `todo`).
 
 ## Phase 3 — Review and verify
 Use the run stamp taken in preflight. Pass it to every reviewer and verifier.
@@ -179,6 +192,7 @@ When a `dts2-harness CONTEXT GUARD` message arrives (from the hook), or the lead
 - Context guard: a spike before the plan checkpoint stops the run and re-runs setup; never push through it.
 - Both checkpoints need a human. Headless runs stop at each and write what a human would have seen.
 - One writer per file across all builders.
+- Never idle while a ready, non-conflicting section exists; never dispatch two builders onto overlapping files to avoid idling.
 - Never write `do_not_touch` paths. Never push, deploy, or merge to main.
 - Never ask for, print, or log a secret's value.
 - Fix rounds cap at 3; escalations go to `.harness/state.md`.

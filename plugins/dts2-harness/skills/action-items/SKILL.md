@@ -17,6 +17,9 @@ Reads `.harness/action-items.md`; handoff briefs under `.harness/handoff/` appea
    - Handoff → `open .harness/handoff/<agent>/<n>.md`
    - Deploy and Decisions → `run` (deploy watch and plan checkpoint respectively)
 
+## Parked sections
+Sections the run parked appear after the groups: the list also shows every `## Sections` row of `.harness/end-state.md` with status `blocked`, one line each: `section <#> <name> — blocked (<action-item id>)`. The same lines appear in the handoff file's `## Open items`.
+
 ## Subcommands
 - `done <row>`: `action-items.py <repo> done S1`. Marks the row `done`. For a secret, check presence first as in `/dts2-harness:run` (`add secret NAME`); never mark a secret done without it.
 - `add <group> <text>`: `action-items.py <repo> add Decisions "pick a domain"`. Appends an open row with today's date and prints its id. For Secrets the text is the variable name.

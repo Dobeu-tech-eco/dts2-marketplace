@@ -27,7 +27,7 @@ Explanation only. Do not invoke agents or change files from this skill.
 | `action-items` | List open secrets, decisions, handoffs, deploy steps and promotions with the command that resolves each; `done`, `add`, `assign`. Pass-off for any agent: `.harness/handoff/latest.md`, resumed with `run resume`. |
 | `gtm` | Go-to-market in one pass through the `marketing-skills` plugin, ending in a `readiness.md` scorecard. |
 
-The `run` skill pivots to the workspace root when started inside a member repo, and a context guard stops it and re-runs setup on a context spike.
+Setup maps the whole project into sections; `run` keeps builders busy on ready sections and parks stuck ones instead of stopping. The `run` skill pivots to the workspace root when started inside a member repo, and a context guard stops it and re-runs setup on a context spike.
 
 ## How work is organized
 The lead runs on the frontier tier; builders run on the cheapest capable tier, each in its own worktree. One run branch per task; you push and open the PR with the receipt. `run review-pr <n>` reviews an existing PR.

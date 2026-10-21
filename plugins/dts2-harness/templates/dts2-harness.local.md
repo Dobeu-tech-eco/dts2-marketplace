@@ -8,6 +8,8 @@ lessons_max: 10
 auto_scale: true
 max_builders: 6
 max_reviewers: 4
+continuous_dispatch: true     # keep max_builders in flight while ready sections exist; park stalled builders and move on
+builder_timeout_min: 20       # minutes without a builder report before it is parked
 use_worktrees: auto        # auto = one worktree per builder in a git repo (scratch dir per builder without git) | always | never
 # Headless runner (sdk skill)
 second_opinion: none       # none | codex | gemini

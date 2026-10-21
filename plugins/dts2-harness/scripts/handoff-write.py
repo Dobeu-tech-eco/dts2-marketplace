@@ -28,6 +28,13 @@ COMPLEXITY: Final[re.Pattern[str]] = re.compile(r"complexity:\s*(mechanical|norm
 SECRET_ASSIGNMENT: Final[re.Pattern[str]] = re.compile(r"\b([A-Z][A-Z0-9_]{2,})=\S+")
 DEPLOY_FIELD: Final[str] = r"^\s*{name}:\s*(\S+)"
 SECTION_END: Final[re.Pattern[str]] = re.compile(r"^#{2,3} ", re.MULTILINE)
+SECTIONS_HEADING: Final[str] = "## Sections"
+BLOCKED_STATUS: Final[str] = "blocked"
+ACTION_ID_SUFFIX: Final[re.Pattern[str]] = re.compile(r"^(.*?)\s*\(([A-Z]\d+)\)\s*$")
+NO_ACTION_ID: Final[str] = "no action item"
+SECTION_NUMBER_COL: Final[int] = 0
+SECTION_NAME_COL: Final[int] = 1
+SECTION_STATUS_COL: Final[int] = -1
 
 
 def load_action_items() -> ModuleType:
@@ -97,6 +104,27 @@ def state_summary(repo: Path, run: Path | None) -> str:
     return redact("\n".join(lines))
 
 
+def table_cells(line: str) -> list[str]:
+    return [cell.strip() for cell in line.strip().strip("|").split("|")]
+
+
+def blocked_sections(end_state: str) -> list[str]:
+    start: int = end_state.find(SECTIONS_HEADING)
+    if start < 0:
+        return []
+    body: str = end_state[start + len(SECTIONS_HEADING):]
+    end: re.Match[str] | None = SECTION_END.search(body)
+    rows: list[list[str]] = [table_cells(line) for line in (body[: end.start()] if end else body).splitlines() if line.startswith("|")]
+    return [section_line(row) for row in rows if len(row) > 1 and row[SECTION_STATUS_COL] == BLOCKED_STATUS]
+
+
+def section_line(row: list[str]) -> str:
+    match: re.Match[str] | None = ACTION_ID_SUFFIX.match(row[SECTION_NAME_COL])
+    name: str = match.group(1) if match else row[SECTION_NAME_COL]
+    item_id: str = match.group(2) if match else NO_ACTION_ID
+    return f"section {row[SECTION_NUMBER_COL]} {name} — blocked ({item_id})"
+
+
 def format_item(item: dict[str, Any]) -> str:
     age: str = "age unknown" if item["age_days"] is None else f"{item['age_days']}d"
     owner: str = item["owner"] or "unassigned"
@@ -106,6 +134,7 @@ def format_item(item: dict[str, Any]) -> str:
 def open_items_text(items: list[dict[str, Any]], repo: Path) -> str:
     state_open: list[str] = section_bullets(read(repo / HARNESS / "state.md"), "Open items")
     lines: list[str] = [format_item(item) for item in items]
+    lines += [f"- {line}" for line in blocked_sections(read(repo / HARNESS / "end-state.md"))]
     lines += [f"- state: {line[2:]}" for line in state_open[-MAX_STATE_ITEMS:]]
     return redact("\n".join(lines)) if lines else "none"
 

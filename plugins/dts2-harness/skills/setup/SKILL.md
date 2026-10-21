@@ -110,6 +110,15 @@ Record the chosen roster for Part 2.
 5. Workspace mode only: mark each component with the repo that owns it, or `cross-repo` when it spans repos. Then ask once: `Which repo must ship first, and what shared surfaces must stay in sync?` From the answer record `depends_on` per repo, `contracts` (name, owner, consumers) and `release_order`. Never guess them; anything the user leaves out goes to Open questions.
 6. Blueprint: after components are locked, record a `## Blueprint` block for the end state, one row per layer: data model, api surface, screens/routes, auth, infra/deploy, observability, background jobs. Ask once for the choice per layer (propose from scout's findings); `n/a` is allowed with a status of `n/a`. Never invent a choice the user did not give.
 
+### Round 3b: 3b. Sections (end to end)
+
+Runs right after the Blueprint step. Walk the project from entry to ship and fill the end state's `## Sections` table completely, one row each: data model, API surface, each screen/route, auth, background jobs, integrations, infra/deploy, observability, tests, docs, and GTM surface. Order the rows by dependency; give each its `serves component`, `files / area`, `depends on` (row numbers or `-`) and `complexity` (`mechanical`, `normal` or `design`). New rows start as `todo`.
+
+- Brownfield: areas that already exist and work get `status: done`.
+- Every component in the Blueprint and Topology must have at least one section. Say which blueprint layers have no section and ask whether that is intentional; an intentional gap is recorded under Assumptions.
+- Ask the user once to confirm or edit the map: `Here is the end-to-end map, N sections. Edit, or approve?` Apply edits and ask again only if the change is structural.
+- Clarity gate (feeds the Round 4 ratings, and the `## Done` check before approval): a map with an unmapped blueprint layer, or any section without `files / area` or `depends on`, caps clarity. Apply the existing clarity-score rule for missing fields: omit the `success` key from the ratings of every component such a section serves, so it scores 0 and bounds the overall clarity until the map is fixed. Do not change `clarity-score.py`.
+
 ### Round 4 — Question loop
 
 Read the threshold from `end_state_threshold` in `.claude/dts2-harness.local.md`. If the file or key is missing, use 80 and record `thresholdSource: default`; otherwise record `thresholdSource: local`.
@@ -150,7 +159,7 @@ Runs after the loop and before Round 5, when every component and its acceptance 
 
 1. Copy `${CLAUDE_PLUGIN_ROOT}/templates/end-state.md` to `.harness/end-state.md` and fill it:
    - metadata: `rounds`, `clarity`, `threshold`, `thresholdSource`, `roster`, `status: pending approval`, `continuedAnyway` (`no`, or `yes (at NN%)`);
-   - Related repos (url, role, tag, note), Other harnesses (folder, decision), Skills (the skill plan table), Topology, Blueprint, Goal, Constraints, Non-goals, Acceptance criteria per component as `- [ ]` items, Assumptions, Open questions;
+   - Related repos (url, role, tag, note), Other harnesses (folder, decision), Skills (the skill plan table), Topology, Blueprint, Sections (the confirmed map from Round 3b), Goal, Constraints, Non-goals, Acceptance criteria per component as `- [ ]` items, Assumptions, Open questions;
    - Deploy (the `deploy:` block from the Deploy target step: `provider`, `productionUrl`, `checkCommand`, and for a planned deploy `plan` and `status: planned`).
 2. Workspace mode: first ask once where the workspace manifest and root end state should live (default: the common parent folder of the linked repos). Then write one `.harness/end-state.md` per linked repo with only that repo's components, and a root `end-state.md` in that folder with the `cross-repo` components plus the `depends_on`, contracts and release order from Round 3. Every one of them starts as `status: pending approval`.
 3. Show a short summary (components, clarity, open questions) and every file path, then ask once: `Approve this end state? Reply "approve", or tell me what to change.` In workspace mode this one approval covers all the files.

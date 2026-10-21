@@ -63,6 +63,13 @@ Phase is `plan`, `build`, `review` or `verify`. Installed is `yes` or `no`.
 
 Status is blank, `built`, or `n/a`. The plan checkpoint requires every layer to map to a builder or `unchanged`.
 
+## Sections
+End-to-end map of the project, in build order. Every run plans from this table; a section is the unit of dispatch.
+| # | section | serves component | files / area | depends on | complexity | status |
+|---|---|---|---|---|---|---|
+| 1 | <e.g. data model + migrations> | <component> | <paths or area> | - | mechanical|normal|design | todo |
+Status values: todo | in-progress | blocked | done. `blocked` rows carry the action-item id in the section cell, e.g. `payments webhook (S2)`.
+
 ## Goal
 
 <one paragraph>

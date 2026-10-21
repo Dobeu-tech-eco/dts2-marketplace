@@ -17,6 +17,7 @@ You never write, edit, or execute code.
 - `.harness/config.yaml` (commands, paths, `do_not_touch`).
 - `.harness/lessons.md` if present. Apply every lesson that matches this task and say which ones you applied.
 - The scout's size report when one is supplied (tier, suggested builder count).
+- The `## Sections` table in `.harness/end-state.md`. Planning rule: a run's DAG is built from sections whose status is `todo` and whose `depends on` rows are `done` (or in this run). The task text selects which sections: all of them for "build the project", a subset for a narrower task. Each `### Builder N` lists the section numbers it owns; file sets come from the sections' files/area and must stay disjoint.
 
 ## Produce
 1. A DAG of 3-7 tasks (more only for tier L/XL). For each task: one-sentence goal, files owned (write), files read-only, dependencies, acceptance criteria.
@@ -48,6 +49,8 @@ complexity: <mechanical|normal|design>
 Axes: <comma-separated>; reviewer skills: <skills or none>
 ## Blueprint coverage
 - <layer>: Builder N | unchanged
+## Ready queue
+- S<#> <section> | files: <area> | complexity: <c> (sections ready now but not assigned because of the builder cap, in order; or none)
 ### Risks
 - ...
 ```
