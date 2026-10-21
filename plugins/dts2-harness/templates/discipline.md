@@ -31,6 +31,7 @@ Applies to every agent provider the roster can dispatch; the lead is always the 
 6. **Fix loop inside the cap.** Rounds 1–2 resume the same builder; round 3 goes to a fresh builder one tier up; after round 3 the lead stops and escalates (Rule 8.3). Three materially identical failures mean the approach is wrong, not the retry count.
 7. **Rulings are written down.** Every decision the lead makes without the user goes to `.harness/state.md` → `## Decisions` as `Ruling: <what> — <why> — <cost if wrong>`. After a context reset the lead trusts `state.md` and `git log`, never memory, and never re-dispatches a builder whose section is marked done.
 8. **Hard stops.** The lead asks before: pushing, merging to the default branch, publishing, deploying, purchasing, deleting data or branches, touching credentials, or when the plan is broken enough that every path is a guess. Everything else it rules on and continues.
+9. **Scope before spend.** A run checks its scope first (workspace root, member repo, single, none) and pivots to the workspace root when it is inside a member repo. A context spike before the plan checkpoint is a stop signal: stop every agent, write state, re-run setup, resume. Never push through it.
 
 ## Rule 10 — Branches, worktrees and pull requests
 

@@ -12,6 +12,7 @@ If the request is `run add secret NAME`, skip to **Add secret mode**.
 ## Preflight
 
 **Resume mode.** If the request is `run resume`, read `.harness/handoff/latest.md` first (if it is missing, run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/handoff-write.py" <repo>` to build it). Print its `## State`, `## Open items` and `## Next action`, then ask once: `Continue with the next action? (y/n)`. On yes: if the next action is a `run add secret NAME` command, go to **Add secret mode**; if it says the latest receipt is not approved, show that receipt and resume at the **Ship checkpoint**; if it says there are no open items, ask `What is the next task?`; otherwise run the pipeline below with the next action as the task. On no, stop. Open action items can be listed or changed with `/dts2-harness:action-items`.
+0. **Scope.** Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/scope-check.py" .`. `workspace-member` → say exactly `Pivot: <repo> belongs to workspace <root>; running in workspace mode from <root>.` and use the workspace root for every later path; `none` → run `/dts2-harness:setup` first; otherwise continue. If `.harness/keep.yaml` exists at the effective root, read it: for each skill listed with source `npx skills add <ref>` that is not on disk (`.claude/skills/<name>`, `~/.claude/skills/<name>`), add its install command to `.harness/action-items.md` → `## Decisions` as an action item instead of failing.
 1. **Harness change.** If the request names a harness skill, agent, hook, or profile (a dts2-harness file, not the repo's own code), print `That changes the harness itself; use `/dts2-harness:evolve`.` and stop. Never plan a harness change as a repo task.
 2. **Config and mode.** Look for `.harness/config.yaml` in the repo, then `.harness-workspace.yaml` in a parent folder. Neither → stop and point to `/dts2-harness:setup`. Print one mode line: `Mode: workspace` if `.harness-workspace.yaml` was found, else `Mode: single`.
 3. **Ignore guard.** For each repo involved: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/ensure-ignored.py" <repo>`.
@@ -166,7 +167,16 @@ Setting: `use_worktrees` in `.claude/dts2-harness.local.md` (`auto` default, `al
 3. Show the findings by severity and the verifier verdict. Post them as a PR comment (`gh pr comment <number> --body-file <findings file>`) only on an explicit yes.
 4. Never build, commit or push on a PR this run did not open.
 
+## Context guard and pivot
+When a `dts2-harness CONTEXT GUARD` message arrives (from the hook), or the lead itself notices it has made more than ~250 tool calls without reaching the plan checkpoint, say exactly one line first: `Context guard fired (<trigger>): stopping all agents and re-running setup.` Then:
+1. Stop. No new dispatches; tell running builders to stop and discard their partial work (worktrees are removed, nothing is merged).
+2. Write an escalation to `.harness/state.md` → `## Failures and escalations` as `- <date> context guard: <trigger> — <details>` and refresh the handoff file with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/handoff-write.py" <repo>`.
+3. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/scope-check.py" .`.
+4. If scope is `workspace-member` or `none`, or no end state exists, invoke `/dts2-harness:setup`; it re-links an existing workspace manifest without re-interviewing and keeps everything in `.harness/keep.yaml`.
+5. Then `run resume`.
+
 ## Guardrails
+- Context guard: a spike before the plan checkpoint stops the run and re-runs setup; never push through it.
 - Both checkpoints need a human. Headless runs stop at each and write what a human would have seen.
 - One writer per file across all builders.
 - Never write `do_not_touch` paths. Never push, deploy, or merge to main.

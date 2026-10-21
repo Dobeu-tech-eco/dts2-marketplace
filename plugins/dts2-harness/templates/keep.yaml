@@ -1,0 +1,9 @@
+# dts2-harness keep list — project-level. Setup re-runs read this first and never re-ask or prune these.
+plugins:          # Claude Code plugin ids the user wants on for this project, e.g. impeccable@impeccable
+  - dts2-harness@dts2
+skills:           # skills installed for this project; source is "npx skills add <ref>", "plugin", or "synced"
+  # - name: <skill>
+  #   source: npx skills add <owner/repo>
+  #   serves: <component>
+agents:           # roster agents the user explicitly included (mirrors config.yaml roster; kept on re-run)
+  # - codex

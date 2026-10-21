@@ -7,6 +7,13 @@ description: Interviews the user to an approved end state (.harness/end-state.md
 
 Setup has two parts. **Part 1** interviews the user until the end state is clear and approved. **Part 2** writes the harness files. Part 2 never starts until the user approves the end state, unless `--scaffold-only` was given.
 
+## Scope and keep list
+
+Before anything else, run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/scope-check.py" .`.
+- `workspace-member` → ask once `This folder is a member of workspace <root>. Run setup at the workspace root instead? (y/n)`. Yes → continue with the workspace root as the project path.
+- `workspace-root` with an existing manifest → offer `Re-link the existing workspace (no interview) or revise the end state?`.
+- If `.harness/keep.yaml` exists at the effective root, read it and say `Keeping <n> plugins, <n> skills, <n> agents from .harness/keep.yaml`. Skip the install question for every listed skill (never re-ask), pre-include the listed agents in the Agents round (still show them), and never propose disabling a listed plugin. A re-link or pivot re-run never rewrites keep.yaml except to append.
+
 ## Mode
 
 - One path or the current repo → **single**: Part 1, then Part 2.
@@ -163,6 +170,7 @@ Gate: `.harness/end-state.md` has `status: approved`, or the user passed `--scaf
    - `.harness/review-checklist.md` — correctness, types, tests, security, conventions, scope, tuned to the stack.
    - `.harness/lessons.md` — header only: `# Lessons` and one line explaining the format `- [L-001] <rule> (source: <run or PR>)`.
    - `.harness/discipline.md` — copy `${CLAUDE_PLUGIN_ROOT}/templates/discipline.md`.
+   - `.harness/keep.yaml` — copy `${CLAUDE_PLUGIN_ROOT}/templates/keep.yaml` if absent; fill `agents:` from the Agents round and append every skill the user said yes to in the Skills round under `skills:` with its `source` (`npx skills add <ref>` exactly as installed, `plugin`, or `synced`) and `serves`. Any plugin the user names as must-keep goes under `plugins:`. Append only; never remove entries. It is committed with the harness and never gitignored.
    - `.harness/state.md` — copy `${CLAUDE_PLUGIN_ROOT}/templates/state.md` if absent. Append each harness decision from Round 2b as `- <date> <folder>: <decision>`.
    - `.claude/dts2-harness.local.md` — copy `${CLAUDE_PLUGIN_ROOT}/templates/dts2-harness.local.md`.
    - `.agents/product-marketing-context.md` — a stub with headings (product, audience, positioning, pricing, voice), **only** if the repo has a marketing surface (scout's `Marketing surface: yes` for brownfield, the user's stated surface for greenfield) and the file does not exist. This is marketingskills' shared context file and the one file the harness may write under `.agents/`.

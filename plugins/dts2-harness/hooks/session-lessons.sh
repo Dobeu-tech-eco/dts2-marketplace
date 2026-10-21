@@ -34,4 +34,16 @@ print_action_items() {
 [[ -f "$LESSONS" ]] && print_lessons
 [[ -f "$STATE" ]] && print_open_items
 [[ -f "$ACTION_ITEMS" ]] && print_action_items
+print_scope() {
+  local plugin_dir="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}" info scope root
+  command -v python3 >/dev/null 2>&1 || return 0
+  info="$(timeout 4 python3 "$plugin_dir/scripts/scope-check.py" "$PWD" 2>/dev/null)" || return 0
+  scope="$(printf '%s' "$info" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("scope",""))' 2>/dev/null)" || return 0
+  root="$(printf '%s' "$info" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("workspaceRoot") or "")' 2>/dev/null)" || return 0
+  case "$scope" in
+    workspace-member) echo "dts2-harness scope: you are inside $(basename "$PWD"), a member of workspace $root. Run /dts2-harness:run from $root (run pivots there automatically)." ;;
+    none) echo "dts2-harness scope: no harness in this folder; /dts2-harness:setup to start." ;;
+  esac
+}
+print_scope || true
 exit 0

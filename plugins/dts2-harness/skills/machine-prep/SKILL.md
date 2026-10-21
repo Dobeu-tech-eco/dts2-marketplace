@@ -44,7 +44,7 @@ Then present, from the audit inventory:
 - `redundantAgentPacks` as one line per group: "keep `<keep>`, disable N" (these plugins ship the same agent files, so you pay for them N times).
 - `duplicateSkillNames` as "skill X exists in A, B" so the user sees name collisions.
 - The top 10 entries of `usage` (plugin -> calls in the window), so the choice rests on what they actually use.
-- The `requiredByHarness` keep. Plugins matching the profile's `requiredByHarness` patterns (for example `marketing-skills@synced`, `impeccable@*`) are never disabled in any tier; the plan prints `(requiredByHarness)` on their line. Say why: the harness's own skills depend on them.
+- The `requiredByHarness` keep. Plugins matching the profile's `requiredByHarness` patterns (for example `marketing-skills@synced`, `impeccable@*`) are never disabled in any tier; the plan prints `(requiredByHarness)` on their line. Say why: the harness's own skills depend on them. Inside a project with `.harness/keep.yaml`, its `plugins:` list counts as additional `requiredByHarness` entries (never disabled in any tier); say so in the plan output.
 
 Plugins added on claude.ai later arrive enabled in light and standard, so re-run the plan after adding some. Also list, as manual steps the script does not perform:
 - Extra files in `~/.claude/agents` beyond the budget (suggest moving them to an archive folder).
