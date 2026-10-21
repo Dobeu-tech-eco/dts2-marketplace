@@ -15,20 +15,35 @@ Never deletes plugins, agents, skills, or credentials. Every change is reversibl
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import shutil
+import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Final
 
+SCRIPT_DIR: Final[Path] = Path(__file__).resolve().parent
+DEFAULT_DAYS: Final[int] = 30
 DEFAULT_PROFILE: Final[Path] = Path(__file__).resolve().parent.parent / "profiles" / "blueprint.json"
 FORBIDDEN_SCRIPT_DIRS: Final[tuple[str, ...]] = (".codex", ".claude")
 CODEX_ENABLED_LINE: Final[str] = "enabled = true"
-SYNCED_SUFFIX: Final[str] = "@synced"
-SYNC_KEY: Final[str] = "syncClaudeAiPlugins"
-REQUIRED_PREFERENCE: Final[str] = "required"
 INSTALL_RECORDS: Final[str] = "installed_plugins.json"
+
+
+def load_tiers() -> object:
+    spec = importlib.util.spec_from_file_location("prep_tiers", SCRIPT_DIR / "prep-tiers.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["prep_tiers"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+tiers = load_tiers()
+SYNCED_SUFFIX: Final[str] = tiers.SYNCED_SUFFIX
+SYNC_KEY: Final[str] = tiers.SYNC_KEY
+REQUIRED_PREFERENCE: Final[str] = tiers.REQUIRED_PREFERENCE
 
 
 def load_json(path: Path) -> dict:
@@ -101,7 +116,20 @@ def loaded_synced(settings: dict, synced: list[dict[str, str]]) -> list[str]:
     return [s["id"] for s in synced if plugins.get(s["id"]) is not False or s["preference"] == REQUIRED_PREFERENCE]
 
 
-def inventory(home: Path, claude_home: Path, project: Path) -> dict[str, object]:
+def read_usage(claude_home: Path, days: int) -> dict[str, int]:
+    cmd: list[str] = [sys.executable, "-I", str(SCRIPT_DIR / "usage-scan.py"),
+                      "--claude-home", str(claude_home), "--days", str(days)]
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    return json.loads(result.stdout).get("plugins", {}) if result.returncode == 0 else {}
+
+
+def plugin_roots(claude_home: Path, enabled: list[str], synced: list[dict[str, str]], loading: list[str]) -> dict[str, Path]:
+    records: dict = load_json(claude_home / "plugins" / INSTALL_RECORDS).get("plugins") or {}
+    roots: dict[str, Path] = {p: marketplace_root(claude_home, p, (records.get(p) or [{}])[0]) for p in enabled}
+    return {**roots, **{s["id"]: Path(s["root"]) for s in synced if s["id"] in loading}}
+
+
+def inventory(home: Path, claude_home: Path, project: Path, days: int = DEFAULT_DAYS) -> dict[str, object]:
     settings: dict = load_json(claude_home / "settings.json")
     plugins: dict[str, bool] = settings.get("enabledPlugins") or {}
     synced: list[dict[str, str]] = synced_plugins(claude_home)
@@ -111,8 +139,13 @@ def inventory(home: Path, claude_home: Path, project: Path) -> dict[str, object]
     loading: list[str] = loaded_synced(settings, synced)
     plugin_agents: dict[str, int] = {**marketplace_agents(claude_home, sorted(set(enabled + overrides))),
                                      **synced_agents(synced, loading)}
+    usage: dict[str, int] = read_usage(claude_home, days)
+    roots: dict[str, Path] = plugin_roots(claude_home, sorted(set(enabled + overrides)), synced, loading)
     return {
         "enabledPlugins": enabled,
+        "usage": usage,
+        "redundantAgentPacks": tiers.redundant_packs(synced, usage),
+        "duplicateSkillNames": tiers.duplicate_skills(roots),
         "syncClaudeAiPlugins": settings.get(SYNC_KEY, "unset (syncing on)"),
         "syncedPluginsOnDisk": len(synced),
         "syncedPluginsLoading": loading,
@@ -148,38 +181,17 @@ def boundary_findings(home: Path, claude_home: Path, profile: dict) -> list[str]
     return found
 
 
-def plan_marketplace(current: dict[str, bool], keep: set[str]) -> dict[str, bool]:
-    planned: dict[str, bool] = {k: (k in keep) for k in current if not k.endswith(SYNCED_SUFFIX)}
-    for key in keep:
-        planned.setdefault(key, True)
-    return planned
-
-
-def plan_synced(current: dict[str, bool], synced: list[dict[str, str]], keep: set[str]) -> dict[str, bool]:
-    ids: list[str] = [s["id"] for s in synced if s["preference"] != REQUIRED_PREFERENCE]
-    planned: dict[str, bool] = {k: v for k, v in current.items() if k.endswith(SYNCED_SUFFIX)}
-    return {**planned, **{i: (i in keep) for i in ids}}
-
-
-def plan_settings(settings: dict, profile: dict, synced: list[dict[str, str]]) -> dict:
-    rules: dict = profile["claude"]
-    current: dict[str, bool] = settings.get("enabledPlugins") or {}
-    plugins: dict[str, bool] = plan_marketplace(current, set(rules["enabledPlugins"]))
-    sync_off: bool = rules.get(SYNC_KEY) is False
-    if sync_off:
-        plugins.update({k: v for k, v in current.items() if k.endswith(SYNCED_SUFFIX)})
-        return {**settings, SYNC_KEY: False, "enabledPlugins": plugins}
-    plugins.update(plan_synced(current, synced, set(rules.get("keepSyncedPlugins", []))))
-    return {**settings, "enabledPlugins": plugins}
-
-
-def diff_settings(before: dict, after: dict) -> list[str]:
+def diff_settings(before: dict, after: dict, protected: list[str] | None = None) -> list[str]:
     lines: list[str] = []
-    if before.get(SYNC_KEY) != after.get(SYNC_KEY):
-        lines.append(f"{SYNC_KEY}: {before.get(SYNC_KEY, 'unset')} -> {after.get(SYNC_KEY)}")
+    for key in (SYNC_KEY, tiers.SKILLS_SYNC_KEY):
+        if before.get(key) != after.get(key):
+            lines.append(f"{key}: {before.get(key, 'unset')} -> {after.get(key)}")
     old: dict[str, bool] = before.get("enabledPlugins") or {}
     new: dict[str, bool] = after.get("enabledPlugins") or {}
-    return lines + [f"{k}: {old.get(k, 'absent')} -> {v}" for k, v in sorted(new.items()) if old.get(k) != v]
+    guarded: set[str] = set(protected or [])
+    suffix: str = f" {tiers.PROTECTED_NOTE}"
+    return lines + [f"{k}: {old.get(k, 'absent')} -> {v}{suffix if k in guarded else ''}"
+                    for k, v in sorted(new.items()) if old.get(k) != v or k in guarded]
 
 
 def backup(path: Path) -> Path:
@@ -190,8 +202,9 @@ def backup(path: Path) -> Path:
     return target
 
 
-def run_audit(home: Path, claude_home: Path, project: Path, profile: dict) -> int:
-    inv: dict[str, object] = inventory(home, claude_home, project)
+def run_audit(args: argparse.Namespace, claude_home: Path, profile: dict) -> int:
+    home, project = args.home, args.project
+    inv: dict[str, object] = inventory(home, claude_home, project, args.days)
     issues: list[str] = budget_findings(inv, profile) + boundary_findings(home, claude_home, profile)
     issues += [f"{p} is enabled by {project}/.claude/settings.json and overrides your user setting"
                for p in inv["projectEnablesOverridingYou"]]
@@ -203,11 +216,13 @@ def run_audit(home: Path, claude_home: Path, project: Path, profile: dict) -> in
     return 1 if issues else 0
 
 
-def run_change(claude_home: Path, profile: dict, apply: bool) -> int:
+def run_change(args: argparse.Namespace, claude_home: Path, profile: dict, apply: bool) -> int:
     path: Path = claude_home / "settings.json"
     settings: dict = load_json(path)
-    planned: dict = plan_settings(settings, profile, synced_plugins(claude_home))
-    changes: list[str] = diff_settings(settings, planned)
+    usage: dict[str, int] = read_usage(claude_home, args.days)
+    result: dict = tiers.tier_plan(settings, profile, synced_plugins(claude_home), usage, args.tier)
+    planned: dict = result["settings"]
+    changes: list[str] = diff_settings(settings, planned, result["protected"])
     print("\n".join(changes) if changes else "Already matches the profile.")
     if not apply or not changes:
         return 0
@@ -224,13 +239,15 @@ def main() -> int:
     parser.add_argument("--profile", type=Path, default=DEFAULT_PROFILE)
     parser.add_argument("--home", type=Path, default=Path.home())
     parser.add_argument("--claude-home", type=Path, help="Override, e.g. /mnt/c/Users/<you>/.claude from WSL")
+    parser.add_argument("--tier", choices=list(tiers.TIERS), help="Default: profile claude.defaultTier")
+    parser.add_argument("--days", type=int, default=DEFAULT_DAYS, help="Usage window for the usage counts")
     parser.add_argument("--project", type=Path, default=Path.cwd(), help="Repo to check for project overrides")
     args = parser.parse_args()
     profile: dict = load_json(args.profile)
     claude_home: Path = args.claude_home or args.home / ".claude"
     if args.command == "audit":
-        return run_audit(args.home, claude_home, args.project, profile)
-    return run_change(claude_home, profile, apply=args.command == "apply")
+        return run_audit(args, claude_home, profile)
+    return run_change(args, claude_home, profile, apply=args.command == "apply")
 
 
 if __name__ == "__main__":

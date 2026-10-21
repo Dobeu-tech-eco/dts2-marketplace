@@ -31,19 +31,33 @@ Then report agents in two separate counts, because the blueprint's 4-agent rule 
 - `claudePluginAgents` and `pluginAgentsBySource` — agents that come inside enabled plugins, including every synced plugin. claude.ai has no separate agent sync; agents arrive only inside plugins, so turning off `syncClaudeAiPlugins` (or disabling the synced plugin) removes them. Budget is 6, which is exactly dts2-harness's own team (lead, builder, reviewer, verifier, scout, auditor). Name the top sources so the user sees which plugins cost the most.
 - `syncClaudeAiSkills` and `syncedSkillsOnDisk` — claude.ai skills sync separately from plugins into `~/.claude/skills/synced/`. Report only; turning it off also removes always-synced skills such as pdf and xlsx, so leave that choice to the user (`"syncClaudeAiSkills": false` in user settings).
 
-## 3. Plan the prune
-Run `... machine-prep.py plan` and show the exact diff. With the default profile it sets `syncClaudeAiPlugins: false`, which stops account plugins syncing into Claude Code on this machine (claude.ai and Cowork keep them) and moves the already-synced copies to `~/.claude/plugins/.trash/` on next start.
+## 3. Pick a tier
+Run `... machine-prep.py plan --tier <light|standard|strict>` for each tier the user is weighing and show the exact diff. Without `--tier` the profile's `claude.defaultTier` (standard) is used. `--days N` sets the usage window (default 30). Show the three tiers in one table:
 
-If the user wants to keep some account plugins in Claude Code, copy the profile, set `syncClaudeAiPlugins` to `true`, and list the ones to keep in `keepSyncedPlugins` (for example `baldor-safety-reports@synced`). The plan then writes `"<name>@synced": false` for every other synced plugin instead. Warn that plugins added on claude.ai later arrive enabled in this mode, so it needs re-running. Also list, as manual steps the script does not perform:
+| Tier | Stays on | Goes off | For |
+|---|---|---|---|
+| light | Everything used in the window, the profile keep-set, `syncClaudeAiPlugins` and `syncClaudeAiSkills` untouched | Plugins with zero use in the window (not org-required) | Someone who wants no surprises |
+| standard | Profile keep-set, the top `keepSyncedTopN` (5) used synced plugins, `keepSyncedPlugins` | Marketplace plugins outside the keep-set, all other synced plugins | Most people; the default |
+| strict | Profile keep-set only | `syncClaudeAiPlugins: false`, `syncClaudeAiSkills: false`, everything outside the keep-set | A minimal, fast, predictable start |
+
+Then present, from the audit inventory:
+- `redundantAgentPacks` as one line per group: "keep `<keep>`, disable N" (these plugins ship the same agent files, so you pay for them N times).
+- `duplicateSkillNames` as "skill X exists in A, B" so the user sees name collisions.
+- The top 10 entries of `usage` (plugin -> calls in the window), so the choice rests on what they actually use.
+- The `requiredByHarness` keep. Plugins matching the profile's `requiredByHarness` patterns (for example `marketing-skills@synced`, `impeccable@*`) are never disabled in any tier; the plan prints `(requiredByHarness)` on their line. Say why: the harness's own skills depend on them. Note that under strict, with `syncClaudeAiPlugins` off, a required synced plugin stays enabled in settings but claude.ai will not re-sync it.
+
+Plugins added on claude.ai later arrive enabled in light and standard, so re-run the plan after adding some. Also list, as manual steps the script does not perform:
 - Extra files in `~/.claude/agents` beyond the budget (suggest moving them to an archive folder).
 - Global MCP servers that belong in one project.
 - Codex plugin flags above budget.
+
+Then ask once which tier to apply.
 
 ## 4. Approval gate
 Ask once: apply the plugin change, apply and also walk through the manual steps, or stop. Do nothing without a yes.
 
 ## 5. Apply
-Run `... machine-prep.py apply`. It backs up `settings.json` to `<claude home>/backups/` before writing. Report the backup path.
+Run `... machine-prep.py apply --tier <chosen>`. It backs up `settings.json` to `<claude home>/backups/` before writing. Report the backup path.
 
 ## 6. Set up the slim startup
 - Confirm `dts2-harness@dts2` is enabled and `harness@harness` is disabled, so agents are not duplicated.
