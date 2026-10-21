@@ -24,7 +24,7 @@ if [[ "$1 $2" == "pr edit" ]]; then
   done
   exit 0
 fi
-if [[ "$1" == "api" ]]; then exit 1; fi
+if [[ "$1" == "api" ]]; then echo "${FAKE_GH_API_ERR:-gh: Not Found (HTTP 404)}" >&2; exit 1; fi
 exit 0
 """
 
@@ -35,7 +35,7 @@ def git(repo: Path, *args: str) -> str:
 
 
 class Fixture:
-    def __init__(self, body: str) -> None:
+    def __init__(self, body: str, head: str = BRANCH, cross: bool = False, raw_view: str | None = None) -> None:
         self.repo: Path = make_tmp_home()
         self.fake_dir: Path = make_tmp_home()
         self.bare: Path = make_tmp_home()
@@ -47,16 +47,21 @@ class Fixture:
         (self.repo / "a.txt").write_text("a\n", encoding="utf-8")
         git(self.repo, "add", "a.txt")
         git(self.repo, "commit", "-q", "-m", "init")
-        view = {"number": 7, "body": body, "headRefName": BRANCH}
-        (self.fake_dir / "view.json").write_text(json.dumps(view), encoding="utf-8")
+        view = {"number": 7, "body": body, "headRefName": head, "isCrossRepository": cross}
+        text: str = raw_view if raw_view is not None else json.dumps(view)
+        (self.fake_dir / "view.json").write_text(text, encoding="utf-8")
         gh: Path = self.fake_dir / "gh"
         gh.write_text(FAKE_GH, encoding="utf-8")
         gh.chmod(0o755)
 
-    def run(self, command: str = PR_COMMAND, tool: str = "Bash", gh_bin: str | None = None) -> subprocess.CompletedProcess[str]:
+    def run(self, command: str = PR_COMMAND, tool: str = "Bash", gh_bin: str | None = None,
+            response: str = "", api_err: str | None = None) -> subprocess.CompletedProcess[str]:
         env = {**os.environ, "DTS2_GH_BIN": gh_bin or str(self.fake_dir / "gh"),
                "FAKE_GH_DIR": str(self.fake_dir), "TMPDIR": str(self.fake_dir)}
-        payload: str = json.dumps({"session_id": "s", "tool_name": tool, "tool_input": {"command": command}})
+        if api_err is not None:
+            env["FAKE_GH_API_ERR"] = api_err
+        payload: str = json.dumps({"session_id": "s", "tool_name": tool, "tool_input": {"command": command},
+                                   "tool_response": {"stdout": response}})
         return subprocess.run(["bash", str(HOOK)], cwd=str(self.repo), input=payload, env=env,
                               capture_output=True, text=True, check=False)
 
@@ -135,6 +140,73 @@ class PrReceiptTests(unittest.TestCase):
         self.assertEqual(fx.run(command="gh pr view 7").returncode, 0)
         self.assertEqual(fx.run(tool="Edit").returncode, 0)
         self.assertEqual(fx.log(), "")
+
+    def test_commit_is_path_scoped(self) -> None:
+        fx = Fixture(f"{MARKER}\n")
+        (fx.repo / "other.txt").write_text("x\n", encoding="utf-8")
+        git(fx.repo, "add", "other.txt")
+        fx.run()
+        self.assertEqual(git(fx.repo, "show", "--name-only", "--format=", "HEAD"), ".github/pull_request_template.md")
+        self.assertEqual(git(fx.repo, "diff", "--cached", "--name-only"), "other.txt")
+
+    def test_edit_selector_is_passed_to_pr_view(self) -> None:
+        fx = Fixture("body\n")
+        fx.write_local_template(f"{MARKER}\n")
+        fx.run(command="gh pr edit 12 --title x")
+        self.assertIn("pr view 12 --json", fx.log())
+        self.assertIn("pr edit 7", fx.log())
+
+    def test_create_uses_url_from_response(self) -> None:
+        fx = Fixture("body\n")
+        fx.write_local_template(f"{MARKER}\n")
+        url: str = "https://github.com/o/r/pull/9"
+        fx.run(response=f"{url}\n")
+        self.assertIn(f"pr view {url} --json", fx.log())
+
+    def test_quoted_command_is_ignored(self) -> None:
+        fx = Fixture("body\n")
+        self.assertEqual(fx.run(command='echo "gh pr create"').returncode, 0)
+        self.assertEqual(fx.log(), "")
+
+    def test_chained_command_is_recognised(self) -> None:
+        fx = Fixture("body\n")
+        fx.write_local_template(f"{MARKER}\n")
+        fx.run(command="git push && gh pr create --fill")
+        self.assertIn("pr edit", fx.log())
+
+    def _assert_staged_not_pushed(self, fx: Fixture, result: subprocess.CompletedProcess[str]) -> None:
+        self.assertIn("PR template staged; commit and push it to", result.stderr)
+        self.assertEqual(git(fx.repo, "diff", "--cached", "--name-only"), ".github/pull_request_template.md")
+        self.assertEqual(git(fx.repo, "log", "--format=%s"), "init")
+        self.assertEqual(git(fx.bare, "branch", "--list"), "")
+
+    def test_branch_mismatch_stages_without_push(self) -> None:
+        fx = Fixture(f"{MARKER}\n", head="other")
+        self._assert_staged_not_pushed(fx, fx.run())
+
+    def test_cross_repository_pr_stages_without_push(self) -> None:
+        fx = Fixture(f"{MARKER}\n", cross=True)
+        self._assert_staged_not_pushed(fx, fx.run())
+
+    def test_unparseable_view_never_edits(self) -> None:
+        fx = Fixture("body\n", raw_view="not json")
+        result = fx.run()
+        self.assertEqual(result.returncode, 0)
+        self.assertNotIn("pr edit", fx.log())
+
+    def test_non_404_api_failure_is_not_cached(self) -> None:
+        fx = Fixture(f"{MARKER}\n")
+        fx.run(api_err="gh: HTTP 502")
+        git(fx.repo, "rm", "-q", "-f", ".github/pull_request_template.md")
+        git(fx.repo, "commit", "-q", "-m", "drop")
+        fx.run(api_err="gh: HTTP 502")
+        self.assertEqual(fx.log().count("api repos"), 2)
+
+    def test_empty_body_has_no_leading_blank_lines(self) -> None:
+        fx = Fixture("")
+        fx.write_local_template(f"{MARKER}\n")
+        fx.run()
+        self.assertTrue(fx.edited().startswith(MARKER))
 
     def test_missing_gh_exits_zero_with_message(self) -> None:
         fx = Fixture("body\n")
