@@ -82,7 +82,7 @@ Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/roster.py" detect --project <repo>`.
 Auth mode comes from `detect`'s `auth` map (subscriptions first, API keys by opt-in). Never print an environment variable's value and never read credential files.
 - `auth: subscription` (the CLI is already logged in) → include the agent with no further prompt: no second authentication, no API-key question. Record `auth: subscription`.
 - `auth: api-key` (no subscription login found, but the profile's `apiKeyEnv` is set) → ask one line per agent, for example: `codex has no subscription login; an API key is present (pay-per-use). Include or exclude?` Record `included: true` or `included: false`, and `auth: api-key`.
-- `auth: installed (unverified)` (the CLI is installed but has no login check: gemini, grok, opencode) → ask once per agent: `<agent> is installed, but I can't check its login. Is it logged in to your subscription? (y/n)`. Yes → record `auth: subscription`. No → if `detect`'s `apiKey[<agent>]` is true, ask the pay-per-use line below; otherwise list it as not available with its login step (`gemini` then `/auth`, `grok login`, `opencode auth login`).
+- `auth: installed (unverified)` (the CLI is installed but has no login check: gemini, grok, opencode) → ask once per agent: `<agent> is installed, but I can't check its login. Is it logged in to your subscription? (y/n)`. Yes → record `auth: subscription`. No → if `detect`'s `apiKey[<agent>]` is true, ask the pay-per-use line above; otherwise list it as not available with its login step (`gemini` then `/auth`, `grok login`, `opencode auth login`) and leave it out of the roster.
 - `auth: none` → list the agent as not available with its login command (the login counterpart of its `statusCommand`, e.g. `codex login`). Do not add it to the proposed roster and do not ask anything.
 - Handoff (IDE) agents are included as before; their login cannot be checked.
 
@@ -143,8 +143,7 @@ Runs after the loop and before Round 5, when every component and its acceptance 
    - Deploy (the `deploy:` block from the Deploy target step: `provider`, `productionUrl`, `checkCommand`, and for a planned deploy `plan` and `status: planned`).
 2. Workspace mode: first ask once where the workspace manifest and root end state should live (default: the common parent folder of the linked repos). Then write one `.harness/end-state.md` per linked repo with only that repo's components, and a root `end-state.md` in that folder with the `cross-repo` components plus the `depends_on`, contracts and release order from Round 3. Every one of them starts as `status: pending approval`.
 3. Show a short summary (components, clarity, open questions) and every file path, then ask once: `Approve this end state? Reply "approve", or tell me what to change.` In workspace mode this one approval covers all the files.
-4. On changes, edit the files and ask again. On approval, set `status: approved` in every file.
-5. **AGENTS.md pointer.** In each repo, create `AGENTS.md` if absent and append this line once if it is not already there: `Harness state for any agent: .harness/handoff/latest.md (resume with /dts2-harness:run resume).` Change nothing else in the file. Then go to Part 2.
+4. On changes, edit the files and ask again. On approval, set `status: approved` in every file. Then go to Part 2.
 
 ## Part 2 — Scaffold
 
@@ -166,7 +165,8 @@ Gate: `.harness/end-state.md` has `status: approved`, or the user passed `--scaf
 6. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/roster.py" resolve --config .harness/config.yaml`. If it errors, show the error and fix the roster with the user.
 7. If the Impeccable skill is installed and the repo has a marketing surface (as in step 5) or a UI (a frontend framework, HTML templates, or app screens in the stack; for greenfield, the user's stated surface), run `/impeccable init`.
 8. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/ensure-ignored.py" <repo>` to add the harness's ignore entries to `.gitignore`.
-9. Show the detected commands once and let the user correct them. Tell the user `config.yaml`, `review-checklist.md`, `lessons.md`, `discipline.md`, `state.md` and `end-state.md` are meant to be committed.
+9. Create `AGENTS.md` if absent and append this line once if it is not already there: `Harness state for any agent: .harness/handoff/latest.md (resume with /dts2-harness:run resume).` Change nothing else in the file.
+10. Show the detected commands once and let the user correct them. Tell the user `config.yaml`, `review-checklist.md`, `lessons.md`, `discipline.md`, `state.md` and `end-state.md` are meant to be committed.
 
 ### Batch (parallel, scaffold-only)
 1. Resolve the repo list. For a folder, list its immediate children that contain `.git`.
@@ -200,6 +200,6 @@ The `run` skill reads this to plan cross-repo tasks: contract owners first, cons
 - Never scaffold before the end state is approved, unless `--scaffold-only` was given.
 - Never overwrite existing config without the user's choice.
 - Never guess commands. Leave them empty and say so.
-- Never write into a context repo, a `coexist` harness folder, `CLAUDE.md` or `AGENTS.md`, except the single pointer line in Round 5 step 5.
+- Never write into a context repo, a `coexist` harness folder, `CLAUDE.md` or `AGENTS.md`, except the single pointer line in Part 2 (Single).
 - Never install skills outside project scope.
 - Never commit or push.

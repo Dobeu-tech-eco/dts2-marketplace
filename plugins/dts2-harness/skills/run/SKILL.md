@@ -10,7 +10,8 @@ Follow the phases in order. Every agent dispatch uses the Agent tool with `subag
 If the request is `run add secret NAME`, skip to **Add secret mode**.
 
 ## Preflight
-**Resume mode.** If the request is `run resume`, read `.harness/handoff/latest.md` first (if it is missing, run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/handoff-write.py" <repo>` to build it). Print its `## State`, `## Open items` and `## Next action`, then ask once: `Continue with the next action? (y/n)`. On yes, run the pipeline below on that next action; on no, stop. Open action items can be listed or changed with `/dts2-harness:action-items`.
+
+**Resume mode.** If the request is `run resume`, read `.harness/handoff/latest.md` first (if it is missing, run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/handoff-write.py" <repo>` to build it). Print its `## State`, `## Open items` and `## Next action`, then ask once: `Continue with the next action? (y/n)`. On yes: if the next action is a `run add secret NAME` command, go to **Add secret mode**; if it says the latest receipt is not approved, show that receipt and resume at the **Ship checkpoint**; if it says there are no open items, ask `What is the next task?`; otherwise run the pipeline below with the next action as the task. On no, stop. Open action items can be listed or changed with `/dts2-harness:action-items`.
 1. **Harness change.** If the request names a harness skill, agent, hook, or profile (a dts2-harness file, not the repo's own code), print `That changes the harness itself; use `/dts2-harness:evolve`.` and stop. Never plan a harness change as a repo task.
 2. **Config and mode.** Look for `.harness/config.yaml` in the repo, then `.harness-workspace.yaml` in a parent folder. Neither → stop and point to `/dts2-harness:setup`. Print one mode line: `Mode: workspace` if `.harness-workspace.yaml` was found, else `Mode: single`.
 3. **Ignore guard.** For each repo involved: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/ensure-ignored.py" <repo>`.
@@ -47,13 +48,13 @@ Show, in this order:
 
 **Blueprint check.** If `.harness/end-state.md` has a `## Blueprint` block, the plan must carry a `## Blueprint coverage` section mapping every layer to `Builder N` or `unchanged`. A layer with no mapping blocks the checkpoint: send the plan back to the lead once with `Blueprint layer <x> unmapped`. Still unmapped → stop and say why.
 
-Then say exactly: "Here is the plan, the done-criteria, and who does what. Approve, edit, or stop." Silence means stop. On edit, revise with the lead and show the checkpoint again. Any choice the user defers here goes to `.harness/action-items.md` → `## Decisions` as `| <item> | <context> | open |` (create the file from `${CLAUDE_PLUGIN_ROOT}/templates/action-items.md` if absent).
+Then say exactly: "Here is the plan, the done-criteria, and who does what. Approve, edit, or stop." Silence means stop. On edit, revise with the lead and show the checkpoint again. Any choice the user defers here goes to `.harness/action-items.md` → `## Decisions` as `| <item> | <context> | open | | <YYYY-MM-DD> |` (create the file from `${CLAUDE_PLUGIN_ROOT}/templates/action-items.md` if absent).
 
 ## Phase 2 — Build (parallel builders)
 1. Builders = min(builder sections in the plan, scout's builder count, `max_builders`). In single mode every builder works in the same tree on its own file set. In workspace mode, or when the user opted in, follow **Workspace or opted-in isolation** below.
 2. Model per builder from its `complexity`: `mechanical` → `economy`, `normal` → `standard`, `design` → `frontier`. A Claude builder is an Agent dispatch with that `model`. A live non-Claude builder runs through Bash as its profile `command` with the brief as the prompt, passing the resolved model when its CLI accepts one.
 3. Dispatch every independent builder in one message so they run at once. Dependent builders start only after their dependencies report done.
-4. **Handoff agents** (in the roster's `handoff` list): write `.harness/handoff/<agent>/<n>.md` (the builder's tasks, files, done-when) and the agent's rules file from its profile `rulesFile`, then pause that builder until the user says done.
+4. **Handoff agents** (in the roster's `handoff` list): write `.harness/handoff/<agent>/<n>.md` (the builder's tasks, files, done-when) and the agent's rules file from its profile `rulesFile`, then pause that builder until the user says done. Record it with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/action-items.py" <repo> add Handoff ".harness/handoff/<agent>/<n>.md builder <n>"` and `… assign <id> <agent>`; mark it `done` when the user reports done.
 5. A builder that asks for a file outside its file set: pause that builder and ask the user.
 6. A builder that reports `SECRET NEEDED`: handle it as in **Secrets** below; the others keep going.
 7. A builder failing 3 times on the same error: stop it, escalate with what failed, and record it in `.harness/state.md` under `## Failures and escalations`. Never retry blindly.
@@ -62,7 +63,7 @@ Then say exactly: "Here is the plan, the done-criteria, and who does what. Appro
 ### Secrets
 A secret's value never passes through the chat, a prompt, or an agent's context. On a builder's `SECRET NEEDED: NAME — <what it unlocks> — <where consumed>` line, pause that builder only and ask once: **provide now** or **add later**.
 - **provide now**: name the variable and exactly one place to put it: a `NAME=` line in `.env`, the project's secret manager command, or `gh secret set NAME` for CI. Wait for the user to say "done". Check presence only, never print a value: for `.env` or the environment, `test -n "${NAME:-}"` or `grep -qE '^NAME=.+' .env`; for GitHub Actions (`gh secret set NAME`), `gh secret list | grep -qE '^NAME\b'` (key names only). Present → resume the builder. Missing → say so and ask again once.
-- **add later**: append `| NAME | <what it unlocks> | <where consumed> | <how to add> | open |` to `.harness/action-items.md` → `## Secrets` (create from the template if absent); add `NAME=` with a one-line comment to `.env.example`; let the builder keep its not-configured path. If any wiring was left undone because the secret is missing, write the status as `open, deferred wiring` and say what was deferred in `consumed in`.
+- **add later**: append `| NAME | <what it unlocks> | <where consumed> | <how to add> | open | | <YYYY-MM-DD> |` to `.harness/action-items.md` → `## Secrets` (create from the template if absent); add `NAME=` with a one-line comment to `.env.example`; let the builder keep its not-configured path. If any wiring was left undone because the secret is missing, write the status as `open, deferred wiring` and say what was deferred in `consumed in`.
 
 The run continues either way. Open secrets appear in the receipt under *Steps outside this change*, and they never block the commit or the PR.
 
@@ -83,14 +84,14 @@ The builder that owns the files runs, inside its file set, in one dispatch:
 - `/impeccable clarify <components>` when it touches error, empty, or confirmation states;
 - `/impeccable optimize <components>` only when the walkthrough marked a screen slow.
 
-One round, no loop. Then dispatch the verifier (`model: opus`) to run the configured tests on the result; its table replaces the earlier test rows.
+One round, no loop. Then go to Phase 3c; its verifier run covers this result.
 
 ## Phase 3c — Code finish pass
 Runs on every code diff, after Phase 3b (or straight after Phase 3 when 3b was skipped) and before the final verifier tests. Two extra reviewer axes on the diff, dispatched as one `dts2-harness:reviewer` at `standard`:
 - `simplify`: duplication, dead code, functions over about 20 lines, unclear names, speculative abstraction.
 - `optimize`: only for files the walkthrough marked slow or a test marked slow; never speculative. No slow marker → report `optimize: n/a`.
 
-Then dispatch the verifier (`model: opus`) to run the configured tests; it adds a `Coverage:` line for changed source files with no test that imports or exercises them. The builder that owns the files applies the resulting fix list inside its file set, once. This pass counts toward the 3-round cap in Phase 4: it is one of the rounds, not an extra one.
+The builder that owns the files applies the resulting fix list inside its file set, once. Then dispatch the verifier (`model: opus`) to run the configured tests on the result; its table replaces the earlier test rows and adds a `Coverage:` line for changed source files with no test that imports or exercises them. This pass counts toward the 3-round cap in Phase 4: it is one of the rounds, not an extra one.
 
 ## Phase 4 — Ship checkpoint
 1. Merge findings, dedupe by file:line, keep the highest severity.
@@ -104,18 +105,18 @@ Verifier BLOCKED means not done, unless the user explicitly overrides; the reaso
 
 ## After ship
 Do these before the commit so they land in it. Do not narrate the writes.
-1. Append the reviewers' lesson candidates to `.harness/lessons-inbox.md`. If `auto_learn` is not `false`, run the `learn` skill in its auto mode on those candidates and put the resulting `lessons.md` diff in the ship summary; no separate approval prompt.
+1. Append the reviewers' lesson candidates to `.harness/lessons-inbox.md`. If `auto_learn` is not `false`, run the `learn` skill in its auto mode on those candidates and put the resulting `lessons.md` diff in the ship summary; no separate approval prompt. If `auto_learn` is `false`, still run only learn's **Run metrics** step so the Trend line stays current.
 2. In `.harness/end-state.md`, check the acceptance boxes the plan covered and the verifier confirmed, and update each touched component's status.
 3. Append the ship decision to `.harness/state.md` → `## Decisions` as `- <date> <what shipped, receipt path>`.
 4. **Write handoff.** Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/handoff-write.py" <repo>` last, after the other writes, so `.harness/handoff/latest.md` reflects them. It never contains a secret's value.
-5. Include `lessons.md`, `end-state.md`, `state.md`, `action-items.md` (if changed), and `.harness/review/critique-<stamp>.md` (if written) in the commit. `handoff/latest.md` is regenerated, not committed.
+5. Include `lessons.md`, `.harness/metrics.jsonl`, `.harness/harness-lessons.md` (if changed), `end-state.md`, `state.md`, `action-items.md` (if changed), and `.harness/review/critique-<stamp>.md` (if written) in the commit. `handoff/latest.md` is regenerated, not committed.
 
 ## Deployment verification
 Runs only when `deploy.provider != none` in `.harness/end-state.md`. Read `deploy.provider`, `deploy.productionUrl`, `deploy.checkCommand` and `deploy.status`. The harness never deploys, pushes, or re-runs CI except on an explicit yes inside the troubleshoot round below. It never creates provider accounts or enters credentials; secrets are presence-only.
 
 If the `deploy:` block is missing or `provider: unset` (v2 or `--scaffold-only` repos), after the PR is opened run `deploy-detect.py` and ask the setup skill's deploy question once, record the answer in `end-state.md`, then continue.
 
-**Planned deploy.** When `deploy.status` is `planned`, build `deploy.plan` as its own run, before any feature run: the provider config file, a deploy workflow, env and secret names to `.harness/action-items.md` (never values), and DNS, domain and account steps to action items for the user. On the first passing deploy, set `deploy.status` to `live` and run the production walkthrough below.
+**Planned deploy.** Started from Preflight step 4. When `deploy.status` is `planned`, build `deploy.plan` as its own run, before any feature run: the provider config file, a deploy workflow, secret names to `## Secrets` (never values) and DNS, domain and account steps to `## Deploy` in `.harness/action-items.md`, via `action-items.py <repo> add`. On the first passing deploy, set `deploy.status` to `live` and run the production walkthrough below.
 
 **Watch.** After the PR is opened, print: `Deploy watch: <provider> — run `<checkCommand>` or tell me when it is live`; when `checkCommand` is null, print `Deploy watch: <provider> — tell me when it is live`. Wait for the user to confirm, or for the check output they paste to show the new commit deployed. Never run the deploy yourself.
 
