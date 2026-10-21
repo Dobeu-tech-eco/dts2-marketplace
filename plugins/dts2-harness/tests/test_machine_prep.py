@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import unittest
 from pathlib import Path
@@ -19,10 +20,13 @@ SETTINGS: dict[str, Any] = {"enabledPlugins": {
 MARKET: dict[str, list[str]] = {"dts2-harness@dts2": ["lead.md"], "used@mkt": [], "unused@mkt": []}
 
 
-def make_profile(**claude: Any) -> Path:
+NO_REQUIRED: list[str] = ["nothing@*"]
+
+
+def make_profile(required: list[str] | None = None, **claude: Any) -> Path:
     base: dict[str, Any] = {"enabledPlugins": ["dts2-harness@dts2"], "keepSyncedPlugins": []}
     profile = {"budget": {}, "claude": {**base, **claude},
-               "requiredByHarness": ["marketing-skills@synced", "impeccable@*"]}
+               "requiredByHarness": required or ["marketing-skills@synced", "impeccable@*"]}
     path: Path = make_tmp_home() / "profile.json"
     path.write_text(json.dumps(profile))
     return path
@@ -64,21 +68,59 @@ class TierTest(unittest.TestCase):
         self.assertEqual(len([k for k, v in flags.items() if k.endswith("@synced") and v == "False"]), 3)
 
     def test_strict_turns_both_syncs_off(self) -> None:
-        flags = planned_flags(plan_text(fake_home(), make_profile(), "--tier", "strict"))
+        flags = planned_flags(plan_text(fake_home(), make_profile(NO_REQUIRED), "--tier", "strict"))
         self.assertEqual(flags["syncClaudeAiPlugins"], "False")
         self.assertEqual(flags["syncClaudeAiSkills"], "False")
         self.assertEqual(flags["unused@mkt"], "False")
 
     def test_required_by_harness_survives_strict(self) -> None:
         text = plan_text(fake_home(), make_profile(), "--tier", "strict")
+        flags = planned_flags(text)
         self.assertIn("marketing-skills@synced: True -> True (requiredByHarness)", text)
         self.assertNotIn("marketing-skills@synced: True -> False", text)
+        self.assertNotIn("syncClaudeAiPlugins", flags)
+        self.assertEqual(flags["syncClaudeAiSkills"], "False")
+        self.assertEqual(flags["holocron@synced"], "False")
+        self.assertEqual(flags["pensyve@synced"], "False")
+
+    def test_strict_turns_plugin_sync_off_when_nothing_required(self) -> None:
+        flags = planned_flags(plan_text(fake_home(), make_profile(NO_REQUIRED), "--tier", "strict"))
+        self.assertEqual(flags["syncClaudeAiPlugins"], "False")
 
     def test_default_tier_from_profile(self) -> None:
-        flags = planned_flags(plan_text(fake_home(), make_profile(defaultTier="strict")))
+        flags = planned_flags(plan_text(fake_home(), make_profile(NO_REQUIRED, defaultTier="strict")))
         self.assertEqual(flags["syncClaudeAiPlugins"], "False")
         flags = planned_flags(plan_text(fake_home(), make_profile(defaultTier="light")))
         self.assertNotIn("syncClaudeAiPlugins", flags)
+
+
+FAILING_SCAN: str = "import sys; sys.stderr.write('boom'); sys.exit(1)"
+
+
+class UsageFailureTest(unittest.TestCase):
+    def run_with_bad_scan(self, command: str) -> tuple[subprocess.CompletedProcess[str], Path]:
+        home, profile = fake_home(), make_profile()
+        scan: Path = make_tmp_home() / "bad-scan.py"
+        scan.write_text(FAILING_SCAN)
+        result = subprocess.run(
+            ["python3", "-I", str(PLUGIN_ROOT / "scripts" / "machine-prep.py"), command,
+             "--profile", str(profile), "--claude-home", str(home), "--home", str(home), "--tier", "light"],
+            capture_output=True, text=True, cwd=str(PLUGIN_ROOT), env={**os.environ, "DTS2_USAGE_SCAN": str(scan)})
+        return result, home
+
+    def test_plan_and_apply_fail_without_writing(self) -> None:
+        for command in ("plan", "apply"):
+            result, home = self.run_with_bad_scan(command)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("boom", result.stderr)
+            self.assertEqual(json.loads((home / "settings.json").read_text()), SETTINGS)
+            self.assertFalse((home / "backups").exists())
+
+    def test_audit_reports_null_usage_and_issue(self) -> None:
+        result, _ = self.run_with_bad_scan("audit")
+        report = json.loads(result.stdout)
+        self.assertIsNone(report["inventory"]["usage"])
+        self.assertIn("usage scan failed: boom", report["issues"])
 
 
 class InventoryTest(unittest.TestCase):

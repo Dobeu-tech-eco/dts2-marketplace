@@ -38,23 +38,23 @@ Run `... machine-prep.py plan --tier <light|standard|strict>` for each tier the 
 |---|---|---|---|
 | light | Everything used in the window, the profile keep-set, `syncClaudeAiPlugins` and `syncClaudeAiSkills` untouched | Plugins with zero use in the window (not org-required) | Someone who wants no surprises |
 | standard | Profile keep-set, the top `keepSyncedTopN` (5) used synced plugins, `keepSyncedPlugins` | Marketplace plugins outside the keep-set, all other synced plugins | Most people; the default |
-| strict | Profile keep-set only | `syncClaudeAiPlugins: false`, `syncClaudeAiSkills: false`, everything outside the keep-set | A minimal, fast, predictable start |
+| strict | Profile keep-set only, plus any `requiredByHarness` synced plugin | `syncClaudeAiSkills: false`; `syncClaudeAiPlugins: false` when no required plugin is synced, otherwise every other synced plugin is set off one by one | A minimal, fast, predictable start |
 
 Then present, from the audit inventory:
 - `redundantAgentPacks` as one line per group: "keep `<keep>`, disable N" (these plugins ship the same agent files, so you pay for them N times).
 - `duplicateSkillNames` as "skill X exists in A, B" so the user sees name collisions.
 - The top 10 entries of `usage` (plugin -> calls in the window), so the choice rests on what they actually use.
-- The `requiredByHarness` keep. Plugins matching the profile's `requiredByHarness` patterns (for example `marketing-skills@synced`, `impeccable@*`) are never disabled in any tier; the plan prints `(requiredByHarness)` on their line. Say why: the harness's own skills depend on them. Note that under strict, with `syncClaudeAiPlugins` off, a required synced plugin stays enabled in settings but claude.ai will not re-sync it.
+- The `requiredByHarness` keep. Plugins matching the profile's `requiredByHarness` patterns (for example `marketing-skills@synced`, `impeccable@*`) are never disabled in any tier; the plan prints `(requiredByHarness)` on their line. Say why: the harness's own skills depend on them.
 
 Plugins added on claude.ai later arrive enabled in light and standard, so re-run the plan after adding some. Also list, as manual steps the script does not perform:
 - Extra files in `~/.claude/agents` beyond the budget (suggest moving them to an archive folder).
 - Global MCP servers that belong in one project.
 - Codex plugin flags above budget.
 
-Then ask once which tier to apply.
+Recommend one tier and ask which to use. That is the only tier question; step 4 is the approval gate.
 
 ## 4. Approval gate
-Ask once: apply the plugin change, apply and also walk through the manual steps, or stop. Do nothing without a yes.
+Ask once, for the chosen tier: apply the plugin change, apply and also walk through the manual steps, or stop. Do nothing without a yes.
 
 ## 5. Apply
 Run `... machine-prep.py apply --tier <chosen>`. It backs up `settings.json` to `<claude home>/backups/` before writing. Report the backup path.

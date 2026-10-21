@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -26,6 +27,7 @@ from typing import Final
 
 SCRIPT_DIR: Final[Path] = Path(__file__).resolve().parent
 DEFAULT_DAYS: Final[int] = 30
+USAGE_SCAN_ENV: Final[str] = "DTS2_USAGE_SCAN"
 DEFAULT_PROFILE: Final[Path] = Path(__file__).resolve().parent.parent / "profiles" / "blueprint.json"
 FORBIDDEN_SCRIPT_DIRS: Final[tuple[str, ...]] = (".codex", ".claude")
 CODEX_ENABLED_LINE: Final[str] = "enabled = true"
@@ -116,11 +118,20 @@ def loaded_synced(settings: dict, synced: list[dict[str, str]]) -> list[str]:
     return [s["id"] for s in synced if plugins.get(s["id"]) is not False or s["preference"] == REQUIRED_PREFERENCE]
 
 
+class UsageScanError(Exception):
+    """The usage scan failed or printed something that is not JSON."""
+
+
 def read_usage(claude_home: Path, days: int) -> dict[str, int]:
-    cmd: list[str] = [sys.executable, "-I", str(SCRIPT_DIR / "usage-scan.py"),
-                      "--claude-home", str(claude_home), "--days", str(days)]
+    script: str = os.environ.get(USAGE_SCAN_ENV) or str(SCRIPT_DIR / "usage-scan.py")
+    cmd: list[str] = [sys.executable, "-I", script, "--claude-home", str(claude_home), "--days", str(days)]
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
-    return json.loads(result.stdout).get("plugins", {}) if result.returncode == 0 else {}
+    if result.returncode != 0:
+        raise UsageScanError(result.stderr.strip() or f"usage-scan exited {result.returncode}")
+    try:
+        return dict(json.loads(result.stdout)["plugins"])
+    except (ValueError, KeyError, TypeError) as err:
+        raise UsageScanError(f"usage-scan output is not valid: {err}") from err
 
 
 def plugin_roots(claude_home: Path, enabled: list[str], synced: list[dict[str, str]], loading: list[str]) -> dict[str, Path]:
@@ -129,7 +140,7 @@ def plugin_roots(claude_home: Path, enabled: list[str], synced: list[dict[str, s
     return {**roots, **{s["id"]: Path(s["root"]) for s in synced if s["id"] in loading}}
 
 
-def inventory(home: Path, claude_home: Path, project: Path, days: int = DEFAULT_DAYS) -> dict[str, object]:
+def inventory(home: Path, claude_home: Path, project: Path, usage: dict[str, int] | None) -> dict[str, object]:
     settings: dict = load_json(claude_home / "settings.json")
     plugins: dict[str, bool] = settings.get("enabledPlugins") or {}
     synced: list[dict[str, str]] = synced_plugins(claude_home)
@@ -139,12 +150,11 @@ def inventory(home: Path, claude_home: Path, project: Path, days: int = DEFAULT_
     loading: list[str] = loaded_synced(settings, synced)
     plugin_agents: dict[str, int] = {**marketplace_agents(claude_home, sorted(set(enabled + overrides))),
                                      **synced_agents(synced, loading)}
-    usage: dict[str, int] = read_usage(claude_home, days)
     roots: dict[str, Path] = plugin_roots(claude_home, sorted(set(enabled + overrides)), synced, loading)
     return {
         "enabledPlugins": enabled,
         "usage": usage,
-        "redundantAgentPacks": tiers.redundant_packs(synced, usage),
+        "redundantAgentPacks": tiers.redundant_packs(synced, usage or {}),
         "duplicateSkillNames": tiers.duplicate_skills(roots),
         "syncClaudeAiPlugins": settings.get(SYNC_KEY, "unset (syncing on)"),
         "syncedPluginsOnDisk": len(synced),
@@ -204,8 +214,14 @@ def backup(path: Path) -> Path:
 
 def run_audit(args: argparse.Namespace, claude_home: Path, profile: dict) -> int:
     home, project = args.home, args.project
-    inv: dict[str, object] = inventory(home, claude_home, project, args.days)
-    issues: list[str] = budget_findings(inv, profile) + boundary_findings(home, claude_home, profile)
+    usage: dict[str, int] | None = None
+    issues: list[str] = []
+    try:
+        usage = read_usage(claude_home, args.days)
+    except UsageScanError as err:
+        issues.append(f"usage scan failed: {err}")
+    inv: dict[str, object] = inventory(home, claude_home, project, usage)
+    issues += budget_findings(inv, profile) + boundary_findings(home, claude_home, profile)
     issues += [f"{p} is enabled by {project}/.claude/settings.json and overrides your user setting"
                for p in inv["projectEnablesOverridingYou"]]
     keep: set[str] = set(profile["claude"]["enabledPlugins"])
@@ -219,7 +235,11 @@ def run_audit(args: argparse.Namespace, claude_home: Path, profile: dict) -> int
 def run_change(args: argparse.Namespace, claude_home: Path, profile: dict, apply: bool) -> int:
     path: Path = claude_home / "settings.json"
     settings: dict = load_json(path)
-    usage: dict[str, int] = read_usage(claude_home, args.days)
+    try:
+        usage: dict[str, int] = read_usage(claude_home, args.days)
+    except UsageScanError as err:
+        print(f"usage scan failed, nothing changed: {err}", file=sys.stderr)
+        return 2
     result: dict = tiers.tier_plan(settings, profile, synced_plugins(claude_home), usage, args.tier)
     planned: dict = result["settings"]
     changes: list[str] = diff_settings(settings, planned, result["protected"])

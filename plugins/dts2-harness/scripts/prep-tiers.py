@@ -15,7 +15,7 @@ DEFAULT_TIER: Final[str] = "standard"
 DEFAULT_TOP_N: Final[int] = 5
 TIERS: Final[tuple[str, ...]] = ("light", "standard", "strict")
 PROTECTED_NOTE: Final[str] = "(requiredByHarness)"
-SkillMap = dict[str, list[str]]
+SkillMap: Final = dict[str, list[str]]
 
 
 def required_by_harness(plugin_id: str, patterns: list[str]) -> bool:
@@ -97,30 +97,46 @@ def standard_plugins(current: dict[str, bool], rules: dict, synced: list[dict[st
     return {**planned, **kept_current, **kept_flags}
 
 
-def strict_plugins(current: dict[str, bool], rules: dict) -> dict[str, bool]:
+def strict_plugins(current: dict[str, bool], rules: dict, synced: list[dict[str, str]]) -> dict[str, bool]:
     planned: dict[str, bool] = plan_marketplace(current, set(rules["enabledPlugins"]))
-    return {**planned, **{k: v for k, v in current.items() if k.endswith(SYNCED_SUFFIX)}}
+    kept_current: dict[str, bool] = {k: v for k, v in current.items() if k.endswith(SYNCED_SUFFIX)}
+    per_id: dict[str, bool] = {i: False for i in switchable_ids(synced)}
+    return {**planned, **kept_current, **per_id}
+
+
+def required_synced(synced: list[dict[str, str]], patterns: list[str]) -> bool:
+    return any(required_by_harness(s["id"], patterns) for s in synced)
 
 
 def protect(plugins: dict[str, bool], synced: list[dict[str, str]], patterns: list[str],
-            strict: bool) -> tuple[dict[str, bool], list[str]]:
+            sync_off: bool) -> tuple[dict[str, bool], list[str]]:
     synced_ids: list[str] = [s["id"] for s in synced]
-    candidates: set[str] = {k for k, v in plugins.items() if v is False} | (set(synced_ids) if strict else set())
+    candidates: set[str] = {k for k, v in plugins.items() if v is False} | (set(synced_ids) if sync_off else set())
     guarded: list[str] = sorted(i for i in candidates if required_by_harness(i, patterns))
     return {**plugins, **{i: True for i in guarded}}, guarded
 
 
 def tier_plan(settings: dict, profile: dict, synced: list[dict[str, str]],
               usage: dict[str, int], tier: str | None = None) -> dict:
-    """Return {"settings": planned settings, "protected": [ids kept on for requiredByHarness]}."""
+    """Return {"settings": planned settings, "protected": [ids kept on for requiredByHarness], "tier": name}.
+
+    Strict turns syncClaudeAiPlugins off unless a requiredByHarness plugin is synced; then it
+    disables the other synced plugins one by one so the required ones still load."""
     rules: dict = profile["claude"]
+    patterns: list[str] = profile.get("requiredByHarness", [])
     chosen: str = tier or rules.get("defaultTier", DEFAULT_TIER)
     current: dict[str, bool] = settings.get("enabledPlugins") or {}
+    plugins: dict[str, bool]
+    extra: dict[str, bool] = {}
+    sync_off: bool = False
     if chosen == "light":
-        plugins, extra = light_plugins(current, rules, synced, usage), {}
+        plugins = light_plugins(current, rules, synced, usage)
     elif chosen == "standard":
-        plugins, extra = standard_plugins(current, rules, synced, usage), {}
+        plugins = standard_plugins(current, rules, synced, usage)
     else:
-        plugins, extra = strict_plugins(current, rules), {SYNC_KEY: False, SKILLS_SYNC_KEY: False}
-    final, guarded = protect(plugins, synced, profile.get("requiredByHarness", []), chosen == "strict")
+        plugins = strict_plugins(current, rules, synced)
+        sync_off = not required_synced(synced, patterns)
+        extra = {SKILLS_SYNC_KEY: False, **({SYNC_KEY: False} if sync_off else {})}
+        extra.update({SYNC_KEY: True} if not sync_off and settings.get(SYNC_KEY) is False else {})
+    final, guarded = protect(plugins, synced, patterns, sync_off)
     return {"settings": {**settings, **extra, "enabledPlugins": final}, "protected": guarded, "tier": chosen}
