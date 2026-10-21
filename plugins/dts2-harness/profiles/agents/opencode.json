@@ -19,6 +19,7 @@
     "opencode",
     "--version"
   ],
+  "loginCommand": null,
   "models": {
     "frontier": null,
     "standard": null,

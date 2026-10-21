@@ -22,6 +22,11 @@
     "auth",
     "status"
   ],
+  "loginCommand": [
+    "claude",
+    "auth",
+    "status"
+  ],
   "models": {
     "frontier": "opus",
     "standard": "sonnet",

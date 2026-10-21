@@ -18,7 +18,7 @@ PROFILE_NAMES: Final[tuple[str, ...]] = (
 SCHEMA_KEYS: Final[frozenset[str]] = frozenset({
     "name", "displayName", "form", "rulesFile", "invocation", "command",
     "headlessFlag", "roles", "specialty", "verified",
-    "costTier", "statusCommand", "models", "modelsVerified",
+    "costTier", "statusCommand", "loginCommand", "models", "modelsVerified",
     "subscriptionName", "apiKeyEnv",
 })
 VERIFIED: Final[frozenset[str]] = frozenset({"claude", "codex", "gemini", "opencode"})
@@ -78,19 +78,29 @@ class ProfileExtensionTests(unittest.TestCase):
         expected: dict[str, Any] = {
             "claude": ["claude", "auth", "status"], "codex": ["codex", "login", "status"],
             "gemini": ["gemini", "--version"], "opencode": ["opencode", "--version"],
-            "copilot": ["gh", "auth", "status"], "grok": ["grok", "--version"],
+            "copilot": ["gh", "auth", "status"], "grok": ["grok", "version"],
             "cursor": None, "antigravity": None,
         }
         for name, command in expected.items():
             data: dict[str, Any] = json.loads((PROFILE_DIR / f"{name}.json").read_text())
             self.assertEqual(data["statusCommand"], command, name)
 
+    def test_login_commands(self) -> None:
+        expected: dict[str, Any] = {
+            "claude": ["claude", "auth", "status"], "codex": ["codex", "login", "status"],
+            "copilot": ["gh", "auth", "status"], "gemini": None, "grok": None,
+            "opencode": None, "cursor": None, "antigravity": None,
+        }
+        for name, command in expected.items():
+            data: dict[str, Any] = json.loads((PROFILE_DIR / f"{name}.json").read_text())
+            self.assertEqual(data["loginCommand"], command, name)
+
     def test_grok_profile(self) -> None:
         data: dict[str, Any] = json.loads((PROFILE_DIR / "grok.json").read_text())
         self.assertEqual(data["form"], "cli")
         self.assertEqual(data["rulesFile"], "AGENTS.md")
         self.assertEqual(data["invocation"], "live")
-        self.assertEqual(data["command"], ["grok"])
+        self.assertEqual(data["command"], ["grok", "-p"])
         self.assertIsNone(data["headlessFlag"])
         self.assertEqual(data["roles"], ["second-opinion"])
         self.assertFalse(data["verified"])

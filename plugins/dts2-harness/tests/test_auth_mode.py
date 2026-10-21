@@ -34,6 +34,22 @@ def fake_codex(status_ok: bool) -> str:
     return str(folder)
 
 
+def fake_gemini() -> str:
+    folder: Path = Path(tempfile.mkdtemp(prefix="dts2-gem-"))
+    script: Path = folder / "gemini"
+    script.write_text("#!/bin/sh\nexit 0\n")
+    script.chmod(0o755)
+    return str(folder)
+
+
+def probe_gemini(body: str) -> dict[str, Any]:
+    folder: Path = Path(tempfile.mkdtemp(prefix="dts2-cfg-"))
+    config: Path = folder / "config.yaml"
+    config.write_text(f"roster:\n  - name: gemini\n{body}", encoding="utf-8")
+    parsed: dict[str, Any] = json.loads(run(["probe", "--config", str(config)], fake_gemini(), {}).stdout)
+    return parsed
+
+
 def run(args: list[str], path: str, extra: dict[str, str]) -> subprocess.CompletedProcess[str]:
     env: dict[str, str] = {"PATH": path, "DTS2_PROBE_PATH": path, **extra}
     return subprocess.run(
@@ -94,10 +110,32 @@ class ProbeAuthTests(unittest.TestCase):
         self.assertIn({"name": "codex", "reason": "excluded by user"}, out["dropped"])
         self.assertNotIn("codex", out["usable"])
 
-    def test_auth_and_included_parsed(self) -> None:
+    def test_api_key_opt_in_is_usable(self) -> None:
         body: str = "    auth: api-key\n    included: true\n"
         out: dict[str, Any] = json.loads(probe_codex(False, {"OPENAI_API_KEY": SECRET}, body).stdout)
-        self.assertIn("codex", out["usable"] + [d["name"] for d in out["dropped"]])
+        self.assertIn("codex", out["usable"])
+        self.assertEqual(out["agents"]["codex"]["auth"], "api-key")
+
+    def test_api_key_without_opt_in_is_dropped(self) -> None:
+        body: str = "    auth: api-key\n"
+        out: dict[str, Any] = json.loads(probe_codex(False, {"OPENAI_API_KEY": SECRET}, body).stdout)
+        self.assertNotIn("codex", out["usable"])
+        self.assertIn("codex", [d["name"] for d in out["dropped"]])
+
+    def test_unverified_cli_needs_confirmation(self) -> None:
+        project: str = tempfile.mkdtemp(prefix="dts2-proj-")
+        detected: dict[str, Any] = json.loads(run(["detect", "--project", project], fake_gemini(), {}).stdout)
+        self.assertEqual(detected["auth"]["gemini"], "installed (unverified)")
+        self.assertEqual(probe_gemini("    auth: subscription\n")["agents"]["gemini"]["auth"], "subscription")
+        self.assertEqual(probe_gemini("")["agents"]["gemini"]["auth"], "installed (unverified)")
+
+    def test_api_key_map_is_boolean_and_secret_free(self) -> None:
+        project: str = tempfile.mkdtemp(prefix="dts2-proj-")
+        result = run(["detect", "--project", project], fake_codex(False), {"OPENAI_API_KEY": SECRET})
+        data: dict[str, Any] = json.loads(result.stdout)
+        self.assertTrue(all(isinstance(v, bool) for v in data["apiKey"].values()))
+        self.assertTrue(data["apiKey"]["codex"])
+        self.assertNotIn(SECRET, result.stdout + result.stderr)
 
     def test_secret_value_never_printed(self) -> None:
         env: dict[str, str] = {"OPENAI_API_KEY": SECRET, "ANTHROPIC_API_KEY": SECRET}

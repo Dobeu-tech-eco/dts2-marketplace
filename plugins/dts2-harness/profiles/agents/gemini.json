@@ -19,6 +19,7 @@
     "gemini",
     "--version"
   ],
+  "loginCommand": null,
   "models": {
     "frontier": "gemini-2.5-pro",
     "standard": "gemini-2.5-flash",

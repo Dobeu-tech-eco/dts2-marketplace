@@ -13,6 +13,7 @@
   "verified": false,
   "costTier": 2,
   "statusCommand": null,
+  "loginCommand": null,
   "models": {
     "frontier": null,
     "standard": null,

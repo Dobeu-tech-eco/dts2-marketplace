@@ -29,6 +29,11 @@ EXCLUDED_REASON: Final[str] = "excluded by user"
 AUTH_SUBSCRIPTION: Final[str] = "subscription"
 AUTH_API_KEY: Final[str] = "api-key"
 AUTH_NONE: Final[str] = "none"
+AUTH_UNVERIFIED: Final[str] = "installed (unverified)"
+STATUS_FAILED: Final[str] = "status check failed"
+NOT_OPTED_IN: Final[str] = (
+    "no subscription login; API key present but not opted in (included: true)"
+)
 SECOND_OPINION: Final[str] = "second-opinion"
 BUDGET_UNKNOWN: Final[str] = "unknown"
 MODEL_TIERS: Final[tuple[str, ...]] = ("frontier", "standard", "economy")
@@ -62,7 +67,7 @@ def parse_roster(text: str) -> list[dict[str, Any]]:
             included: false
 
     Only a top-level `roster:` block is read; each item is `- name: X` optionally
-    followed by `roles: [a, b]`, `auth: <mode>` and `included: true|false`. Anything else is ignored. Missing block -> default.
+    followed by `roles: [a, b]`, `auth: <mode>` (`subscription` or `api-key`) and `included: true|false`. Anything else is ignored. Missing block -> default.
     """
     entries: list[dict[str, Any]] = []
     in_block: bool = False
@@ -151,36 +156,72 @@ def probe_env() -> dict[str, str]:
     return env
 
 
+def command_ok(command: list[str], env: dict[str, str]) -> bool:
+    if shutil.which(command[0], path=env.get("PATH", "")) is None:
+        return False
+    try:
+        result = subprocess.run(
+            command, capture_output=True, timeout=PROBE_TIMEOUT_S, check=False, env=env,
+        )
+    except Exception:
+        return False
+    return result.returncode == 0
+
+
 def availability(profile: dict[str, Any], env: dict[str, str]) -> tuple[bool, str]:
     command: list[str] | None = profile["statusCommand"]
     if command is None:
         return True, "ok"
     if shutil.which(command[0], path=env.get("PATH", "")) is None:
         return False, "not installed"
-    try:
-        result = subprocess.run(
-            command, capture_output=True, timeout=PROBE_TIMEOUT_S, check=False, env=env,
-        )
-    except Exception:
-        return False, "status check failed"
-    return (True, "ok") if result.returncode == 0 else (False, "status check failed")
+    return (True, "ok") if command_ok(command, env) else (False, STATUS_FAILED)
 
 
-def auth_mode(profile: dict[str, Any], env: dict[str, str]) -> str:
-    """Subscription login wins; an API key counts only when no login is found. Presence only."""
-    command: list[str] | None = profile["statusCommand"]
-    if command is not None and availability(profile, env)[0]:
-        return AUTH_SUBSCRIPTION
+def has_api_key(profile: dict[str, Any], env: dict[str, str]) -> bool:
     key_env: str | None = profile.get("apiKeyEnv")
-    if key_env and env.get(key_env):
+    return bool(key_env and env.get(key_env))
+
+
+def unverified_auth(
+    profile: dict[str, Any], env: dict[str, str], declared: str | None,
+) -> str:
+    if declared == AUTH_SUBSCRIPTION:
+        return AUTH_SUBSCRIPTION
+    if declared == AUTH_API_KEY and has_api_key(profile, env):
         return AUTH_API_KEY
-    return AUTH_NONE
+    return AUTH_UNVERIFIED
+
+
+def auth_mode(
+    profile: dict[str, Any], env: dict[str, str], available: bool, declared: str | None,
+) -> str:
+    """Subscription login wins; an API key counts only when no login is found. Presence only."""
+    if profile["statusCommand"] is None:
+        return AUTH_NONE
+    login: list[str] | None = profile.get("loginCommand")
+    if login is not None and command_ok(login, env):
+        return AUTH_SUBSCRIPTION
+    if login is None and available:
+        return unverified_auth(profile, env, declared)
+    return AUTH_API_KEY if has_api_key(profile, env) else AUTH_NONE
+
+
+def opt_in_override(
+    entry: dict[str, Any], available: bool, reason: str, auth: str,
+) -> tuple[bool, str]:
+    if available or reason != STATUS_FAILED or auth != AUTH_API_KEY:
+        return available, reason
+    if entry.get("included") is True:
+        return True, "ok"
+    return False, NOT_OPTED_IN
 
 
 def probe_entry(
     entry: dict[str, Any], profile: dict[str, Any], budget: str, env: dict[str, str],
 ) -> dict[str, Any]:
     available, reason = availability(profile, env)
+    auth: str = auth_mode(profile, env, available, entry.get("auth"))
+    available, reason = opt_in_override(entry, available, reason, auth)
     roles: list[str] = entry_roles(entry, profile)
     if entry.get("included") is False:
         return {
@@ -195,8 +236,7 @@ def probe_entry(
             available, reason = False, "budget low"
     return {
         "available": available, "reason": reason, "budget": budget or BUDGET_UNKNOWN,
-        "costTier": profile["costTier"], "roles": roles if available else [],
-        "auth": auth_mode(profile, env),
+        "costTier": profile["costTier"], "roles": roles if available else [], "auth": auth,
     }
 
 
@@ -247,8 +287,14 @@ def detect(project: Path) -> dict[str, Any]:
     installed: list[str] = [n for n, p in profiles.items() if is_installed(p, project)]
     installed.sort(key=lambda n: (n != "claude", list(profiles).index(n)))
     env: dict[str, str] = probe_env()
-    auth: dict[str, str] = {n: auth_mode(profiles[n], env) for n in installed}
-    return {"installed": installed, "claudeOnly": installed == ["claude"], "auth": auth}
+    auth: dict[str, str] = {
+        n: auth_mode(profiles[n], env, availability(profiles[n], env)[0], None) for n in installed
+    }
+    api_key: dict[str, bool] = {n: has_api_key(profiles[n], env) for n in installed}
+    return {
+        "installed": installed, "claudeOnly": installed == ["claude"],
+        "auth": auth, "apiKey": api_key,
+    }
 
 
 def run_resolve(config: Path) -> int:

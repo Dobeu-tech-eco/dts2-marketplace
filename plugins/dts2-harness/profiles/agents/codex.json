@@ -21,6 +21,11 @@
     "login",
     "status"
   ],
+  "loginCommand": [
+    "codex",
+    "login",
+    "status"
+  ],
   "models": {
     "frontier": "gpt-5-codex",
     "standard": "gpt-5-codex",

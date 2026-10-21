@@ -5,7 +5,8 @@
   "rulesFile": "AGENTS.md",
   "invocation": "live",
   "command": [
-    "grok"
+    "grok",
+    "-p"
   ],
   "headlessFlag": null,
   "roles": [
@@ -16,8 +17,9 @@
   "costTier": 2,
   "statusCommand": [
     "grok",
-    "--version"
+    "version"
   ],
+  "loginCommand": null,
   "models": {
     "frontier": "grok-4.7",
     "standard": "grok-4.7",

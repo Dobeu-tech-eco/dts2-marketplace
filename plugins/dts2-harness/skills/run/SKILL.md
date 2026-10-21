@@ -26,7 +26,8 @@ If the request is `run add secret NAME`, skip to **Add secret mode**.
    - Drop every agent in `dropped` for this run; keep its `reason`.
    - An agent with budget `low` keeps only the `second-opinion` role (the probe already restricts its `roles`); never give it a builder or reviewer seat.
    - Keep the probe JSON for the lead. Each agent carries `costTier` (1 cheapest).
-   - Auth: each probe entry carries `auth` (`subscription`, `api-key`, or `none`). Agents already logged in via subscription are used as-is; never prompt for a second authentication or an API key. An agent is dispatched via API key only when its roster entry says `auth: api-key` and `included: true`.
+   - Auth: each probe entry carries `auth` (`subscription`, `api-key`, `installed (unverified)` or `none`). Agents already logged in via subscription are used as-is; never prompt for a second authentication or an API key. An agent is dispatched via API key only when its roster entry says `auth: api-key` and `included: true`.
+   - Claude is always usable for this run (it is running this skill); if the probe drops `claude`, keep it and show the reason as a one-line warning.
 3. Resolve models once per agent you may use: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/roster.py" model --agent <name> --tier <economy|standard|frontier>`. `null` means use that agent's default model.
 
 ## Phase 1 — Plan (lead)
@@ -38,7 +39,7 @@ Dispatch `dts2-harness:lead` with `model` = claude `frontier` (`opus`). Give it:
 
 Show, in this order:
 - The plan as the lead wrote it, including `## Done` and `Axes:`.
-- `Team: N builders on separate file sets`, reviewer axes, and one line per seat: `<role> — <agent> (<tier>, <auth>)`, where auth is `subscription` or `api-key`, for example `builder 2 — codex (standard, api-key)`.
+- `Team: N builders on separate file sets`, reviewer axes, and one line per seat: `<role> — <agent> (<tier>, <auth>)`, where auth is `subscription`, `api-key`, `installed (unverified)`, or `handoff` for IDE agents, for example `builder 2 — codex (standard, api-key)`.
 - One line per dropped agent: `Dropped: <agent> — <reason>`.
 
 Then say exactly: "Here is the plan, the done-criteria, and who does what. Approve, edit, or stop." Silence means stop. On edit, revise with the lead and show the checkpoint again. Any choice the user defers here goes to `.harness/action-items.md` → `## Decisions` as `| <item> | <context> | open |` (create the file from `${CLAUDE_PLUGIN_ROOT}/templates/action-items.md` if absent).

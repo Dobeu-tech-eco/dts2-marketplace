@@ -21,6 +21,11 @@
     "auth",
     "status"
   ],
+  "loginCommand": [
+    "gh",
+    "auth",
+    "status"
+  ],
   "models": {
     "frontier": null,
     "standard": null,

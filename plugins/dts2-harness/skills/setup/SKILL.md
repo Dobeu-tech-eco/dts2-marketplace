@@ -80,7 +80,8 @@ Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/roster.py" detect --project <repo>`.
 Auth mode comes from `detect`'s `auth` map (subscriptions first, API keys by opt-in). Never print an environment variable's value and never read credential files.
 - `auth: subscription` (the CLI is already logged in) → include the agent with no further prompt: no second authentication, no API-key question. Record `auth: subscription`.
 - `auth: api-key` (no subscription login found, but the profile's `apiKeyEnv` is set) → ask one line per agent, for example: `codex has no subscription login; an API key is present (pay-per-use). Include or exclude?` Record `included: true` or `included: false`, and `auth: api-key`.
-- `auth: none` → list the agent as not available with its login command (the login counterpart of its `statusCommand`, e.g. `codex login`). Do not ask anything.
+- `auth: installed (unverified)` (the CLI is installed but has no login check: gemini, grok, opencode) → ask once per agent: `<agent> is installed, but I can't check its login. Is it logged in to your subscription? (y/n)`. Yes → record `auth: subscription`. No → if `detect`'s `apiKey[<agent>]` is true, ask the pay-per-use line below; otherwise list it as not available with its login step (`gemini` then `/auth`, `grok login`, `opencode auth login`).
+- `auth: none` → list the agent as not available with its login command (the login counterpart of its `statusCommand`, e.g. `codex login`). Do not add it to the proposed roster and do not ask anything.
 - Handoff (IDE) agents are included as before; their login cannot be checked.
 
 Roster entries carry the choices: `- name: codex`, then `auth: api-key` and `included: false` on the lines under it. `roster.py probe` drops an `included: false` agent as `excluded by user`.
