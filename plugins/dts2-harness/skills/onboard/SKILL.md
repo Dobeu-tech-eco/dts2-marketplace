@@ -22,7 +22,7 @@ Explanation only. Do not invoke agents or change files from this skill.
 | `setup` | Scaffold `.harness/` in one repo, many repos at once, or a multi-repo workspace. |
 | `run` | Do a task: scout sizes it, lead plans, N builders build, reviewers and verifier check. Two checkpoints: Plan checkpoint and Ship checkpoint. Open secrets and decisions go to `.harness/action-items.md`; close a secret with `run add secret NAME`. |
 | `learn` | Turn reviewer findings into lessons that every future run reads. |
-| `sdk` | Run the same pipeline headless with the Agent SDK, with API key, key command, or your existing Claude login. |
+| `sdk` | Run the same pipeline headless with the Agent SDK, using your existing Claude login, or an API key or key command for CI. |
 | `evolve` | Change the harness itself in its source repo: edit, validate, test, bump both manifests, commit; push only on an explicit yes. |
 | `gtm` | Go-to-market in one pass through the `marketing-skills` plugin, ending in a `readiness.md` scorecard. |
 
