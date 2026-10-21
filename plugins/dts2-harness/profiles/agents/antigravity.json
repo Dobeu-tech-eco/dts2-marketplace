@@ -1,0 +1,25 @@
+{
+  "name": "antigravity",
+  "displayName": "Antigravity",
+  "form": "ide",
+  "rulesFile": "AGENTS.md",
+  "invocation": "handoff",
+  "command": null,
+  "headlessFlag": null,
+  "roles": [
+    "builder"
+  ],
+  "specialty": "IDE-based agent that implements from a handoff brief inside the editor.",
+  "verified": false,
+  "costTier": 2,
+  "statusCommand": null,
+  "loginCommand": null,
+  "models": {
+    "frontier": null,
+    "standard": null,
+    "economy": null
+  },
+  "modelsVerified": false,
+  "subscriptionName": "Gemini Pro (Antigravity)",
+  "apiKeyEnv": null
+}

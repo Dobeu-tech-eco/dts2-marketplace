@@ -1,0 +1,25 @@
+{
+  "name": "cursor",
+  "displayName": "Cursor",
+  "form": "ide",
+  "rulesFile": ".cursor/rules/dts2.mdc",
+  "invocation": "handoff",
+  "command": null,
+  "headlessFlag": null,
+  "roles": [
+    "builder"
+  ],
+  "specialty": "IDE-based builder that works from a handoff brief inside the editor.",
+  "verified": false,
+  "costTier": 2,
+  "statusCommand": null,
+  "loginCommand": null,
+  "models": {
+    "frontier": null,
+    "standard": null,
+    "economy": null
+  },
+  "modelsVerified": false,
+  "subscriptionName": "Cursor Pro",
+  "apiKeyEnv": null
+}

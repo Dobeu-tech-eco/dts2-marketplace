@@ -1,0 +1,37 @@
+{
+  "name": "copilot",
+  "displayName": "GitHub Copilot",
+  "form": "cli",
+  "rulesFile": ".github/copilot-instructions.md",
+  "invocation": "live",
+  "command": [
+    "gh",
+    "copilot"
+  ],
+  "headlessFlag": null,
+  "roles": [
+    "builder",
+    "reviewer:security"
+  ],
+  "specialty": "GitHub-integrated assistant useful for implementation and security-focused review.",
+  "verified": false,
+  "costTier": 2,
+  "statusCommand": [
+    "gh",
+    "auth",
+    "status"
+  ],
+  "loginCommand": [
+    "gh",
+    "auth",
+    "status"
+  ],
+  "models": {
+    "frontier": null,
+    "standard": null,
+    "economy": null
+  },
+  "modelsVerified": false,
+  "subscriptionName": "GitHub Copilot",
+  "apiKeyEnv": null
+}

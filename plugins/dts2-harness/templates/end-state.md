@@ -1,0 +1,90 @@
+# End state: <project>
+
+- rounds: 0
+- clarity: 0
+- threshold: 80
+- thresholdSource: default
+- roster: claude
+- status: pending approval
+- continuedAnyway: no
+
+## Deploy
+
+```
+deploy:
+  provider: unset
+  productionUrl: null
+  checkCommand: null
+```
+
+Provider is `vercel`, `cloudflare`, `netlify`, `fly`, `render`, `firebase`, `github-workflow` or `none`. `unset` means not asked yet; `none` means the user chose to skip verification. When setup plans a deploy that does not exist yet, add `plan: <text>` and `status: planned`; `run` sets `status: live` after the first passing deploy.
+
+## Related repos
+
+| url | role | tag | note |
+|---|---|---|---|
+| <url> | <what it is and what it serves> | context | <why it matters> |
+
+Tag is `context` or `linked`.
+
+## Other harnesses
+
+| folder | decision |
+|---|---|
+| <folder> | coexist |
+
+Decision is `import`, `coexist` or `retire`.
+
+## Skills
+
+Skill plan. The lead hands each builder the skills for its component in this order; reviewers get the review-phase skills.
+
+| skill | source | installed | serves component | phase | order |
+|---|---|---|---|---|---|
+| <skill> | <source> | no | <component> | build | 1 |
+
+Phase is `plan`, `build`, `review` or `verify`. Installed is `yes` or `no`.
+
+## Topology
+
+<components and how they connect>
+
+## Blueprint
+
+| layer | choice | status |
+|---|---|---|
+| data model | <choice> | n/a |
+| api surface | <choice> | |
+| screens/routes | <choice> | |
+| auth | <choice> | |
+| infra/deploy | <choice> | |
+| observability | <choice> | |
+| background jobs | <choice> | |
+
+Status is blank, `built`, or `n/a`. The plan checkpoint requires every layer to map to a builder or `unchanged`.
+
+## Goal
+
+<one paragraph>
+
+## Constraints
+
+- <constraint>
+
+## Non-goals
+
+- <non-goal>
+
+## Acceptance criteria
+
+### <component>
+
+- [ ] <criterion>
+
+## Assumptions
+
+- <assumption>
+
+## Open questions
+
+- <question>
