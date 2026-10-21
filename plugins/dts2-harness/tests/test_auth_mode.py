@@ -36,7 +36,7 @@ def fake_codex(status_ok: bool) -> str:
 
 def fake_gemini() -> str:
     folder: Path = Path(tempfile.mkdtemp(prefix="dts2-gem-"))
-    script: Path = folder / "gemini"
+    script: Path = folder / "agy"
     script.write_text("#!/bin/sh\nexit 0\n")
     script.chmod(0o755)
     return str(folder)

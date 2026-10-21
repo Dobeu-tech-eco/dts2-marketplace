@@ -19,9 +19,9 @@ SCHEMA_KEYS: Final[frozenset[str]] = frozenset({
     "name", "displayName", "form", "rulesFile", "invocation", "command",
     "headlessFlag", "roles", "specialty", "verified",
     "costTier", "statusCommand", "loginCommand", "models", "modelsVerified",
-    "subscriptionName", "apiKeyEnv",
+    "subscriptionName", "apiKeyEnv", "searchPaths",
 })
-VERIFIED: Final[frozenset[str]] = frozenset({"claude", "codex", "gemini", "opencode"})
+VERIFIED: Final[frozenset[str]] = frozenset({"claude", "codex", "opencode"})
 COST_TIERS: Final[dict[str, int]] = {
     "claude": 3, "codex": 2, "gemini": 1, "opencode": 1,
     "copilot": 2, "cursor": 2, "antigravity": 2, "grok": 2,
@@ -77,7 +77,7 @@ class ProfileExtensionTests(unittest.TestCase):
     def test_status_commands(self) -> None:
         expected: dict[str, Any] = {
             "claude": ["claude", "auth", "status"], "codex": ["codex", "login", "status"],
-            "gemini": ["gemini", "--version"], "opencode": ["opencode", "--version"],
+            "gemini": ["agy", "--version"], "opencode": ["opencode", "--version"],
             "copilot": ["gh", "auth", "status"], "grok": ["grok", "version"],
             "cursor": None, "antigravity": None,
         }

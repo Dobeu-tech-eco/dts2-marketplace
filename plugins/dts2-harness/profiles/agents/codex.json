@@ -33,5 +33,6 @@
   },
   "modelsVerified": false,
   "subscriptionName": "ChatGPT Pro (Codex)",
-  "apiKeyEnv": "OPENAI_API_KEY"
+  "apiKeyEnv": "OPENAI_API_KEY",
+  "searchPaths": []
 }

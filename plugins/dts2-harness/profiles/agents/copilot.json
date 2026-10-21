@@ -33,5 +33,6 @@
   },
   "modelsVerified": false,
   "subscriptionName": "GitHub Copilot",
-  "apiKeyEnv": null
+  "apiKeyEnv": null,
+  "searchPaths": []
 }

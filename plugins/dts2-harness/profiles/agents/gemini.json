@@ -1,11 +1,11 @@
 {
   "name": "gemini",
-  "displayName": "Gemini CLI",
+  "displayName": "Gemini (Antigravity agy CLI)",
   "form": "cli",
   "rulesFile": "GEMINI.md",
   "invocation": "live",
   "command": [
-    "gemini",
+    "agy",
     "-p"
   ],
   "headlessFlag": null,
@@ -13,10 +13,10 @@
     "second-opinion"
   ],
   "specialty": "Large-context reader useful for an independent second opinion on broad changes.",
-  "verified": true,
+  "verified": false,
   "costTier": 1,
   "statusCommand": [
-    "gemini",
+    "agy",
     "--version"
   ],
   "loginCommand": null,
@@ -27,5 +27,16 @@
   },
   "modelsVerified": false,
   "subscriptionName": "Gemini Pro",
-  "apiKeyEnv": "GEMINI_API_KEY"
+  "apiKeyEnv": "GEMINI_API_KEY",
+  "searchPaths": [
+    "~/.antigravity/bin",
+    "$LOCALAPPDATA/Programs/Antigravity",
+    "$LOCALAPPDATA/Antigravity/bin",
+    "~/.local/bin",
+    "~/.bun/bin",
+    "~/.npm-global/bin",
+    "~/.deno/bin",
+    "$APPDATA/npm",
+    "$LOCALAPPDATA/Programs"
+  ]
 }

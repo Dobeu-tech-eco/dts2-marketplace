@@ -27,5 +27,6 @@
   },
   "modelsVerified": false,
   "subscriptionName": null,
-  "apiKeyEnv": null
+  "apiKeyEnv": null,
+  "searchPaths": []
 }

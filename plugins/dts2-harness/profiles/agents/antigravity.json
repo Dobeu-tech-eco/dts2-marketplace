@@ -21,5 +21,6 @@
   },
   "modelsVerified": false,
   "subscriptionName": "Gemini Pro (Antigravity)",
-  "apiKeyEnv": null
+  "apiKeyEnv": null,
+  "searchPaths": []
 }

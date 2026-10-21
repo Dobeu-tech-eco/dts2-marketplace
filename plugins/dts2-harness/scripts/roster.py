@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -21,6 +22,8 @@ IDE_MARKERS: Final[dict[str, str]] = {
 ITEM_PREFIX: Final[str] = "- name:"
 PROBE_TIMEOUT_S: Final[int] = 10
 PROBE_PATH_ENV: Final[str] = "DTS2_PROBE_PATH"
+BIN_OVERRIDE_PREFIX: Final[str] = "DTS2_BIN_"
+BINARY_EXTS: Final[tuple[str, ...]] = ("", ".cmd", ".exe", ".ps1", ".bat")
 BUDGET_HEADER: Final[str] = "budget:"
 STATUS_PREFIX: Final[str] = "status:"
 AUTH_PREFIX: Final[str] = "auth:"
@@ -156,12 +159,51 @@ def probe_env() -> dict[str, str]:
     return env
 
 
-def command_ok(command: list[str], env: dict[str, str]) -> bool:
-    if shutil.which(command[0], path=env.get("PATH", "")) is None:
+def override_key(binary: str) -> str:
+    """Env var a user sets to point at a binary the harness cannot find, e.g. DTS2_BIN_AGY."""
+    return BIN_OVERRIDE_PREFIX + re.sub(r"[^A-Za-z0-9]", "_", binary).upper()
+
+
+def expand(raw: str) -> Path:
+    return Path(os.path.expandvars(os.path.expanduser(raw)))
+
+
+def resolve_binary(binary: str, env: dict[str, str], search_paths: list[str]) -> str | None:
+    """Find a binary off PATH: an explicit override wins, then PATH, then the profile's searchPaths.
+
+    The override `DTS2_BIN_<NAME>` may be the binary itself or a directory holding it; search
+    paths and the override directory try the common executable extensions so Windows shims match.
+    """
+    override: str | None = env.get(override_key(binary))
+    dirs: list[Path] = [expand(p) for p in search_paths]
+    if override:
+        target: Path = expand(override)
+        if target.is_file():
+            return str(target)
+        dirs.insert(0, target)
+    found: str | None = shutil.which(binary, path=env.get("PATH", ""))
+    if found:
+        return found
+    for directory in dirs:
+        for ext in BINARY_EXTS:
+            candidate: Path = directory / (binary + ext)
+            if candidate.is_file():
+                return str(candidate)
+    return None
+
+
+def search_paths_of(profile: dict[str, Any]) -> list[str]:
+    return list(profile.get("searchPaths") or [])
+
+
+def command_ok(command: list[str], env: dict[str, str], search_paths: list[str]) -> bool:
+    resolved: str | None = resolve_binary(command[0], env, search_paths)
+    if resolved is None:
         return False
     try:
         result = subprocess.run(
-            command, capture_output=True, timeout=PROBE_TIMEOUT_S, check=False, env=env,
+            [resolved, *command[1:]], capture_output=True,
+            timeout=PROBE_TIMEOUT_S, check=False, env=env,
         )
     except Exception:
         return False
@@ -170,11 +212,12 @@ def command_ok(command: list[str], env: dict[str, str]) -> bool:
 
 def availability(profile: dict[str, Any], env: dict[str, str]) -> tuple[bool, str]:
     command: list[str] | None = profile["statusCommand"]
+    search_paths: list[str] = search_paths_of(profile)
     if command is None:
         return True, "ok"
-    if shutil.which(command[0], path=env.get("PATH", "")) is None:
+    if resolve_binary(command[0], env, search_paths) is None:
         return False, "not installed"
-    return (True, "ok") if command_ok(command, env) else (False, STATUS_FAILED)
+    return (True, "ok") if command_ok(command, env, search_paths) else (False, STATUS_FAILED)
 
 
 def has_api_key(profile: dict[str, Any], env: dict[str, str]) -> bool:
@@ -199,7 +242,7 @@ def auth_mode(
     if profile["statusCommand"] is None:
         return AUTH_NONE
     login: list[str] | None = profile.get("loginCommand")
-    if login is not None and command_ok(login, env):
+    if login is not None and command_ok(login, env, search_paths_of(profile)):
         return AUTH_SUBSCRIPTION
     if login is None and available:
         return unverified_auth(profile, env, declared)
@@ -270,7 +313,7 @@ def copilot_installed() -> bool:
     return result.returncode == 0
 
 
-def is_installed(profile: dict[str, Any], project: Path) -> bool:
+def is_installed(profile: dict[str, Any], project: Path, env: dict[str, str]) -> bool:
     name: str = profile["name"]
     if name == "claude":
         return True
@@ -279,14 +322,16 @@ def is_installed(profile: dict[str, Any], project: Path) -> bool:
     if name in IDE_MARKERS:
         return (project / IDE_MARKERS[name]).exists()
     command: list[str] | None = profile["command"]
-    return bool(command) and shutil.which(command[0]) is not None
+    if not command:
+        return False
+    return resolve_binary(command[0], env, search_paths_of(profile)) is not None
 
 
 def detect(project: Path) -> dict[str, Any]:
     profiles: dict[str, dict[str, Any]] = load_profiles()
-    installed: list[str] = [n for n, p in profiles.items() if is_installed(p, project)]
-    installed.sort(key=lambda n: (n != "claude", list(profiles).index(n)))
     env: dict[str, str] = probe_env()
+    installed: list[str] = [n for n, p in profiles.items() if is_installed(p, project, env)]
+    installed.sort(key=lambda n: (n != "claude", list(profiles).index(n)))
     auth: dict[str, str] = {
         n: auth_mode(profiles[n], env, availability(profiles[n], env)[0], None) for n in installed
     }

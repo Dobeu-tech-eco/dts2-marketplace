@@ -34,5 +34,6 @@
   },
   "modelsVerified": true,
   "subscriptionName": "Claude Max",
-  "apiKeyEnv": "ANTHROPIC_API_KEY"
+  "apiKeyEnv": "ANTHROPIC_API_KEY",
+  "searchPaths": []
 }

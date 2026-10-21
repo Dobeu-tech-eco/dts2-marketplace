@@ -21,5 +21,6 @@
   },
   "modelsVerified": false,
   "subscriptionName": "Cursor Pro",
-  "apiKeyEnv": null
+  "apiKeyEnv": null,
+  "searchPaths": []
 }

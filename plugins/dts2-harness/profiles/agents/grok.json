@@ -27,5 +27,14 @@
   },
   "modelsVerified": false,
   "subscriptionName": "Grok Build",
-  "apiKeyEnv": "XAI_API_KEY"
+  "apiKeyEnv": "XAI_API_KEY",
+  "searchPaths": [
+    "~/.grok/bin",
+    "~/.local/bin",
+    "~/.bun/bin",
+    "~/.npm-global/bin",
+    "~/.deno/bin",
+    "$APPDATA/npm",
+    "$LOCALAPPDATA/Programs"
+  ]
 }

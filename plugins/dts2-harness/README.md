@@ -54,6 +54,8 @@ Restart Claude Code, then run `/dts2-harness:onboard`.
 
 ## Changelog
 
+- 3.0.2 — Gemini is reached through the Antigravity `agy` CLI; roster finds agent CLIs that are off PATH via per-profile `searchPaths` and a `DTS2_BIN_<NAME>` override.
+
 - 3.0.1 — learn skill description no longer contains angle brackets (claude.ai plugin upload rejected it).
 - 3.0.0: end-state interview, Plan and Ship checkpoints, agent roster, harness discipline, deployment verification, action items, GTM, machine-prep tiers. See the root README.
 - 2.1.0: machine-prep handles claude.ai synced plugins, org-required plugins, and project-level overrides.
