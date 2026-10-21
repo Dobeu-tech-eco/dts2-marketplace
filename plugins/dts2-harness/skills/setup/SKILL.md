@@ -143,7 +143,8 @@ Runs after the loop and before Round 5, when every component and its acceptance 
    - Deploy (the `deploy:` block from the Deploy target step: `provider`, `productionUrl`, `checkCommand`, and for a planned deploy `plan` and `status: planned`).
 2. Workspace mode: first ask once where the workspace manifest and root end state should live (default: the common parent folder of the linked repos). Then write one `.harness/end-state.md` per linked repo with only that repo's components, and a root `end-state.md` in that folder with the `cross-repo` components plus the `depends_on`, contracts and release order from Round 3. Every one of them starts as `status: pending approval`.
 3. Show a short summary (components, clarity, open questions) and every file path, then ask once: `Approve this end state? Reply "approve", or tell me what to change.` In workspace mode this one approval covers all the files.
-4. On changes, edit the files and ask again. On approval, set `status: approved` in every file and go to Part 2.
+4. On changes, edit the files and ask again. On approval, set `status: approved` in every file.
+5. **AGENTS.md pointer.** In each repo, create `AGENTS.md` if absent and append this line once if it is not already there: `Harness state for any agent: .harness/handoff/latest.md (resume with /dts2-harness:run resume).` Change nothing else in the file. Then go to Part 2.
 
 ## Part 2 — Scaffold
 
@@ -199,6 +200,6 @@ The `run` skill reads this to plan cross-repo tasks: contract owners first, cons
 - Never scaffold before the end state is approved, unless `--scaffold-only` was given.
 - Never overwrite existing config without the user's choice.
 - Never guess commands. Leave them empty and say so.
-- Never write into a context repo, a `coexist` harness folder, `CLAUDE.md` or `AGENTS.md`.
+- Never write into a context repo, a `coexist` harness folder, `CLAUDE.md` or `AGENTS.md`, except the single pointer line in Round 5 step 5.
 - Never install skills outside project scope.
 - Never commit or push.

@@ -26,7 +26,7 @@ print_open_items() {
 }
 print_action_items() {
   local items
-  items="$(awk -F'|' 'NF > 3 { s = $(NF-1); gsub(/^[ \t]+|[ \t]+$/, "", s); if (s ~ /^open/) print }' "$ACTION_ITEMS" | head -n "$MAX_OPEN_ITEMS")"
+  items="$(awk -F'|' 'NF > 3 { for (i = NF - 1; i > NF - 4 && i > 1; i--) { s = $i; gsub(/^[ \t]+|[ \t]+$/, "", s); if (s ~ /^(open|done)/) break } if (s ~ /^open/) print }' "$ACTION_ITEMS" | head -n "$MAX_OPEN_ITEMS")"
   [[ -n "$items" ]] || return 0
   echo "dts2-harness action items (open):"
   echo "$items"
