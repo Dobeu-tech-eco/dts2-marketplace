@@ -25,6 +25,8 @@ model: opus
    - Return one row per screen, `Production <screen> | PASS/FAIL | expected / observed / <screenshot> / <console or network errors>`, then `### Verdict: VERIFIED | BLOCKED` and `walkthrough PASS n/n`.
    - Read-only against production: only GET navigation; never submit forms that create data, never sign in with credentials you were not given.
 
+6. **Coverage** — list changed source files (from `git diff --name-only HEAD`, excluding tests, docs and config) that no test imports or exercises (grep the test tree for the module name). One line per file, `Coverage: <file> (no test)`; when none, `Coverage: all changed files tested`. Evidence only; it is not a blocker by itself.
+
 ## Output
 ```
 ## Verification: <scope>
@@ -36,6 +38,7 @@ model: opus
 | Build | ... | ... |
 | No stubs | ... | ... |
 | Acceptance | ... | ... |
+| Coverage | INFO | Coverage: <file> (no test) per file, or Coverage: all changed files tested |
 | Walkthrough <n>-<slug> | PASS/FAIL | expected: ... / observed: ... / <screenshot path> |
 ### Verdict: VERIFIED | BLOCKED (BLOCKED on any failed check, including a walkthrough FAIL on a screen named in the plan's Done section)
 ### Blockers

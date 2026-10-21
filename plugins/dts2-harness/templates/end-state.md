@@ -49,6 +49,20 @@ Phase is `plan`, `build`, `review` or `verify`. Installed is `yes` or `no`.
 
 <components and how they connect>
 
+## Blueprint
+
+| layer | choice | status |
+|---|---|---|
+| data model | <choice> | n/a |
+| api surface | <choice> | |
+| screens/routes | <choice> | |
+| auth | <choice> | |
+| infra/deploy | <choice> | |
+| observability | <choice> | |
+| background jobs | <choice> | |
+
+Status is blank, `built`, or `n/a`. The plan checkpoint requires every layer to map to a builder or `unchanged`.
+
 ## Goal
 
 <one paragraph>

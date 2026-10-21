@@ -97,6 +97,7 @@ Record the chosen roster for Part 2.
 3. Ask the user to confirm, merge, split, or defer any of them. Deferred components go to Non-goals.
 4. When the user confirms, say `Components locked.` and list them. After this, add or remove a component only if the user asks.
 5. Workspace mode only: mark each component with the repo that owns it, or `cross-repo` when it spans repos. Then ask once: `Which repo must ship first, and what shared surfaces must stay in sync?` From the answer record `depends_on` per repo, `contracts` (name, owner, consumers) and `release_order`. Never guess them; anything the user leaves out goes to Open questions.
+6. Blueprint: after components are locked, record a `## Blueprint` block for the end state, one row per layer: data model, api surface, screens/routes, auth, infra/deploy, observability, background jobs. Ask once for the choice per layer (propose from scout's findings); `n/a` is allowed with a status of `n/a`. Never invent a choice the user did not give.
 
 ### Round 4 — Question loop
 
@@ -138,7 +139,7 @@ Runs after the loop and before Round 5, when every component and its acceptance 
 
 1. Copy `${CLAUDE_PLUGIN_ROOT}/templates/end-state.md` to `.harness/end-state.md` and fill it:
    - metadata: `rounds`, `clarity`, `threshold`, `thresholdSource`, `roster`, `status: pending approval`, `continuedAnyway` (`no`, or `yes (at NN%)`);
-   - Related repos (url, role, tag, note), Other harnesses (folder, decision), Skills (the skill plan table), Topology, Goal, Constraints, Non-goals, Acceptance criteria per component as `- [ ]` items, Assumptions, Open questions;
+   - Related repos (url, role, tag, note), Other harnesses (folder, decision), Skills (the skill plan table), Topology, Blueprint, Goal, Constraints, Non-goals, Acceptance criteria per component as `- [ ]` items, Assumptions, Open questions;
    - Deploy (the `deploy:` block from the Deploy target step: `provider`, `productionUrl`, `checkCommand`, and for a planned deploy `plan` and `status: planned`).
 2. Workspace mode: first ask once where the workspace manifest and root end state should live (default: the common parent folder of the linked repos). Then write one `.harness/end-state.md` per linked repo with only that repo's components, and a root `end-state.md` in that folder with the `cross-repo` components plus the `depends_on`, contracts and release order from Round 3. Every one of them starts as `status: pending approval`.
 3. Show a short summary (components, clarity, open questions) and every file path, then ask once: `Approve this end state? Reply "approve", or tell me what to change.` In workspace mode this one approval covers all the files.

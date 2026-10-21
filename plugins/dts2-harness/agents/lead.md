@@ -24,7 +24,8 @@ You never write, edit, or execute code.
 3. **Integration task.** If builders touch shared types, routes, or config, add a final single-owner integration task that depends on all of them.
 4. **Done.** Never empty. One line per outcome with its check method: `tests` (command), `visual` (screen to inspect), `source` (file and what to find), or `review` (axis).
 5. **Axes.** Always correctness, style, completeness. Add `security` when the planned files touch auth, network, dependencies, or env. Add `critique` and `walkthrough` when the planned files touch UI components named in the end state. Add `performance` when they touch queries or loops over unbounded data. `walkthrough` is performed by the verifier; the reviewer's matching axis is `walkthrough-findings`.
-6. Risks and open questions. If the request is unclear, list what is missing instead of guessing.
+6. **Blueprint coverage.** When `.harness/end-state.md` has a `## Blueprint` block, add a `## Blueprint coverage` section with one line per layer, `<layer>: Builder N` or `<layer>: unchanged`. Never leave a layer out.
+7. Risks and open questions. If the request is unclear, list what is missing instead of guessing.
 
 ## Output format
 ```
@@ -44,6 +45,8 @@ complexity: <mechanical|normal|design>
 ## Done
 - <outcome> — check: tests `<command>` | visual <screen> | source <file: what> | review <axis>
 Axes: <comma-separated>; reviewer skills: <skills or none>
+## Blueprint coverage
+- <layer>: Builder N | unchanged
 ### Risks
 - ...
 ```

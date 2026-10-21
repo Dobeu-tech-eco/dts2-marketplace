@@ -43,6 +43,8 @@ Show, in this order:
 - `Team: N builders on separate file sets`, reviewer axes, and one line per seat: `<role> — <agent> (<tier>, <auth>)`, where auth is `subscription`, `api-key`, `installed (unverified)`, or `handoff` for IDE agents, for example `builder 2 — codex (standard, api-key)`.
 - One line per dropped agent: `Dropped: <agent> — <reason>`.
 
+**Blueprint check.** If `.harness/end-state.md` has a `## Blueprint` block, the plan must carry a `## Blueprint coverage` section mapping every layer to `Builder N` or `unchanged`. A layer with no mapping blocks the checkpoint: send the plan back to the lead once with `Blueprint layer <x> unmapped`. Still unmapped → stop and say why.
+
 Then say exactly: "Here is the plan, the done-criteria, and who does what. Approve, edit, or stop." Silence means stop. On edit, revise with the lead and show the checkpoint again. Any choice the user defers here goes to `.harness/action-items.md` → `## Decisions` as `| <item> | <context> | open |` (create the file from `${CLAUDE_PLUGIN_ROOT}/templates/action-items.md` if absent).
 
 ## Phase 2 — Build (parallel builders)
@@ -80,6 +82,13 @@ The builder that owns the files runs, inside its file set, in one dispatch:
 - `/impeccable optimize <components>` only when the walkthrough marked a screen slow.
 
 One round, no loop. Then dispatch the verifier (`model: opus`) to run the configured tests on the result; its table replaces the earlier test rows.
+
+## Phase 3c — Code finish pass
+Runs on every code diff, after Phase 3b (or straight after Phase 3 when 3b was skipped) and before the final verifier tests. Two extra reviewer axes on the diff, dispatched as one `dts2-harness:reviewer` at `standard`:
+- `simplify`: duplication, dead code, functions over about 20 lines, unclear names, speculative abstraction.
+- `optimize`: only for files the walkthrough marked slow or a test marked slow; never speculative. No slow marker → report `optimize: n/a`.
+
+Then dispatch the verifier (`model: opus`) to run the configured tests; it adds a `Coverage:` line for changed source files with no test that imports or exercises them. The builder that owns the files applies the resulting fix list inside its file set, once. This pass counts toward the 3-round cap in Phase 4: it is one of the rounds, not an extra one.
 
 ## Phase 4 — Ship checkpoint
 1. Merge findings, dedupe by file:line, keep the highest severity.
