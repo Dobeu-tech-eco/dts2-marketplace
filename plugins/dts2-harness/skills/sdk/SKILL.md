@@ -21,12 +21,14 @@ Help the user set exactly one of these. Never write a key into a file in the rep
 
 ## 3. Run
 ```
-python3 "${CLAUDE_PLUGIN_ROOT}/sdk/dts2-run.py" "<task>" --repo <path> [--yes] [--second-opinion codex|gemini]
+python3 "${CLAUDE_PLUGIN_ROOT}/sdk/dts2-run.py" "<task>" --repo <path> [--yes] [--ship] [--live-only] [--second-opinion codex|gemini]
 ```
 - Without `--yes` it stops after the plan and asks for approval on stdin.
-- `--yes` is for CI on a throwaway branch only. Say so if the user wants it anywhere else.
-- Exit codes: 0 verified, 1 plan not approved, 2 blocked by reviewer or verifier.
-- Output: `.harness/runs/<stamp>/1-plan.md`, `2-build.md`, `3-review.md`, `4-verify.md`, and `5-<backend>.md` for a second opinion. Lesson candidates go to `.harness/lessons-inbox.md`.
+- `--yes` approves only the plan checkpoint. It is for CI on a throwaway branch only; say so if the user wants it anywhere else.
+- The ship checkpoint writes `.harness/runs/<stamp>/receipt.md` and never commits. `--ship` additionally commits, and only when the current branch matches `DTS2_SHIP_BRANCH`; otherwise it refuses. Neither flag pushes.
+- `--live-only` reassigns any lane the roster gave to a handoff agent to Claude, so the run can finish unattended.
+- Exit codes: 0 verified and receipt written, 1 plan not approved, 2 blocked by reviewer or verifier, or a handoff lane needs a person (without `--live-only`).
+- Output: `.harness/runs/<stamp>/1-plan.md`, `2-build.md`, `3-review.md`, `4-verify.md`, `receipt.md`, and `5-<backend>.md` for a second opinion. Lesson candidates go to `.harness/lessons-inbox.md`.
 
 ## 4. Other coding agents
 - `--second-opinion codex` runs `codex exec`; `--second-opinion gemini` runs `gemini -p`. Each is skipped with a note if its CLI is missing. Their findings are advisory and never override the reviewer verdict.
@@ -43,4 +45,5 @@ Offer this when asked; adjust paths:
 Runs on a branch, never on main, and never pushes on its own.
 
 ## Limits
+- Both checkpoints need a human; headless runs stop at each and write what a human would have seen.
 - The runner is a single-builder pipeline. For auto-scaled parallel teams use the interactive `run` skill.
