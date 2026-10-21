@@ -43,6 +43,19 @@ For each repo the user pastes, ask in one message: **what is it, and what it ser
 
 Context repos are cloned only when someone needs to read them: `git clone --depth 1 <url> ~/.dts2/context/<owner>-<repo>`. Never clone into the project.
 
+### Round 2 (continued) — Deploy target
+
+Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/deploy-detect.py" <repo>` (it only reads files and never runs the check command). The harness never creates provider accounts or enters credentials.
+
+- `provider` found and `productionUrl` null → ask once: `Production URL for <provider>?`
+- `provider` found and `productionUrl` set → say it in one line and ask nothing.
+- `provider` is `none` → ask once: `Where does this deploy? (a) existing: <provider> + production URL (b) none — skip verification (c) build one: pick a plan or type your own`
+  - (a) → record the provider and URL.
+  - (b) → record `provider: none`.
+  - (c) → show `PRODUCTION_PLANS` from `deploy-detect.py` for the stack signal that fits the repo (`nextjs`, `react` or `static` → vercel, cloudflare-pages; `node-api`, `python-api` or `docker` → fly, render; `supabase` → vercel; `workers` → cloudflare) and accept a free-text plan line. Write the chosen or typed plan to the end state as `deploy.plan: <text>` with `deploy.provider` and `deploy.status: planned`.
+
+Record the answer for the end state's `deploy:` block. A `planned` deploy is built by `run` as its own run before any feature run; see **Deployment verification** in the run skill.
+
 ### Round 2b — Other harnesses
 
 Skip with no message if the repo is greenfield or scout listed nothing besides `CLAUDE.md`, `AGENTS.md` and `.agents`.
