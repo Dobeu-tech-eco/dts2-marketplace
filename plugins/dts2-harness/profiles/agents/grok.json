@@ -23,5 +23,7 @@
     "standard": "grok-4.7",
     "economy": "grok-4-fast"
   },
-  "modelsVerified": false
+  "modelsVerified": false,
+  "subscriptionName": "Grok Build",
+  "apiKeyEnv": "XAI_API_KEY"
 }

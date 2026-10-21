@@ -26,5 +26,7 @@
     "standard": "gpt-5-codex",
     "economy": "gpt-5-mini"
   },
-  "modelsVerified": false
+  "modelsVerified": false,
+  "subscriptionName": "ChatGPT Pro (Codex)",
+  "apiKeyEnv": "OPENAI_API_KEY"
 }

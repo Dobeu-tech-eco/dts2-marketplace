@@ -27,5 +27,7 @@
     "standard": "sonnet",
     "economy": "haiku"
   },
-  "modelsVerified": true
+  "modelsVerified": true,
+  "subscriptionName": "Claude Max",
+  "apiKeyEnv": "ANTHROPIC_API_KEY"
 }

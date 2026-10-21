@@ -24,5 +24,7 @@
     "standard": null,
     "economy": null
   },
-  "modelsVerified": false
+  "modelsVerified": false,
+  "subscriptionName": null,
+  "apiKeyEnv": null
 }

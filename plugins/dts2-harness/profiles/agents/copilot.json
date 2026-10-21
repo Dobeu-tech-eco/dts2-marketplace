@@ -26,5 +26,7 @@
     "standard": null,
     "economy": null
   },
-  "modelsVerified": false
+  "modelsVerified": false,
+  "subscriptionName": "GitHub Copilot",
+  "apiKeyEnv": null
 }

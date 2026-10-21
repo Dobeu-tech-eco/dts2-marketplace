@@ -19,6 +19,7 @@ SCHEMA_KEYS: Final[frozenset[str]] = frozenset({
     "name", "displayName", "form", "rulesFile", "invocation", "command",
     "headlessFlag", "roles", "specialty", "verified",
     "costTier", "statusCommand", "models", "modelsVerified",
+    "subscriptionName", "apiKeyEnv",
 })
 VERIFIED: Final[frozenset[str]] = frozenset({"claude", "codex", "gemini", "opencode"})
 COST_TIERS: Final[dict[str, int]] = {

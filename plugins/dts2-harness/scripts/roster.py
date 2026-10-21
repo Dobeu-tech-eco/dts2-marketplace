@@ -23,6 +23,12 @@ PROBE_TIMEOUT_S: Final[int] = 10
 PROBE_PATH_ENV: Final[str] = "DTS2_PROBE_PATH"
 BUDGET_HEADER: Final[str] = "budget:"
 STATUS_PREFIX: Final[str] = "status:"
+AUTH_PREFIX: Final[str] = "auth:"
+INCLUDED_PREFIX: Final[str] = "included:"
+EXCLUDED_REASON: Final[str] = "excluded by user"
+AUTH_SUBSCRIPTION: Final[str] = "subscription"
+AUTH_API_KEY: Final[str] = "api-key"
+AUTH_NONE: Final[str] = "none"
 SECOND_OPINION: Final[str] = "second-opinion"
 BUDGET_UNKNOWN: Final[str] = "unknown"
 MODEL_TIERS: Final[tuple[str, ...]] = ("frontier", "standard", "economy")
@@ -52,9 +58,11 @@ def parse_roster(text: str) -> list[dict[str, Any]]:
           - name: claude
           - name: codex
             roles: [builder, second-opinion]
+            auth: api-key
+            included: false
 
     Only a top-level `roster:` block is read; each item is `- name: X` optionally
-    followed by `roles: [a, b]`. Anything else is ignored. Missing block -> default.
+    followed by `roles: [a, b]`, `auth: <mode>` and `included: true|false`. Anything else is ignored. Missing block -> default.
     """
     entries: list[dict[str, Any]] = []
     in_block: bool = False
@@ -69,6 +77,10 @@ def parse_roster(text: str) -> list[dict[str, Any]]:
             entries.append({"name": line[len(ITEM_PREFIX):].strip()})
         elif line.startswith("roles:") and entries:
             entries[-1]["roles"] = parse_roles(line[len("roles:"):])
+        elif line.startswith(AUTH_PREFIX) and entries:
+            entries[-1]["auth"] = line[len(AUTH_PREFIX):].strip()
+        elif line.startswith(INCLUDED_PREFIX) and entries:
+            entries[-1]["included"] = line[len(INCLUDED_PREFIX):].strip().lower() != "false"
     return entries or [dict(item) for item in DEFAULT_ROSTER]
 
 
@@ -154,11 +166,27 @@ def availability(profile: dict[str, Any], env: dict[str, str]) -> tuple[bool, st
     return (True, "ok") if result.returncode == 0 else (False, "status check failed")
 
 
+def auth_mode(profile: dict[str, Any], env: dict[str, str]) -> str:
+    """Subscription login wins; an API key counts only when no login is found. Presence only."""
+    command: list[str] | None = profile["statusCommand"]
+    if command is not None and availability(profile, env)[0]:
+        return AUTH_SUBSCRIPTION
+    key_env: str | None = profile.get("apiKeyEnv")
+    if key_env and env.get(key_env):
+        return AUTH_API_KEY
+    return AUTH_NONE
+
+
 def probe_entry(
     entry: dict[str, Any], profile: dict[str, Any], budget: str, env: dict[str, str],
 ) -> dict[str, Any]:
     available, reason = availability(profile, env)
     roles: list[str] = entry_roles(entry, profile)
+    if entry.get("included") is False:
+        return {
+            "available": False, "reason": EXCLUDED_REASON, "budget": budget or BUDGET_UNKNOWN,
+            "costTier": profile["costTier"], "roles": [], "auth": AUTH_NONE,
+        }
     if available and budget == "exhausted":
         available, reason = False, "budget exhausted"
     if available and budget == "low":
@@ -168,6 +196,7 @@ def probe_entry(
     return {
         "available": available, "reason": reason, "budget": budget or BUDGET_UNKNOWN,
         "costTier": profile["costTier"], "roles": roles if available else [],
+        "auth": auth_mode(profile, env),
     }
 
 
@@ -214,9 +243,12 @@ def is_installed(profile: dict[str, Any], project: Path) -> bool:
 
 
 def detect(project: Path) -> dict[str, Any]:
-    installed: list[str] = [n for n, p in load_profiles().items() if is_installed(p, project)]
-    installed.sort(key=lambda n: (n != "claude", list(load_profiles()).index(n)))
-    return {"installed": installed, "claudeOnly": installed == ["claude"]}
+    profiles: dict[str, dict[str, Any]] = load_profiles()
+    installed: list[str] = [n for n, p in profiles.items() if is_installed(p, project)]
+    installed.sort(key=lambda n: (n != "claude", list(profiles).index(n)))
+    env: dict[str, str] = probe_env()
+    auth: dict[str, str] = {n: auth_mode(profiles[n], env) for n in installed}
+    return {"installed": installed, "claudeOnly": installed == ["claude"], "auth": auth}
 
 
 def run_resolve(config: Path) -> int:

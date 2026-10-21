@@ -24,5 +24,7 @@
     "standard": "gemini-2.5-flash",
     "economy": "gemini-2.5-flash-lite"
   },
-  "modelsVerified": false
+  "modelsVerified": false,
+  "subscriptionName": "Gemini Pro",
+  "apiKeyEnv": "GEMINI_API_KEY"
 }
