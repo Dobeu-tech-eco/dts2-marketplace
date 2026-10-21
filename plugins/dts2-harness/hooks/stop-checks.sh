@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
-# Stop: quick typecheck and lint on changed files. Non-blocking, warnings go to stderr.
+# Stop: refresh .harness/handoff/latest.md, then quick typecheck and lint on changed files. Non-blocking, warnings go to stderr.
 set -uo pipefail
 source "$(dirname "$0")/lib-settings.sh"
 CHECK_TIMEOUT_S=30
+HANDOFF_TIMEOUT_S=10
+PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 [[ "$(setting enabled true)" == "true" ]] || exit 0
+write_handoff() {
+  [[ -d ".harness" ]] || return 0
+  timeout "$HANDOFF_TIMEOUT_S" python3 "$PLUGIN_DIR/scripts/handoff-write.py" "$PWD" >/dev/null 2>&1 || true
+}
+write_handoff
 [[ "$(setting stop_checks true)" == "true" ]] || exit 0
 [[ -f ".harness/checks.sh" ]] && { timeout "$CHECK_TIMEOUT_S" bash ".harness/checks.sh" 2>&1 | tail -20 >&2 || true; }
 [[ -f "package.json" && -d "node_modules" ]] || exit 0

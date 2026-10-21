@@ -10,6 +10,7 @@ Follow the phases in order. Every agent dispatch uses the Agent tool with `subag
 If the request is `run add secret NAME`, skip to **Add secret mode**.
 
 ## Preflight
+**Resume mode.** If the request is `run resume`, read `.harness/handoff/latest.md` first (if it is missing, run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/handoff-write.py" <repo>` to build it). Print its `## State`, `## Open items` and `## Next action`, then ask once: `Continue with the next action? (y/n)`. On yes, run the pipeline below on that next action; on no, stop. Open action items can be listed or changed with `/dts2-harness:action-items`.
 1. **Harness change.** If the request names a harness skill, agent, hook, or profile (a dts2-harness file, not the repo's own code), print `That changes the harness itself; use `/dts2-harness:evolve`.` and stop. Never plan a harness change as a repo task.
 2. **Config and mode.** Look for `.harness/config.yaml` in the repo, then `.harness-workspace.yaml` in a parent folder. Neither → stop and point to `/dts2-harness:setup`. Print one mode line: `Mode: workspace` if `.harness-workspace.yaml` was found, else `Mode: single`.
 3. **Ignore guard.** For each repo involved: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/ensure-ignored.py" <repo>`.
@@ -96,7 +97,8 @@ Do these before the commit so they land in it. Do not narrate the writes.
 1. Append the reviewers' lesson candidates to `.harness/lessons-inbox.md`. If `auto_learn` is not `false`, run the `learn` skill in its auto mode on those candidates and put the resulting `lessons.md` diff in the ship summary; no separate approval prompt.
 2. In `.harness/end-state.md`, check the acceptance boxes the plan covered and the verifier confirmed, and update each touched component's status.
 3. Append the ship decision to `.harness/state.md` → `## Decisions` as `- <date> <what shipped, receipt path>`.
-4. Include `lessons.md`, `end-state.md`, `state.md`, `action-items.md` (if changed), and `.harness/review/critique-<stamp>.md` (if written) in the commit.
+4. **Write handoff.** Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/handoff-write.py" <repo>` last, after the other writes, so `.harness/handoff/latest.md` reflects them. It never contains a secret's value.
+5. Include `lessons.md`, `end-state.md`, `state.md`, `action-items.md` (if changed), and `.harness/review/critique-<stamp>.md` (if written) in the commit. `handoff/latest.md` is regenerated, not committed.
 
 ## Deployment verification
 Runs only when `deploy.provider != none` in `.harness/end-state.md`. Read `deploy.provider`, `deploy.productionUrl`, `deploy.checkCommand` and `deploy.status`. The harness never deploys, pushes, or re-runs CI except on an explicit yes inside the troubleshoot round below. It never creates provider accounts or enters credentials; secrets are presence-only.
