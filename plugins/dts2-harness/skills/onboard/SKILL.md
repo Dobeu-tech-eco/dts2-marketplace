@@ -1,6 +1,6 @@
 ---
 name: onboard
-description: Explain the dts2 harness — its six agents, eight skills, agent roster, team tiers, lessons memory, and headless runner — and recommend where to start. Use when the user asks what dts2 does, how to use it, which skill fits a job, or is new to the harness on this machine or repo.
+description: Explain the dts2 harness — its six agents, nine skills, agent roster, team tiers, lessons memory, and headless runner — and recommend where to start. Use when the user asks what dts2 does, how to use it, which skill fits a job, or is new to the harness on this machine or repo.
 ---
 
 # dts2 harness — orientation
@@ -24,6 +24,7 @@ Explanation only. Do not invoke agents or change files from this skill.
 | `learn` | Turn reviewer findings into lessons that every future run reads. |
 | `sdk` | Run the same pipeline headless with the Agent SDK, using your existing Claude login, or an API key or key command for CI. |
 | `evolve` | Change the harness itself in its source repo: edit, validate, test, bump both manifests, commit; push only on an explicit yes. |
+| `action-items` | List open secrets, decisions, handoffs, deploy steps and promotions with the command that resolves each; `done`, `add`, `assign`. Pass-off for any agent: `.harness/handoff/latest.md`, resumed with `run resume`. |
 | `gtm` | Go-to-market in one pass through the `marketing-skills` plugin, ending in a `readiness.md` scorecard. |
 
 Every run checks which agents are usable and what budget is left (the budget check), then assigns work by cost tier, cheapest capable agent first.
