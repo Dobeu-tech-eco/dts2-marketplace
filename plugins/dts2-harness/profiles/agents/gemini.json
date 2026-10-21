@@ -1,0 +1,17 @@
+{
+  "name": "gemini",
+  "displayName": "Gemini CLI",
+  "form": "cli",
+  "rulesFile": "GEMINI.md",
+  "invocation": "live",
+  "command": [
+    "gemini",
+    "-p"
+  ],
+  "headlessFlag": null,
+  "roles": [
+    "second-opinion"
+  ],
+  "specialty": "Large-context reader useful for an independent second opinion on broad changes.",
+  "verified": true
+}

@@ -1,0 +1,19 @@
+{
+  "name": "claude",
+  "displayName": "Claude Code",
+  "form": "cli",
+  "rulesFile": "CLAUDE.md",
+  "invocation": "live",
+  "command": [
+    "claude"
+  ],
+  "headlessFlag": "-p",
+  "roles": [
+    "lead",
+    "verifier",
+    "builder",
+    "reviewer"
+  ],
+  "specialty": "Orchestrates the run and excels at planning, verification and careful code review.",
+  "verified": true
+}

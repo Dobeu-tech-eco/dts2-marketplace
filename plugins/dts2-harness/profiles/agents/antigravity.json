@@ -1,0 +1,14 @@
+{
+  "name": "antigravity",
+  "displayName": "Antigravity",
+  "form": "ide",
+  "rulesFile": "AGENTS.md",
+  "invocation": "handoff",
+  "command": null,
+  "headlessFlag": null,
+  "roles": [
+    "builder"
+  ],
+  "specialty": "IDE-based agent that implements from a handoff brief inside the editor.",
+  "verified": false
+}

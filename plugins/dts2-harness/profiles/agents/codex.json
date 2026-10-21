@@ -1,0 +1,18 @@
+{
+  "name": "codex",
+  "displayName": "OpenAI Codex",
+  "form": "cli",
+  "rulesFile": "AGENTS.md",
+  "invocation": "live",
+  "command": [
+    "codex",
+    "exec"
+  ],
+  "headlessFlag": null,
+  "roles": [
+    "builder",
+    "second-opinion"
+  ],
+  "specialty": "Strong at self-contained implementation and independent second-opinion review.",
+  "verified": true
+}

@@ -1,0 +1,17 @@
+{
+  "name": "opencode",
+  "displayName": "OpenCode",
+  "form": "cli",
+  "rulesFile": "AGENTS.md",
+  "invocation": "live",
+  "command": [
+    "opencode",
+    "run"
+  ],
+  "headlessFlag": null,
+  "roles": [
+    "builder"
+  ],
+  "specialty": "Provider-flexible terminal agent suited to straightforward implementation tasks.",
+  "verified": true
+}
