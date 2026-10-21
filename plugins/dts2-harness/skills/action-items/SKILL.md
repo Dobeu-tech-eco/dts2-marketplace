@@ -5,7 +5,7 @@ description: Show the open action items for this repo grouped as Secrets, Decisi
 
 # Action items — what is still open and who owns it
 
-Reads `.harness/action-items.md` and `.harness/handoff/`. All reading and writing goes through `scripts/action-items.py`; never edit the table by hand.
+Reads `.harness/action-items.md`; handoff briefs under `.harness/handoff/` appear as Handoff rows. All reading and writing goes through `scripts/action-items.py`; never edit the table by hand.
 
 ## List (default)
 1. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/action-items.py" <repo> list`. In workspace mode, run it per repo.

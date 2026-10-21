@@ -1,6 +1,6 @@
 ---
 name: learn
-description: Consolidate reviewer and verifier findings into durable per-repo lessons in .harness/lessons.md that the planner, builders, and reviewers read on every future run, and prune stale or duplicate lessons. Use after harness runs, when the user says learn from this, remember this mistake, update lessons, or when the session-start notice says lesson candidates are waiting.
+description: Consolidate reviewer and verifier findings into durable per-repo lessons in .harness/lessons.md that the planner, builders, and reviewers read on every future run, and prune stale or duplicate lessons. Use after harness runs, when the user says learn from this, `learn promote <id>`, remember this mistake, update lessons, or when the session-start notice says lesson candidates are waiting.
 ---
 
 # Learn — the harness lessons loop
@@ -33,7 +33,10 @@ After writing lessons in Auto mode, append one line for the run to `.harness/met
 Take rounds, agents, and failure categories from the run's reviewer and verifier files. The plan checkpoint prints the Trend line from this file.
 
 ## Auto mode
-When `run` invokes this skill after a ship (it does so unless `auto_learn` is `false` in `.claude/dts2-harness.local.md`), skip the approval wait in step 5, write `lessons.md`; do **not** write promotions. List each promotion offer in the returned summary and add a row `| promote L-NNN to <target> | seen twice | open |` to `.harness/action-items.md` → `## Decisions`. Append the run's metrics (see Run metrics). Clear the processed inbox entries, and return the `lessons.md` diff for the ship summary. Interactive use keeps the approval wait.
+When `run` invokes this skill after a ship (it does so unless `auto_learn` is `false` in `.claude/dts2-harness.local.md`), skip the approval wait in step 5, write `lessons.md`; do **not** write promotions. List each promotion offer in the returned summary and run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/action-items.py" <repo> add Promotions "promote L-NNN to <target>"` for each. Append the run's metrics (see Run metrics). Clear the processed inbox entries, and return the `lessons.md` diff for the ship summary. Interactive use keeps the approval wait.
+
+## `learn promote <id>`
+Promote one lesson (`L-NNN`) that is already offered: show the exact line or test skeleton and its target (`.harness/checks.sh`, the test directory, or `review-checklist.md`), write it only on an explicit yes, record `lives at <path>` on the lesson, then run `action-items.py <repo> done <row>` for its Promotions row.
 
 ## Optional: promote across repos
 If the same lesson appears in two or more repos of a workspace, offer to add it to the workspace manifest under `shared_lessons:` so `run` applies it everywhere.

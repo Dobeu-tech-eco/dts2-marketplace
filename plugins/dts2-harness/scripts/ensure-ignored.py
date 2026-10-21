@@ -16,6 +16,7 @@ IGNORED_PATHS: Final[tuple[str, ...]] = (
     ".harness/review/screens/",
     ".harness/gtm/*/screens/",
     ".env",
+    ".harness/handoff/latest.md",
 )
 
 

@@ -102,6 +102,19 @@ class LearningLoopText(unittest.TestCase):
         for phrase in ("metrics.jsonl", "harness-lessons", "harness:", "metrics.py"):
             self.assertIn(phrase, text)
 
+    def test_learn_promote_and_group_seams(self) -> None:
+        learn: str = self.read("skills/learn/SKILL.md")
+        for phrase in ("learn promote", "add Promotions"):
+            self.assertIn(phrase, learn)
+        run: str = self.read("skills/run/SKILL.md")
+        for phrase in ("Run metrics", "Add secret mode", "add Handoff", "## Deploy"):
+            self.assertIn(phrase, run)
+        self.assertLess(run.index("## Phase 3c"), run.index("applies the resulting fix list"))
+        self.assertLess(run.index("applies the resulting fix list"), run.index("its table replaces the earlier test rows"))
+        setup: str = self.read("skills/setup/SKILL.md")
+        part2: str = setup[setup.index("## Part 2"):]
+        self.assertIn("Harness state for any agent", part2)
+
     def test_evolve_text(self) -> None:
         text: str = self.read("skills/evolve/SKILL.md")
         for phrase in ("## Harness lessons", "harness-lessons", "explicit yes"):
