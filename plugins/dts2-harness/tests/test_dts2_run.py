@@ -32,10 +32,10 @@ class Dts2RunTests(unittest.TestCase):
 
     def test_receipt_has_heading_and_counts(self) -> None:
         review: str = "### Verdict: APPROVE\n"
-        text: str = self.run_mod.build_receipt(VERIFY, review, "Jeremy", "abc123")
+        text: str = self.run_mod.build_receipt(VERIFY, review, "approver-name", "abc123")
         self.assertIn("## Change receipt", text)
         self.assertIn("| 2 | 1 | 0 |", text)
-        self.assertIn("Jeremy", text)
+        self.assertIn("approver-name", text)
         self.assertIn("abc123", text)
         self.assertIn("approved", text)
         self.assertIn("- Production: not deployed yet", text)
