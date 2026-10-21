@@ -26,5 +26,6 @@
 
 <commit SHA or tag to revert to>
 
+### Production
+
 - Production: not deployed yet
-  Once verified: `- Production: <url> | <deploy id> | walkthrough <PASS|FAIL> | <time>`

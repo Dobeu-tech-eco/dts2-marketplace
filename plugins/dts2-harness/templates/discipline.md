@@ -7,9 +7,9 @@ Read by lead, builder, reviewer and verifier. Copied to `.harness/discipline.md`
 2. **End with a receipt.**
    Where it bites: `receipt.md` lists tests run with pass/fail counts, review verdict, approver, steps outside the change, open risks, rollback point. Shown at the ship checkpoint and appended to the PR body.
 3. **Cap fix rounds at three.**
-   Where it bites: in `run` and per lane. After three rounds, stop and escalate with what failed; the escalation goes into `.harness/state.md`.
+   Where it bites: in `run` and per builder. After three rounds, stop and escalate with what failed; the escalation goes into `.harness/state.md`.
 4. **Repeat mistake becomes a check.**
-   Where it bites: `learn` detects a lesson seen twice (same normalized text or same file+rule) and offers to promote it: a `stop-checks.sh` rule, a test skeleton in the repo's test dir, or a line in `review-checklist.md`. It records "lives at <path>" in `lessons.md`.
+   Where it bites: `learn` detects a lesson seen twice (same normalized text or same file+rule) and offers to promote it: a line in `.harness/checks.sh` (run by the Stop hook), a test skeleton in the repo's test dir, or a line in `review-checklist.md`. It records "lives at <path>" in `lessons.md`.
 5. **State outside the chat.**
    Where it bites: `.harness/state.md` holds decisions, failures and open items, appended by run and learn, and read at session start by `session-lessons.sh`. The file is the record.
 6. **Auto-add the receipt.**

@@ -11,7 +11,7 @@ from typing import Any, Final
 
 PROVIDER_FILES: Final[tuple[tuple[str, tuple[str, ...], str | None], ...]] = (
     ("vercel", ("vercel.json", ".vercel/project.json"), "vercel ls --prod"),
-    ("cloudflare", ("wrangler.toml", "wrangler.jsonc"), "wrangler deployments list"),
+    ("cloudflare", ("wrangler.toml", "wrangler.jsonc", "wrangler.json"), "wrangler deployments list"),
     ("netlify", ("netlify.toml",), "netlify status"),
     ("fly", ("fly.toml",), "fly status"),
     ("render", ("render.yaml",), None),
@@ -34,7 +34,7 @@ PRODUCTION_PLANS: Final[dict[str, list[str]]] = {
     "supabase": ["vercel"],
     "workers": ["cloudflare"],
 }
-WORKFLOW_GLOB: Final[str] = "*.yml"
+WORKFLOW_GLOBS: Final[tuple[str, ...]] = ("*.yml", "*.yaml")
 WORKFLOW_DIR: Final[str] = ".github/workflows"
 WORKFLOW_CHECK: Final[str] = "gh run list --workflow {name} --limit 1"
 END_STATE_PATH: Final[str] = ".harness/end-state.md"
@@ -65,7 +65,8 @@ def find_provider(repo: Path) -> tuple[str, list[str], str | None] | None:
 
 
 def find_workflow(repo: Path) -> tuple[list[str], str] | None:
-    for path in sorted((repo / WORKFLOW_DIR).glob(WORKFLOW_GLOB)):
+    workflow_dir: Path = repo / WORKFLOW_DIR
+    for path in sorted(p for glob in WORKFLOW_GLOBS for p in workflow_dir.glob(glob)):
         if "deploy" in path.read_text(encoding="utf-8", errors="replace").lower():
             return [f"{WORKFLOW_DIR}/{path.name}"], WORKFLOW_CHECK.format(name=path.name)
     return None
