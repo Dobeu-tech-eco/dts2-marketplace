@@ -8,8 +8,8 @@ description: Explain the dts2 harness — its six agents, eight skills, agent ro
 Explanation only. Do not invoke agents or change files from this skill.
 
 ## Agents (all prefixed `dts2-harness:`)
-- `lead` plans a DAG of tasks and groups them into lanes with exclusive file ownership.
-- `builder` implements one lane. Several builders can run at once on separate lanes.
+- `lead` plans a DAG of tasks and gives each builder a separate file set.
+- `builder` implements one builder section; several builders can run at once on separate file sets.
 - `reviewer` returns severity-rated findings on one axis or all axes. Never edits.
 - `verifier` runs configured commands and checks for stubs. Never edits.
 - `scout` sizes a repo or workspace and recommends a team tier.
@@ -19,7 +19,7 @@ Explanation only. Do not invoke agents or change files from this skill.
 | Skill | Use it to |
 |---|---|
 | `machine-prep` | Scan the computer, prune plugins to the blueprint keep-set, set up the slim startup. Once per machine. |
-| `setup` | Scaffold `.harness/` in one repo, many repos at once, or a multi-repo workspace. |
+| `setup` | Interview to an approved end state, then scaffold `.harness/` in one repo, many repos, or a multi-repo workspace. |
 | `run` | Do a task: scout sizes it, lead plans, N builders build, reviewers and verifier check. Two checkpoints: Plan checkpoint and Ship checkpoint. Open secrets and decisions go to `.harness/action-items.md`; close a secret with `run add secret NAME`. |
 | `learn` | Turn reviewer findings into lessons that every future run reads. |
 | `sdk` | Run the same pipeline headless with the Agent SDK, with API key, key command, or your existing Claude login. |
@@ -34,12 +34,13 @@ Every run checks which agents are usable and what budget is left (the budget che
 | claude | live | lead, verifier, builder, reviewer |
 | codex | live | builder, second-opinion reviewer |
 | gemini | live | second-opinion reviewer |
+| grok | live | second-opinion reviewer |
 | opencode | live | builder |
-| copilot | live or handoff | builder, security reviewer |
+| copilot | live | builder, security reviewer |
 | cursor | handoff | builder |
 | antigravity | handoff | builder |
 
-Only agents detected on this machine join the roster; handoff agents get a lane file and the run pauses until you report it done.
+Only agents detected on this machine join the roster; handoff agents get a written brief, and the run pauses until you report it done.
 
 ## Where to start
 1. New machine or cluttered tooling → `machine-prep`.
@@ -59,6 +60,6 @@ Only agents detected on this machine join the roster; handoff agents get a lane 
 
 Worktrees are used only in workspace mode or when `use_worktrees: always` is set; single mode shares the tree on separate file sets.
 
-Builders never exceed the number of lanes the lead found, and never exceed `max_builders` in `.claude/dts2-harness.local.md`.
+Builders never exceed the number of builder sections the lead planned, and never exceed `max_builders` in `.claude/dts2-harness.local.md`.
 
 Keep the reply under 200 words unless the user asks for detail. Single-file fixes do not need the harness.

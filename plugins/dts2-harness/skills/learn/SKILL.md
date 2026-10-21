@@ -25,12 +25,13 @@ Lessons live in the repo, so they travel with the code and every agent and machi
 6. After writing, clear the processed entries from the inbox.
 
 ## Auto mode
-When `run` invokes this skill after a ship (it does so unless `auto_learn` is `false` in `.claude/dts2-harness.local.md`), skip the approval wait in step 5, write `lessons.md` and any promotion, clear the processed inbox entries, and return the `lessons.md` diff for the ship summary. Interactive use keeps the approval wait.
+When `run` invokes this skill after a ship (it does so unless `auto_learn` is `false` in `.claude/dts2-harness.local.md`), skip the approval wait in step 5, write `lessons.md`; do **not** write promotions. List each promotion offer in the returned summary and add a row `| promote L-NNN to <target> | seen twice | open |` to `.harness/action-items.md` → `## Decisions`. Clear the processed inbox entries, and return the `lessons.md` diff for the ship summary. Interactive use keeps the approval wait.
 
 ## Optional: promote across repos
 If the same lesson appears in two or more repos of a workspace, offer to add it to the workspace manifest under `shared_lessons:` so `run` applies it everywhere.
 
 ## Guardrails
 - Never edit plugin hooks. Promotion writes only to `.harness/checks.sh`, the repo's test directory, or `review-checklist.md`.
+- Promotions are written only after an explicit yes.
 - Never store secrets, tokens, customer data, or personal details in lessons.
 - Never invent a lesson the evidence does not support.

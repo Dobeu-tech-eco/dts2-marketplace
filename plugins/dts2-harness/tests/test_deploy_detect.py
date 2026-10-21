@@ -65,6 +65,14 @@ class DeployDetectTests(unittest.TestCase):
         self.assertEqual(out["checkCommand"], "gh run list --workflow ship.yml --limit 1")
         self.assertIn(".github/workflows/ship.yml", out["evidence"])
 
+    def test_yaml_extension_workflow(self) -> None:
+        out: dict[str, Any] = detect({".github/workflows/release.yaml": "jobs:\n  deploy:\n    runs-on: x\n"})
+        self.assertEqual(out["provider"], "github-workflow")
+        self.assertIn(".github/workflows/release.yaml", out["evidence"])
+
+    def test_wrangler_json(self) -> None:
+        self.assertEqual(detect({"wrangler.json": "{}"})["provider"], "cloudflare")
+
     def test_workflow_without_deploy_is_none(self) -> None:
         out: dict[str, Any] = detect({".github/workflows/ci.yml": "name: ci\njobs:\n  test: {}\n"})
         self.assertEqual(out["provider"], "none")

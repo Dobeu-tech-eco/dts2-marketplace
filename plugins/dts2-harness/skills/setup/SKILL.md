@@ -45,13 +45,15 @@ Context repos are cloned only when someone needs to read them: `git clone --dept
 
 ### Round 2 (continued) — Deploy target
 
+Greenfield: skip this step here and ask it right after the Topology round, once you know what is being built.
+
 Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/deploy-detect.py" <repo>` (it only reads files and never runs the check command). The harness never creates provider accounts or enters credentials.
 
 - `provider` found and `productionUrl` null → ask once: `Production URL for <provider>?`
 - `provider` found and `productionUrl` set → say it in one line and ask nothing.
-- `provider` is `none` → ask once: `Where does this deploy? (a) existing: <provider> + production URL (b) none — skip verification (c) build one: pick a plan or type your own`
+- `provider` is `none` → ask once: `Where does this deploy? (a) existing — tell me the provider and production URL (b) none — skip verification (c) build one: pick a plan or type your own`
   - (a) → record the provider and URL.
-  - (b) → record `provider: none`.
+  - (b) → record `provider: none`; change it later with `/dts2-harness:evolve deploy`.
   - (c) → show `PRODUCTION_PLANS` from `deploy-detect.py` for the stack signal that fits the repo (`nextjs`, `react` or `static` → vercel, cloudflare-pages; `node-api`, `python-api` or `docker` → fly, render; `supabase` → vercel; `workers` → cloudflare) and accept a free-text plan line. Write the chosen or typed plan to the end state as `deploy.plan: <text>` with `deploy.provider` and `deploy.status: planned`.
 
 Record the answer for the end state's `deploy:` block. A `planned` deploy is built by `run` as its own run before any feature run; see **Deployment verification** in the run skill.
@@ -135,7 +137,8 @@ Runs after the loop and before Round 5, when every component and its acceptance 
 
 1. Copy `${CLAUDE_PLUGIN_ROOT}/templates/end-state.md` to `.harness/end-state.md` and fill it:
    - metadata: `rounds`, `clarity`, `threshold`, `thresholdSource`, `roster`, `status: pending approval`, `continuedAnyway` (`no`, or `yes (at NN%)`);
-   - Related repos (url, role, tag, note), Other harnesses (folder, decision), Skills (the skill plan table), Topology, Goal, Constraints, Non-goals, Acceptance criteria per component as `- [ ]` items, Assumptions, Open questions.
+   - Related repos (url, role, tag, note), Other harnesses (folder, decision), Skills (the skill plan table), Topology, Goal, Constraints, Non-goals, Acceptance criteria per component as `- [ ]` items, Assumptions, Open questions;
+   - Deploy (the `deploy:` block from the Deploy target step: `provider`, `productionUrl`, `checkCommand`, and for a planned deploy `plan` and `status: planned`).
 2. Workspace mode: first ask once where the workspace manifest and root end state should live (default: the common parent folder of the linked repos). Then write one `.harness/end-state.md` per linked repo with only that repo's components, and a root `end-state.md` in that folder with the `cross-repo` components plus the `depends_on`, contracts and release order from Round 3. Every one of them starts as `status: pending approval`.
 3. Show a short summary (components, clarity, open questions) and every file path, then ask once: `Approve this end state? Reply "approve", or tell me what to change.` In workspace mode this one approval covers all the files.
 4. On changes, edit the files and ask again. On approval, set `status: approved` in every file and go to Part 2.

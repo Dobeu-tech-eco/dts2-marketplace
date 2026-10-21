@@ -14,6 +14,7 @@ If the request is `run add secret NAME`, skip to **Add secret mode**.
 2. **Config and mode.** Look for `.harness/config.yaml` in the repo, then `.harness-workspace.yaml` in a parent folder. Neither → stop and point to `/dts2-harness:setup`. Print one mode line: `Mode: workspace` if `.harness-workspace.yaml` was found, else `Mode: single`.
 3. **Ignore guard.** For each repo involved: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/ensure-ignored.py" <repo>`.
 4. **End state.** If `.harness/config.yaml` exists and `.harness/end-state.md` does not, print exactly `No end state yet; /dts2-harness:setup interviews to one.` and continue.
+   **Planned deploy.** If `.harness/end-state.md` has `deploy.status: planned`, say `Production target is planned but not built yet; building it first.` and run this pipeline on the task `Build the production target: <deploy.plan>` (both checkpoints apply). Then ask once: `Continue with your task now? (y/n)`
 5. **Settings.** Read `.claude/dts2-harness.local.md`: `auto_scale` (default true), `max_builders` (6), `max_reviewers` (4), `second_opinion` (none), `auto_learn` (true).
 6. **Roster.** `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/roster.py" resolve --config .harness/config.yaml`. On error, show it and stop. Keep the JSON.
 7. **Clean tree.** `git status --porcelain` in every repo involved. If dirty, ask once: stash and restore after, build on top, or stop. Record `git rev-parse HEAD` per repo as the rollback point.
@@ -99,11 +100,13 @@ Do these before the commit so they land in it. Do not narrate the writes.
 ## Deployment verification
 Runs only when `deploy.provider != none` in `.harness/end-state.md`. Read `deploy.provider`, `deploy.productionUrl`, `deploy.checkCommand` and `deploy.status`. The harness never deploys, pushes, or re-runs CI except on an explicit yes inside the troubleshoot round below. It never creates provider accounts or enters credentials; secrets are presence-only.
 
+If the `deploy:` block is missing or `provider: unset` (v2 or `--scaffold-only` repos), after the PR is opened run `deploy-detect.py` and ask the setup skill's deploy question once, record the answer in `end-state.md`, then continue.
+
 **Planned deploy.** When `deploy.status` is `planned`, build `deploy.plan` as its own run, before any feature run: the provider config file, a deploy workflow, env and secret names to `.harness/action-items.md` (never values), and DNS, domain and account steps to action items for the user. On the first passing deploy, set `deploy.status` to `live` and run the production walkthrough below.
 
-**Watch.** After the PR is opened, print: `Deploy watch: <provider> — run `<checkCommand>` or tell me when it is live`. Wait for the user to confirm, or for the check output they paste to show the new commit deployed. Never run the deploy yourself.
+**Watch.** After the PR is opened, print: `Deploy watch: <provider> — run `<checkCommand>` or tell me when it is live`; when `checkCommand` is null, print `Deploy watch: <provider> — tell me when it is live`. Wait for the user to confirm, or for the check output they paste to show the new commit deployed. Never run the deploy yourself.
 
-**Production walkthrough.** Once confirmed, dispatch `dts2-harness:verifier` (`model: opus`) with `Mode: production`, `URL: <productionUrl>`, the plan's `Done` screens and the run stamp. It repeats the walkthrough screens against the URL, saves `prod-<screen>.png`, and returns PASS or FAIL per screen. Record in the receipt: `- Production: <url> | <deploy id or commit> | walkthrough PASS n/n | <ISO time>`.
+**Production walkthrough.** Once confirmed, dispatch `dts2-harness:verifier` (`model: opus`) with `Mode: production`, `URL: <productionUrl>`, the plan's `Done` screens and the run stamp. It repeats the walkthrough screens against the URL, saves `prod-<screen>.png`, and returns PASS or FAIL per screen. Replace the line under the receipt's `### Production` heading with `- Production: <url> | <deploy id or commit> | walkthrough PASS n/n | <ISO time>`, then update the open PR with `gh pr edit <n> --body-file .harness/runs/<stamp>/receipt.md`.
 
 **Failure.** A FAIL in the deploy check, CI, or the walkthrough → ask exactly: "Production/CI failed at <step>. Investigate and troubleshoot?"
 - **No**: record an open item in the receipt (`Production:` line and Open risks) and in `.harness/state.md`, and end the run.

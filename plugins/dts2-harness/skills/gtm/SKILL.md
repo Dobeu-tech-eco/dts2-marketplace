@@ -8,7 +8,8 @@ description: Take a product through go-to-market in one pass by running the inst
 ## Preflight
 Check that `marketing-skills` is enabled with `/plugin` or `ListPlugins`. If it is not, print the install line (`/plugin install marketing-skills@<marketplace>`; on a claude.ai-synced account, enable it under synced plugins) and stop. Do not re-implement any step yourself.
 
-Call `scripts/ensure-ignored.py` so `.harness/` run output is ignored correctly.
+Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/ensure-ignored.py" <repo>`.
+Dispatch `dts2-harness:scout` for the marketing-surface list; without `.harness/end-state.md`, say so and continue with scout's output only.
 
 ## Inputs fed to every step
 - Topology and acceptance criteria from `.harness/end-state.md`.

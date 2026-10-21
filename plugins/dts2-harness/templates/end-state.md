@@ -12,12 +12,12 @@
 
 ```
 deploy:
-  provider: none
+  provider: unset
   productionUrl: null
   checkCommand: null
 ```
 
-Provider is `vercel`, `cloudflare`, `netlify`, `fly`, `render`, `firebase`, `github-workflow` or `none`. When setup plans a deploy that does not exist yet, add `plan: <text>` and `status: planned`; `run` sets `status: live` after the first passing deploy.
+Provider is `vercel`, `cloudflare`, `netlify`, `fly`, `render`, `firebase`, `github-workflow` or `none`. `unset` means not asked yet; `none` means the user chose to skip verification. When setup plans a deploy that does not exist yet, add `plan: <text>` and `status: planned`; `run` sets `status: live` after the first passing deploy.
 
 ## Related repos
 

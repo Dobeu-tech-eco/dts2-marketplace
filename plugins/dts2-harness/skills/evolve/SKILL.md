@@ -7,6 +7,9 @@ description: Change the dts2 harness itself — edit a skill, agent, hook, scrip
 
 Never edit the installed copy. `plugins/cache` and `plugins/synced` are generated; edits there are lost on the next update and are never made.
 
+## `evolve deploy`
+This mode changes the current repo's deploy target, not the plugin. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/deploy-detect.py" <repo>`, ask the setup skill's Deploy target question, and rewrite the `deploy:` block in `.harness/end-state.md`. Skip sections 1–6.
+
 ## 1. Locate the source
 1. `git remote -v | grep dts2-marketplace` in the current directory. Match → use this checkout.
 2. Else `~/.dts2/marketplace` if it exists.
@@ -29,7 +32,7 @@ Bump both manifests (`plugins/dts2-harness/.claude-plugin/plugin.json` and the m
 - major for a checkpoint or layout change
 
 ## 5. Commit, then push only on a yes
-Commit with a message that names the change and the bump. Push only after the user gives an explicit yes; silence or a vague reply means do not push.
+Commit with a message that names the change and the bump. Push only after the user gives an explicit yes; silence or a vague reply means do not push. The change reaches other machines only once it is on the repo's default branch; after the push, open a PR or merge on a second explicit yes, and say the update command picks it up after that.
 
 ## 6. Tell the user how to pick it up
 Print `/plugin marketplace update dts2`, then tell the user to restart Claude Code so the new version loads.
