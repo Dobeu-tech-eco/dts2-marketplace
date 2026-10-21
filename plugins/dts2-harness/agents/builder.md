@@ -32,4 +32,3 @@ When a required secret (API key, token, credential) is missing, never ask for or
 - No refactors, features, or cleanup beyond your section.
 - If the plan is wrong or ambiguous, stop and report. Do not improvise.
 - No debug output left behind. No hardcoded secrets.
-- When running in a git worktree, stay inside it.
