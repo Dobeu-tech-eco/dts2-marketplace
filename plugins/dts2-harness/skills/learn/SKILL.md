@@ -1,6 +1,6 @@
 ---
 name: learn
-description: Consolidate reviewer and verifier findings into durable per-repo lessons in .harness/lessons.md that the planner, builders, and reviewers read on every future run, and prune stale or duplicate lessons. Use after harness runs, when the user says learn from this, `learn promote <id>`, remember this mistake, update lessons, or when the session-start notice says lesson candidates are waiting.
+description: Consolidate reviewer and verifier findings into durable per-repo lessons in .harness/lessons.md that the planner, builders, and reviewers read on every future run, and prune stale or duplicate lessons. Use after harness runs, when the user says learn from this, learn promote L-NNN, remember this mistake, update lessons, or when the session-start notice says lesson candidates are waiting.
 ---
 
 # Learn — the harness lessons loop

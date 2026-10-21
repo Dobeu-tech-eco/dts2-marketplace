@@ -192,7 +192,7 @@ class RunSkillContracts(TextContractMixin):
 
 
 class ReleaseContract(unittest.TestCase):
-    VERSION: Final[str] = "3.0.0"
+    VERSION: Final[str] = "3.0.1"
     SKILL_COUNT: Final[int] = 9
     AGENT_COUNT: Final[int] = 6
     REPO_ROOT: Final[Path] = PLUGIN_ROOT.parent.parent
@@ -205,7 +205,7 @@ class ReleaseContract(unittest.TestCase):
 
     def test_readme_credits_upstreams(self) -> None:
         text: str = _read(self.REPO_ROOT / "README.md")
-        for needle in ("oh-my-claudecode", "Impeccable", "marketingskills", "## Acknowledgements", "What's new in 3.0.0", "Known limits"):
+        for needle in ("oh-my-claudecode", "Impeccable", "marketingskills", "## Acknowledgements", "What's new in 3.0.1", "Known limits"):
             self.assertIn(needle, text)
 
     def test_skill_and_agent_counts(self) -> None:
