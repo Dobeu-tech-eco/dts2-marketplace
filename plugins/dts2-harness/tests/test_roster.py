@@ -44,6 +44,12 @@ def recorded(name: str) -> str:
 BILLING_402: Final[str] = recorded("muse-402.txt")
 QUOTA_429: Final[str] = recorded("muse-429.txt")
 RESET: Final[str] = "2026-10-22T12:54:03Z"
+GROK_PROTECTED_DIRS: Final[tuple[str, ...]] = (".git", ".grok", ".claude", ".cursor")
+GROK_BUILDER_PATH_DENIES: Final[tuple[str, ...]] = (
+    "Edit(**/.git/**)", "Edit(**/.git)", "Write(**/.git/**)", "Write(**/.git)",
+    "Edit(**/.grok/**)", "Write(**/.grok/**)", "Edit(**/.claude/**)", "Write(**/.claude/**)",
+    "Edit(**/.cursor/**)", "Write(**/.cursor/**)",
+)
 QUOTE_MARKERS: Final[tuple[str, ...]] = ("- ", "* ", "> ", "| ", "1. ", "  - ", 'muse.json:48: "')
 
 
@@ -138,9 +144,9 @@ class ProfileExtensionTests(unittest.TestCase):
         ])
         self.assertEqual(data["roleCommands"]["builder"], [
             "grok", "--prompt-file", "{promptFile}", "-m", "{model}", "--permission-mode", "acceptEdits",
-            "--allow", "Edit", "--allow", "Write", "--deny", "Bash",
-            "--deny", "Edit(.git/**)", "--deny", "Write(.git/**)", "--deny", "MCPTool",
-            "--no-subagents", "--disable-web-search",
+            "--allow", "Edit(./**)", "--allow", "Write(./**)", "--deny", "Bash",
+            *[part for rule in GROK_BUILDER_PATH_DENIES for part in ("--deny", rule)],
+            "--deny", "MCPTool", "--no-subagents", "--disable-web-search",
         ])
         self.assertEqual(data["env"], {"GROK_WORKFLOWS": "0"})
         notes: str = " ".join(data["notes"])
@@ -278,12 +284,21 @@ class CommandTests(unittest.TestCase):
         argv: list[str] = self.resolved("grok", "builder", "economy")["argv"]
         self.assertIn("grok-4.7-build-fast", argv)
         self.assertEqual(argv[argv.index("--permission-mode") + 1], "acceptEdits")
-        self.assertEqual(self.rules(argv, "--allow"), ["Edit", "Write"])
-        self.assertEqual(sorted(self.rules(argv, "--deny")), [
-            "Bash", "Edit(.git/**)", "MCPTool", "Write(.git/**)",
-        ])
+        self.assertEqual(self.rules(argv, "--allow"), ["Edit(./**)", "Write(./**)"])
+        self.assertEqual(sorted(self.rules(argv, "--deny")), sorted([
+            "Bash", "MCPTool", *GROK_BUILDER_PATH_DENIES,
+        ]))
         self.assertIn("--no-subagents", argv)
         self.assertIn("--disable-web-search", argv)
+
+    def test_grok_builder_denies_every_hook_folder_unrooted(self) -> None:
+        denies: list[str] = self.rules(self.resolved("grok", "builder")["argv"], "--deny")
+        for folder in GROK_PROTECTED_DIRS:
+            for tool in ("Edit", "Write"):
+                self.assertIn(f"{tool}(**/{folder}/**)", denies)
+        for tool in ("Edit", "Write"):
+            self.assertIn(f"{tool}(**/.git)", denies)
+        self.assertFalse([r for r in denies if "(." in r], "path denies must be unrooted (**/...)")
 
     def test_second_opinion_uses_reviewer_command(self) -> None:
         self.assertIn("plan", self.resolved("grok", "second-opinion")["argv"])
