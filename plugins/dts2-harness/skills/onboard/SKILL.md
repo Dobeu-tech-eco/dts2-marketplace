@@ -39,8 +39,8 @@ Every run checks which agents are usable and what budget is left (the budget che
 |---|---|---|
 | claude | live | lead, verifier, builder, reviewer |
 | codex | live | builder, second-opinion reviewer |
-| gemini | live | second-opinion reviewer |
-| grok | live | second-opinion reviewer |
+| gemini | live | builder, reviewer, second-opinion reviewer |
+| grok | live | builder, reviewer, second-opinion reviewer |
 | opencode | live | builder |
 | copilot | live | builder, security reviewer |
 | cursor | handoff | builder |
