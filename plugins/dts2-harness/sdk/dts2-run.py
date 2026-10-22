@@ -203,9 +203,10 @@ class MissingBinary(Exception):
     """roster.py found no binary for the seat on PATH, DTS2_BIN_<NAME> or the profile searchPaths."""
 
 
-def profile_command(agent: str, role: str, prompt_file: Path) -> list[str]:
+def profile_command(agent: str, role: str, prompt_file: Path) -> tuple[list[str], dict[str, str]]:
     """The filled argv `roster.py command --prompt-file` returns for this seat, with argv[0] the
-    binary roster resolved (PATH, DTS2_BIN_<NAME>, then the profile's searchPaths)."""
+    binary roster resolved (PATH, DTS2_BIN_<NAME>, then the profile's searchPaths), and the
+    profile env (grok: GROK_WORKFLOWS=0) to pass to the subprocess."""
     result = subprocess.run(
         [sys.executable, "-I", str(ROSTER_SCRIPT), "command", "--agent", agent, "--role", role,
          "--prompt-file", str(prompt_file)],
@@ -215,7 +216,7 @@ def profile_command(agent: str, role: str, prompt_file: Path) -> list[str]:
     argv: list[str] = data["argv"]
     if not data.get("binary"):
         raise MissingBinary(argv[0])
-    return [data["binary"], *argv[1:]]
+    return [data["binary"], *argv[1:]], dict(data.get("env") or {})
 
 
 def fill_tokens(template: list[str], values: dict[str, str]) -> list[str]:
@@ -239,8 +240,9 @@ def gemini_second_opinion(diff: str, repo: Path) -> str:
     and the prompt go in files under a temp --add-dir folder and agy runs from the repo, stdin closed."""
     with tempfile.TemporaryDirectory(prefix="dts2-second-opinion-") as folder:
         prompt_path: Path = write_prompt(Path(folder), diff, "Do not edit files; do not run commands. ")
+        env: dict[str, str] = {}
         try:
-            argv: list[str] = profile_command("gemini", "second-opinion", prompt_path)
+            argv, env = profile_command("gemini", "second-opinion", prompt_path)
         except MissingBinary as missing:
             return f"(second opinion skipped: {missing} CLI not found)"
         except Exception:
@@ -249,14 +251,16 @@ def gemini_second_opinion(diff: str, repo: Path) -> str:
             })
             if shutil.which(argv[0]) is None:
                 return f"(second opinion skipped: {argv[0]} CLI not found)"
-        return run_second_opinion(argv, repo)
+        return run_second_opinion(argv, repo, env)
 
 
-def run_second_opinion(argv: list[str], repo: Path) -> str:
-    """Run one second-opinion CLI; a timeout becomes a note so the run still reaches the receipt."""
+def run_second_opinion(argv: list[str], repo: Path, env: dict[str, str] | None = None) -> str:
+    """Run one second-opinion CLI with the profile env on top of ours; a timeout becomes a note so
+    the run still reaches the receipt."""
     try:
         result = subprocess.run(argv, cwd=repo, capture_output=True, text=True,
-                                stdin=subprocess.DEVNULL, timeout=SECOND_OPINION_TIMEOUT_S)
+                                stdin=subprocess.DEVNULL, env={**os.environ, **(env or {})},
+                                timeout=SECOND_OPINION_TIMEOUT_S)
     except subprocess.TimeoutExpired:
         return TIMED_OUT.format(seconds=SECOND_OPINION_TIMEOUT_S)
     return result.stdout or result.stderr

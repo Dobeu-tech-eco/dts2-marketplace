@@ -22,7 +22,7 @@ SCHEMA_KEYS: Final[frozenset[str]] = frozenset({
     "costTier", "statusCommand", "loginCommand", "models", "modelsVerified",
     "subscriptionName", "apiKeyEnv", "searchPaths",
 })
-OPTIONAL_KEYS: Final[frozenset[str]] = frozenset({"roleCommands", "notes", "stdin", "fallback"})
+OPTIONAL_KEYS: Final[frozenset[str]] = frozenset({"roleCommands", "notes", "stdin", "fallback", "env"})
 VERIFIED: Final[frozenset[str]] = frozenset({"claude", "codex", "opencode"})
 COST_TIERS: Final[dict[str, int]] = {
     "claude": 3, "codex": 2, "gemini": 1, "opencode": 1,
@@ -142,7 +142,9 @@ class ProfileExtensionTests(unittest.TestCase):
             "--deny", "Edit(.git/**)", "--deny", "Write(.git/**)", "--deny", "MCPTool",
             "--no-subagents", "--disable-web-search",
         ])
+        self.assertEqual(data["env"], {"GROK_WORKFLOWS": "0"})
         notes: str = " ".join(data["notes"])
+        self.assertIn("GROK_WORKFLOWS=0", notes)
         for phrase in ("subagents", "~/.claude/settings.json", ".claude/settings.json", "~/.grok/config.toml"):
             self.assertIn(phrase, notes)
         self.assertTrue(any("auto-denied" in note for note in data["notes"]))
@@ -325,6 +327,20 @@ class CommandTests(unittest.TestCase):
             self.assertFalse([p for p in data["argv"] if "{" in p], f"{agent} {role}")
             self.assertNotIn("SECRET-BRIEF-TEXT", data["shell"], f"{agent} {role}")
             self.assertNotIn("SECRET-BRIEF-TEXT", json.dumps(data["argv"]), f"{agent} {role}")
+
+    def test_grok_shell_line_disables_workflows(self) -> None:
+        for role in ("reviewer", "builder"):
+            data, _ = self.filled("grok", role)
+            self.assertEqual(data["env"], {"GROK_WORKFLOWS": "0"})
+            self.assertEqual(data["shell"], shlex.join(["env", "GROK_WORKFLOWS=0", *data["argv"]]))
+
+    def test_env_is_empty_for_other_agents(self) -> None:
+        data, _ = self.filled("codex", "builder")
+        self.assertEqual(data["env"], {})
+        self.assertFalse(data["shell"].startswith("env "))
+
+    def test_env_without_prompt_file(self) -> None:
+        self.assertEqual(self.resolved("grok", "reviewer")["env"], {"GROK_WORKFLOWS": "0"})
 
     def test_grok_reads_the_prompt_file(self) -> None:
         data, brief = self.filled("grok", "reviewer")

@@ -103,10 +103,10 @@ class Dts2RunTests(unittest.TestCase):
             seen["cmd"], seen["kwargs"] = cmd, kwargs
             return mock.Mock(stdout="findings", stderr="")
 
-        def fake_profile(agent: str, role: str, prompt_file: Path) -> list[str]:
+        def fake_profile(agent: str, role: str, prompt_file: Path) -> tuple[list[str], dict[str, str]]:
             assert argv is not None
             seen["prompt_file"] = prompt_file
-            return [str(prompt_file.parent) if p == "{addDir}" else p for p in argv]
+            return [str(prompt_file.parent) if p == "{addDir}" else p for p in argv], {"DTS2_TEST_ENV": "1"}
 
         lookup = mock.patch.object(self.run_mod, "profile_command", side_effect=fake_profile) if argv \
             else mock.patch.object(self.run_mod, "profile_command", side_effect=RuntimeError("no roster"))
@@ -125,6 +125,19 @@ class Dts2RunTests(unittest.TestCase):
         self.assertIn("second-opinion.diff", files["prompt.md"])
         self.assertEqual(kwargs["cwd"], Path("/repo"))
         self.assertIs(kwargs["stdin"], self.run_mod.subprocess.DEVNULL)
+        self.assertEqual(kwargs["env"]["DTS2_TEST_ENV"], "1")
+        self.assertIn("PATH", kwargs["env"])
+
+    def test_profile_env_is_passed_for_grok(self) -> None:
+        prompt: Path = (Path(self.run_mod.tempfile.mkdtemp()) / "prompt.md").resolve()
+        prompt.write_text("x", encoding="utf-8")
+        folder: Path = Path(self.run_mod.tempfile.mkdtemp()).resolve()
+        (folder / "grok").write_text("#!/bin/sh\n")
+        (folder / "grok").chmod(0o755)
+        with mock.patch.dict(os.environ, {"DTS2_BIN_GROK": str(folder / "grok")}):
+            argv, env = self.run_mod.profile_command("grok", "second-opinion", prompt)
+        self.assertEqual(env, {"GROK_WORKFLOWS": "0"})
+        self.assertEqual(argv[0], str(folder / "grok"))
 
     def test_gemini_second_opinion_falls_back_to_plan_mode_agy(self) -> None:
         cmd, kwargs, files = self.gemini_call(None)
@@ -160,7 +173,9 @@ class Dts2RunTests(unittest.TestCase):
         self.assertLess(self.print_timeout_s(self.run_mod.GEMINI_FALLBACK), limit)
         prompt: Path = Path(self.run_mod.tempfile.mkdtemp()) / "prompt.md"
         prompt.write_text("x", encoding="utf-8")
-        self.assertLess(self.print_timeout_s(self.run_mod.profile_command("gemini", "second-opinion", prompt)), limit)
+        with mock.patch.dict(os.environ, {"DTS2_BIN_AGY": str(self.fake_agy())}):
+            argv, _ = self.run_mod.profile_command("gemini", "second-opinion", prompt)
+        self.assertLess(self.print_timeout_s(argv), limit)
 
     def timed_out(self, backend: str) -> str:
         expired = self.run_mod.subprocess.TimeoutExpired(["x"], 600)
@@ -187,7 +202,8 @@ class Dts2RunTests(unittest.TestCase):
         prompt.write_text("x", encoding="utf-8")
         binary: Path = self.fake_agy()
         with mock.patch.dict(os.environ, {"DTS2_BIN_AGY": str(binary)}):
-            argv: list[str] = self.run_mod.profile_command("gemini", "second-opinion", prompt)
+            argv, env = self.run_mod.profile_command("gemini", "second-opinion", prompt)
+        self.assertEqual(env, {})
         self.assertEqual(argv[:2], [str(binary), "-p"])
         self.assertIn(str(prompt), argv[2])
         self.assertEqual(argv[argv.index("--add-dir") + 1], str(prompt.parent))
@@ -201,8 +217,8 @@ class Dts2RunTests(unittest.TestCase):
                 self.run_mod.profile_command("gemini", "second-opinion", prompt)
 
     def test_search_path_binary_runs_without_which(self) -> None:
-        def fake_profile(agent: str, role: str, prompt_file: Path) -> list[str]:
-            return ["/opt/agy/agy", "-p", "pointer", "--add-dir", str(prompt_file.parent)]
+        def fake_profile(agent: str, role: str, prompt_file: Path) -> tuple[list[str], dict[str, str]]:
+            return ["/opt/agy/agy", "-p", "pointer", "--add-dir", str(prompt_file.parent)], {}
 
         done = mock.Mock(stdout="found", stderr="")
         with mock.patch.object(self.run_mod, "profile_command", side_effect=fake_profile), \

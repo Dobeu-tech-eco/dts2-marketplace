@@ -483,8 +483,10 @@ def prompt_values(prompt_file: Path, workspace: Path) -> dict[str, str]:
     }
 
 
-def shell_line(argv: list[str], stdin: str | None) -> str:
-    line: str = shlex.join(argv)
+def shell_line(argv: list[str], stdin: str | None, env: dict[str, str] | None = None) -> str:
+    """One quoted command line: `env K=V ...` for the profile env, then argv, then the redirect."""
+    prefix: list[str] = ["env", *(f"{k}={v}" for k, v in sorted(env.items()))] if env else []
+    line: str = shlex.join([*prefix, *argv])
     return f"{line} < {shlex.quote(stdin)}" if stdin else line
 
 
@@ -500,13 +502,14 @@ def resolve_command(
     result: dict[str, Any] = {
         "agent": profile["name"], "role": role, "model": model, "argv": argv, "stdin": stdin,
         "binary": resolve_binary(argv[0], probe_env(), search_paths_of(profile)),
+        "env": dict(profile.get("env") or {}),
         "notes": list(profile.get("notes") or []),
     }
     if prompt_file is not None:
         values: dict[str, str] = prompt_values(prompt_file, workspace or Path.cwd())
         argv = [values.get(part, part) for part in argv]
         stdin = values.get(stdin, stdin) if stdin else None
-        result.update({"argv": argv, "stdin": stdin, "shell": shell_line(argv, stdin)})
+        result.update({"argv": argv, "stdin": stdin, "shell": shell_line(argv, stdin, result["env"])})
     return result
 
 
