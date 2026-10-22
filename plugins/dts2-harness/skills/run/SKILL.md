@@ -138,6 +138,8 @@ If the `deploy:` block is missing or `provider: unset` (v2 or `--scaffold-only` 
 
 **Production walkthrough.** Once confirmed, dispatch `dts2-harness:verifier` (`model: opus`) with `Mode: production`, `URL: <productionUrl>`, the plan's `Done` screens and the run stamp. It repeats the walkthrough screens against the URL, saves `prod-<screen>.png`, and returns PASS or FAIL per screen. Replace the line under the receipt's `### Production` heading with `- Production: <url> | <deploy id or commit> | walkthrough PASS n/n | <ISO time>`, then update the open PR with `gh pr edit <n> --body-file .harness/runs/<stamp>/receipt.md`.
 
+**Vercel verified commits.** A Vercel preview marked `Canceled` because the project requires verified or signed commits is non-blocking when the commit is one of the run's unsigned agent commits: record it as a note, not a failure, in the receipt's Open risks (`Vercel preview canceled: unsigned agent commit`), and do not start the troubleshoot round for it. The production walkthrough still runs once a signed or human commit deploys.
+
 **Failure.** A FAIL in the deploy check, CI, or the walkthrough → ask exactly: "Production/CI failed at <step>. Investigate and troubleshoot?"
 - **No**: record an open item in the receipt (`Production:` line and Open risks) and in `.harness/state.md`, and end the run.
 - **Yes**: troubleshoot round. Gather evidence (`gh run view <id> --log-failed`, provider logs, the walkthrough's console and network errors), state the root cause, propose a fix, then present these options, each needing its own explicit yes:
