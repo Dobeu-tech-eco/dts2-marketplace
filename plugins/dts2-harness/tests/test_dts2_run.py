@@ -94,6 +94,55 @@ class Dts2RunTests(unittest.TestCase):
             self.run_mod.second_opinion("codex", "diff", Path("."))
         self.assertIs(run.call_args.kwargs["stdin"], self.run_mod.subprocess.DEVNULL)
 
+    def gemini_call(self, argv: list[str] | None) -> tuple[list[str], dict, str]:
+        seen: dict = {}
+
+        def fake_run(cmd: list[str], **kwargs: object) -> mock.Mock:
+            folder: Path = Path(cmd[cmd.index("--add-dir") + 1])
+            seen["files"] = {f.name: f.read_text(encoding="utf-8") for f in folder.iterdir()}
+            seen["cmd"], seen["kwargs"] = cmd, kwargs
+            return mock.Mock(stdout="findings", stderr="")
+
+        lookup = mock.patch.object(self.run_mod, "profile_command", return_value=argv) if argv \
+            else mock.patch.object(self.run_mod, "profile_command", side_effect=RuntimeError("no roster"))
+        with lookup, mock.patch.object(self.run_mod.shutil, "which", return_value="/bin/agy"), \
+                mock.patch.object(self.run_mod.subprocess, "run", side_effect=fake_run):
+            out: str = self.run_mod.second_opinion("gemini", "DIFF-BODY", Path("/repo"))
+        self.assertEqual(out, "findings")
+        return seen["cmd"], seen["kwargs"], next(iter(seen["files"].values()))
+
+    def test_gemini_second_opinion_uses_profile_reviewer_command(self) -> None:
+        template: list[str] = [
+            "agy", "-p", "{prompt}", "--mode", "plan", "--model", "gemini-3.8-flash-medium",
+            "--print-timeout", "15m", "--add-dir", "{addDir}",
+        ]
+        cmd, kwargs, diff_file = self.gemini_call(template)
+        self.assertEqual(cmd[0], "agy")
+        self.assertEqual(cmd[cmd.index("--mode") + 1], "plan")
+        self.assertEqual(cmd[cmd.index("--model") + 1], "gemini-3.8-flash-medium")
+        self.assertNotIn("{prompt}", cmd)
+        self.assertNotIn("{addDir}", cmd)
+        self.assertNotIn("DIFF-BODY", cmd[2])
+        self.assertIn("do not run commands", cmd[2])
+        self.assertEqual(diff_file, "DIFF-BODY")
+        self.assertEqual(kwargs["cwd"], Path("/repo"))
+        self.assertIs(kwargs["stdin"], self.run_mod.subprocess.DEVNULL)
+
+    def test_gemini_second_opinion_falls_back_to_plan_mode_agy(self) -> None:
+        cmd, kwargs, _ = self.gemini_call(None)
+        self.assertEqual(cmd[:2], ["agy", "-p"])
+        self.assertEqual(cmd[3:7], ["--mode", "plan", "--print-timeout", "15m"])
+        self.assertEqual(cmd[7], "--add-dir")
+        self.assertIs(kwargs["stdin"], self.run_mod.subprocess.DEVNULL)
+
+    def test_profile_command_reads_roster(self) -> None:
+        argv: list[str] = self.run_mod.profile_command("gemini", "second-opinion")
+        self.assertEqual(argv[:3], ["agy", "-p", "{prompt}"])
+        self.assertIn("{addDir}", argv)
+
+    def test_no_bare_gemini_binary(self) -> None:
+        self.assertNotIn("gemini", self.run_mod.SECOND_OPINION_COMMANDS)
+
 
 if __name__ == "__main__":
     unittest.main()

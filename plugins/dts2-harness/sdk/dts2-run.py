@@ -29,6 +29,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Final
@@ -55,8 +56,14 @@ NO_APPROVAL: Final[str] = "not approved (headless run; a person approves at the 
 STATUS_ROW: Final[re.Pattern[str]] = re.compile(r"^\|[^|\n]*\|\s*(PASS|FAIL|SKIP)\s*\|", re.M)
 SECOND_OPINION_COMMANDS: Final[dict[str, list[str]]] = {
     "codex": ["codex", "exec"],
-    "gemini": ["gemini", "-p"],
 }
+ROSTER_SCRIPT: Final[Path] = PLUGIN_ROOT / "scripts" / "roster.py"
+ROSTER_TIMEOUT_S: Final[int] = 30
+GEMINI_FALLBACK: Final[list[str]] = [
+    "agy", "-p", "{prompt}", "--mode", "plan", "--print-timeout", "15m", "--add-dir", "{addDir}",
+]
+DIFF_FILE: Final[str] = "second-opinion.diff"
+REVIEW_ASK: Final[str] = "List CRITICAL/HIGH/MEDIUM/LOW findings with file:line."
 
 
 def count_statuses(verify: str) -> tuple[int, int, int]:
@@ -189,7 +196,45 @@ async def run_agent(name: str, task: str, repo: Path, write: bool) -> str:
     return "\n".join(parts)
 
 
+def profile_command(agent: str, role: str) -> list[str]:
+    """The argv template `roster.py command` returns for this seat ({prompt}, {addDir} unfilled)."""
+    result = subprocess.run(
+        [sys.executable, "-I", str(ROSTER_SCRIPT), "command", "--agent", agent, "--role", role],
+        capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=ROSTER_TIMEOUT_S, check=True,
+    )
+    argv: list[str] = json.loads(result.stdout)["argv"]
+    return argv
+
+
+def fill_tokens(template: list[str], values: dict[str, str]) -> list[str]:
+    return [values.get(part, part) for part in template]
+
+
+def gemini_second_opinion(diff: str, repo: Path) -> str:
+    """Headless agy cannot run commands and only reads its cwd and --add-dir folders, so the diff
+    goes in a file under a temp --add-dir folder and agy runs from the repo, stdin closed."""
+    try:
+        template: list[str] = profile_command("gemini", "second-opinion")
+    except Exception:
+        template = list(GEMINI_FALLBACK)
+    if shutil.which(template[0]) is None:
+        return f"(second opinion skipped: {template[0]} CLI not found)"
+    with tempfile.TemporaryDirectory(prefix="dts2-second-opinion-") as folder:
+        diff_path: Path = Path(folder) / DIFF_FILE
+        diff_path.write_text(diff, encoding="utf-8")
+        prompt: str = (
+            f"Review the diff in {diff_path}. Read that file and the repo files it touches; "
+            f"do not run commands. {REVIEW_ASK}"
+        )
+        argv: list[str] = fill_tokens(template, {"{prompt}": prompt, "{addDir}": folder})
+        result = subprocess.run(argv, cwd=repo, capture_output=True, text=True,
+                                stdin=subprocess.DEVNULL, timeout=SECOND_OPINION_TIMEOUT_S)
+    return result.stdout or result.stderr
+
+
 def second_opinion(backend: str, diff: str, repo: Path) -> str:
+    if backend == "gemini":
+        return gemini_second_opinion(diff, repo)
     command: list[str] | None = SECOND_OPINION_COMMANDS.get(backend)
     if command is None or shutil.which(command[0]) is None:
         return f"(second opinion skipped: {backend} CLI not found)"

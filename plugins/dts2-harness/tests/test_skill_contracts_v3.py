@@ -56,7 +56,14 @@ class SdkV3Contract(TextContractMixin):
         path = SKILLS / "sdk" / "SKILL.md"
         self.assert_contains(path, ["--ship", "--live-only", "DTS2_SHIP_BRANCH", "receipt.md",
                                     "only the plan checkpoint", "handoff lane"])
-        self.assert_absent(path, ["Never skip either gate"])
+        self.assert_absent(path, ["Never skip either gate", "runs `gemini -p`"])
+
+    def test_sdk_gemini_second_opinion(self) -> None:
+        self.assert_contains(SKILLS / "sdk" / "SKILL.md", [
+            "roster.py command --agent gemini --role second-opinion",
+            "agy -p … --mode plan --print-timeout 15m", "--add-dir", "stdin from /dev/null",
+            "runs from the repo", "never asked to run commands",
+        ])
 
 
 if __name__ == "__main__":
