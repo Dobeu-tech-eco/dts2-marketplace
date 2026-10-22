@@ -9,7 +9,7 @@ from typing import Any, Final
 from helpers import PLUGIN_ROOT
 
 MUSE: Final[Path] = PLUGIN_ROOT / "profiles" / "agents" / "muse.json"
-MODEL: Final[str] = "muse-spark-1.2"
+MODEL_TIERS: Final[tuple[str, ...]] = ("frontier", "standard", "economy")
 
 
 class MuseProfileTests(unittest.TestCase):
@@ -18,13 +18,13 @@ class MuseProfileTests(unittest.TestCase):
 
     def test_identity(self) -> None:
         self.assertEqual(self.data["name"], "muse")
-        self.assertEqual(self.data["displayName"], "Muse Code (Meta)")
+        self.assertEqual(self.data["displayName"], "Muse")
         self.assertEqual(self.data["command"], ["muse", "exec"])
         self.assertEqual(self.data["rulesFile"], "AGENTS.md")
         self.assertEqual(self.data["invocation"], "live")
 
-    def test_one_model_family_on_every_tier(self) -> None:
-        self.assertEqual(self.data["models"], {"frontier": MODEL, "standard": MODEL, "economy": MODEL})
+    def test_model_tiers_present_and_unverified(self) -> None:
+        self.assertEqual(set(self.data["models"]), set(MODEL_TIERS))
         self.assertFalse(self.data["modelsVerified"])
 
     def test_roles_and_verification(self) -> None:

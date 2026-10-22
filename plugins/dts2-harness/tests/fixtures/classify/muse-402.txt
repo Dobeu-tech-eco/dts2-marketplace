@@ -1,0 +1,1 @@
+agent loop failed: model failed: API error 402 [request_id=REDACTED]: Billing verification failed. Please check your payment method. (billing_error)

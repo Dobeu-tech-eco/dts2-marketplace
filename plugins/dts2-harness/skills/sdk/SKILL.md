@@ -32,7 +32,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/sdk/dts2-run.py" "<task>" --repo <path> [--yes] [
 - Output: `.harness/runs/<stamp>/1-plan.md`, `2-build.md`, `3-review.md`, `4-verify.md`, `receipt.md`, and `5-<backend>.md` for a second opinion. Lesson candidates go to `.harness/lessons-inbox.md`.
 
 ## 4. Other coding agents
-- `--second-opinion codex` runs `codex exec`; `--second-opinion gemini` runs `gemini -p`. Each is skipped with a note if its CLI is missing. Their findings are advisory and never override the reviewer verdict.
+- `--second-opinion codex` runs `codex exec` with stdin from /dev/null. `--second-opinion gemini` runs the gemini profile's reviewer command from `roster.py command --agent gemini --role second-opinion` (headless agy in plan mode), falling back to `agy -p … --mode plan --print-timeout 9m` if the roster lookup fails. It runs the binary roster resolves (PATH, `DTS2_BIN_AGY`, then the profile's searchPaths), so an agy outside PATH is still found. The diff is written to a file in a temporary folder passed as `--add-dir`; agy runs from the repo with stdin from /dev/null and is never asked to run commands. Each is skipped with a note if its CLI is missing, and a run that passes the 600s limit leaves a `second opinion timed out` note instead of stopping the run. Their findings are advisory and never override the reviewer verdict.
 - Codex users can also install the blueprint's `codex/agents/*.toml` so Codex has the same four roles natively.
 
 ## 5. CI example (GitHub Actions)

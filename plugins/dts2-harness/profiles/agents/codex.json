@@ -27,14 +27,43 @@
     "status"
   ],
   "models": {
-    "frontier": "gpt-5-codex",
-    "standard": "gpt-5-codex",
-    "economy": "gpt-5-mini"
+    "frontier": null,
+    "standard": null,
+    "economy": null
   },
   "modelsVerified": false,
   "subscriptionName": "ChatGPT Pro (Codex)",
   "apiKeyEnv": "OPENAI_API_KEY",
   "searchPaths": [],
+  "roleCommands": {
+    "builder": [
+      "codex",
+      "exec",
+      "-m",
+      "{model}",
+      "--sandbox",
+      "workspace-write",
+      "--",
+      "{prompt}"
+    ],
+    "second-opinion": [
+      "codex",
+      "exec",
+      "-m",
+      "{model}",
+      "--sandbox",
+      "read-only",
+      "--",
+      "{prompt}"
+    ]
+  },
+  "stdin": "/dev/null",
+  "notes": [
+    "Run codex exec with stdin from /dev/null (`codex exec <prompt> < /dev/null`); otherwise it waits on \"Reading additional input from stdin\". roster.py command returns this as stdin.",
+    "No model pin: gpt-5-codex is unsupported on a ChatGPT login, so codex uses its own default. Set a current id here only after `codex` lists it.",
+    "codex exec defaults to a read-only sandbox, so builders pass --sandbox workspace-write rather than relying on the user config. Even then its sandbox cannot write the git index. Tell codex builders \"do not commit\"; the lead commits their work.",
+    "{prompt} is a fixed pointer to the prompt file, placed after -- so it is never read as a flag; the second-opinion seat runs --sandbox read-only."
+  ],
   "effortLevels": [
     "low",
     "medium",

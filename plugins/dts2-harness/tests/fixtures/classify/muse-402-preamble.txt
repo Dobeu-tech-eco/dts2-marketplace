@@ -1,0 +1,3 @@
+muse:   Run `muse skills list --source all` for full diagnostics.
+muse: Agent delegation: auto unavailable: workspace is untrusted.
+agent loop failed: model failed: API error 402 [request_id=REDACTED]: Billing verification failed. Please check your payment method. (billing_error)

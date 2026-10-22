@@ -23,6 +23,9 @@
   "subscriptionName": "Gemini Pro (Antigravity)",
   "apiKeyEnv": null,
   "searchPaths": [],
+  "notes": [
+    "This is the Antigravity editor, used by handoff brief. The headless agy CLI belongs to the gemini profile; do not add an agy command here, so the two profiles never both claim agy."
+  ],
   "effortLevels": [
     "medium"
   ],

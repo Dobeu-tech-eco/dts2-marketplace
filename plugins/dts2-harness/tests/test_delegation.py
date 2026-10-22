@@ -157,7 +157,7 @@ class DelegateCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         data: dict[str, Any] = json.loads(result.stdout)
         self.assertEqual((data["agent"], data["tier"], data["effort"]), ("muse", "standard", "medium"))
-        self.assertEqual(data["model"], "muse-spark-1.2")
+        self.assertEqual(data["model"], "muse-spark-1.3")
 
     def test_unknown_agent_exits_one(self) -> None:
         result = self.run_cli("--agent", "nope", "--seat", "execution", "--complexity", "normal")

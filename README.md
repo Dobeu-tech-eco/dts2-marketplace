@@ -6,6 +6,15 @@ Claude Code plugin marketplace for Dobeu Tech Solutions.
 |---|---|
 | [`dts2-harness`](plugins/dts2-harness) | Plan-build-review-verify agent harness: end-state interview, Plan and Ship checkpoints, agent roster, deployment verification, GTM, machine prep, multi-repo scaffolding, lessons memory, and a headless Agent SDK runner. Windows, WSL, Linux, macOS. |
 
+## What's new in 3.6.0
+- Strict delegation: frontier models only for advisory and sign-off, builders run the cheapest capable model at a complexity-scaled effort; Muse delegation fields (`effortLevels`, `tokenBurn`) join every profile.
+- `/dts2-harness:upgrade` (one-command in-place upgrade), `/dts2-harness:model` (selectable lead provider), and lead failover on a stall that prefers verified providers.
+- Per-agent project memory, `/dts2-harness:find-skills`, `/dts2-harness:check-in`, and companion-skill hooks (request-refactor-plan, diagnose, loop-me, setup-pre-commit, code-review).
+
+## What's new in 3.5.0
+- muse joins the roster as a builder and second opinion (never a review seat), and every agent seat gets its own headless command from `roster.py command`.
+- `roster.py classify`: a billing or quota answer drops an agent for the run, and copilot's security seat falls back to grok.
+
 ## What's new in 3.0.0
 - End-state interview: `setup` asks rounds on repos, agents, and skills until you approve the end state.
 - Plan and Ship checkpoints: `run` pauses for approval twice and writes a PR receipt at ship.
@@ -61,9 +70,9 @@ Restart Claude Code and run `/dts2-harness:onboard`.
 If your WSL `claude` command wraps the Windows `claude.exe`, both shells share the Windows Claude home. Install once from Windows. Install inside WSL only when you run the native Linux CLI there.
 
 ## Known limits
-- Login state for gemini, grok, and opencode is self-reported by you; the harness cannot verify it.
+- Login state for gemini, grok, muse, and opencode is self-reported by you; the harness cannot verify it.
 - Impeccable and marketing-skills are external plugins. The harness uses them when installed and does not bundle them.
-- Grok CLI commands are untested.
+- Grok review and builder commands (`roster.py command`) were exercised on 2026-10-22; model ids stay marked unverified.
 - The Sol 6.1 roster slot is user-editable; check it matches what you run.
 
 ## Acknowledgements

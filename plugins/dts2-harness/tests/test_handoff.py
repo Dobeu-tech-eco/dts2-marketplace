@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import unittest
 from pathlib import Path
@@ -114,6 +115,38 @@ class HandoffWriteTests(unittest.TestCase):
         text: str = TEMPLATE.read_text(encoding="utf-8")
         for section in SECTIONS:
             self.assertIn(section, text)
+
+
+class LatestRunTests(unittest.TestCase):
+    def runs(self, repo: Path) -> Path:
+        return repo / ".harness" / "runs"
+
+    def test_stamped_run_beats_newer_named_folder(self) -> None:
+        repo: Path = make_repo()
+        (self.runs(repo) / "20261019-090000").mkdir()
+        named: Path = self.runs(repo) / "backend-contract"
+        named.mkdir()
+        os.utime(named, (4102444800, 4102444800))
+        write(repo)
+        self.assertIn("20261020-101500", latest(repo))
+        self.assertNotIn("backend-contract", latest(repo))
+
+    def test_stamped_runs_sort_by_name_not_mtime(self) -> None:
+        repo: Path = make_repo()
+        older: Path = self.runs(repo) / "20261001-000000"
+        older.mkdir()
+        os.utime(older, (4102444800, 4102444800))
+        write(repo)
+        self.assertIn("20261020-101500", latest(repo))
+
+    def test_named_folders_fall_back_to_mtime(self) -> None:
+        repo: Path = make_tmp_home()
+        runs: Path = self.runs(repo)
+        for name, stamp in (("backend-contract", 2000000000), ("zz-older", 1000000000)):
+            (runs / name).mkdir(parents=True)
+            os.utime(runs / name, (stamp, stamp))
+        write(repo)
+        self.assertIn("backend-contract", latest(repo))
 
 
 class StopHookTests(unittest.TestCase):

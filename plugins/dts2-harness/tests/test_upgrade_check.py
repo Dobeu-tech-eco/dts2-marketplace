@@ -16,7 +16,7 @@ from helpers import PLUGIN_ROOT
 SCRIPT: Final[Path] = PLUGIN_ROOT / "scripts" / "upgrade-check.py"
 PLUGIN_JSON: Final[Path] = PLUGIN_ROOT / ".claude-plugin" / "plugin.json"
 SKILL: Final[Path] = PLUGIN_ROOT / "skills" / "upgrade" / "SKILL.md"
-RELEASE: Final[str] = "3.5.0"
+RELEASE: Final[str] = "3.6.0"
 
 
 def load_module() -> ModuleType:
