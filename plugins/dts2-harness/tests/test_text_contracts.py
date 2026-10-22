@@ -183,6 +183,13 @@ class RunSkillContracts(TextContractMixin):
     def test_supabase_cli_route(self) -> None:
         self.assert_contains(self.PATH, SUPABASE_ROUTE)
 
+    def test_prompts_travel_as_files(self) -> None:
+        self.assert_contains(self.PATH, [
+            ".harness/runs/<stamp>/prompts/", "--prompt-file <file>", "run its `shell` value as is",
+            "Never paste the brief or the diff into a command line",
+        ])
+        self.assert_absent(self.PATH, ["with `{prompt}` replaced by", "`{prompt}` replaced by the review prompt"])
+
     def test_verifier_dispatch_mentions_head_guard(self) -> None:
         text: str = _read(self.PATH)
         block: str = text[text.find("## Phase 3 "):text.find("## Phase 3b")]

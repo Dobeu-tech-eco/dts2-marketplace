@@ -36,14 +36,20 @@
       "exec",
       "--model",
       "{model}",
-      "{prompt}"
+      "--workspace",
+      "{workspace}",
+      "--prompt-file",
+      "{promptFile}"
     ],
     "reviewer": [
       "muse",
       "exec",
       "--model",
       "{model}",
-      "{prompt}"
+      "--workspace",
+      "{workspace}",
+      "--prompt-file",
+      "{promptFile}"
     ]
   },
   "notes": [

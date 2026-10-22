@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -124,12 +125,12 @@ class ProfileExtensionTests(unittest.TestCase):
             "frontier": "grok-4.7", "standard": "grok-4.7", "economy": "grok-4.7-build-fast",
         })
         self.assertEqual(data["roleCommands"]["reviewer"], [
-            "grok", "-p", "{prompt}", "-m", "{model}", "--permission-mode", "plan",
+            "grok", "--prompt-file", "{promptFile}", "-m", "{model}", "--permission-mode", "plan",
             "--deny", "Bash", "--deny", "Edit", "--deny", "Write", "--deny", "MCPTool",
             "--no-subagents", "--disable-web-search",
         ])
         self.assertEqual(data["roleCommands"]["builder"], [
-            "grok", "-p", "{prompt}", "-m", "{model}", "--permission-mode", "acceptEdits",
+            "grok", "--prompt-file", "{promptFile}", "-m", "{model}", "--permission-mode", "acceptEdits",
             "--allow", "Edit", "--allow", "Write", "--deny", "Bash",
             "--deny", "Edit(.git/**)", "--deny", "Write(.git/**)", "--deny", "MCPTool",
             "--no-subagents", "--disable-web-search",
@@ -146,7 +147,7 @@ class ProfileExtensionTests(unittest.TestCase):
                 self.assertIsInstance(note, str, name)
             for role, argv in data.get("roleCommands", {}).items():
                 self.assertIn(role.split(":")[0], {r.split(":")[0] for r in data["roles"]}, name)
-                self.assertIn("{prompt}", argv, f"{name} {role}")
+                self.assertTrue({"{prompt}", "{promptFile}"} & set(argv), f"{name} {role}")
 
     def test_gemini_profile_roles(self) -> None:
         data: dict[str, Any] = json.loads((PROFILE_DIR / "gemini.json").read_text())
@@ -175,6 +176,10 @@ class ProfileExtensionTests(unittest.TestCase):
         self.assertEqual(data["models"], {"frontier": None, "standard": None, "economy": None})
         self.assertNotIn("gpt-5-codex", json.dumps(data["models"]) + json.dumps(data["roleCommands"]))
         self.assertEqual(data["stdin"], "/dev/null")
+        self.assertEqual(data["roleCommands"]["builder"], ["codex", "exec", "-m", "{model}", "--", "{prompt}"])
+        self.assertEqual(data["roleCommands"]["second-opinion"], [
+            "codex", "exec", "-m", "{model}", "--sandbox", "read-only", "--", "{prompt}",
+        ])
         notes: str = " ".join(data["notes"])
         self.assertIn("do not commit", notes)
         self.assertIn("lead commits", notes)
@@ -190,6 +195,9 @@ class ProfileExtensionTests(unittest.TestCase):
             "frontier": "muse-wonder-1.0", "standard": "muse-spark-1.3", "economy": "muse-spark-1.3",
         })
         self.assertEqual(data["searchPaths"], [])
+        self.assertEqual(data["roleCommands"]["builder"], [
+            "muse", "exec", "--model", "{model}", "--workspace", "{workspace}", "--prompt-file", "{promptFile}",
+        ])
         notes: str = " ".join(data["notes"])
         for phrase in ("muse login", "402", "429", "unavailable (billing/quota)"):
             self.assertIn(phrase, notes)
@@ -280,11 +288,50 @@ class CommandTests(unittest.TestCase):
         self.assertIsNone(self.resolved("opencode", "builder")["model"])
         data: dict[str, Any] = self.resolved("codex", "builder", "frontier")
         self.assertIsNone(data["model"])
-        self.assertEqual(data["argv"], ["codex", "exec", "{prompt}"])
+        self.assertEqual(data["argv"], ["codex", "exec", "--", "{prompt}"])
 
     def test_codex_stdin_is_dev_null(self) -> None:
         self.assertEqual(self.resolved("codex", "builder")["stdin"], "/dev/null")
         self.assertIsNone(self.resolved("grok", "builder")["stdin"])
+
+    def filled(self, agent: str, role: str) -> tuple[dict[str, Any], Path]:
+        folder: Path = Path(tempfile.mkdtemp(prefix="dts2-prompt-"))
+        brief: Path = (folder / "brief.md").resolve()
+        brief.write_text("SECRET-BRIEF-TEXT $(rm -rf /) `id`\n", encoding="utf-8")
+        workspace: str = tempfile.mkdtemp(prefix="dts2-ws-")
+        result = raw_run("command", "--agent", agent, "--role", role, "--prompt-file", str(brief),
+                         "--workspace", workspace)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return json.loads(result.stdout), brief
+
+    def test_prompt_file_fills_every_token(self) -> None:
+        for agent, role in (("grok", "reviewer"), ("grok", "builder"), ("gemini", "reviewer"),
+                            ("codex", "builder"), ("codex", "second-opinion"), ("muse", "builder"),
+                            ("opencode", "builder"), ("claude", "reviewer")):
+            data, brief = self.filled(agent, role)
+            self.assertFalse([p for p in data["argv"] if "{" in p], f"{agent} {role}")
+            self.assertNotIn("SECRET-BRIEF-TEXT", data["shell"], f"{agent} {role}")
+            self.assertNotIn("SECRET-BRIEF-TEXT", json.dumps(data["argv"]), f"{agent} {role}")
+
+    def test_grok_reads_the_prompt_file(self) -> None:
+        data, brief = self.filled("grok", "reviewer")
+        self.assertEqual(data["argv"][data["argv"].index("--prompt-file") + 1], str(brief))
+
+    def test_gemini_points_at_the_file_and_adds_its_folder(self) -> None:
+        data, brief = self.filled("gemini", "reviewer")
+        argv: list[str] = data["argv"]
+        self.assertIn(str(brief), argv[2])
+        self.assertEqual(argv[argv.index("--add-dir") + 1], str(brief.parent))
+
+    def test_codex_shell_line_is_quoted_with_dev_null(self) -> None:
+        data, brief = self.filled("codex", "builder")
+        self.assertEqual(data["argv"][-2], "--")
+        self.assertIn(str(brief), data["argv"][-1])
+        self.assertEqual(data["shell"], shlex.join(data["argv"]) + " < /dev/null")
+
+    def test_muse_workspace_is_filled(self) -> None:
+        data, _ = self.filled("muse", "builder")
+        self.assertTrue(Path(data["argv"][data["argv"].index("--workspace") + 1]).is_dir())
 
     def test_unsupported_role_rejected(self) -> None:
         result = command("grok", "lead")

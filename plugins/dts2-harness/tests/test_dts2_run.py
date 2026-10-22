@@ -94,7 +94,7 @@ class Dts2RunTests(unittest.TestCase):
             self.run_mod.second_opinion("codex", "diff", Path("."))
         self.assertIs(run.call_args.kwargs["stdin"], self.run_mod.subprocess.DEVNULL)
 
-    def gemini_call(self, argv: list[str] | None) -> tuple[list[str], dict, str]:
+    def gemini_call(self, argv: list[str] | None) -> tuple[list[str], dict, dict[str, str]]:
         seen: dict = {}
 
         def fake_run(cmd: list[str], **kwargs: object) -> mock.Mock:
@@ -103,37 +103,52 @@ class Dts2RunTests(unittest.TestCase):
             seen["cmd"], seen["kwargs"] = cmd, kwargs
             return mock.Mock(stdout="findings", stderr="")
 
-        lookup = mock.patch.object(self.run_mod, "profile_command", return_value=argv) if argv \
+        def fake_profile(agent: str, role: str, prompt_file: Path) -> list[str]:
+            assert argv is not None
+            seen["prompt_file"] = prompt_file
+            return [str(prompt_file.parent) if p == "{addDir}" else p for p in argv]
+
+        lookup = mock.patch.object(self.run_mod, "profile_command", side_effect=fake_profile) if argv \
             else mock.patch.object(self.run_mod, "profile_command", side_effect=RuntimeError("no roster"))
         with lookup, mock.patch.object(self.run_mod.shutil, "which", return_value="/bin/agy"), \
                 mock.patch.object(self.run_mod.subprocess, "run", side_effect=fake_run):
             out: str = self.run_mod.second_opinion("gemini", "DIFF-BODY", Path("/repo"))
         self.assertEqual(out, "findings")
-        return seen["cmd"], seen["kwargs"], next(iter(seen["files"].values()))
+        return seen["cmd"], seen["kwargs"], seen["files"]
 
     def test_gemini_second_opinion_uses_profile_reviewer_command(self) -> None:
-        template: list[str] = [
-            "agy", "-p", "{prompt}", "--mode", "plan", "--model", "gemini-3.8-flash-medium",
-            "--print-timeout", "15m", "--add-dir", "{addDir}",
-        ]
-        cmd, kwargs, diff_file = self.gemini_call(template)
-        self.assertEqual(cmd[0], "agy")
-        self.assertEqual(cmd[cmd.index("--mode") + 1], "plan")
-        self.assertEqual(cmd[cmd.index("--model") + 1], "gemini-3.8-flash-medium")
-        self.assertNotIn("{prompt}", cmd)
-        self.assertNotIn("{addDir}", cmd)
-        self.assertNotIn("DIFF-BODY", cmd[2])
-        self.assertIn("do not run commands", cmd[2])
-        self.assertEqual(diff_file, "DIFF-BODY")
+        template: list[str] = ["agy", "-p", "pointer", "--mode", "plan", "--add-dir", "{addDir}"]
+        cmd, kwargs, files = self.gemini_call(template)
+        self.assertEqual(cmd[:3], ["agy", "-p", "pointer"])
+        self.assertEqual(files["second-opinion.diff"], "DIFF-BODY")
+        self.assertIn("do not run commands", files["prompt.md"])
+        self.assertIn("second-opinion.diff", files["prompt.md"])
         self.assertEqual(kwargs["cwd"], Path("/repo"))
         self.assertIs(kwargs["stdin"], self.run_mod.subprocess.DEVNULL)
 
     def test_gemini_second_opinion_falls_back_to_plan_mode_agy(self) -> None:
-        cmd, kwargs, _ = self.gemini_call(None)
+        cmd, kwargs, files = self.gemini_call(None)
         self.assertEqual(cmd[:2], ["agy", "-p"])
+        self.assertNotIn("DIFF-BODY", cmd[2])
+        self.assertIn("prompt.md", cmd[2])
         self.assertEqual(cmd[3:7], ["--mode", "plan", "--print-timeout", "9m"])
         self.assertEqual(cmd[7], "--add-dir")
         self.assertIs(kwargs["stdin"], self.run_mod.subprocess.DEVNULL)
+
+    def test_codex_second_opinion_keeps_the_diff_out_of_argv(self) -> None:
+        seen: dict = {}
+
+        def fake_run(cmd: list[str], **kwargs: object) -> mock.Mock:
+            seen["cmd"], seen["kwargs"] = cmd, kwargs
+            return mock.Mock(stdout="ok", stderr="")
+
+        with mock.patch.object(self.run_mod.shutil, "which", return_value="/bin/codex"), \
+                mock.patch.object(self.run_mod.subprocess, "run", side_effect=fake_run):
+            self.run_mod.second_opinion("codex", "DIFF-BODY", Path("/repo"))
+        self.assertNotIn("DIFF-BODY", " ".join(seen["cmd"]))
+        self.assertEqual(seen["cmd"][:2], ["codex", "exec"])
+        self.assertIn("--", seen["cmd"])
+        self.assertIn("read-only", seen["cmd"])
 
     def print_timeout_s(self, argv: list[str]) -> int:
         value: str = argv[argv.index("--print-timeout") + 1]
@@ -143,7 +158,9 @@ class Dts2RunTests(unittest.TestCase):
     def test_agy_print_timeout_fires_before_subprocess_timeout(self) -> None:
         limit: int = self.run_mod.SECOND_OPINION_TIMEOUT_S
         self.assertLess(self.print_timeout_s(self.run_mod.GEMINI_FALLBACK), limit)
-        self.assertLess(self.print_timeout_s(self.run_mod.profile_command("gemini", "second-opinion")), limit)
+        prompt: Path = Path(self.run_mod.tempfile.mkdtemp()) / "prompt.md"
+        prompt.write_text("x", encoding="utf-8")
+        self.assertLess(self.print_timeout_s(self.run_mod.profile_command("gemini", "second-opinion", prompt)), limit)
 
     def timed_out(self, backend: str) -> str:
         expired = self.run_mod.subprocess.TimeoutExpired(["x"], 600)
@@ -159,9 +176,12 @@ class Dts2RunTests(unittest.TestCase):
         self.assertIn("second opinion timed out", self.timed_out("codex"))
 
     def test_profile_command_reads_roster(self) -> None:
-        argv: list[str] = self.run_mod.profile_command("gemini", "second-opinion")
-        self.assertEqual(argv[:3], ["agy", "-p", "{prompt}"])
-        self.assertIn("{addDir}", argv)
+        prompt: Path = (Path(self.run_mod.tempfile.mkdtemp()) / "prompt.md").resolve()
+        prompt.write_text("x", encoding="utf-8")
+        argv: list[str] = self.run_mod.profile_command("gemini", "second-opinion", prompt)
+        self.assertEqual(argv[:2], ["agy", "-p"])
+        self.assertIn(str(prompt), argv[2])
+        self.assertEqual(argv[argv.index("--add-dir") + 1], str(prompt.parent))
 
     def test_no_bare_gemini_binary(self) -> None:
         self.assertNotIn("gemini", self.run_mod.SECOND_OPINION_COMMANDS)

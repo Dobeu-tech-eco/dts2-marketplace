@@ -70,7 +70,7 @@
     ]
   },
   "notes": [
-    "Give it work as files: write the diff or brief to a file in a directory, pass that directory as --add-dir ({addDir}), and run it from the target repo it must read. Headless agy denied read_file outside its cwd even with --add-dir for other repos.",
+    "Give it work as files: the lead writes the brief to a file and the diff beside it; {prompt} becomes a pointer to that file and --add-dir ({addDir}) its folder, and run it from the target repo it must read. Headless agy denied read_file outside its cwd even with --add-dir for other repos.",
     "Headless agy auto-denies every shell (\"command\") permission, so never ask it to run commands; say so in the prompt and have the lead run tests.",
     "Plan mode means the builder seat returns a proposed change as text; the lead applies it inside the builder's file set and commits.",
     "--print-timeout is set explicitly (9m) so a stuck turn ends (agy's default 0s waits forever) and so it fires before the SDK runner's 600s subprocess timeout.",
