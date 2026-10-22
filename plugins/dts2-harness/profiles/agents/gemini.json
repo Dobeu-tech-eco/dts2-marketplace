@@ -10,9 +10,11 @@
   ],
   "headlessFlag": null,
   "roles": [
+    "builder",
+    "reviewer",
     "second-opinion"
   ],
-  "specialty": "Large-context reader useful for an independent second opinion on broad changes.",
+  "specialty": "Large-context reader suited to builder work, review, and independent second opinions on broad changes.",
   "verified": false,
   "costTier": 1,
   "statusCommand": [
