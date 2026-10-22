@@ -190,7 +190,12 @@ class ProfileExtensionTests(unittest.TestCase):
         self.assertEqual(data["form"], "cli")
         self.assertEqual(data["invocation"], "live")
         self.assertEqual(data["command"], ["muse", "exec"])
-        self.assertEqual(data["roles"], ["builder", "reviewer"])
+        self.assertEqual(data["roles"], ["builder", "second-opinion"])
+        self.assertEqual(data["roleCommands"]["second-opinion"], [
+            "muse", "exec", "--model", "{model}", "--workspace", "{workspace}", "--prompt-file", "{promptFile}",
+            "--disable-write", "--disable-shell", "--disable-web-tools",
+        ])
+        self.assertNotIn("reviewer", data["roleCommands"])
         self.assertEqual(data["models"], {
             "frontier": "muse-wonder-1.0", "standard": "muse-spark-1.3", "economy": "muse-spark-1.3",
         })
@@ -199,7 +204,8 @@ class ProfileExtensionTests(unittest.TestCase):
             "muse", "exec", "--model", "{model}", "--workspace", "{workspace}", "--prompt-file", "{promptFile}",
         ])
         notes: str = " ".join(data["notes"])
-        for phrase in ("muse login", "402", "429", "unavailable (billing/quota)"):
+        for phrase in ("muse login", "402", "429", "unavailable (billing/quota)",
+                       "no read-only permission profile", "second-opinion only"):
             self.assertIn(phrase, notes)
 
     def test_only_gemini_owns_agy(self) -> None:
@@ -329,6 +335,9 @@ class CommandTests(unittest.TestCase):
         self.assertIn(str(brief), data["argv"][-1])
         self.assertEqual(data["shell"], shlex.join(data["argv"]) + " < /dev/null")
 
+    def test_muse_reviewer_seat_rejected(self) -> None:
+        self.assertEqual(command("muse", "reviewer").returncode, 1)
+
     def test_muse_workspace_is_filled(self) -> None:
         data, _ = self.filled("muse", "builder")
         self.assertTrue(Path(data["argv"][data["argv"].index("--workspace") + 1]).is_dir())
@@ -429,7 +438,7 @@ class ProbeTests(unittest.TestCase):
     def test_fake_muse_available(self) -> None:
         data: dict[str, Any] = probe("roster:\n  - name: muse\n", fake_bin(["muse"]))
         self.assertEqual(data["usable"], ["muse"])
-        self.assertEqual(data["agents"]["muse"]["roles"], ["builder", "reviewer"])
+        self.assertEqual(data["agents"]["muse"]["roles"], ["builder", "second-opinion"])
 
 
 QUOTED_402: Final[str] = (
