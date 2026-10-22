@@ -47,6 +47,8 @@ UNAVAILABLE: Final[str] = "unavailable (billing/quota)"
 BILLING_OR_QUOTA: Final[re.Pattern[str]] = re.compile(
     r"\bAPI error (?:402|429)\b|Billing verification failed|Subscription quota exhausted", re.I,
 )
+CONTEXT_BUDGET: Final[re.Pattern[str]] = re.compile(r"exceed the model's usable context budget", re.I)
+CONTEXT_BUDGET_REASON: Final[str] = "context budget exceeded"
 RESET_AT: Final[re.Pattern[str]] = re.compile(
     r"resets at\s+(\d{4}-\d{2}-\d{2}T[0-9:.]+(?:Z|[+-]\d{2}:?\d{2})?)", re.I,
 )
@@ -458,18 +460,37 @@ def run_command(agent: str, role: str, tier: str) -> int:
     return 0
 
 
-def classify_dispatch(agent: str, role: str, output: str) -> dict[str, Any]:
-    """Read a live dispatch's output. `dropForRun` drops the agent for the rest of the run;
-    `seatFailed` stays false so the seat is reassigned instead of counted as a failed round."""
+def seat_fallback(profile: dict[str, Any] | None, role: str, usable: list[str] | None) -> str | None:
+    """The profile's `fallback` agent for this seat, if it is usable this run (or no list given)."""
+    target: str | None = ((profile or {}).get("fallback") or {}).get(role)
+    if target is None or (usable is not None and target not in usable):
+        return None
+    return target
+
+
+def classify_dispatch(
+    agent: str, role: str, output: str, profile: dict[str, Any] | None = None,
+    usable: list[str] | None = None,
+) -> dict[str, Any]:
+    """Read a live dispatch's output. `dropForRun` drops the agent for the rest of the run (402/429);
+    `context-budget` gives only this seat to the profile's fallback. `seatFailed` stays false either
+    way, so the seat is reassigned instead of counted as a failed round."""
+    base: dict[str, Any] = {"agent": agent, "role": role, "seatFailed": False}
     hit: dict[str, Any] | None = classify_output(output)
-    base: dict[str, Any] = {"agent": agent, "role": role}
-    if hit is None:
-        return {**base, "outcome": "ok", "reason": "ok", "resetAt": None, "dropForRun": False, "seatFailed": False}
-    return {**base, **hit, "dropForRun": True, "seatFailed": False}
+    if hit is not None:
+        return {**base, **hit, "dropForRun": True, "fallback": seat_fallback(profile, role, usable)}
+    if CONTEXT_BUDGET.search(output):
+        return {
+            **base, "outcome": "context-budget", "reason": CONTEXT_BUDGET_REASON, "resetAt": None,
+            "dropForRun": False, "fallback": seat_fallback(profile, role, usable),
+        }
+    return {**base, "outcome": "ok", "reason": "ok", "resetAt": None, "dropForRun": False, "fallback": None}
 
 
-def run_classify(agent: str, role: str) -> int:
-    print(json.dumps(classify_dispatch(agent, role, sys.stdin.read())))
+def run_classify(agent: str, role: str, usable: str | None) -> int:
+    names: list[str] | None = parse_roles(usable) if usable is not None else None
+    profile: dict[str, Any] | None = load_profiles().get(agent)
+    print(json.dumps(classify_dispatch(agent, role, sys.stdin.read(), profile, names)))
     return 0
 
 
@@ -502,6 +523,7 @@ def main() -> int:
     cls = sub.add_parser("classify", help="classify a live dispatch's output read from stdin")
     cls.add_argument("--agent", required=True)
     cls.add_argument("--role", required=True)
+    cls.add_argument("--usable", default=None, help="comma-separated usable agents from the probe")
     args = parser.parse_args()
     if args.command == "detect":
         print(json.dumps(detect(Path(args.project))))
@@ -513,7 +535,7 @@ def main() -> int:
     if args.command == "command":
         return run_command(args.agent, args.role, args.tier)
     if args.command == "classify":
-        return run_classify(args.agent, args.role)
+        return run_classify(args.agent, args.role, args.usable)
     return run_resolve(Path(args.config))
 
 

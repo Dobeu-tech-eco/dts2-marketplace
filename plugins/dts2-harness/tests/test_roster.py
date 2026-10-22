@@ -21,7 +21,7 @@ SCHEMA_KEYS: Final[frozenset[str]] = frozenset({
     "costTier", "statusCommand", "loginCommand", "models", "modelsVerified",
     "subscriptionName", "apiKeyEnv", "searchPaths",
 })
-OPTIONAL_KEYS: Final[frozenset[str]] = frozenset({"roleCommands", "notes", "stdin"})
+OPTIONAL_KEYS: Final[frozenset[str]] = frozenset({"roleCommands", "notes", "stdin", "fallback"})
 VERIFIED: Final[frozenset[str]] = frozenset({"claude", "codex", "opencode"})
 COST_TIERS: Final[dict[str, int]] = {
     "claude": 3, "codex": 2, "gemini": 1, "opencode": 1,
@@ -402,6 +402,44 @@ class ClassifyTests(unittest.TestCase):
             sys.path.pop(0)
         self.assertIsNone(module.classify_output("all good"))
         self.assertEqual(module.classify_output(QUOTA_429)["resetAt"], "2026-10-22T18:30:00Z")
+
+
+CONTEXT_BUDGET: Final[str] = (
+    "Error: Static system messages and tool definitions exceed the model's usable context budget."
+)
+
+
+class CopilotFallbackTests(unittest.TestCase):
+    def test_profile_names_grok_for_security_seat(self) -> None:
+        data: dict[str, Any] = json.loads((PROFILE_DIR / "copilot.json").read_text())
+        self.assertEqual(data["fallback"], {"reviewer:security": "grok"})
+        self.assertIn("context budget", " ".join(data["notes"]))
+
+    def test_context_budget_falls_back_to_grok(self) -> None:
+        data: dict[str, Any] = classify("copilot", "reviewer:security", CONTEXT_BUDGET, "--usable", "claude,grok")
+        self.assertEqual(data["outcome"], "context-budget")
+        self.assertEqual(data["fallback"], "grok")
+        self.assertFalse(data["dropForRun"])
+        self.assertFalse(data["seatFailed"])
+
+    def test_no_fallback_when_grok_not_usable(self) -> None:
+        data: dict[str, Any] = classify("copilot", "reviewer:security", CONTEXT_BUDGET, "--usable", "claude")
+        self.assertEqual(data["outcome"], "context-budget")
+        self.assertIsNone(data["fallback"])
+
+    def test_fallback_without_usable_list(self) -> None:
+        self.assertEqual(classify("copilot", "reviewer:security", CONTEXT_BUDGET)["fallback"], "grok")
+
+    def test_other_copilot_seats_have_no_fallback(self) -> None:
+        self.assertIsNone(classify("copilot", "builder", CONTEXT_BUDGET)["fallback"])
+
+    def test_ok_output_has_no_fallback(self) -> None:
+        self.assertIsNone(classify("copilot", "reviewer:security", "No findings.")["fallback"])
+
+    def test_grok_can_take_the_security_seat(self) -> None:
+        result = command("grok", "reviewer:security")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("plan", json.loads(result.stdout)["argv"])
 
 
 class CostOrderTests(unittest.TestCase):

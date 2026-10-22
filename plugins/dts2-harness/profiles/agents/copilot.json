@@ -34,5 +34,11 @@
   "modelsVerified": false,
   "subscriptionName": "GitHub Copilot",
   "apiKeyEnv": null,
-  "searchPaths": []
+  "searchPaths": [],
+  "fallback": {
+    "reviewer:security": "grok"
+  },
+  "notes": [
+    "Repo-wide review can fail with \"Static system messages and tool definitions exceed the model's usable context budget\". roster.py classify reports it as context-budget; the reviewer:security seat then falls back to grok for that run when grok is usable."
+  ]
 }
