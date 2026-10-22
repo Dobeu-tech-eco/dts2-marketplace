@@ -40,7 +40,7 @@ class OrchestrationRulesTests(unittest.TestCase):
         self.assert_contains(RUN_SKILL, [
             "## Isolation (Rule 10)", "dts2/<stamp>/b<n>", ".harness/wt/<n>/",
             "## review-pr mode", "gh pr checkout", "one tier up",
-            "Every dispatch names a model (Rule 9.2).",
+            "Every dispatch names a model AND an effort (Rule 9.2).",
         ])
 
     def test_agents_and_template(self) -> None:

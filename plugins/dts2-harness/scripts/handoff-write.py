@@ -23,7 +23,9 @@ MAX_STATE_ITEMS: Final[int] = 5
 LEAD_LINE: Final[str] = "lead: claude (frontier)"
 DEFAULT_COMPLEXITY: Final[str] = "normal"
 COMPLEXITY_ORDER: Final[tuple[str, ...]] = ("mechanical", "normal", "design")
-COMPLEXITY_TIER: Final[dict[str, str]] = {"mechanical": "economy", "normal": "standard", "design": "frontier"}
+# Builders are execution seats: they never run a frontier model, harder work raises effort instead.
+COMPLEXITY_TIER: Final[dict[str, str]] = {"mechanical": "economy", "normal": "standard", "design": "standard"}
+COMPLEXITY_EFFORT: Final[dict[str, str]] = {"mechanical": "low", "normal": "medium", "design": "high"}
 COMPLEXITY: Final[re.Pattern[str]] = re.compile(r"complexity:\s*(mechanical|normal|design)")
 SECRET_ASSIGNMENT: Final[re.Pattern[str]] = re.compile(r"\b([A-Z][A-Z0-9_]{2,})=\S+")
 DEPLOY_FIELD: Final[str] = r"^\s*{name}:\s*(\S+)"
@@ -158,7 +160,11 @@ def highest_complexity(run: Path | None) -> str:
 
 def recommended_agent(run: Path | None) -> str:
     complexity: str = highest_complexity(run)
-    return f"{LEAD_LINE}\nbuilder: claude ({COMPLEXITY_TIER[complexity]}), by the last plan's top complexity ({complexity})"
+    tier: str = COMPLEXITY_TIER[complexity]
+    return (
+        f"{LEAD_LINE}\nbuilder: claude ({tier}), effort {COMPLEXITY_EFFORT[complexity]}, "
+        f"by the last plan's top complexity ({complexity})"
+    )
 
 
 def render(repo: Path, items: list[dict[str, Any]]) -> str:

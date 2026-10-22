@@ -40,5 +40,13 @@
     "~/.deno/bin",
     "$APPDATA/npm",
     "$LOCALAPPDATA/Programs"
-  ]
+  ],
+  "effortLevels": [
+    "medium"
+  ],
+  "tokenBurn": {
+    "frontier": 6,
+    "standard": 2,
+    "economy": 1
+  }
 }

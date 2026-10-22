@@ -13,21 +13,21 @@ from helpers import PLUGIN_ROOT, run_script
 
 PROFILE_DIR: Final[Path] = PLUGIN_ROOT / "profiles" / "agents"
 PROFILE_NAMES: Final[tuple[str, ...]] = (
-    "claude", "codex", "gemini", "opencode", "copilot", "cursor", "antigravity", "grok",
+    "claude", "codex", "gemini", "opencode", "copilot", "cursor", "antigravity", "grok", "muse",
 )
 SCHEMA_KEYS: Final[frozenset[str]] = frozenset({
     "name", "displayName", "form", "rulesFile", "invocation", "command",
     "headlessFlag", "roles", "specialty", "verified",
     "costTier", "statusCommand", "loginCommand", "models", "modelsVerified",
-    "subscriptionName", "apiKeyEnv", "searchPaths",
+    "subscriptionName", "apiKeyEnv", "searchPaths", "effortLevels", "tokenBurn",
 })
 VERIFIED: Final[frozenset[str]] = frozenset({"claude", "codex", "opencode"})
 COST_TIERS: Final[dict[str, int]] = {
     "claude": 3, "codex": 2, "gemini": 1, "opencode": 1,
-    "copilot": 2, "cursor": 2, "antigravity": 2, "grok": 2,
+    "copilot": 2, "cursor": 2, "antigravity": 2, "grok": 2, "muse": 2,
 }
 MODEL_TIERS: Final[tuple[str, ...]] = ("frontier", "standard", "economy")
-LIVE_AGENTS: Final[frozenset[str]] = frozenset({"claude", "codex", "gemini", "opencode", "copilot", "grok"})
+LIVE_AGENTS: Final[frozenset[str]] = frozenset({"claude", "codex", "gemini", "opencode", "copilot", "grok", "muse"})
 ROSTER: Final[Path] = PLUGIN_ROOT / "scripts" / "roster.py"
 
 
@@ -79,7 +79,7 @@ class ProfileExtensionTests(unittest.TestCase):
             "claude": ["claude", "auth", "status"], "codex": ["codex", "login", "status"],
             "gemini": ["agy", "--version"], "opencode": ["opencode", "--version"],
             "copilot": ["gh", "auth", "status"], "grok": ["grok", "version"],
-            "cursor": None, "antigravity": None,
+            "muse": ["muse", "--version"], "cursor": None, "antigravity": None,
         }
         for name, command in expected.items():
             data: dict[str, Any] = json.loads((PROFILE_DIR / f"{name}.json").read_text())
@@ -89,7 +89,7 @@ class ProfileExtensionTests(unittest.TestCase):
         expected: dict[str, Any] = {
             "claude": ["claude", "auth", "status"], "codex": ["codex", "login", "status"],
             "copilot": ["gh", "auth", "status"], "gemini": None, "grok": None,
-            "opencode": None, "cursor": None, "antigravity": None,
+            "opencode": None, "muse": None, "cursor": None, "antigravity": None,
         }
         for name, command in expected.items():
             data: dict[str, Any] = json.loads((PROFILE_DIR / f"{name}.json").read_text())

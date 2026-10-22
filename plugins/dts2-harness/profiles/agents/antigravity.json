@@ -22,5 +22,13 @@
   "modelsVerified": false,
   "subscriptionName": "Gemini Pro (Antigravity)",
   "apiKeyEnv": null,
-  "searchPaths": []
+  "searchPaths": [],
+  "effortLevels": [
+    "medium"
+  ],
+  "tokenBurn": {
+    "frontier": 0,
+    "standard": 0,
+    "economy": 0
+  }
 }

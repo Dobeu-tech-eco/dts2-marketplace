@@ -1,6 +1,6 @@
 ---
 name: onboard
-description: Explain the dts2 harness — its six agents, nine skills, agent roster, team tiers, lessons memory, and headless runner — and recommend where to start. Use when the user asks what dts2 does, how to use it, which skill fits a job, or is new to the harness on this machine or repo.
+description: Explain the dts2 harness — its six agents, twelve skills, agent roster, team tiers, lessons memory, and headless runner — and recommend where to start. Use when the user asks what dts2 does, how to use it, which skill fits a job, or is new to the harness on this machine or repo.
 ---
 
 # dts2 harness — orientation
@@ -26,13 +26,16 @@ Explanation only. Do not invoke agents or change files from this skill.
 | `evolve` | Change the harness itself in its source repo: edit, validate, test, bump both manifests, commit; push only on an explicit yes. |
 | `action-items` | List open secrets, decisions, handoffs, deploy steps and promotions with the command that resolves each; `done`, `add`, `assign`. Pass-off for any agent: `.harness/handoff/latest.md`, resumed with `run resume`. |
 | `gtm` | Go-to-market in one pass through the `marketing-skills` plugin, ending in a `readiness.md` scorecard. |
+| `upgrade` | `/dts2-harness:upgrade` is the one-command in-place upgrade: handoff, marketplace update, verify the version advanced, then re-run from the handoff. |
+| `model` | `/dts2-harness:model` picks which agent provider leads (the lead, advisory and sign-off seats); default Claude. Builders are unaffected. |
+| `find-skills` | `/dts2-harness:find-skills` is available any time: rescan the repo, answer one to three questions, get suggested skills, and wire the ones you pick into the project. |
 
 Setup and run pull in companion skills from mattpocock/skills at the moment they are needed (grill-me, improve-codebase-architecture, writing-for-agents, pr, resolving-merge-conflicts, plus ask-matt and research for your questions), recorded in keep.yaml.
 
 Setup maps the whole project into sections; `run` keeps builders busy on ready sections and parks stuck ones instead of stopping. The `run` skill pivots to the workspace root when started inside a member repo, and a context guard stops it and re-runs setup on a context spike.
 
 ## How work is organized
-The lead runs on the frontier tier; builders run on the cheapest capable tier, each in its own worktree. One run branch per task; you push and open the PR with the receipt. `run review-pr <n>` reviews an existing PR.
+The frontier tier is for advice and sign-off only (the lead, the reviewers' final review, the verifier). Builders never run a frontier model: they run the cheapest capable model at a complexity-scaled effort (`scripts/delegate.py`), each in its own worktree. A stalled lead hands off and fails over to the next eligible provider, and every detected agent gets a seeded project memory file at scaffold. One run branch per task; you push and open the PR with the receipt. `run review-pr <n>` reviews an existing PR.
 
 Every run checks which agents are usable and what budget is left (the budget check), then assigns work by cost tier, cheapest capable agent first.
 
@@ -44,6 +47,7 @@ Every run checks which agents are usable and what budget is left (the budget che
 | gemini | live | builder, reviewer, second-opinion reviewer |
 | grok | live | builder, reviewer, second-opinion reviewer |
 | opencode | live | builder |
+| muse | live | builder, second-opinion reviewer (Muse Code by Meta; CLI flags and model id unverified) |
 | copilot | live | builder, security reviewer |
 | cursor | handoff | builder |
 | antigravity | handoff | builder |

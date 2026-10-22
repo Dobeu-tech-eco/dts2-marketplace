@@ -200,6 +200,7 @@ Gate: `.harness/end-state.md` has `status: approved`, or the user passed `--scaf
 6. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/roster.py" resolve --config .harness/config.yaml`. If it errors, show the error and fix the roster with the user.
 7. If the Impeccable skill is installed and the repo has a marketing surface (as in step 5) or a UI (a frontend framework, HTML templates, or app screens in the stack; for greenfield, the user's stated surface), run `/impeccable init`.
 8. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/ensure-ignored.py" <repo>` to add the harness's ignore entries to `.gitignore`.
+8b. Give every detected agent its own project memory file, seeded from one shared source: run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/agent-memory.py" --write <repo> --agents <installed agents from roster.py detect, comma-separated>`. It writes each distinct `rulesFile` (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, ...) when absent; when the file exists it appends only a managed block between `<!-- dts2-harness:start -->` and `<!-- dts2-harness:end -->`, once, and never touches the rest. A second run changes nothing. It runs before step 9, so the managed block already carries the pointer line and step 9 adds nothing twice.
 9. Create `AGENTS.md` if absent and append this line once if it is not already there: `Harness state for any agent: .harness/handoff/latest.md (resume with /dts2-harness:run resume).` Change nothing else in the file.
 10. Show the detected commands once and let the user correct them. Tell the user `config.yaml`, `review-checklist.md`, `lessons.md`, `discipline.md`, `state.md` and `end-state.md` are meant to be committed.
 
@@ -236,6 +237,6 @@ The `run` skill reads this to plan cross-repo tasks: contract owners first, cons
 - Never scaffold before the end state is approved, unless `--scaffold-only` was given.
 - Never overwrite existing config without the user's choice.
 - Never guess commands. Leave them empty and say so.
-- Never write into a context repo, a `coexist` harness folder, `CLAUDE.md` or `AGENTS.md`, except the single pointer line in Part 2 (Single).
+- Never write into a context repo, a `coexist` harness folder, `CLAUDE.md` or `AGENTS.md`, except the single pointer line and the managed block that `agent-memory.py` writes in Part 2 (Single).
 - Never install skills outside project scope.
 - Never commit or push.

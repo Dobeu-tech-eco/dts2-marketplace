@@ -1,0 +1,48 @@
+{
+  "name": "muse",
+  "displayName": "Muse Code (Meta)",
+  "form": "cli",
+  "rulesFile": "AGENTS.md",
+  "invocation": "live",
+  "command": [
+    "muse",
+    "exec"
+  ],
+  "headlessFlag": null,
+  "roles": [
+    "builder",
+    "second-opinion"
+  ],
+  "specialty": "Meta's terminal coding agent (Muse Spark 1.2); an execution builder and an independent second opinion.",
+  "verified": false,
+  "costTier": 2,
+  "statusCommand": [
+    "muse",
+    "--version"
+  ],
+  "loginCommand": null,
+  "models": {
+    "frontier": "muse-spark-1.2",
+    "standard": "muse-spark-1.2",
+    "economy": "muse-spark-1.2"
+  },
+  "modelsVerified": false,
+  "subscriptionName": "Muse",
+  "apiKeyEnv": null,
+  "searchPaths": [
+    "~/.local/bin",
+    "~/.bun/bin",
+    "~/.npm-global/bin",
+    "~/.deno/bin",
+    "$APPDATA/npm",
+    "$LOCALAPPDATA/Programs"
+  ],
+  "effortLevels": [
+    "medium"
+  ],
+  "tokenBurn": {
+    "frontier": 5,
+    "standard": 2,
+    "economy": 1
+  }
+}

@@ -15,17 +15,39 @@ Second-generation Dobeu Tech Solutions agent harness. It supersedes `harness@har
 
 ## Components
 - Agents: lead, builder, reviewer, verifier, scout, auditor
-- Skills: onboard, machine-prep, setup, run, learn, evolve, gtm, sdk, action-items
+- Skills: onboard, machine-prep, setup, run, learn, evolve, gtm, sdk, action-items, upgrade, model, find-skills
 - Hooks: SessionStart (lessons), Stop (typecheck and lint)
 - Settings: `.claude/dts2-harness.local.md` (template in `templates/`)
 
+## Agent roster
+One profile per agent in `profiles/agents/`. `tokenBurn` is a relative, user-editable weight, not a price or a quota; it only ranks agents for a seat (lower is cheaper to run). Effort support beyond `medium` is verified only for claude and codex; every other row is a user-editable default.
+
+| Agent | Models (frontier / standard / economy) | Roles and specialization | tokenBurn (standard) | Effort support |
+|---|---|---|---|---|
+| claude | opus / sonnet / haiku | lead, verifier, builder, reviewer; plans, signs off and reviews | 3 | low, medium, high, max |
+| codex | gpt-5-codex / gpt-5-codex / gpt-5-mini | builder, second-opinion; self-contained implementation and independent review | 3 | low, medium, high |
+| gemini | gemini-2.5-pro / gemini-2.5-flash / gemini-2.5-flash-lite | builder, reviewer, second-opinion (via the Antigravity `agy` CLI) | 2 | medium |
+| grok | grok-4.7 / grok-4.7 / grok-4-fast | builder, reviewer, second-opinion | 3 | medium |
+| opencode | CLI default | builder | 2 | medium |
+| copilot | CLI default | builder, security reviewer | 2 | medium |
+| muse | muse-spark-1.2 on every tier | builder, second-opinion; Meta's Muse Code terminal agent | 2 | medium |
+| cursor | IDE default | builder (handoff, no dispatch) | 0 | medium |
+| antigravity | IDE default | builder (handoff, no dispatch) | 0 | medium |
+
+## Delegation
+Frontier-tier models are reserved for advice and sign-off: the lead (planning), the reviewers' final whole-diff review, and the verifier. Execution never uses a frontier model. Every builder takes the cheapest capable model and raises effort (low, medium, high, max) for harder work instead of escalating to a pricier model: mechanical is economy at low effort, normal is standard at medium, design is standard at high. Effort before escalation keeps token burn down without cutting the work. `scripts/delegate.py` resolves model and effort for a seat, `violates_execution_policy` flags a builder that ran frontier, and the receipt records a `Delegation policy` line that the final review blocks on.
+
+The provider that fills the lead, advisory and sign-off seats is selectable with `/dts2-harness:model` (default Claude); the rule holds whichever provider leads. If the lead hits a usage or token limit or stalls, the harness writes the handoff and fails over to the next eligible provider (`scripts/failover.py`). `/dts2-harness:upgrade` is the one-command in-place upgrade (handoff, marketplace update, verify, re-run). `/dts2-harness:find-skills` is available any time to rescan the repo and suggest skills. Every detected agent gets a seeded project memory file (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`) at scaffold.
+
 ## Settings
-Copy `templates/dts2-harness.local.md` to `<repo>/.claude/dts2-harness.local.md`. Keys: `enabled`, `stop_checks`, `lessons_inject`, `lessons_max`, `auto_scale`, `max_builders`, `max_reviewers`, `use_worktrees`, `second_opinion`, `profile`. Restart Claude Code after editing.
+Copy `templates/dts2-harness.local.md` to `<repo>/.claude/dts2-harness.local.md`. Keys: `enabled`, `stop_checks`, `lessons_inject`, `lessons_max`, `auto_scale`, `max_builders`, `max_reviewers`, `use_worktrees`, `second_opinion`, `profile`, `max_execution_effort`, `delegation_strict`, `lead_provider`. Restart Claude Code after editing.
 
 ## Known limits
 - Login state for gemini, grok, and opencode is self-reported by you; the harness cannot verify it.
 - Impeccable and marketing-skills are external plugins. The harness uses them when installed and does not bundle them.
 - Grok CLI commands are untested.
+- Muse Code CLI flags and the `muse-spark-1.2` model id are unverified and user-editable.
+- Effort levels beyond `medium` are verified only for claude and codex.
 - The Sol 6.1 roster slot is user-editable; check it matches what you run.
 
 ## Acknowledgements
@@ -55,6 +77,7 @@ Restart Claude Code, then run `/dts2-harness:onboard`.
 
 ## Changelog
 
+- 3.5.0 — strict delegation: frontier models only for advisory and sign-off, builders run the cheapest capable model at a complexity-scaled effort (new delegate.py); effort factored into the calc; Muse Code (Meta) added to the roster; plus /dts2-harness:upgrade (one-command in-place upgrade) and user-selectable lead provider via /dts2-harness:model; auto hand-off and lead failover on a usage/token-limit stall; every detected agent gets a seeded project memory file at scaffold; /dts2-harness:find-skills rescans and suggests skills on demand.
 - 3.4.0 — companion skills from mattpocock/skills wired into setup (grill-me, improve-codebase-architecture, writing-for-agents) and run (pr, resolving-merge-conflicts), installed per project when first needed and kept via keep.yaml, ask-matt → research for user questions, and diagnosing-bugs before the second fix round.
 - 3.3.1 — gemini (Antigravity agy) and grok profiles now allow builder and reviewer roles besides second-opinion, per owner ruling D23.
 - 3.3.0 — end-to-end Sections map in the interview; continuous dispatch: builders stay busy on ready sections, stalled ones are parked with action items.

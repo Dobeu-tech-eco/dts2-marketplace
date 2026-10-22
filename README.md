@@ -31,6 +31,9 @@ Claude Code plugin marketplace for Dobeu Tech Solutions.
 | `gtm` | Go-to-market in one pass through the `marketing-skills` plugin, ending in a `readiness.md` scorecard. |
 | `sdk` | Run the same pipeline headless with the Agent SDK. |
 | `action-items` | List open secrets, decisions, handoffs, and deploy steps with the command that resolves each. |
+| `upgrade` | The one-command in-place upgrade (`/dts2-harness:upgrade`): handoff, marketplace update, verify the version advanced, re-run from the handoff. |
+| `model` | Pick which agent provider leads the lead, advisory and sign-off seats (`/dts2-harness:model`); builders always run the cheapest capable model. |
+| `find-skills` | Available any time (`/dts2-harness:find-skills`): rescan the repo, ask a few questions, suggest skills, wire in the ones you pick. |
 
 Six agents: lead, builder, reviewer, verifier, scout, auditor.
 

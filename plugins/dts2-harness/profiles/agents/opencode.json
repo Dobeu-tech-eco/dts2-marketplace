@@ -28,5 +28,13 @@
   "modelsVerified": false,
   "subscriptionName": null,
   "apiKeyEnv": null,
-  "searchPaths": []
+  "searchPaths": [],
+  "effortLevels": [
+    "medium"
+  ],
+  "tokenBurn": {
+    "frontier": 4,
+    "standard": 2,
+    "economy": 1
+  }
 }

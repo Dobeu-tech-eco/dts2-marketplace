@@ -35,5 +35,16 @@
   "modelsVerified": true,
   "subscriptionName": "Claude Max",
   "apiKeyEnv": "ANTHROPIC_API_KEY",
-  "searchPaths": []
+  "searchPaths": [],
+  "effortLevels": [
+    "low",
+    "medium",
+    "high",
+    "max"
+  ],
+  "tokenBurn": {
+    "frontier": 8,
+    "standard": 3,
+    "economy": 1
+  }
 }

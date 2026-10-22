@@ -14,25 +14,28 @@ Read by lead, builder, reviewer and verifier. Copied to `.harness/discipline.md`
    Where it bites: `.harness/state.md` holds decisions, failures and open items, appended by run and learn, and read at session start by `session-lessons.sh`. The file is the record.
 6. **Auto-add the receipt.**
    Where it bites: `hooks/pr-receipt.sh` runs on `gh pr create` and `gh pr edit`. If the PR body lacks `## Change receipt`, it edits it in, and it adds or extends the PR template in the same branch when neither the repo nor the org default has the section.
+7. **Auto hand-off on stall.** If the lead hits a usage or token limit, or goes unresponsive on a thread, immediately write the handoff (handoff-write.py) and fail over to the next eligible lead provider (failover.py `next_lead`, honoring `lead_provider`). Record the hand-off and the provider switch in the receipt. Never drop the thread silently.
 
 ## Push exception
 
 Agents never push. The one exception is `pr-receipt.sh`, which pushes only the PR's own branch, and only to add or extend the PR template. It never pushes any other branch.
 
-## Rule 9 — Orchestration (lead on the frontier tier, execution on the cheapest capable tier)
+## Rule 9 — Orchestration (frontier for advice and sign-off, execution on the cheapest capable tier)
 
-Applies to every agent provider the roster can dispatch; the lead is always the Claude session running `run`.
+Applies to every agent provider the roster can dispatch; the lead is the session running `run`.
 
 1. **Lead thinks, workers type.** The lead (frontier tier) decomposes, writes briefs, merges and verifies. It never implements a builder section itself except a trivial single-file change under ~20 lines.
-2. **Model by complexity, always explicit.** Every dispatch names a model: `mechanical` → economy, `normal` → standard, `design` → frontier. Lead, verifier and the final whole-diff review run on the frontier tier. Omitting the model is a defect.
+2. **Frontier is for advice and sign-off only.** The frontier tier runs the lead (planning), the axis-scaled reviewers' final whole-diff review, and the verifier. Execution — every builder — never runs a frontier model; it takes the cheapest capable model and raises effort (low/medium/high/max) for harder lanes. Every dispatch names both a model and an effort. A builder dispatched on a frontier model is a defect the final review blocks on.
 3. **Parallel by file set.** Independent builders run in one dispatch message. Two writers never share a file, section or tree.
 4. **Briefs, not history.** A worker receives its plan section (goal, owned files, read-only files, acceptance criteria, lessons, test command, commit message, report path) and nothing else. It returns status, commit, a one-line test summary and concerns.
 5. **Worker contract.** A worker never pushes, never spawns subagents or reviewers, never grades its own work, never edits outside its file set, and stops to report when the plan is wrong instead of improvising.
-6. **Fix loop inside the cap.** Rounds 1–2 resume the same builder (round 2 first runs `/diagnosing-bugs` on the failure and pastes its root cause into the brief); round 3 goes to a fresh builder one tier up; after round 3 the lead stops and escalates (Rule 8.3). Three materially identical failures mean the approach is wrong, not the retry count.
+6. **Fix loop inside the cap.** Rounds 1–2 resume the same builder (round 2 first runs `/diagnosing-bugs` on the failure and pastes its root cause into the brief); round 3 goes to a fresh builder one tier up (economy→standard, or one effort level higher when already on standard; never frontier); after round 3 the lead stops and escalates (Rule 8.3). Three materially identical failures mean the approach is wrong, not the retry count.
 7. **Rulings are written down.** Every decision the lead makes without the user goes to `.harness/state.md` → `## Decisions` as `Ruling: <what> — <why> — <cost if wrong>`. After a context reset the lead trusts `state.md` and `git log`, never memory, and never re-dispatches a builder whose section is marked done.
 8. **Hard stops.** The lead asks before: pushing, merging to the default branch, publishing, deploying, purchasing, deleting data or branches, touching credentials, or when the plan is broken enough that every path is a guess. Everything else it rules on and continues.
 9. **Scope before spend.** A run checks its scope first (workspace root, member repo, single, none) and pivots to the workspace root when it is inside a member repo. A context spike before the plan checkpoint is a stop signal: stop every agent, write state, re-run setup, resume. Never push through it.
 10. **Never idle, never collide.** While any ready section with a non-overlapping file set exists, a builder is working on it. A stalled builder is parked with an action item and the next ready section is dispatched in the same step; the run ends only when nothing is ready or at a checkpoint. Two writers never share a file, even to stay busy.
+11. **Effort before escalation.** To do more without spending more, raise a cheaper model's effort before reaching for a pricier model or tier.
+12. **The lead provider is selectable.** The provider that fills the lead, advisory and sign-off seats is chosen with `/dts2-harness:model` (default Claude, stored as `lead_provider`), but the frontier-only-for-advice-and-sign-off rule holds whichever provider leads; execution seats are never affected.
 
 ## Rule 10 — Branches, worktrees and pull requests
 

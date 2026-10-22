@@ -10,6 +10,13 @@
 
 <approved | changes requested, with reviewer and date>
 
+### Delegation
+
+Models:
+- <agent> <model> effort=<e> (execution | advisory | signoff)
+
+Delegation policy: OK | VIOLATION: <builder> ran frontier
+
 ### Approved by
 
 <git config user.name>, <YYYY-MM-DD> (filled at the ship checkpoint)

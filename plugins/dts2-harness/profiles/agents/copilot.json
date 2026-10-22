@@ -34,5 +34,13 @@
   "modelsVerified": false,
   "subscriptionName": "GitHub Copilot",
   "apiKeyEnv": null,
-  "searchPaths": []
+  "searchPaths": [],
+  "effortLevels": [
+    "medium"
+  ],
+  "tokenBurn": {
+    "frontier": 5,
+    "standard": 2,
+    "economy": 1
+  }
 }

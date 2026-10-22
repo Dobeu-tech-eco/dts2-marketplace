@@ -75,7 +75,8 @@ class HandoffWriteTests(unittest.TestCase):
         write(repo)
         text: str = latest(repo).split("## Recommended agent")[1]
         self.assertIn("lead: claude (frontier)", text)
-        self.assertIn("builder: claude (frontier)", text)
+        self.assertIn("builder: claude (standard)", text)
+        self.assertNotIn("builder: claude (frontier)", text)
         (repo / ".harness" / "runs" / "20261020-101500" / "1-plan.md").write_text("complexity: mechanical\n", encoding="utf-8")
         write(repo)
         self.assertIn("builder: claude (economy)", latest(repo))

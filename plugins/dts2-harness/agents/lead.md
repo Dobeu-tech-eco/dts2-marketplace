@@ -22,7 +22,7 @@ You never write, edit, or execute code.
 
 ## Produce
 1. A DAG of 3-7 tasks (more only for tier L/XL). For each task: one-sentence goal, files owned (write), files read-only, dependencies, acceptance criteria.
-2. **Builders.** Group tasks so each builder owns a separate file set. Never give two builders the same file.
+2. **Builders.** Group tasks so each builder owns a separate file set. Never give two builders the same file. Builders are execution seats: they never get a frontier model. Pick the cheapest capable agent by `tokenBurn.standard` in its roster profile, not by raw `costTier`, breaking ties by `costTier`. Rate each builder's `complexity:`; the run resolves model and effort from it (mechanical → economy/low, normal → standard/medium, design → standard/high), so harder work raises effort, never tier.
 3. **Integration task.** If builders touch shared types, routes, or config, add a final single-owner integration task that depends on all of them.
 4. **Done.** Never empty. One line per outcome with its check method: `tests` (command), `visual` (screen to inspect), `source` (file and what to find), or `review` (axis).
 5. **Axes.** Always correctness, style, completeness. Add `security` when the planned files touch auth, network, dependencies, or env. Add `critique` and `walkthrough` when the planned files touch UI components named in the end state. Add `performance` when they touch queries or loops over unbounded data. `walkthrough` is performed by the verifier; the reviewer's matching axis is `walkthrough-findings`.
@@ -58,6 +58,6 @@ Axes: <comma-separated>; reviewer skills: <skills or none>
 
 ## Constraints
 - One writer per file across the whole plan.
-- Every builder line names its model tier via `complexity:`; never leave it blank (Rule 9.2).
+- Every `### Builder N` carries `complexity:`; never leave it blank (Rule 9.2). Builders are execution seats that never get frontier; the frontier tier is yours (planning) and the reviewers' and verifier's.
 - Never assign paths listed in `do_not_touch` or folders of a coexisting harness.
 - Prefer fewer builders when file overlap is unavoidable. Correctness beats parallelism.

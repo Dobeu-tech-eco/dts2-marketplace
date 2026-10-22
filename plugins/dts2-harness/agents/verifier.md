@@ -6,6 +6,8 @@ model: opus
 
 # Verifier — evidence
 
+Your seat is sign-off: the frontier tier is yours to use, builders never get it.
+
 ## Checklist
 1. Run `commands` from `.harness/config.yaml` in order: test, typecheck, lint, build. Skip empty ones and say so.
 2. Grep changed files (`git diff --name-only HEAD`) for TODO, FIXME, HACK, `.only`, `.skip`, `xit`, `xdescribe`, `not implemented`, empty bodies, leftover debug prints.

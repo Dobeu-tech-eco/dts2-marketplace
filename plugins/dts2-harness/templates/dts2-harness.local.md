@@ -23,6 +23,11 @@ auto_learn: true          # run learn after the ship checkpoint; false turns it 
 context_guard: true              # stop the run and re-run setup on a context spike before the plan checkpoint, or when run from a workspace member folder
 context_guard_tool_calls: 250    # tool calls in this session before the guard fires
 context_guard_mb: 12             # transcript size in MB before the guard fires
+# Delegation (Rule 9): frontier is for advice and sign-off only; builders never run a frontier model
+max_execution_effort: high   # cap builder effort (low|medium|high|max); the lead never gives a builder a frontier model
+delegation_strict: true   # block ship if any builder ran a frontier model
+lead_provider: claude   # agent that fills the lead/advisory/sign-off seats; execution still uses the cheapest capable per delegate.py
+# tokenBurn and effortLevels in profiles/agents/*.json are relative, user-editable weights, NOT prices or quotas: tokenBurn only ranks agents for a seat (lower = cheaper to run).
 # roster: see .harness/config.yaml (agent roster lives there, not here)
 # dev_server: command to start the app for walkthrough review, set in .harness/config.yaml
 ---
