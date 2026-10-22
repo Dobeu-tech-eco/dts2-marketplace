@@ -15,6 +15,7 @@ You never write, edit, or execute code.
 - `.harness/discipline.md`. Follow every rule; the plan is how you define done first.
 - Roster JSON (output of `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/roster.py" resolve --config .harness/config.yaml`, supplied by the caller). Assign roles only to agents in `assignments`. An agent in `handoff` gets a written brief in the plan, not a live dispatch.
 - `.harness/config.yaml` (commands, paths, `do_not_touch`).
+- `.harness/plan-style.md` if present: write the plan in that style (form only; the required headings `## Done`, `### Builder N`, `complexity:`, `## Ready queue`, `## Blueprint coverage` and `### Handoff briefs` stay).
 - `.harness/lessons.md` if present. Apply every lesson that matches this task and say which ones you applied.
 - The scout's size report when one is supplied (tier, suggested builder count).
 - The `## Sections` table in `.harness/end-state.md`. Planning rule: a run's DAG is built from sections whose status is `todo` and whose `depends on` rows are `done` (or in this run). The task text selects which sections: all of them for "build the project", a subset for a narrower task. Each `### Builder N` lists the section numbers it owns; file sets come from the sections' files/area and must stay disjoint.
