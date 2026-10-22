@@ -127,6 +127,11 @@ class SetupSkillContracts(TextContractMixin):
     def test_retired_phrases(self) -> None:
         self.assert_absent(self.PATH, ["worktree"])
 
+    def test_muse_login_wording(self) -> None:
+        self.assert_contains(self.PATH, [
+            "has no login check: gemini, grok, opencode, muse", "`muse login`",
+        ])
+
     def test_round_order(self) -> None:
         text: str = _read(self.PATH)
         markers: list[str] = [
@@ -182,6 +187,15 @@ class RunSkillContracts(TextContractMixin):
 
     def test_supabase_cli_route(self) -> None:
         self.assert_contains(self.PATH, SUPABASE_ROUTE)
+
+    def test_dispatch_outcome_wording(self) -> None:
+        self.assert_contains(self.PATH, [
+            "Dropped: <agent> — <reason>", "classify --agent <name> --role <role> --exit-code <status>",
+            "`dropForRun: true`", "unavailable (billing/quota)", "with the reset time when given",
+            "Fallback: reviewer:security copilot -> grok (context budget)", "--usable <probe usable list>",
+            "grok builders: edits allowed, no shell", "tell every codex builder `do not commit`",
+            "the lead commits its work after review", "codex: `< /dev/null`",
+        ])
 
     def test_prompts_travel_as_files(self) -> None:
         self.assert_contains(self.PATH, [
