@@ -38,6 +38,13 @@ def write_config(text: str) -> str:
     return str(path)
 
 
+def isolated_env(path: str) -> dict[str, str]:
+    """PATH-only env with HOME and the Windows app dirs pointed at an empty folder, so profile
+    searchPaths such as ~/.local/bin never find binaries installed on the host."""
+    home: str = tempfile.mkdtemp(prefix="dts2-home-")
+    return {"PATH": path, "HOME": home, "LOCALAPPDATA": home, "APPDATA": home}
+
+
 def raw_run(*args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, "-I", str(ROSTER), *args],
@@ -136,7 +143,7 @@ def fake_bin(names: list[str]) -> str:
 
 
 def probe(config_text: str, path: str) -> dict[str, Any]:
-    env: dict[str, str] = {"PATH": path, "DTS2_PROBE_PATH": path}
+    env: dict[str, str] = {**isolated_env(path), "DTS2_PROBE_PATH": path}
     cfg: str = write_config(config_text)
     result = raw_run("probe", "--config", cfg, env=env)
     return json.loads(result.stdout)
@@ -202,7 +209,7 @@ class DetectTests(unittest.TestCase):
     def test_empty_path_is_claude_only(self) -> None:
         empty: str = tempfile.mkdtemp(prefix="dts2-path-")
         project: str = tempfile.mkdtemp(prefix="dts2-proj-")
-        result = raw_run("detect", "--project", project, env={"PATH": empty})
+        result = raw_run("detect", "--project", project, env=isolated_env(empty))
         data: dict[str, Any] = json.loads(result.stdout)
         self.assertEqual(data["installed"], ["claude"])
         self.assertTrue(data["claudeOnly"])
@@ -214,7 +221,7 @@ class DetectTests(unittest.TestCase):
         fake.chmod(0o755)
         project: Path = Path(tempfile.mkdtemp(prefix="dts2-proj-"))
         (project / ".cursor").mkdir()
-        result = raw_run("detect", "--project", str(project), env={"PATH": str(bindir)})
+        result = raw_run("detect", "--project", str(project), env=isolated_env(str(bindir)))
         data: dict[str, Any] = json.loads(result.stdout)
         self.assertEqual(data["installed"], ["claude", "codex", "cursor"])
         self.assertFalse(data["claudeOnly"])
