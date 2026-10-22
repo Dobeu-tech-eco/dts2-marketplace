@@ -60,7 +60,9 @@ BILLING_OR_QUOTA: Final[re.Pattern[str]] = re.compile(
 )
 # muse's exit code on 402/429 is unrecorded (a probe run succeeded), so its two recorded forms are
 # decisive even at exit 0: `agent loop failed: model failed: API error 4xx` or `API error 4xx` at
-# column 0 with no marker. Marker forms still need a non-zero exit.
+# column 0 with no marker. Marker forms still need a non-zero exit. The exception is keyed to muse:
+# every other agent needs a non-zero exit, so a review that prints such a line at exit 0 is not dropped.
+DECISIVE_AT_EXIT_ZERO: Final[frozenset[str]] = frozenset({"muse"})
 DECISIVE_BILLING_OR_QUOTA: Final[re.Pattern[str]] = re.compile(
     r"^" + MODEL_FAILED + r"API error (?:402|429)\b", re.M,
 )
@@ -242,11 +244,11 @@ def error_tail(text: str, exit_code: int, pattern: re.Pattern[str]) -> str | Non
     return last if pattern.search(last) else None
 
 
-def classify_output(text: str, exit_code: int) -> dict[str, Any] | None:
+def classify_output(text: str, exit_code: int, agent: str | None = None) -> dict[str, Any] | None:
     """A 402 (billing) or 429 (quota) answer means the agent is unavailable for this run, not that
     the seat failed. Returns the reason, with the reset time when the CLI printed one."""
     last: str | None = error_tail(text, exit_code, BILLING_OR_QUOTA)
-    if last is None and DECISIVE_BILLING_OR_QUOTA.search(tail(text)):
+    if last is None and agent in DECISIVE_AT_EXIT_ZERO and DECISIVE_BILLING_OR_QUOTA.search(tail(text)):
         last = tail(text)
     if last is None:
         return None
@@ -283,7 +285,7 @@ def availability(profile: dict[str, Any], env: dict[str, str]) -> tuple[bool, st
     if resolve_binary(command[0], env, search_paths) is None:
         return False, "not installed"
     ok, output = run_status(command, env, search_paths)
-    hit: dict[str, Any] | None = classify_output(output, 0 if ok else 1)
+    hit: dict[str, Any] | None = classify_output(output, 0 if ok else 1, profile.get("name"))
     if hit is not None:
         return False, hit["reason"]
     return (True, "ok") if ok else (False, STATUS_FAILED)
@@ -561,7 +563,7 @@ def classify_dispatch(
     way, so the seat is reassigned instead of counted as a failed round."""
     seat: str = seat_of(profile, role, axis)
     base: dict[str, Any] = {"agent": agent, "role": role, "seat": seat, "seatFailed": False}
-    hit: dict[str, Any] | None = classify_output(output, exit_code)
+    hit: dict[str, Any] | None = classify_output(output, exit_code, agent)
     if hit is not None:
         return {**base, **hit, "dropForRun": True, "fallback": seat_fallback(profile, seat, usable)}
     if error_tail(output, exit_code, CONTEXT_BUDGET) is not None:

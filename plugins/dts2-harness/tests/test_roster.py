@@ -563,7 +563,18 @@ class ClassifyTests(unittest.TestCase):
             sys.path.pop(0)
         self.assertIsNone(module.classify_output("all good", 1))
         self.assertIsNone(module.classify_output("> " + QUOTA_429, 1))
-        self.assertEqual(module.classify_output(QUOTA_429, 0)["resetAt"], RESET)
+        self.assertEqual(module.classify_output(QUOTA_429, 0, agent="muse")["resetAt"], RESET)
+        self.assertIsNone(module.classify_output(QUOTA_429, 0, agent="grok"))
+        self.assertIsNone(module.classify_output(BILLING_402, 0))
+
+    def test_exit_zero_quota_line_is_decisive_only_for_muse(self) -> None:
+        review: str = "Finding: the handler logs\nAPI error 429 rate_limit_error\nwhen the quota runs out\n"
+        for agent in ("grok", "codex", "gemini", "copilot"):
+            for role in ("reviewer", "builder"):
+                data: dict = classify(agent, role, review, exit_code=0)
+                self.assertEqual(data["outcome"], "ok", f"{agent} {role}")
+                self.assertFalse(data["dropForRun"], f"{agent} {role}")
+        self.assertTrue(classify("muse", "second-opinion", QUOTA_429, exit_code=0)["dropForRun"])
 
     def test_only_the_tail_is_read(self) -> None:
         output: str = QUOTA_429 + "\n".join(f"line {n}" for n in range(30))
