@@ -242,7 +242,7 @@ def classify_output(text: str, exit_code: int) -> dict[str, Any] | None:
 
 
 def run_status(command: list[str], env: dict[str, str], search_paths: list[str]) -> tuple[bool, str]:
-    """(exit code 0, stderr then stdout)."""
+    """(exit code 0, stdout then stderr, so the tail ends with stderr)."""
     resolved: str | None = resolve_binary(command[0], env, search_paths)
     if resolved is None:
         return False, ""
