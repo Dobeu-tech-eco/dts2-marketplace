@@ -15,9 +15,9 @@ LIST_SEPARATOR: Final[str] = ","
 
 
 def rotation(eligible: list[str], current: str) -> list[str]:
-    """Eligible providers starting just after current, wrapping round.
+    """Providers starting just after current, wrapping round.
 
-    Stable order: eligible names sorted alphabetically (the order lead_eligible returns).
+    Keeps the order it is given (see verified_first for the failover order).
     """
     if current not in eligible:
         return list(eligible)
@@ -25,11 +25,19 @@ def rotation(eligible: list[str], current: str) -> list[str]:
     return eligible[start:] + eligible[:start]
 
 
+def verified_first(profiles: dict[str, dict[str, Any]]) -> list[str]:
+    """Lead-eligible names: verified providers first, then unverified, each alphabetical."""
+    eligible: list[str] = lead_eligible(profiles)
+    verified: list[str] = [n for n in eligible if profiles[n].get("verified") is True]
+    unverified: list[str] = [n for n in eligible if n not in verified]
+    return verified + unverified
+
+
 def next_lead(
     profiles: dict[str, dict[str, Any]], current: str, exclude: Iterable[str] = (),
 ) -> str | None:
     skipped: set[str] = {current, *exclude}
-    for name in rotation(lead_eligible(profiles), current):
+    for name in rotation(verified_first(profiles), current):
         if name not in skipped:
             return name
     return None

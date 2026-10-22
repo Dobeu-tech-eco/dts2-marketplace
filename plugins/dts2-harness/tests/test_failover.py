@@ -38,6 +38,11 @@ class NextLeadTests(unittest.TestCase):
         self.mod: ModuleType = load_module()
         self.profiles: dict[str, dict[str, Any]] = all_profiles()
         self.eligible: list[str] = self.mod.lead_eligible(self.profiles)
+        self.verified: list[str] = [
+            n for n in self.eligible if self.profiles[n].get("verified") is True
+        ]
+        self.unverified: list[str] = [n for n in self.eligible if n not in self.verified]
+        self.ordered: list[str] = self.verified + self.unverified
 
     def test_returns_a_different_eligible_provider(self) -> None:
         chosen: str | None = self.mod.next_lead(self.profiles, "claude")
@@ -66,13 +71,38 @@ class NextLeadTests(unittest.TestCase):
             excluded.append(chosen)
         self.assertEqual(set(excluded), set(self.eligible) - {"claude"})
 
-    def test_order_is_stable_and_wraps(self) -> None:
-        self.assertEqual(self.eligible, sorted(self.eligible))
-        last: str = self.eligible[-1]
-        self.assertEqual(self.mod.next_lead(self.profiles, last), self.eligible[0])
+    def test_order_is_verified_first_then_alphabetical_and_wraps(self) -> None:
+        self.assertEqual(self.verified, sorted(self.verified))
+        self.assertEqual(self.unverified, sorted(self.unverified))
+        self.assertEqual(self.mod.verified_first(self.profiles), self.ordered)
+        last: str = self.ordered[-1]
+        self.assertEqual(self.mod.next_lead(self.profiles, last), self.ordered[0])
 
     def test_current_outside_eligible_starts_from_the_top(self) -> None:
-        self.assertEqual(self.mod.next_lead(self.profiles, "cursor"), self.eligible[0])
+        self.assertEqual(self.mod.next_lead(self.profiles, "cursor"), self.ordered[0])
+
+    def test_verified_provider_is_returned_before_any_unverified(self) -> None:
+        self.assertIn("codex", self.verified)
+        self.assertEqual(self.mod.next_lead(self.profiles, "claude"), "codex")
+        self.assertEqual(self.mod.next_lead(self.profiles, "muse"), self.verified[0])
+
+    def test_unverified_only_when_all_verified_are_excluded(self) -> None:
+        unverified_names: set[str] = {"muse", "gemini", "grok"}
+        self.assertTrue(unverified_names <= set(self.unverified))
+        excluded: list[str] = [n for n in self.verified if n != "claude"]
+        returned: list[str] = []
+        while True:
+            chosen: str | None = self.mod.next_lead(
+                self.profiles, "claude", exclude=excluded + returned,
+            )
+            if chosen is None:
+                break
+            self.assertIn(chosen, self.unverified)
+            returned.append(chosen)
+        self.assertEqual(set(returned), self.unverified_set())
+
+    def unverified_set(self) -> set[str]:
+        return set(self.unverified)
 
     def test_single_eligible_profile_has_no_failover(self) -> None:
         only: dict[str, dict[str, Any]] = {"claude": self.profiles["claude"]}
