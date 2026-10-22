@@ -33,6 +33,13 @@ class TextContractMixin(unittest.TestCase):
         self.assertEqual(present, [], f"{path.name} contains retired phrases")
 
 
+SUPABASE_ROUTE: Final[tuple[str, ...]] = (
+    "dts2-harness:builder has no MCP tools", "supabase branches create", "supabase db query --linked",
+    "supabase branches delete", "never `supabase branches get`", "prints keys",
+    "resolves `-f` paths from the project root", "Initialising login role",
+)
+
+
 class LeadAgentTests(TextContractMixin):
     PATH: Final[Path] = AGENTS / "lead.md"
 
@@ -83,6 +90,15 @@ class VerifierAgentTests(TextContractMixin):
     def test_inherits_all_tools(self) -> None:
         self.assert_absent(self.PATH, ["tools:"])
 
+    def test_head_guard(self) -> None:
+        self.assert_contains(self.PATH, [
+            "## HEAD guard", "git rev-parse HEAD", "at the start and again at the end",
+            "| HEAD | PASS/MOVED | start <sha> / end <sha> |", "which commit each check ran against",
+            "HEAD moved", "only for checks that cannot be attributed", "never a blanket BLOCKED",
+        ])
+        text: str = _read(self.PATH)
+        self.assertLess(text.find("## HEAD guard"), text.find("## Checklist"))
+
 
 class ScoutAgentTests(TextContractMixin):
     PATH: Final[Path] = AGENTS / "scout.md"
@@ -111,6 +127,11 @@ class SetupSkillContracts(TextContractMixin):
     def test_retired_phrases(self) -> None:
         self.assert_absent(self.PATH, ["worktree"])
 
+    def test_muse_login_wording(self) -> None:
+        self.assert_contains(self.PATH, [
+            "has no login check: gemini, grok, opencode, muse", "`muse login`",
+        ])
+
     def test_round_order(self) -> None:
         text: str = _read(self.PATH)
         markers: list[str] = [
@@ -133,6 +154,9 @@ class BuilderAgentTests(TextContractMixin):
 
     def test_retired_phrases(self) -> None:
         self.assert_absent(self.PATH, ["lane", "Lane"])
+
+    def test_supabase_cli_route(self) -> None:
+        self.assert_contains(self.PATH, SUPABASE_ROUTE)
 
 
 class RunSkillContracts(TextContractMixin):
@@ -160,6 +184,31 @@ class RunSkillContracts(TextContractMixin):
 
     def test_retired_phrases(self) -> None:
         self.assert_absent(self.PATH, ["Gate 1", "Gate 2"])
+
+    def test_supabase_cli_route(self) -> None:
+        self.assert_contains(self.PATH, SUPABASE_ROUTE)
+
+    def test_dispatch_outcome_wording(self) -> None:
+        self.assert_contains(self.PATH, [
+            "Dropped: <agent> — <reason>", "classify --agent <name> --role <role> --exit-code <status>",
+            "`dropForRun: true`", "unavailable (billing/quota)", "with the reset time when given",
+            "Fallback: reviewer:security copilot -> grok (context budget)", "--usable <probe usable list>",
+            "grok builders: edits allowed, no shell", "tell every codex builder `do not commit`",
+            "the lead commits its work after review", "codex: `< /dev/null`",
+        ])
+
+    def test_prompts_travel_as_files(self) -> None:
+        self.assert_contains(self.PATH, [
+            ".harness/runs/<stamp>/prompts/", "--prompt-file <file>", "run its `shell` value as is",
+            "Never paste the brief or the diff into a command line",
+        ])
+        self.assert_absent(self.PATH, ["with `{prompt}` replaced by", "`{prompt}` replaced by the review prompt"])
+
+    def test_verifier_dispatch_mentions_head_guard(self) -> None:
+        text: str = _read(self.PATH)
+        block: str = text[text.find("## Phase 3 "):text.find("## Phase 3b")]
+        for phrase in ("HEAD guard", "HEAD moved", "per check"):
+            self.assertIn(phrase, block, phrase)
 
     def test_after_ship_commits_critique_report(self) -> None:
         text: str = _read(self.PATH)
@@ -192,7 +241,7 @@ class RunSkillContracts(TextContractMixin):
 
 
 class ReleaseContract(unittest.TestCase):
-    VERSION: Final[str] = "3.4.0"
+    VERSION: Final[str] = "3.5.0"
     SKILL_COUNT: Final[int] = 9
     AGENT_COUNT: Final[int] = 6
     REPO_ROOT: Final[Path] = PLUGIN_ROOT.parent.parent

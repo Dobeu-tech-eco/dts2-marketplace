@@ -19,6 +19,13 @@ When a required secret (API key, token, credential) is missing, never ask for or
 
 `SECRET NEEDED: NAME — <what it unlocks> — <where consumed>`
 
+## Database work (Supabase)
+dts2-harness:builder has no MCP tools: it has Read, Write, Edit, Grep, Glob and Bash only, so Supabase MCP calls are not available to it. Database builders use the Supabase CLI against a disposable branch:
+- Create: `supabase branches create <name> --project-ref <ref>`, then poll `supabase branches list --project-ref <ref>` until the branch is usable.
+- Query: `supabase db query --linked --project-ref <branch_ref> -f <file>`. The CLI resolves `-f` paths from the project root, not your shell's cwd, and prints an `Initialising login role` line before its JSON; skip that line before parsing.
+- Delete: `supabase branches delete <id> --project-ref <ref>` when done, even on failure.
+- never `supabase branches get`: it prints keys and connection strings into your output.
+
 ## Worker contract (Rule 9.5)
 - Never push.
 - Never spawn subagents or reviewers.

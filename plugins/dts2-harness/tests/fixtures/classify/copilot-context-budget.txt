@@ -1,0 +1,12 @@
+● Remote index: queued <org>/<repo> for indexing
+
+! Static system messages and tool definitions exceed the model's usable context budget. Reduce
+  static context or switch to a larger-context model.
+
+
+No response was returned. Send your message again to retry.
+
+
+Changes    +0 -0
+AI Credits 0 (9s)
+Resume     copilot --resume=REDACTED

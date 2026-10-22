@@ -35,6 +35,7 @@ NO_ACTION_ID: Final[str] = "no action item"
 SECTION_NUMBER_COL: Final[int] = 0
 SECTION_NAME_COL: Final[int] = 1
 SECTION_STATUS_COL: Final[int] = -1
+RUN_STAMP: Final[re.Pattern[str]] = re.compile(r"^\d{8}-\d{6}$")
 
 
 def load_action_items() -> ModuleType:
@@ -65,8 +66,13 @@ def section_bullets(text: str, heading: str) -> list[str]:
 
 
 def latest_run(repo: Path) -> Path | None:
-    runs: list[Path] = sorted(p for p in (repo / HARNESS / "runs").glob("*") if p.is_dir())
-    return runs[-1] if runs else None
+    """Newest stamped run (`YYYYMMDD-HHMMSS`, by name); other folders count, by mtime, only when
+    no stamped run exists, so a folder such as `backend-contract` never shadows a real run."""
+    runs: list[Path] = [p for p in (repo / HARNESS / "runs").glob("*") if p.is_dir()]
+    stamped: list[Path] = sorted(p for p in runs if RUN_STAMP.match(p.name))
+    if stamped:
+        return stamped[-1]
+    return max(runs, key=lambda p: p.stat().st_mtime) if runs else None
 
 
 def receipt_verdict(receipt: str) -> str:

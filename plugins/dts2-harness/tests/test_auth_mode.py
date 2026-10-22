@@ -18,11 +18,12 @@ SECRET: Final[str] = "sk-test-NEVER-PRINT"
 SUBSCRIPTIONS: Final[dict[str, str | None]] = {
     "claude": "Claude Max", "codex": "ChatGPT Pro (Codex)", "gemini": "Gemini Pro",
     "antigravity": "Gemini Pro (Antigravity)", "grok": "Grok Build",
-    "copilot": "GitHub Copilot", "opencode": None, "cursor": "Cursor Pro",
+    "copilot": "GitHub Copilot", "opencode": None, "cursor": "Cursor Pro", "muse": "Muse",
 }
 API_KEY_ENVS: Final[dict[str, str | None]] = {
     "claude": "ANTHROPIC_API_KEY", "codex": "OPENAI_API_KEY", "gemini": "GEMINI_API_KEY",
     "grok": "XAI_API_KEY", "opencode": None, "copilot": None, "cursor": None, "antigravity": None,
+    "muse": None,
 }
 
 

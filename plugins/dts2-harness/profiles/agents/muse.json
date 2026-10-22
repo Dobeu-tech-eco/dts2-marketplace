@@ -1,0 +1,64 @@
+{
+  "name": "muse",
+  "displayName": "Muse",
+  "form": "cli",
+  "rulesFile": "AGENTS.md",
+  "invocation": "live",
+  "command": [
+    "muse",
+    "exec"
+  ],
+  "headlessFlag": null,
+  "roles": [
+    "builder",
+    "second-opinion"
+  ],
+  "specialty": "Headless terminal agent for implementation from a prompt file, and advisory second opinions.",
+  "verified": false,
+  "costTier": 2,
+  "statusCommand": [
+    "muse",
+    "--version"
+  ],
+  "loginCommand": null,
+  "models": {
+    "frontier": "muse-wonder-1.0",
+    "standard": "muse-spark-1.3",
+    "economy": "muse-spark-1.3"
+  },
+  "modelsVerified": false,
+  "subscriptionName": "Muse",
+  "apiKeyEnv": null,
+  "searchPaths": [],
+  "roleCommands": {
+    "builder": [
+      "muse",
+      "exec",
+      "--model",
+      "{model}",
+      "--workspace",
+      "{workspace}",
+      "--prompt-file",
+      "{promptFile}"
+    ],
+    "second-opinion": [
+      "muse",
+      "exec",
+      "--model",
+      "{model}",
+      "--workspace",
+      "{workspace}",
+      "--prompt-file",
+      "{promptFile}",
+      "--disable-write",
+      "--disable-shell",
+      "--disable-web-tools"
+    ]
+  },
+  "notes": [
+    "Login: muse login (interactive; the harness never runs it). Status: muse --version. Headless: muse exec [--model <id>] [--json] [--prompt-file PATH] [--permission-profile ID] [--workspace PATH] [PROMPT].",
+    "API error 402 (Billing verification failed) and API error 429 (Subscription quota exhausted, with a reset time) mean unavailable (billing/quota): drop muse for this run and reassign the seat; never count it as a failed builder or review. Pipe its output to roster.py classify with --exit-code. muse's exit code on these errors is unrecorded (a probe run on 2026-10-22 succeeded), so its recorded forms, `agent loop failed: model failed: API error 402 ...` and `API error 429 ...` at line start, count in the last 20 lines even at exit 0.",
+    "A tiny prompt can pass while a long task then hits 429, so classify every dispatch's output, not just the probe.",
+    "muse exec --help and muse config show no read-only permission profile (--permission-profile takes an id, and none is defined here), so muse is second-opinion only, never an axis reviewer. Its second-opinion argv still runs --disable-write --disable-shell --disable-web-tools inside --workspace. Revisit if a read-only profile ships."
+  ]
+}

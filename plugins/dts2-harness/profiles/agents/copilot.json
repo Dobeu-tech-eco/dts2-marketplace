@@ -9,6 +9,29 @@
     "copilot"
   ],
   "headlessFlag": null,
+  "roleCommands": {
+    "builder": [
+      "gh",
+      "copilot",
+      "-p",
+      "{prompt}",
+      "-s",
+      "--no-ask-user",
+      "--allow-tool=write",
+      "--deny-tool=shell"
+    ],
+    "reviewer": [
+      "gh",
+      "copilot",
+      "-p",
+      "{prompt}",
+      "-s",
+      "--no-ask-user",
+      "--deny-tool=shell",
+      "--deny-tool=write"
+    ]
+  },
+  "stdin": "/dev/null",
   "roles": [
     "builder",
     "reviewer:security"
@@ -34,5 +57,14 @@
   "modelsVerified": false,
   "subscriptionName": "GitHub Copilot",
   "apiKeyEnv": null,
-  "searchPaths": []
+  "searchPaths": [],
+  "fallback": {
+    "reviewer:security": "grok"
+  },
+  "notes": [
+    "Repo-wide review can fail with \"Static system messages and tool definitions exceed the model's usable context budget\". roster.py classify reports it as context-budget; the reviewer:security seat then falls back to grok for that run when grok is usable.",
+    "Headless needs -p (prompt mode exits after one answer) and --no-ask-user, or the CLI waits for input; stdin is /dev/null. Copilot CLI 1.0.102.",
+    "Reviewers deny shell and write; builders may write (--allow-tool=write) but get no shell: the lead runs tests and commits. Deny rules beat allow rules, including --allow-all-tools (copilot help permissions).",
+    "A spent monthly quota prints \"You have exceeded your monthly quota (Request ID: ...)\" and exits 1; classify reports it as unavailable for the run and the security seat goes to grok."
+  ]
 }

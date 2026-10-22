@@ -41,6 +41,15 @@ class DeployContractTests(unittest.TestCase):
     def test_run_never_deploys_without_yes(self) -> None:
         self.assertIn("never deploys, pushes, or re-runs CI", section(read(RUN), "## Deployment verification"))
 
+    def test_vercel_verified_commits_cancel_is_a_note(self) -> None:
+        body: str = section(read(RUN), "## Deployment verification")
+        for phrase in (
+            "**Vercel verified commits.**", "Canceled", "verified or signed commits",
+            "unsigned agent commits", "non-blocking", "record it as a note, not a failure",
+        ):
+            self.assertIn(phrase, body, phrase)
+        self.assertLess(body.index("**Vercel verified commits.**"), body.index("**Failure.**"))
+
     def test_setup_phrases(self) -> None:
         text: str = read(SETUP)
         for phrase in ("deploy-detect.py", "Production URL", "build one", "type your own",
