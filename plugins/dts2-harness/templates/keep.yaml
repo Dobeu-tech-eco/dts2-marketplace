@@ -5,5 +5,30 @@ skills:           # skills installed for this project; source is "npx skills add
   # - name: <skill>
   #   source: npx skills add <owner/repo>
   #   serves: <component>
+  # companion skills from mattpocock/skills, added when first needed:
+  # - name: grill-me
+  #   source: npx skills add https://github.com/mattpocock/skills --skill grill-me
+  #   serves: harness
+  # - name: improve-codebase-architecture
+  #   source: npx skills add https://github.com/mattpocock/skills --skill improve-codebase-architecture
+  #   serves: harness
+  # - name: writing-for-agents
+  #   source: npx skills add https://github.com/mattpocock/skills --skill writing-for-agents
+  #   serves: harness
+  # - name: pr
+  #   source: npx skills add https://github.com/mattpocock/skills --skill pr
+  #   serves: harness
+  # - name: resolving-merge-conflicts
+  #   source: npx skills add https://github.com/mattpocock/skills --skill resolving-merge-conflicts
+  #   serves: harness
+  # - name: diagnosing-bugs
+  #   source: npx skills add https://github.com/mattpocock/skills --skill diagnosing-bugs
+  #   serves: harness
+  # - name: ask-matt
+  #   source: npx skills add https://github.com/mattpocock/skills --skill ask-matt
+  #   serves: harness
+  # - name: research
+  #   source: npx skills add https://github.com/mattpocock/skills --skill research
+  #   serves: harness
 agents:           # roster agents the user explicitly included (mirrors config.yaml roster; kept on re-run)
   # - codex

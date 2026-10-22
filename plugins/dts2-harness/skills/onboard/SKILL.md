@@ -27,6 +27,8 @@ Explanation only. Do not invoke agents or change files from this skill.
 | `action-items` | List open secrets, decisions, handoffs, deploy steps and promotions with the command that resolves each; `done`, `add`, `assign`. Pass-off for any agent: `.harness/handoff/latest.md`, resumed with `run resume`. |
 | `gtm` | Go-to-market in one pass through the `marketing-skills` plugin, ending in a `readiness.md` scorecard. |
 
+Setup and run pull in companion skills from mattpocock/skills at the moment they are needed (grill-me, improve-codebase-architecture, writing-for-agents, pr, resolving-merge-conflicts, plus ask-matt and research for your questions), recorded in keep.yaml.
+
 Setup maps the whole project into sections; `run` keeps builders busy on ready sections and parks stuck ones instead of stopping. The `run` skill pivots to the workspace root when started inside a member repo, and a context guard stops it and re-runs setup on a context spike.
 
 ## How work is organized

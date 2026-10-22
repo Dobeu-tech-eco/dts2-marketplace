@@ -155,6 +155,12 @@ Runs after the loop and before Round 5, when every component and its acceptance 
 3. Ask once which to install **for this project only**. On yes, run `npx skills add <source> --skill <name>` from the repo root, which installs into the project (`.claude/skills/`); for a plugin, add it to `enabledPlugins` in the project's `.claude/settings.json`. Never pass `-g` and never install into the user's home folder.
 4. Build the **skill plan**: one row per proposed skill, installed or not, with the columns `skill | source | installed | serves component | phase | order`. Phase is `plan`, `build`, `review` or `verify`. Order is the order a builder uses them within that component. Declined skills stay in the table with `installed: no`.
 
+### Round 4c — 4c. Grill the draft
+
+Runs after the interview loop (and Round 4b) ends and before Round 5's approval question. Install each companion skill only at this step, with `npx skills add https://github.com/mattpocock/skills --skill <name>` (see Companion skills in `.harness/discipline.md`), and record it in `.harness/keep.yaml` → `skills:` as `- name: <name>` / `source: npx skills add https://github.com/mattpocock/skills --skill <name>` / `serves: harness`. Invoke it by slash name with the Skill tool, or read its SKILL.md and follow it inline when headless. If `npx` is unavailable or the install fails, print `Skill <name> not installed (npx unavailable or offline); continuing without it.`, add a Decisions action item with the command, and continue.
+
+Install and run `/grill-me` against the draft end state (components, Done criteria, Blueprint, Sections). Fold its hard questions into the interview as one more round of answers; unresolved ones go to Open questions. Then proceed to Round 5.
+
 ### Round 5 — Write the end state and ask for approval
 
 1. Copy `${CLAUDE_PLUGIN_ROOT}/templates/end-state.md` to `.harness/end-state.md` and fill it:
@@ -163,7 +169,15 @@ Runs after the loop and before Round 5, when every component and its acceptance 
    - Deploy (the `deploy:` block from the Deploy target step: `provider`, `productionUrl`, `checkCommand`, and for a planned deploy `plan` and `status: planned`).
 2. Workspace mode: first ask once where the workspace manifest and root end state should live (default: the common parent folder of the linked repos). Then write one `.harness/end-state.md` per linked repo with only that repo's components, and a root `end-state.md` in that folder with the `cross-repo` components plus the `depends_on`, contracts and release order from Round 3. Every one of them starts as `status: pending approval`.
 3. Show a short summary (components, clarity, open questions) and every file path, then ask once: `Approve this end state? Reply "approve", or tell me what to change.` In workspace mode this one approval covers all the files.
-4. On changes, edit the files and ask again. On approval, set `status: approved` in every file. Then go to Part 2.
+4. On changes, edit the files and ask again. On the first `yes`/approval, do not mark anything approved yet; continue with 5b.
+5. **5b. Architecture pass.** Install and run `/improve-codebase-architecture`: brownfield, against the repo(s); greenfield, against the Blueprint and Sections as the planned architecture. Present its findings as proposed amendments to the end state (sections added, split or reordered, blueprint lines changed). Ask once: `Apply these architecture amendments? (y/n/edit)`. On yes, rewrite end-state.md and ask the approval question again (`Approve this end state? Reply "approve", or tell me what to change.`).
+6. **5c. Agent-friendly rewrite.** After that second sign-off, install and run `/writing-for-agents` on `end-state.md` and on the plan wording the lead will consume, derived from `${CLAUDE_PLUGIN_ROOT}/templates`; write the rewritten plan guidance to `.harness/plan-style.md` (the lead reads it when present). The rewrite changes form, never facts: show a diff summary and write it only after the user confirms with one yes.
+7. Set `status: approved` in every file only after 5c. Then go to Part 2. The three installs (grill-me, improve-codebase-architecture, writing-for-agents) are each recorded in `.harness/keep.yaml` as described in Round 4c.
+
+## Questions from the user
+
+When the user asks a question rather than giving an instruction ("why", "should we", "what's the difference", "is X better"), install and run `/ask-matt` (see Companion skills in `.harness/discipline.md`) with the question and the harness context (end state, current phase) before answering, and base the reply on its answer. If you are still unsure afterwards (the answer is hedged, depends on facts you do not have, or the user says it is not sufficient), install and run `/research` on the question and report the findings with sources before answering. A missing install never blocks: print `Skill <name> not installed (npx unavailable or offline); continuing without it.`, add a Decisions action item with the command, and answer as best you can.
+
 
 ## Part 2 — Scaffold
 

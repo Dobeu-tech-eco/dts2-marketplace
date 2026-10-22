@@ -28,7 +28,7 @@ Applies to every agent provider the roster can dispatch; the lead is always the 
 3. **Parallel by file set.** Independent builders run in one dispatch message. Two writers never share a file, section or tree.
 4. **Briefs, not history.** A worker receives its plan section (goal, owned files, read-only files, acceptance criteria, lessons, test command, commit message, report path) and nothing else. It returns status, commit, a one-line test summary and concerns.
 5. **Worker contract.** A worker never pushes, never spawns subagents or reviewers, never grades its own work, never edits outside its file set, and stops to report when the plan is wrong instead of improvising.
-6. **Fix loop inside the cap.** Rounds 1–2 resume the same builder; round 3 goes to a fresh builder one tier up; after round 3 the lead stops and escalates (Rule 8.3). Three materially identical failures mean the approach is wrong, not the retry count.
+6. **Fix loop inside the cap.** Rounds 1–2 resume the same builder (round 2 first runs `/diagnosing-bugs` on the failure and pastes its root cause into the brief); round 3 goes to a fresh builder one tier up; after round 3 the lead stops and escalates (Rule 8.3). Three materially identical failures mean the approach is wrong, not the retry count.
 7. **Rulings are written down.** Every decision the lead makes without the user goes to `.harness/state.md` → `## Decisions` as `Ruling: <what> — <why> — <cost if wrong>`. After a context reset the lead trusts `state.md` and `git log`, never memory, and never re-dispatches a builder whose section is marked done.
 8. **Hard stops.** The lead asks before: pushing, merging to the default branch, publishing, deploying, purchasing, deleting data or branches, touching credentials, or when the plan is broken enough that every path is a guess. Everything else it rules on and continues.
 9. **Scope before spend.** A run checks its scope first (workspace root, member repo, single, none) and pivots to the workspace root when it is inside a member repo. A context spike before the plan checkpoint is a stop signal: stop every agent, write state, re-run setup, resume. Never push through it.
@@ -43,3 +43,20 @@ Applies to every agent provider the roster can dispatch; the lead is always the 
 5. **Ship = receipt + user push.** At the ship checkpoint the lead commits on `dts2/<stamp>` with the receipt. The user pushes; `gh pr create --body-file <receipt>` opens the PR; `pr-receipt.sh` guarantees the receipt section and template.
 6. **PR checkout for review.** `run review-pr <number>` checks out the PR (`gh pr checkout <number>`), runs only the review and verify phases (walkthrough → reviewers → finish passes → verifier) on the PR diff against its base, and posts the findings as a PR comment on an explicit yes. It never builds or commits on a PR it did not open.
 7. **Cleanup.** After the PR merges, `git worktree prune` and delete the local `dts2/<stamp>` branches; `.harness/runs/<stamp>/` stays as the record.
+
+## Companion skills (installed per project, recorded in keep.yaml)
+
+Installed with `npx skills add https://github.com/mattpocock/skills --skill <name>` at the moment they are first needed, never earlier, and recorded in `.harness/keep.yaml` so a setup re-run keeps them. Each is recorded as `- name: <name>` / `source: npx skills add https://github.com/mattpocock/skills --skill <name>` / `serves: harness` under `skills:`. Invoke an installed skill by its slash name with the Skill tool; when headless or the Skill tool is unavailable, read the installed skill's SKILL.md and follow it inline.
+
+| skill | when the harness runs it |
+|---|---|
+| `grill-me` | setup: immediately after the deep interview, on the draft end state, before the first approval |
+| `improve-codebase-architecture` | setup: immediately after the user's first sign-off of the end state (brownfield: against the code; greenfield: against the Blueprint and Sections) |
+| `writing-for-agents` | setup: after the amended end state is signed off again, to rewrite end-state.md and the lead's plan template into agent-friendly form |
+| `pr` | run: every time a PR is created or its body is rewritten |
+| `resolving-merge-conflicts` | run: whenever a merge conflict arises (builder branch merge, rebase, or `review-pr`) |
+| `diagnosing-bugs` | run: at fix round 2 on the same failure, before the second fix |
+| `ask-matt` | setup/run: when the user asks a question (`/ask-matt`) |
+| `research` | setup/run: when still unsure after ask-matt (`/research`) |
+
+A missing or failed install never blocks: print `Skill <name> not installed (npx unavailable or offline); continuing without it.`, add a Decisions action item with the command, continue.
