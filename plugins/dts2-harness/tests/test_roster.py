@@ -266,6 +266,27 @@ class CommandTests(unittest.TestCase):
     def rules(argv: list[str], flag: str) -> list[str]:
         return [argv[i + 1] for i, part in enumerate(argv) if part == flag]
 
+    def test_copilot_reviewer_is_headless_and_read_only(self) -> None:
+        data: dict[str, Any] = self.resolved("copilot", "reviewer:security")
+        argv: list[str] = data["argv"]
+        self.assertEqual(argv[:4], ["gh", "copilot", "-p", "{prompt}"])
+        for flag in ("-s", "--no-ask-user"):
+            self.assertIn(flag, argv)
+        self.assertEqual(sorted(p for p in argv if p.startswith("--deny-tool")),
+                         ["--deny-tool=shell", "--deny-tool=write"])
+        self.assertFalse([p for p in argv if p.startswith("--allow")])
+        self.assertEqual(data["stdin"], "/dev/null")
+
+    def test_copilot_builder_writes_without_a_shell(self) -> None:
+        data: dict[str, Any] = self.resolved("copilot", "builder")
+        argv: list[str] = data["argv"]
+        self.assertEqual(argv[:4], ["gh", "copilot", "-p", "{prompt}"])
+        self.assertIn("--no-ask-user", argv)
+        self.assertIn("--allow-tool=write", argv)
+        self.assertIn("--deny-tool=shell", argv)
+        self.assertNotIn("--allow-all-tools", argv)
+        self.assertEqual(data["stdin"], "/dev/null")
+
     def test_grok_reviewer_is_plan_mode(self) -> None:
         data: dict[str, Any] = self.resolved("grok", "reviewer", "frontier")
         argv: list[str] = data["argv"]
@@ -582,6 +603,7 @@ class ClassifyTests(unittest.TestCase):
 
 
 CONTEXT_BUDGET: Final[str] = recorded("copilot-context-budget.txt")
+COPILOT_QUOTA: Final[str] = recorded("copilot-quota.txt")
 
 
 class CopilotFallbackTests(unittest.TestCase):
@@ -618,6 +640,14 @@ class CopilotFallbackTests(unittest.TestCase):
         for marker in ("! ", "✗ ", "× ", "Error: ", "error: ", "fatal: ", ""):
             data: dict[str, Any] = classify("copilot", "reviewer:security", marker + message)
             self.assertEqual(data["outcome"], "context-budget", repr(marker))
+
+    def test_recorded_copilot_quota_drops_it_for_the_run(self) -> None:
+        data: dict[str, Any] = classify("copilot", "reviewer:security", COPILOT_QUOTA, "--usable", "grok")
+        self.assertEqual(data["outcome"], "unavailable")
+        self.assertTrue(data["dropForRun"])
+        self.assertEqual(data["fallback"], "grok")
+        self.assertEqual(classify("copilot", "builder", COPILOT_QUOTA, exit_code=0)["outcome"], "ok")
+        self.assertEqual(classify("copilot", "builder", "> " + COPILOT_QUOTA)["outcome"], "ok")
 
     def test_quoted_recorded_error_never_matches(self) -> None:
         message: str = recorded("copilot-context-budget.txt").splitlines()[2][2:]

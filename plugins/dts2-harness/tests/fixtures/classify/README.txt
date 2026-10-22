@@ -4,6 +4,8 @@ Redactions: request ids -> REDACTED, session ids -> REDACTED, org/repo -> <org>/
 
 copilot-context-budget.txt  gh copilot reviewer:security run, routeready run 20261021-092904, exit 1.
                             The trailing "exit 1" line the lead appended is not CLI output and is omitted.
+copilot-quota.txt           gh copilot -p ... -s --no-ask-user --deny-tool=shell --deny-tool=write < /dev/null,
+                            Copilot CLI 1.0.102, 2026-10-22, exit 1 (the whole output).
 muse-402.txt                muse exec --model muse-spark-1.3 "...", last line, 2026-10-22 (exit code not captured).
 muse-402-preamble.txt       the same CLI on the other model: two preamble lines, then the failure line.
 muse-429.txt                T3 task summary from the same provider, 2026-10-22.

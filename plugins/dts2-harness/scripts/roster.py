@@ -56,7 +56,8 @@ STATUS_MARKER: Final[str] = r"(?:[!\u2717\u00d7]|error:|fatal:)"
 ERROR_LINE: Final[str] = r"^(?:" + STATUS_MARKER + r"[ \t]+)?"
 MODEL_FAILED: Final[str] = r"(?:agent loop failed: model failed: )?"
 BILLING_OR_QUOTA: Final[re.Pattern[str]] = re.compile(
-    ERROR_LINE + MODEL_FAILED + r"API error (?:402|429)\b", re.I | re.M,
+    ERROR_LINE + r"(?:" + MODEL_FAILED + r"API error (?:402|429)\b|You have exceeded your monthly quota\b)",
+    re.I | re.M,
 )
 # muse's exit code on 402/429 is unrecorded (a probe run succeeded), so its two recorded forms are
 # decisive even at exit 0: `agent loop failed: model failed: API error 4xx` or `API error 4xx` at
