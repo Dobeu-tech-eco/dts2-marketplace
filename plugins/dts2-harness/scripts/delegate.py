@@ -90,7 +90,7 @@ def execution_plan(profile: dict[str, Any], complexity: str, budget: str) -> tup
     levels: list[str] = profile.get("effortLevels", [DEFAULT_EFFORT])
     if budget == "exhausted":
         assert_execution_not_frontier(ECONOMY)
-        return ECONOMY, EXHAUSTED_EFFORT
+        return ECONOMY, clamp_effort(EXHAUSTED_EFFORT, levels)
     tier: str = execution_tier(complexity)
     desired: str = EXECUTION_EFFORT[complexity]
     if budget == "low" and level_index(desired) > level_index(LOW_BUDGET_EFFORT_CAP):

@@ -1,6 +1,6 @@
 ---
 name: onboard
-description: Explain the dts2 harness — its six agents, twelve skills, agent roster, team tiers, lessons memory, and headless runner — and recommend where to start. Use when the user asks what dts2 does, how to use it, which skill fits a job, or is new to the harness on this machine or repo.
+description: Explain the dts2 harness — its six agents, thirteen skills, agent roster, team tiers, lessons memory, and headless runner — and recommend where to start. Use when the user asks what dts2 does, how to use it, which skill fits a job, or is new to the harness on this machine or repo.
 ---
 
 # dts2 harness — orientation
@@ -29,8 +29,9 @@ Explanation only. Do not invoke agents or change files from this skill.
 | `upgrade` | `/dts2-harness:upgrade` is the one-command in-place upgrade: handoff, marketplace update, verify the version advanced, then re-run from the handoff. |
 | `model` | `/dts2-harness:model` picks which agent provider leads (the lead, advisory and sign-off seats); default Claude. Builders are unaffected. |
 | `find-skills` | `/dts2-harness:find-skills` is available any time: rescan the repo, answer one to three questions, get suggested skills, and wire the ones you pick into the project. |
+| `check-in` | `/dts2-harness:check-in` is available any time: a read-only checklist from where the project started through the approved end state, each item marked complete or outstanding, with an `N of M complete` percent. |
 
-Setup and run pull in companion skills from mattpocock/skills at the moment they are needed (grill-me, improve-codebase-architecture, writing-for-agents, pr, resolving-merge-conflicts, plus ask-matt and research for your questions), recorded in keep.yaml.
+Setup and run pull in companion skills from mattpocock/skills at the moment they are needed (grill-me, improve-codebase-architecture, writing-for-agents, pr, resolving-merge-conflicts, plus ask-matt and research for your questions, request-refactor-plan before tests, diagnose at the hard 3-round fix cap, loop-me when a run starts, setup-pre-commit before every commit, and code-review on first contact with a new repo), recorded in keep.yaml.
 
 Setup maps the whole project into sections; `run` keeps builders busy on ready sections and parks stuck ones instead of stopping. The `run` skill pivots to the workspace root when started inside a member repo, and a context guard stops it and re-runs setup on a context spike.
 

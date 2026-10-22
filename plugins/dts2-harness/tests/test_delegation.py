@@ -96,7 +96,18 @@ class DelegateTests(unittest.TestCase):
     def test_exhausted_budget_forces_economy_low(self) -> None:
         for name, data in all_profiles().items():
             result: dict[str, Any] = self.mod.delegate(data, "execution", "design", budget="exhausted")
-            self.assertEqual((result["tier"], result["effort"]), ("economy", "low"), name)
+            self.assertEqual(result["tier"], "economy", name)
+            expected: str = self.mod.clamp_effort("low", data["effortLevels"])
+            self.assertEqual(result["effort"], expected, name)
+
+    def test_exhausted_effort_is_clamped_to_profile_levels(self) -> None:
+        muse: dict[str, Any] = profile("muse")
+        result: dict[str, Any] = self.mod.delegate(muse, "execution", "mechanical", budget="exhausted")
+        self.assertEqual(result["tier"], "economy")
+        self.assertIn(result["effort"], muse["effortLevels"])
+        self.assertNotEqual(result["effort"], "low")
+        claude_result: dict[str, Any] = self.mod.delegate(self.claude, "execution", "mechanical", budget="exhausted")
+        self.assertEqual(claude_result["effort"], "low")
 
     def test_low_budget_caps_effort_at_medium(self) -> None:
         result: dict[str, Any] = self.mod.delegate(self.claude, "execution", "design", budget="low")

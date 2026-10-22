@@ -1,4 +1,4 @@
-"""Companion skills from mattpocock/skills (3.4.0): discipline, setup, run, lead, keep template."""
+"""Companion skills from mattpocock/skills (3.4.0, extended in 3.5.0): discipline, setup, run, lead, keep template."""
 from __future__ import annotations
 
 import unittest
@@ -10,8 +10,18 @@ INSTALL_PATTERN: Final[str] = "`npx skills add https://github.com/mattpocock/ski
 SKILLS: Final[tuple[str, ...]] = (
     "grill-me", "improve-codebase-architecture", "writing-for-agents",
     "pr", "resolving-merge-conflicts", "ask-matt", "research", "diagnosing-bugs",
+    "request-refactor-plan", "diagnose", "loop-me", "setup-pre-commit", "code-review",
 )
+INSTALL: Final[str] = "npx skills add https://github.com/mattpocock/skills --skill"
+MOMENTS: Final[dict[str, str]] = {
+    "request-refactor-plan": "finalization pass before tests are written",
+    "diagnose": "hard 3-round cap, bugs still failing",
+    "loop-me": "on /dts2-harness:run trigger — check in with the user",
+    "setup-pre-commit": "before every commit",
+    "code-review": "first contact — repo the harness has never been in",
+}
 SETUP_PHRASES: Final[tuple[str, ...]] = (
+    "First contact (code-review, once per repo)", ".harness/seen",
     "4c. Grill the draft", "5b. Architecture pass", "5c. Agent-friendly rewrite",
     "/grill-me", "/improve-codebase-architecture", "/writing-for-agents",
     "Apply these architecture amendments?", ".harness/plan-style.md",
@@ -20,6 +30,8 @@ SETUP_PHRASES: Final[tuple[str, ...]] = (
 RUN_PHRASES: Final[tuple[str, ...]] = (
     "/pr", "/resolving-merge-conflicts", "PR body written by /pr",
     "## Questions from the user", "/ask-matt", "/research", "/diagnosing-bugs",
+    "Finalization before tests", "Run-trigger check-in (loop-me)", "First contact (code-review, once per repo)",
+    "BEFORE writing any tests", "hard round-3 cap", "last gate before `git commit`", ".harness/seen",
 )
 
 
@@ -36,6 +48,32 @@ class CompanionSkills(unittest.TestCase):
             self.assertIn(f"`{name}`", text)
         for slash in ("/ask-matt", "/research", "/diagnosing-bugs"):
             self.assertIn(slash, text)
+
+    def test_new_hooks_have_moment_and_command_in_discipline(self) -> None:
+        text: str = read("templates/discipline.md")
+        for name, moment in MOMENTS.items():
+            self.assertIn(moment, text, name)
+            self.assertIn(f"{INSTALL} {name}`", text, name)
+
+    def test_hard_cap_runs_diagnose_distinct_from_diagnosing_bugs(self) -> None:
+        for relative in ("templates/discipline.md", "skills/run/SKILL.md"):
+            text: str = read(relative)
+            self.assertIn(f"{INSTALL} diagnose`", text, relative)
+            self.assertIn("diagnosing-bugs", text, relative)
+
+    def test_run_wires_each_new_hook_with_its_command(self) -> None:
+        text: str = read("skills/run/SKILL.md")
+        for name in ("request-refactor-plan", "diagnose", "loop-me", "setup-pre-commit", "code-review"):
+            self.assertIn(f"{INSTALL} {name}`", text, name)
+
+    def test_setup_runs_code_review_once_on_first_contact(self) -> None:
+        text: str = read("skills/setup/SKILL.md")
+        self.assertIn(f"{INSTALL} code-review`", text)
+        self.assertIn("once per repo", text)
+
+    def test_exactly_thirteen_companion_skills(self) -> None:
+        self.assertEqual(len(SKILLS), 13)
+        self.assertEqual(len(set(SKILLS)), 13)
 
     def test_setup_phrases(self) -> None:
         text: str = read("skills/setup/SKILL.md")

@@ -7,7 +7,7 @@ Read by lead, builder, reviewer and verifier. Copied to `.harness/discipline.md`
 2. **End with a receipt.**
    Where it bites: `receipt.md` lists tests run with pass/fail counts, review verdict, approver, steps outside the change, open risks, rollback point. Shown at the ship checkpoint and appended to the PR body.
 3. **Cap fix rounds at three.**
-   Where it bites: in `run` and per builder. After three rounds, stop and escalate with what failed; the escalation goes into `.harness/state.md`.
+   Where it bites: in `run` and per builder. After three rounds, stop and escalate with what failed; the escalation goes into `.harness/state.md`. On hitting the hard round-3 cap with bugs still failing, first auto-run `npx skills add https://github.com/mattpocock/skills --skill diagnose` (the hard-cap escalation, distinct from the round-2 `diagnosing-bugs`), apply its findings, and only then escalate to the user with what still fails.
 4. **Repeat mistake becomes a check.**
    Where it bites: `learn` detects a lesson seen twice (same normalized text or same file+rule) and offers to promote it: a line in `.harness/checks.sh` (run by the Stop hook), a test skeleton in the repo's test dir, or a line in `review-checklist.md`. It records "lives at <path>" in `lessons.md`.
 5. **State outside the chat.**
@@ -43,7 +43,7 @@ Applies to every agent provider the roster can dispatch; the lead is the session
 2. **One builder, one worktree (git).** In a git repo each builder gets `git worktree add ../<repo>-dts2-<n> -b dts2/<stamp>/b<n> dts2/<stamp>` and works only inside it. `use_worktrees: never` is the explicit opt-out; `always` forces it in workspace mode too.
 3. **One builder, one scratch dir (no git).** In a plain folder each builder owns `.harness/wt/<n>/` and a disjoint file list; the lead copies results into place and keeps a diff summary in the run folder.
 4. **Lead merges, after green.** When the verifier reports VERIFIED, the lead merges each builder branch into `dts2/<stamp>` in plan order, re-runs the full test suite and every configured check after each merge, resolves conflicts itself, then removes the builder worktrees (`git worktree remove` + branch delete). A conflict it cannot resolve stops the run and goes to the user.
-5. **Ship = receipt + user push.** At the ship checkpoint the lead commits on `dts2/<stamp>` with the receipt. The user pushes; `gh pr create --body-file <receipt>` opens the PR; `pr-receipt.sh` guarantees the receipt section and template.
+5. **Ship = receipt + user push.** At the ship checkpoint the lead commits on `dts2/<stamp>` with the receipt. Before every commit, as the last gate before `git commit`, the lead runs `npx skills add https://github.com/mattpocock/skills --skill setup-pre-commit` (`/setup-pre-commit`) so the repo's pre-commit hooks are in place. The user pushes; `gh pr create --body-file <receipt>` opens the PR; `pr-receipt.sh` guarantees the receipt section and template.
 6. **PR checkout for review.** `run review-pr <number>` checks out the PR (`gh pr checkout <number>`), runs only the review and verify phases (walkthrough → reviewers → finish passes → verifier) on the PR diff against its base, and posts the findings as a PR comment on an explicit yes. It never builds or commits on a PR it did not open.
 7. **Cleanup.** After the PR merges, `git worktree prune` and delete the local `dts2/<stamp>` branches; `.harness/runs/<stamp>/` stays as the record.
 
@@ -61,5 +61,10 @@ Installed with `npx skills add https://github.com/mattpocock/skills --skill <nam
 | `diagnosing-bugs` | run: at fix round 2 on the same failure, before the second fix |
 | `ask-matt` | setup/run: when the user asks a question (`/ask-matt`) |
 | `research` | setup/run: when still unsure after ask-matt (`/research`) |
+| `request-refactor-plan` | run: finalization pass before tests are written, after a builder's implementation is complete: get a refactor plan (`npx skills add https://github.com/mattpocock/skills --skill request-refactor-plan`), apply the worthwhile simplifications, then write the tests |
+| `diagnose` | run: hard 3-round cap, bugs still failing; auto-run before escalating to the user (`npx skills add https://github.com/mattpocock/skills --skill diagnose`); distinct from the round-2 `diagnosing-bugs` |
+| `loop-me` | run: on /dts2-harness:run trigger — check in with the user, before dispatching builders (`npx skills add https://github.com/mattpocock/skills --skill loop-me`) |
+| `setup-pre-commit` | run: before every commit, as the last gate before `git commit` (`npx skills add https://github.com/mattpocock/skills --skill setup-pre-commit`) |
+| `code-review` | setup/run: first contact — repo the harness has never been in (no `.harness/` marker); fires once per repo (`npx skills add https://github.com/mattpocock/skills --skill code-review`) |
 
 A missing or failed install never blocks: print `Skill <name> not installed (npx unavailable or offline); continuing without it.`, add a Decisions action item with the command, continue.

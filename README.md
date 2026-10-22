@@ -34,6 +34,7 @@ Claude Code plugin marketplace for Dobeu Tech Solutions.
 | `upgrade` | The one-command in-place upgrade (`/dts2-harness:upgrade`): handoff, marketplace update, verify the version advanced, re-run from the handoff. |
 | `model` | Pick which agent provider leads the lead, advisory and sign-off seats (`/dts2-harness:model`); builders always run the cheapest capable model. |
 | `find-skills` | Available any time (`/dts2-harness:find-skills`): rescan the repo, ask a few questions, suggest skills, wire in the ones you pick. |
+| `check-in` | Available any time (`/dts2-harness:check-in`): a read-only checklist from where the project started through the approved end state, each item complete or outstanding. |
 
 Six agents: lead, builder, reviewer, verifier, scout, auditor.
 

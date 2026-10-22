@@ -7,6 +7,10 @@ description: Interviews the user to an approved end state (.harness/end-state.md
 
 Setup has two parts. **Part 1** interviews the user until the end state is clear and approved. **Part 2** writes the harness files. Part 2 never starts until the user approves the end state, unless `--scaffold-only` was given.
 
+## First contact (code-review, once per repo)
+
+First, check for a `.harness/` directory at the project root. If there is none, the harness has never been in this repo: install and run `npx skills add https://github.com/mattpocock/skills --skill code-review` (see Companion skills in `.harness/discipline.md`) on the repo, show its findings, then write the marker with `mkdir -p .harness && date +%F > .harness/seen`. A repo that already has `.harness/` (including one `run` just marked) is skipped, so this fires once per repo, on first contact only. A missing or failed install never blocks: print `Skill code-review not installed (npx unavailable or offline); continuing without it.`, add a Decisions action item with the command, and still write the marker.
+
 ## Scope and keep list
 
 Before anything else, run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/scope-check.py" .`.

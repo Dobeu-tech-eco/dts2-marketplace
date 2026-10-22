@@ -15,7 +15,7 @@ Second-generation Dobeu Tech Solutions agent harness. It supersedes `harness@har
 
 ## Components
 - Agents: lead, builder, reviewer, verifier, scout, auditor
-- Skills: onboard, machine-prep, setup, run, learn, evolve, gtm, sdk, action-items, upgrade, model, find-skills
+- Skills: onboard, machine-prep, setup, run, learn, evolve, gtm, sdk, action-items, upgrade, model, find-skills, check-in
 - Hooks: SessionStart (lessons), Stop (typecheck and lint)
 - Settings: `.claude/dts2-harness.local.md` (template in `templates/`)
 
@@ -77,7 +77,7 @@ Restart Claude Code, then run `/dts2-harness:onboard`.
 
 ## Changelog
 
-- 3.5.0 — strict delegation: frontier models only for advisory and sign-off, builders run the cheapest capable model at a complexity-scaled effort (new delegate.py); effort factored into the calc; Muse Code (Meta) added to the roster; plus /dts2-harness:upgrade (one-command in-place upgrade) and user-selectable lead provider via /dts2-harness:model; auto hand-off and lead failover on a usage/token-limit stall; every detected agent gets a seeded project memory file at scaffold; /dts2-harness:find-skills rescans and suggests skills on demand.
+- 3.5.0 — strict delegation: frontier models only for advisory and sign-off, builders run the cheapest capable model at a complexity-scaled effort (new delegate.py); effort factored into the calc; Muse Code (Meta) added to the roster; plus /dts2-harness:upgrade (one-command in-place upgrade) and user-selectable lead provider via /dts2-harness:model; auto hand-off and lead failover on a usage/token-limit stall; every detected agent gets a seeded project memory file at scaffold; /dts2-harness:find-skills rescans and suggests skills on demand; request-refactor-plan finalization pass before tests; auto diagnose at the hard 3-round fix cap; loop-me check-in on run trigger; setup-pre-commit before every commit; code-review on first contact with a new repo; /dts2-harness:check-in shows complete vs outstanding against the end state; exhausted-budget effort is clamped to the profile's levels.
 - 3.4.0 — companion skills from mattpocock/skills wired into setup (grill-me, improve-codebase-architecture, writing-for-agents) and run (pr, resolving-merge-conflicts), installed per project when first needed and kept via keep.yaml, ask-matt → research for user questions, and diagnosing-bugs before the second fix round.
 - 3.3.1 — gemini (Antigravity agy) and grok profiles now allow builder and reviewer roles besides second-opinion, per owner ruling D23.
 - 3.3.0 — end-to-end Sections map in the interview; continuous dispatch: builders stay busy on ready sections, stalled ones are parked with action items.
