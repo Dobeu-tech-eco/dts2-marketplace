@@ -38,6 +38,15 @@ QUOTA_429: Final[str] = (
     "Your usage window resets at 2026-10-22T18:30:00Z."
 )
 ROSTER: Final[Path] = PLUGIN_ROOT / "scripts" / "roster.py"
+FIXTURES: Final[Path] = PLUGIN_ROOT / "tests" / "fixtures" / "classify"
+
+
+def recorded(name: str) -> str:
+    """Recorded CLI output (see fixtures/classify/README.txt); never hand-written."""
+    return (FIXTURES / name).read_text(encoding="utf-8")
+
+
+QUOTE_MARKERS: Final[tuple[str, ...]] = ("- ", "* ", "> ", "| ", "1. ", "  - ", 'muse.json:48: "')
 
 
 def write_config(text: str) -> str:
@@ -560,6 +569,26 @@ class CopilotFallbackTests(unittest.TestCase):
 
     def test_fallback_without_usable_list(self) -> None:
         self.assertEqual(classify("copilot", "reviewer:security", CONTEXT_BUDGET)["fallback"], "grok")
+
+    def test_recorded_copilot_error_falls_back_to_grok(self) -> None:
+        data: dict[str, Any] = classify(
+            "copilot", "reviewer:security", recorded("copilot-context-budget.txt"), "--usable", "claude,grok",
+        )
+        self.assertEqual(data["outcome"], "context-budget")
+        self.assertEqual(data["fallback"], "grok")
+
+    def test_status_markers_are_allowed(self) -> None:
+        line: str = recorded("copilot-context-budget.txt").splitlines()[2]
+        message: str = line[2:]
+        for marker in ("! ", "✗ ", "× ", "Error: ", "error: ", "fatal: ", ""):
+            data: dict[str, Any] = classify("copilot", "reviewer:security", marker + message)
+            self.assertEqual(data["outcome"], "context-budget", repr(marker))
+
+    def test_quoted_recorded_error_never_matches(self) -> None:
+        message: str = recorded("copilot-context-budget.txt").splitlines()[2][2:]
+        for marker in QUOTE_MARKERS:
+            data: dict[str, Any] = classify("copilot", "reviewer:security", marker + message)
+            self.assertEqual(data["outcome"], "ok", repr(marker))
 
     def test_bare_reviewer_role_is_copilots_security_seat(self) -> None:
         data: dict[str, Any] = classify("copilot", "reviewer", CONTEXT_BUDGET, "--usable", "grok")
