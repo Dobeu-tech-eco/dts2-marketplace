@@ -61,7 +61,7 @@
   "notes": [
     "Run codex exec with stdin from /dev/null (`codex exec <prompt> < /dev/null`); otherwise it waits on \"Reading additional input from stdin\". roster.py command returns this as stdin.",
     "No model pin: gpt-5-codex is unsupported on a ChatGPT login, so codex uses its own default. Set a current id here only after `codex` lists it.",
-    "Its sandbox cannot write the git index. Tell codex builders \"do not commit\"; the lead commits their work.",
+    "codex exec defaults to a read-only sandbox, so builders pass --sandbox workspace-write rather than relying on the user config. Even then its sandbox cannot write the git index. Tell codex builders \"do not commit\"; the lead commits their work.",
     "{prompt} is a fixed pointer to the prompt file, placed after -- so it is never read as a flag; the second-opinion seat runs --sandbox read-only."
   ]
 }
