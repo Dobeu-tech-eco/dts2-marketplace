@@ -491,6 +491,21 @@ class CopilotFallbackTests(unittest.TestCase):
     def test_fallback_without_usable_list(self) -> None:
         self.assertEqual(classify("copilot", "reviewer:security", CONTEXT_BUDGET)["fallback"], "grok")
 
+    def test_bare_reviewer_role_is_copilots_security_seat(self) -> None:
+        data: dict[str, Any] = classify("copilot", "reviewer", CONTEXT_BUDGET, "--usable", "grok")
+        self.assertEqual(data["seat"], "reviewer:security")
+        self.assertEqual(data["fallback"], "grok")
+
+    def test_axis_names_the_seat(self) -> None:
+        data: dict[str, Any] = classify("copilot", "reviewer", CONTEXT_BUDGET, "--axis", "security")
+        self.assertEqual(data["seat"], "reviewer:security")
+        self.assertEqual(data["fallback"], "grok")
+
+    def test_other_axis_has_no_fallback(self) -> None:
+        data: dict[str, Any] = classify("copilot", "reviewer", CONTEXT_BUDGET, "--axis", "correctness")
+        self.assertEqual(data["seat"], "reviewer:correctness")
+        self.assertIsNone(data["fallback"])
+
     def test_other_copilot_seats_have_no_fallback(self) -> None:
         self.assertIsNone(classify("copilot", "builder", CONTEXT_BUDGET)["fallback"])
 

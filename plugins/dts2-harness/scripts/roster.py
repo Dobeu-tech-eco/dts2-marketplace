@@ -478,6 +478,21 @@ def run_command(agent: str, role: str, tier: str) -> int:
     return 0
 
 
+def seat_of(profile: dict[str, Any] | None, role: str, axis: str | None) -> str:
+    """The seat a dispatch filled, used as the fallback key:
+    1. a bare role plus --axis is `<role>:<axis>` (reviewer + security -> reviewer:security);
+    2. a role with a suffix, or one the profile lists as-is, is itself;
+    3. a bare role the profile lists only with one suffix is that suffixed role
+       (copilot's only reviewer role is reviewer:security, so `reviewer` means that seat)."""
+    if axis and ":" not in role:
+        return f"{role}:{axis}"
+    roles: list[str] = list((profile or {}).get("roles") or [])
+    if ":" in role or role in roles:
+        return role
+    suffixed: list[str] = [r for r in roles if base_role(r) == role and r != role]
+    return suffixed[0] if len(suffixed) == 1 else role
+
+
 def seat_fallback(profile: dict[str, Any] | None, role: str, usable: list[str] | None) -> str | None:
     """The profile's `fallback` agent for this seat, if it is usable this run (or no list given)."""
     target: str | None = ((profile or {}).get("fallback") or {}).get(role)
@@ -488,27 +503,28 @@ def seat_fallback(profile: dict[str, Any] | None, role: str, usable: list[str] |
 
 def classify_dispatch(
     agent: str, role: str, output: str, exit_code: int, profile: dict[str, Any] | None = None,
-    usable: list[str] | None = None,
+    usable: list[str] | None = None, axis: str | None = None,
 ) -> dict[str, Any]:
     """Read a live dispatch's output. `dropForRun` drops the agent for the rest of the run (402/429);
     `context-budget` gives only this seat to the profile's fallback. `seatFailed` stays false either
     way, so the seat is reassigned instead of counted as a failed round."""
-    base: dict[str, Any] = {"agent": agent, "role": role, "seatFailed": False}
+    seat: str = seat_of(profile, role, axis)
+    base: dict[str, Any] = {"agent": agent, "role": role, "seat": seat, "seatFailed": False}
     hit: dict[str, Any] | None = classify_output(output, exit_code)
     if hit is not None:
-        return {**base, **hit, "dropForRun": True, "fallback": seat_fallback(profile, role, usable)}
+        return {**base, **hit, "dropForRun": True, "fallback": seat_fallback(profile, seat, usable)}
     if error_tail(output, exit_code, CONTEXT_BUDGET) is not None:
         return {
             **base, "outcome": "context-budget", "reason": CONTEXT_BUDGET_REASON, "resetAt": None,
-            "dropForRun": False, "fallback": seat_fallback(profile, role, usable),
+            "dropForRun": False, "fallback": seat_fallback(profile, seat, usable),
         }
     return {**base, "outcome": "ok", "reason": "ok", "resetAt": None, "dropForRun": False, "fallback": None}
 
 
-def run_classify(agent: str, role: str, exit_code: int, usable: str | None) -> int:
+def run_classify(agent: str, role: str, exit_code: int, usable: str | None, axis: str | None) -> int:
     names: list[str] | None = parse_roles(usable) if usable is not None else None
     profile: dict[str, Any] | None = load_profiles().get(agent)
-    print(json.dumps(classify_dispatch(agent, role, sys.stdin.read(), exit_code, profile, names)))
+    print(json.dumps(classify_dispatch(agent, role, sys.stdin.read(), exit_code, profile, names, axis)))
     return 0
 
 
@@ -542,6 +558,7 @@ def main() -> int:
     cls.add_argument("--agent", required=True)
     cls.add_argument("--role", required=True)
     cls.add_argument("--exit-code", type=int, required=True, help="the dispatch's exit status")
+    cls.add_argument("--axis", default=None, help="review axis of the seat, e.g. security")
     cls.add_argument("--usable", default=None, help="comma-separated usable agents from the probe")
     args = parser.parse_args()
     if args.command == "detect":
@@ -554,7 +571,7 @@ def main() -> int:
     if args.command == "command":
         return run_command(args.agent, args.role, args.tier)
     if args.command == "classify":
-        return run_classify(args.agent, args.role, args.exit_code, args.usable)
+        return run_classify(args.agent, args.role, args.exit_code, args.usable, args.axis)
     return run_resolve(Path(args.config))
 
 
