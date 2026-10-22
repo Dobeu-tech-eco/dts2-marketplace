@@ -199,15 +199,23 @@ async def run_agent(name: str, task: str, repo: Path, write: bool) -> str:
     return "\n".join(parts)
 
 
+class MissingBinary(Exception):
+    """roster.py found no binary for the seat on PATH, DTS2_BIN_<NAME> or the profile searchPaths."""
+
+
 def profile_command(agent: str, role: str, prompt_file: Path) -> list[str]:
-    """The filled argv `roster.py command --prompt-file` returns for this seat."""
+    """The filled argv `roster.py command --prompt-file` returns for this seat, with argv[0] the
+    binary roster resolved (PATH, DTS2_BIN_<NAME>, then the profile's searchPaths)."""
     result = subprocess.run(
         [sys.executable, "-I", str(ROSTER_SCRIPT), "command", "--agent", agent, "--role", role,
          "--prompt-file", str(prompt_file)],
         capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=ROSTER_TIMEOUT_S, check=True,
     )
-    argv: list[str] = json.loads(result.stdout)["argv"]
-    return argv
+    data: dict = json.loads(result.stdout)
+    argv: list[str] = data["argv"]
+    if not data.get("binary"):
+        raise MissingBinary(argv[0])
+    return [data["binary"], *argv[1:]]
 
 
 def fill_tokens(template: list[str], values: dict[str, str]) -> list[str]:
@@ -233,12 +241,14 @@ def gemini_second_opinion(diff: str, repo: Path) -> str:
         prompt_path: Path = write_prompt(Path(folder), diff, "Do not edit files; do not run commands. ")
         try:
             argv: list[str] = profile_command("gemini", "second-opinion", prompt_path)
+        except MissingBinary as missing:
+            return f"(second opinion skipped: {missing} CLI not found)"
         except Exception:
             argv = fill_tokens(GEMINI_FALLBACK, {
                 "{prompt}": POINTER.format(path=prompt_path), "{addDir}": folder,
             })
-        if shutil.which(argv[0]) is None:
-            return f"(second opinion skipped: {argv[0]} CLI not found)"
+            if shutil.which(argv[0]) is None:
+                return f"(second opinion skipped: {argv[0]} CLI not found)"
         return run_second_opinion(argv, repo)
 
 

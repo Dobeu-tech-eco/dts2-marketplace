@@ -335,6 +335,20 @@ class CommandTests(unittest.TestCase):
         self.assertIn(str(brief), data["argv"][-1])
         self.assertEqual(data["shell"], shlex.join(data["argv"]) + " < /dev/null")
 
+    def test_binary_found_through_search_paths(self) -> None:
+        env: dict[str, str] = isolated_env(tempfile.mkdtemp(prefix="dts2-path-"))
+        local: Path = Path(env["HOME"]) / ".local" / "bin"
+        local.mkdir(parents=True)
+        (local / "agy").write_text("#!/bin/sh\n")
+        (local / "agy").chmod(0o755)
+        result = raw_run("command", "--agent", "gemini", "--role", "reviewer", env=env)
+        self.assertEqual(json.loads(result.stdout)["binary"], str(local / "agy"))
+
+    def test_binary_null_when_missing(self) -> None:
+        env: dict[str, str] = isolated_env(tempfile.mkdtemp(prefix="dts2-path-"))
+        result = raw_run("command", "--agent", "gemini", "--role", "reviewer", env=env)
+        self.assertIsNone(json.loads(result.stdout)["binary"])
+
     def test_muse_reviewer_seat_rejected(self) -> None:
         self.assertEqual(command("muse", "reviewer").returncode, 1)
 

@@ -175,13 +175,45 @@ class Dts2RunTests(unittest.TestCase):
     def test_codex_timeout_is_a_note(self) -> None:
         self.assertIn("second opinion timed out", self.timed_out("codex"))
 
+    def fake_agy(self) -> Path:
+        folder: Path = Path(self.run_mod.tempfile.mkdtemp(prefix="dts2-agy-")).resolve()
+        binary: Path = folder / "agy"
+        binary.write_text("#!/bin/sh\n")
+        binary.chmod(0o755)
+        return binary
+
     def test_profile_command_reads_roster(self) -> None:
         prompt: Path = (Path(self.run_mod.tempfile.mkdtemp()) / "prompt.md").resolve()
         prompt.write_text("x", encoding="utf-8")
-        argv: list[str] = self.run_mod.profile_command("gemini", "second-opinion", prompt)
-        self.assertEqual(argv[:2], ["agy", "-p"])
+        binary: Path = self.fake_agy()
+        with mock.patch.dict(os.environ, {"DTS2_BIN_AGY": str(binary)}):
+            argv: list[str] = self.run_mod.profile_command("gemini", "second-opinion", prompt)
+        self.assertEqual(argv[:2], [str(binary), "-p"])
         self.assertIn(str(prompt), argv[2])
         self.assertEqual(argv[argv.index("--add-dir") + 1], str(prompt.parent))
+
+    def test_profile_command_missing_binary_raises(self) -> None:
+        prompt: Path = Path(self.run_mod.tempfile.mkdtemp()) / "prompt.md"
+        prompt.write_text("x", encoding="utf-8")
+        empty: str = self.run_mod.tempfile.mkdtemp()
+        with mock.patch.dict(os.environ, {"PATH": empty, "HOME": empty, "LOCALAPPDATA": empty, "APPDATA": empty}):
+            with self.assertRaises(self.run_mod.MissingBinary):
+                self.run_mod.profile_command("gemini", "second-opinion", prompt)
+
+    def test_search_path_binary_runs_without_which(self) -> None:
+        def fake_profile(agent: str, role: str, prompt_file: Path) -> list[str]:
+            return ["/opt/agy/agy", "-p", "pointer", "--add-dir", str(prompt_file.parent)]
+
+        done = mock.Mock(stdout="found", stderr="")
+        with mock.patch.object(self.run_mod, "profile_command", side_effect=fake_profile), \
+                mock.patch.object(self.run_mod.shutil, "which", return_value=None), \
+                mock.patch.object(self.run_mod.subprocess, "run", return_value=done) as run:
+            self.assertEqual(self.run_mod.second_opinion("gemini", "d", Path(".")), "found")
+        self.assertEqual(run.call_args.args[0][0], "/opt/agy/agy")
+
+    def test_missing_binary_is_skipped(self) -> None:
+        with mock.patch.object(self.run_mod, "profile_command", side_effect=self.run_mod.MissingBinary("agy")):
+            self.assertIn("skipped", self.run_mod.second_opinion("gemini", "d", Path(".")))
 
     def test_no_bare_gemini_binary(self) -> None:
         self.assertNotIn("gemini", self.run_mod.SECOND_OPINION_COMMANDS)

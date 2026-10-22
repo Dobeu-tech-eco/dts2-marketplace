@@ -484,6 +484,7 @@ def resolve_command(
     stdin: str | None = profile.get("stdin")
     result: dict[str, Any] = {
         "agent": profile["name"], "role": role, "model": model, "argv": argv, "stdin": stdin,
+        "binary": resolve_binary(argv[0], probe_env(), search_paths_of(profile)),
         "notes": list(profile.get("notes") or []),
     }
     if prompt_file is not None:
