@@ -139,6 +139,36 @@ class ProfileExtensionTests(unittest.TestCase):
         data: dict[str, Any] = json.loads((PROFILE_DIR / "gemini.json").read_text())
         self.assertEqual(data["roles"], ["builder", "reviewer", "second-opinion"])
 
+    def test_gemini_profile_runs_agy_headless(self) -> None:
+        data: dict[str, Any] = json.loads((PROFILE_DIR / "gemini.json").read_text())
+        self.assertEqual(data["statusCommand"], ["agy", "--version"])
+        self.assertEqual(data["models"], {
+            "frontier": "gemini-3.8-flash-high", "standard": "gemini-3.8-flash-medium",
+            "economy": "gemini-3.8-flash-low",
+        })
+        for role in ("reviewer", "builder"):
+            argv: list[str] = data["roleCommands"][role]
+            self.assertEqual(argv[:3], ["agy", "-p", "{prompt}"], role)
+            self.assertEqual(argv[argv.index("--mode") + 1], "plan", role)
+            self.assertEqual(argv[argv.index("--model") + 1], "{model}", role)
+            self.assertRegex(argv[argv.index("--print-timeout") + 1], r"^\d+m$", role)
+            self.assertEqual(argv[argv.index("--add-dir") + 1], "{addDir}", role)
+        notes: str = " ".join(data["notes"])
+        for phrase in ("--add-dir", "run it from the target repo", "never ask it to run commands"):
+            self.assertIn(phrase, notes)
+
+    def test_only_gemini_owns_agy(self) -> None:
+        owners: list[str] = []
+        for name in PROFILE_NAMES:
+            data: dict[str, Any] = json.loads((PROFILE_DIR / f"{name}.json").read_text())
+            commands: list[list[str]] = [data["command"] or [], data["statusCommand"] or []]
+            commands += list((data.get("roleCommands") or {}).values())
+            if any(c and c[0] == "agy" for c in commands):
+                owners.append(name)
+        self.assertEqual(owners, ["gemini"])
+        antigravity: dict[str, Any] = json.loads((PROFILE_DIR / "antigravity.json").read_text())
+        self.assertIn("gemini profile", " ".join(antigravity["notes"]))
+
 
 class ModelTests(unittest.TestCase):
     def model(self, agent: str, tier: str) -> str:
@@ -190,6 +220,10 @@ class CommandTests(unittest.TestCase):
 
     def test_fallback_to_profile_command(self) -> None:
         self.assertEqual(self.resolved("opencode", "builder")["argv"], ["opencode", "run", "{prompt}"])
+
+    def test_gemini_reviewer_resolves_model(self) -> None:
+        argv: list[str] = self.resolved("gemini", "reviewer", "frontier")["argv"]
+        self.assertEqual(argv[argv.index("--model") + 1], "gemini-3.8-flash-high")
 
     def test_null_model_drops_model_flag(self) -> None:
         self.assertEqual(self.resolved("claude", "builder")["model"], "sonnet")

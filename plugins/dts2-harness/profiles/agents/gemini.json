@@ -23,9 +23,9 @@
   ],
   "loginCommand": null,
   "models": {
-    "frontier": "gemini-2.5-pro",
-    "standard": "gemini-2.5-flash",
-    "economy": "gemini-2.5-flash-lite"
+    "frontier": "gemini-3.8-flash-high",
+    "standard": "gemini-3.8-flash-medium",
+    "economy": "gemini-3.8-flash-low"
   },
   "modelsVerified": false,
   "subscriptionName": "Gemini Pro",
@@ -40,5 +40,40 @@
     "~/.deno/bin",
     "$APPDATA/npm",
     "$LOCALAPPDATA/Programs"
+  ],
+  "roleCommands": {
+    "reviewer": [
+      "agy",
+      "-p",
+      "{prompt}",
+      "--mode",
+      "plan",
+      "--model",
+      "{model}",
+      "--print-timeout",
+      "15m",
+      "--add-dir",
+      "{addDir}"
+    ],
+    "builder": [
+      "agy",
+      "-p",
+      "{prompt}",
+      "--mode",
+      "plan",
+      "--model",
+      "{model}",
+      "--print-timeout",
+      "15m",
+      "--add-dir",
+      "{addDir}"
+    ]
+  },
+  "notes": [
+    "Give it work as files: write the diff or brief to a file in a directory, pass that directory as --add-dir ({addDir}), and run it from the target repo it must read. Headless agy denied read_file outside its cwd even with --add-dir for other repos.",
+    "Headless agy auto-denies every shell (\"command\") permission, so never ask it to run commands; say so in the prompt and have the lead run tests.",
+    "Plan mode means the builder seat returns a proposed change as text; the lead applies it inside the builder's file set and commits.",
+    "--print-timeout is set explicitly (15m) so a stuck turn ends; agy's default 0s waits forever.",
+    "Status: agy --version. Models: agy models. The Antigravity IDE (handoff) is the separate antigravity profile."
   ]
 }
