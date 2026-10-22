@@ -33,6 +33,13 @@ class TextContractMixin(unittest.TestCase):
         self.assertEqual(present, [], f"{path.name} contains retired phrases")
 
 
+SUPABASE_ROUTE: Final[tuple[str, ...]] = (
+    "dts2-harness:builder has no MCP tools", "supabase branches create", "supabase db query --linked",
+    "supabase branches delete", "never `supabase branches get`", "prints keys",
+    "resolves `-f` paths from the project root", "Initialising login role",
+)
+
+
 class LeadAgentTests(TextContractMixin):
     PATH: Final[Path] = AGENTS / "lead.md"
 
@@ -143,6 +150,9 @@ class BuilderAgentTests(TextContractMixin):
     def test_retired_phrases(self) -> None:
         self.assert_absent(self.PATH, ["lane", "Lane"])
 
+    def test_supabase_cli_route(self) -> None:
+        self.assert_contains(self.PATH, SUPABASE_ROUTE)
+
 
 class RunSkillContracts(TextContractMixin):
     PATH: Final[Path] = PLUGIN_ROOT / "skills" / "run" / "SKILL.md"
@@ -169,6 +179,9 @@ class RunSkillContracts(TextContractMixin):
 
     def test_retired_phrases(self) -> None:
         self.assert_absent(self.PATH, ["Gate 1", "Gate 2"])
+
+    def test_supabase_cli_route(self) -> None:
+        self.assert_contains(self.PATH, SUPABASE_ROUTE)
 
     def test_verifier_dispatch_mentions_head_guard(self) -> None:
         text: str = _read(self.PATH)
