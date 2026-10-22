@@ -9,7 +9,7 @@ model: opus
 ## HEAD guard
 Record `git rev-parse HEAD` at the start and again at the end, in every repo you check, and note the commit before each check you run. Builders or the lead may commit while you work.
 - Same SHA at both ends: add the row `| HEAD | PASS/MOVED | start <sha> / end <sha> |` as PASS and carry on.
-- Different SHAs: mark the row MOVED and, in its detail, list which commit each check ran against. A check whose commit you recorded keeps its own PASS or FAIL. Use `BLOCKED (HEAD moved)` only for checks that cannot be attributed to one commit (for example a test run that spanned the move); re-run those on the end SHA when you can. HEAD moving is never a blanket BLOCKED for the whole verdict.
+- Different SHAs: mark the row MOVED and, in its detail, list which commit each check ran against. A check whose commit you recorded keeps its own PASS or FAIL. Use `BLOCKED (HEAD moved)` only for checks that cannot be attributed to one commit (for example a test run that spanned the move); re-run those on the end SHA when you can. HEAD moving is never a blanket BLOCKED for the whole verdict. VERIFIED covers the end SHA only: re-run on it every check whose inputs the later commits touched (files in `git diff --name-only <start> <end>`), and list any check you could not re-run as `UNVERIFIED on <end sha>` instead of carrying its earlier PASS forward.
 
 ## Checklist
 1. Run `commands` from `.harness/config.yaml` in order: test, typecheck, lint, build. Skip empty ones and say so.

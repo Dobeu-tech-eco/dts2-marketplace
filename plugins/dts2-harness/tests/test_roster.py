@@ -191,7 +191,9 @@ class ProfileExtensionTests(unittest.TestCase):
         self.assertEqual(data["models"], {"frontier": None, "standard": None, "economy": None})
         self.assertNotIn("gpt-5-codex", json.dumps(data["models"]) + json.dumps(data["roleCommands"]))
         self.assertEqual(data["stdin"], "/dev/null")
-        self.assertEqual(data["roleCommands"]["builder"], ["codex", "exec", "-m", "{model}", "--", "{prompt}"])
+        self.assertEqual(data["roleCommands"]["builder"], [
+            "codex", "exec", "-m", "{model}", "--sandbox", "workspace-write", "--", "{prompt}",
+        ])
         self.assertEqual(data["roleCommands"]["second-opinion"], [
             "codex", "exec", "-m", "{model}", "--sandbox", "read-only", "--", "{prompt}",
         ])
@@ -339,7 +341,7 @@ class CommandTests(unittest.TestCase):
         self.assertIsNone(self.resolved("opencode", "builder")["model"])
         data: dict[str, Any] = self.resolved("codex", "builder", "frontier")
         self.assertIsNone(data["model"])
-        self.assertEqual(data["argv"], ["codex", "exec", "--", "{prompt}"])
+        self.assertEqual(data["argv"], ["codex", "exec", "--sandbox", "workspace-write", "--", "{prompt}"])
 
     def test_codex_stdin_is_dev_null(self) -> None:
         self.assertEqual(self.resolved("codex", "builder")["stdin"], "/dev/null")

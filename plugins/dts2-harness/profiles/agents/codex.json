@@ -41,6 +41,8 @@
       "exec",
       "-m",
       "{model}",
+      "--sandbox",
+      "workspace-write",
       "--",
       "{prompt}"
     ],

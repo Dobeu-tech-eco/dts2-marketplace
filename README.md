@@ -6,11 +6,15 @@ Claude Code plugin marketplace for Dobeu Tech Solutions.
 |---|---|
 | [`dts2-harness`](plugins/dts2-harness) | Plan-build-review-verify agent harness: end-state interview, Plan and Ship checkpoints, agent roster, deployment verification, GTM, machine prep, multi-repo scaffolding, lessons memory, and a headless Agent SDK runner. Windows, WSL, Linux, macOS. |
 
+## What's new in 3.5.0
+- muse joins the roster as a builder and second opinion (never a review seat), and every agent seat gets its own headless command from `roster.py command`.
+- `roster.py classify`: a billing or quota answer drops an agent for the run, and copilot's security seat falls back to grok.
+
 ## What's new in 3.0.0
 - End-state interview: `setup` asks rounds on repos, agents, and skills until you approve the end state.
 - Plan and Ship checkpoints: `run` pauses for approval twice and writes a PR receipt at ship.
 - Rule 8, harness discipline: agents follow the harness rules instead of improvising around them.
-- Agent roster: claude, codex, gemini, grok, muse, opencode, and copilot, with subscription-first auth and cost tiers (cheapest capable agent first).
+- Agent roster: claude, codex, gemini, grok, opencode, and copilot, with subscription-first auth and cost tiers (cheapest capable agent first).
 - Finish passes: an Impeccable-style critique and polish pass for UI, and a code finish pass.
 - Deployment verification: detects the deploy target, verifies the live result, and offers a build-a-production and troubleshoot round.
 - `action-items`: open secrets, decisions, and handoffs in one list, plus a pass-off file (`.harness/handoff/latest.md`) any agent can resume with `run resume`.
