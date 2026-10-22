@@ -44,10 +44,13 @@ PROMPT_TOKEN: Final[str] = "{prompt}"
 MODEL_TOKEN: Final[str] = "{model}"
 REVIEWER: Final[str] = "reviewer"
 UNAVAILABLE: Final[str] = "unavailable (billing/quota)"
-BILLING_OR_QUOTA: Final[re.Pattern[str]] = re.compile(
-    r"\bAPI error (?:402|429)\b|Billing verification failed|Subscription quota exhausted", re.I,
+ERROR_LINE: Final[str] = r"^\s*(?:error:\s*)?"
+BILLING_OR_QUOTA: Final[re.Pattern[str]] = re.compile(ERROR_LINE + r"API error (?:402|429)\b", re.I | re.M)
+CONTEXT_BUDGET: Final[re.Pattern[str]] = re.compile(
+    ERROR_LINE + r"Static system messages and tool definitions exceed the model's usable context budget",
+    re.I | re.M,
 )
-CONTEXT_BUDGET: Final[re.Pattern[str]] = re.compile(r"exceed the model's usable context budget", re.I)
+TAIL_LINES: Final[int] = 20
 CONTEXT_BUDGET_REASON: Final[str] = "context budget exceeded"
 RESET_AT: Final[re.Pattern[str]] = re.compile(
     r"resets at\s+(\d{4}-\d{2}-\d{2}T[0-9:.]+(?:Z|[+-]\d{2}:?\d{2})?)", re.I,
@@ -208,18 +211,33 @@ def search_paths_of(profile: dict[str, Any]) -> list[str]:
     return list(profile.get("searchPaths") or [])
 
 
-def classify_output(text: str) -> dict[str, Any] | None:
+def tail(text: str) -> str:
+    return "\n".join(text.splitlines()[-TAIL_LINES:])
+
+
+def error_tail(text: str, exit_code: int, pattern: re.Pattern[str]) -> str | None:
+    """The last TAIL_LINES lines when the agent exited non-zero and one of them is an error line
+    (at line start, optionally after `Error:`) matching pattern. Quoted text never matches."""
+    if exit_code == 0:
+        return None
+    last: str = tail(text)
+    return last if pattern.search(last) else None
+
+
+def classify_output(text: str, exit_code: int) -> dict[str, Any] | None:
     """A 402 (billing) or 429 (quota) answer means the agent is unavailable for this run, not that
     the seat failed. Returns the reason, with the reset time when the CLI printed one."""
-    if not BILLING_OR_QUOTA.search(text):
+    last: str | None = error_tail(text, exit_code, BILLING_OR_QUOTA)
+    if last is None:
         return None
-    match: re.Match[str] | None = RESET_AT.search(text)
+    match: re.Match[str] | None = RESET_AT.search(last)
     reset: str | None = match.group(1) if match else None
     reason: str = f"{UNAVAILABLE}; resets at {reset}" if reset else UNAVAILABLE
     return {"outcome": "unavailable", "reason": reason, "resetAt": reset}
 
 
 def run_status(command: list[str], env: dict[str, str], search_paths: list[str]) -> tuple[bool, str]:
+    """(exit code 0, stderr then stdout)."""
     resolved: str | None = resolve_binary(command[0], env, search_paths)
     if resolved is None:
         return False, ""
@@ -230,7 +248,7 @@ def run_status(command: list[str], env: dict[str, str], search_paths: list[str])
         )
     except Exception:
         return False, ""
-    return result.returncode == 0, (result.stdout or "") + (result.stderr or "")
+    return result.returncode == 0, (result.stdout or "") + "\n" + (result.stderr or "")
 
 
 def command_ok(command: list[str], env: dict[str, str], search_paths: list[str]) -> bool:
@@ -245,7 +263,7 @@ def availability(profile: dict[str, Any], env: dict[str, str]) -> tuple[bool, st
     if resolve_binary(command[0], env, search_paths) is None:
         return False, "not installed"
     ok, output = run_status(command, env, search_paths)
-    hit: dict[str, Any] | None = classify_output(output)
+    hit: dict[str, Any] | None = classify_output(output, 0 if ok else 1)
     if hit is not None:
         return False, hit["reason"]
     return (True, "ok") if ok else (False, STATUS_FAILED)
@@ -469,17 +487,17 @@ def seat_fallback(profile: dict[str, Any] | None, role: str, usable: list[str] |
 
 
 def classify_dispatch(
-    agent: str, role: str, output: str, profile: dict[str, Any] | None = None,
+    agent: str, role: str, output: str, exit_code: int, profile: dict[str, Any] | None = None,
     usable: list[str] | None = None,
 ) -> dict[str, Any]:
     """Read a live dispatch's output. `dropForRun` drops the agent for the rest of the run (402/429);
     `context-budget` gives only this seat to the profile's fallback. `seatFailed` stays false either
     way, so the seat is reassigned instead of counted as a failed round."""
     base: dict[str, Any] = {"agent": agent, "role": role, "seatFailed": False}
-    hit: dict[str, Any] | None = classify_output(output)
+    hit: dict[str, Any] | None = classify_output(output, exit_code)
     if hit is not None:
         return {**base, **hit, "dropForRun": True, "fallback": seat_fallback(profile, role, usable)}
-    if CONTEXT_BUDGET.search(output):
+    if error_tail(output, exit_code, CONTEXT_BUDGET) is not None:
         return {
             **base, "outcome": "context-budget", "reason": CONTEXT_BUDGET_REASON, "resetAt": None,
             "dropForRun": False, "fallback": seat_fallback(profile, role, usable),
@@ -487,10 +505,10 @@ def classify_dispatch(
     return {**base, "outcome": "ok", "reason": "ok", "resetAt": None, "dropForRun": False, "fallback": None}
 
 
-def run_classify(agent: str, role: str, usable: str | None) -> int:
+def run_classify(agent: str, role: str, exit_code: int, usable: str | None) -> int:
     names: list[str] | None = parse_roles(usable) if usable is not None else None
     profile: dict[str, Any] | None = load_profiles().get(agent)
-    print(json.dumps(classify_dispatch(agent, role, sys.stdin.read(), profile, names)))
+    print(json.dumps(classify_dispatch(agent, role, sys.stdin.read(), exit_code, profile, names)))
     return 0
 
 
@@ -523,6 +541,7 @@ def main() -> int:
     cls = sub.add_parser("classify", help="classify a live dispatch's output read from stdin")
     cls.add_argument("--agent", required=True)
     cls.add_argument("--role", required=True)
+    cls.add_argument("--exit-code", type=int, required=True, help="the dispatch's exit status")
     cls.add_argument("--usable", default=None, help="comma-separated usable agents from the probe")
     args = parser.parse_args()
     if args.command == "detect":
@@ -535,7 +554,7 @@ def main() -> int:
     if args.command == "command":
         return run_command(args.agent, args.role, args.tier)
     if args.command == "classify":
-        return run_classify(args.agent, args.role, args.usable)
+        return run_classify(args.agent, args.role, args.exit_code, args.usable)
     return run_resolve(Path(args.config))
 
 

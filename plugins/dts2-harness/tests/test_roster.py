@@ -372,15 +372,31 @@ class ProbeTests(unittest.TestCase):
         self.assertIn("2026-10-22T18:30:00Z", reason)
         self.assertEqual(data["agents"]["muse"]["resetAt"], "2026-10-22T18:30:00Z")
 
+    def test_quota_text_with_ok_status_stays_available(self) -> None:
+        folder: str = fake_bin([])
+        script: Path = Path(folder) / "muse"
+        script.write_text(f"#!/bin/sh\necho '{QUOTA_429}'\nexit 0\n")
+        script.chmod(0o755)
+        self.assertEqual(probe("roster:\n  - name: muse\n", folder)["usable"], ["muse"])
+
     def test_fake_muse_available(self) -> None:
         data: dict[str, Any] = probe("roster:\n  - name: muse\n", fake_bin(["muse"]))
         self.assertEqual(data["usable"], ["muse"])
         self.assertEqual(data["agents"]["muse"]["roles"], ["builder", "reviewer"])
 
 
-def classify(agent: str, role: str, output: str, *extra: str) -> dict[str, Any]:
+QUOTED_402: Final[str] = (
+    "Review: no blocking findings.\n"
+    'profiles/agents/muse.json:48: "API error 402 (Billing verification failed) and API error 429 '
+    '(Subscription quota exhausted, with a reset time)"\n'
+    "LOW: the note could name the reset field.\n"
+)
+
+
+def classify(agent: str, role: str, output: str, *extra: str, exit_code: int = 1) -> dict[str, Any]:
     result = subprocess.run(
-        [sys.executable, "-I", str(ROSTER), "classify", "--agent", agent, "--role", role, *extra],
+        [sys.executable, "-I", str(ROSTER), "classify", "--agent", agent, "--role", role,
+         "--exit-code", str(exit_code), *extra],
         input=output, capture_output=True, text=True, cwd=str(PLUGIN_ROOT),
     )
     return json.loads(result.stdout)
@@ -419,8 +435,34 @@ class ClassifyTests(unittest.TestCase):
             import roster as module
         finally:
             sys.path.pop(0)
-        self.assertIsNone(module.classify_output("all good"))
-        self.assertEqual(module.classify_output(QUOTA_429)["resetAt"], "2026-10-22T18:30:00Z")
+        self.assertIsNone(module.classify_output("all good", 1))
+        self.assertIsNone(module.classify_output(QUOTA_429, 0))
+        self.assertEqual(module.classify_output(QUOTA_429, 1)["resetAt"], "2026-10-22T18:30:00Z")
+
+    def test_bare_error_line_counts(self) -> None:
+        self.assertEqual(classify("muse", "builder", "API error 402 Billing verification failed")["outcome"], "unavailable")
+        self.assertEqual(classify("muse", "builder", "error: API error 429 slow down")["outcome"], "unavailable")
+
+    def test_quoted_text_in_successful_review_is_ok(self) -> None:
+        data: dict[str, Any] = classify("muse", "reviewer", QUOTED_402, exit_code=0)
+        self.assertEqual(data["outcome"], "ok")
+        self.assertFalse(data["dropForRun"])
+
+    def test_quoted_text_in_failed_run_is_not_billing(self) -> None:
+        self.assertEqual(classify("muse", "reviewer", QUOTED_402, exit_code=2)["outcome"], "ok")
+
+    def test_real_error_line_with_exit_zero_is_ok(self) -> None:
+        self.assertEqual(classify("muse", "builder", QUOTA_429, exit_code=0)["outcome"], "ok")
+
+    def test_only_the_tail_is_read(self) -> None:
+        output: str = QUOTA_429 + "\n" + "\n".join(f"line {n}" for n in range(30))
+        self.assertEqual(classify("muse", "builder", output)["outcome"], "ok")
+
+    def test_quoted_context_budget_is_ok(self) -> None:
+        quoted: str = "copilot.json:30: \"Static system messages and tool definitions exceed the model's usable context budget\"\n"
+        data: dict[str, Any] = classify("copilot", "reviewer:security", quoted)
+        self.assertEqual(data["outcome"], "ok")
+        self.assertIsNone(data["fallback"])
 
 
 CONTEXT_BUDGET: Final[str] = (
