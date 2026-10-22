@@ -1,6 +1,6 @@
 {
   "name": "dts2-harness",
-  "version": "3.3.1",
+  "version": "3.4.0",
   "description": "Third-generation plan-build-review-verify harness. Adds an end-state interview, Plan and Ship checkpoints, an agent roster with subscription-first auth and cost tiers, harness discipline, deployment verification, action items, GTM, machine prep tiers, multi-repo scaffolding, lessons memory, and a headless Agent SDK runner. Works on Windows, WSL, Linux, and macOS.",
   "author": {
     "name": "Dobeu Tech Solutions",

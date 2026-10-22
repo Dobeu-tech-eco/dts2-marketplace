@@ -11,7 +11,7 @@
       "name": "dts2-harness",
       "source": "./plugins/dts2-harness",
       "description": "Plan-build-review-verify harness with an end-state interview, Plan and Ship checkpoints, an agent roster with subscription-first auth and cost tiers, harness discipline, deployment verification, action items, GTM, machine prep, multi-repo scaffolding, lessons memory, and an Agent SDK runner.",
-      "version": "3.3.1"
+      "version": "3.4.0"
     }
   ]
 }
