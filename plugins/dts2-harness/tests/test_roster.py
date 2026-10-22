@@ -21,6 +21,7 @@ SCHEMA_KEYS: Final[frozenset[str]] = frozenset({
     "costTier", "statusCommand", "loginCommand", "models", "modelsVerified",
     "subscriptionName", "apiKeyEnv", "searchPaths",
 })
+OPTIONAL_KEYS: Final[frozenset[str]] = frozenset({"roleCommands", "notes"})
 VERIFIED: Final[frozenset[str]] = frozenset({"claude", "codex", "opencode"})
 COST_TIERS: Final[dict[str, int]] = {
     "claude": 3, "codex": 2, "gemini": 1, "opencode": 1,
@@ -56,7 +57,8 @@ class ProfileTests(unittest.TestCase):
     def test_every_profile_has_schema(self) -> None:
         for name in PROFILE_NAMES:
             data: dict[str, Any] = json.loads((PROFILE_DIR / f"{name}.json").read_text())
-            self.assertEqual(set(data), SCHEMA_KEYS, name)
+            self.assertTrue(SCHEMA_KEYS <= set(data), name)
+            self.assertTrue(set(data) <= SCHEMA_KEYS | OPTIONAL_KEYS, name)
             self.assertEqual(data["name"], name)
             self.assertEqual(data["verified"], name in VERIFIED, name)
 
@@ -111,6 +113,27 @@ class ProfileExtensionTests(unittest.TestCase):
         self.assertIsNone(data["headlessFlag"])
         self.assertEqual(data["roles"], ["builder", "reviewer", "second-opinion"])
         self.assertFalse(data["verified"])
+        self.assertEqual(data["models"], {
+            "frontier": "grok-4.7", "standard": "grok-4.7", "economy": "grok-4.7-build-fast",
+        })
+        self.assertEqual(data["roleCommands"]["reviewer"], [
+            "grok", "-p", "{prompt}", "-m", "{model}", "--permission-mode", "plan",
+            "--deny", "Bash", "--disable-web-search",
+        ])
+        self.assertEqual(data["roleCommands"]["builder"], [
+            "grok", "-p", "{prompt}", "-m", "{model}", "--permission-mode", "acceptEdits",
+            "--allow", "Edit", "--allow", "Write", "--deny", "Bash", "--disable-web-search",
+        ])
+        self.assertTrue(any("auto-denied" in note for note in data["notes"]))
+
+    def test_notes_and_role_commands_shape(self) -> None:
+        for name in PROFILE_NAMES:
+            data: dict[str, Any] = json.loads((PROFILE_DIR / f"{name}.json").read_text())
+            for note in data.get("notes", []):
+                self.assertIsInstance(note, str, name)
+            for role, argv in data.get("roleCommands", {}).items():
+                self.assertIn(role.split(":")[0], {r.split(":")[0] for r in data["roles"]}, name)
+                self.assertIn("{prompt}", argv, f"{name} {role}")
 
     def test_gemini_profile_roles(self) -> None:
         data: dict[str, Any] = json.loads((PROFILE_DIR / "gemini.json").read_text())
@@ -130,7 +153,56 @@ class ModelTests(unittest.TestCase):
         self.assertEqual(self.model("cursor", "frontier"), "null")
 
     def test_grok_model(self) -> None:
-        self.assertEqual(self.model("grok", "economy"), "grok-4-fast")
+        self.assertEqual(self.model("grok", "economy"), "grok-4.7-build-fast")
+
+
+def command(agent: str, role: str, tier: str = "standard") -> subprocess.CompletedProcess[str]:
+    return raw_run("command", "--agent", agent, "--role", role, "--tier", tier)
+
+
+class CommandTests(unittest.TestCase):
+    def resolved(self, agent: str, role: str, tier: str = "standard") -> dict[str, Any]:
+        result = command(agent, role, tier)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return json.loads(result.stdout)
+
+    def test_grok_reviewer_is_plan_mode(self) -> None:
+        data: dict[str, Any] = self.resolved("grok", "reviewer", "frontier")
+        self.assertEqual(data["argv"], [
+            "grok", "-p", "{prompt}", "-m", "grok-4.7", "--permission-mode", "plan",
+            "--deny", "Bash", "--disable-web-search",
+        ])
+        self.assertEqual(data["model"], "grok-4.7")
+
+    def test_grok_builder_allows_edits_not_shell(self) -> None:
+        argv: list[str] = self.resolved("grok", "builder", "economy")["argv"]
+        self.assertIn("grok-4.7-build-fast", argv)
+        self.assertIn("acceptEdits", argv)
+        self.assertEqual(argv[argv.index("--deny") + 1], "Bash")
+        self.assertIn("Edit", argv)
+        self.assertIn("Write", argv)
+
+    def test_second_opinion_uses_reviewer_command(self) -> None:
+        self.assertIn("plan", self.resolved("grok", "second-opinion")["argv"])
+
+    def test_role_suffix_uses_base_role_command(self) -> None:
+        self.assertIn("plan", self.resolved("grok", "reviewer:security")["argv"])
+
+    def test_fallback_to_profile_command(self) -> None:
+        self.assertEqual(self.resolved("opencode", "builder")["argv"], ["opencode", "run", "{prompt}"])
+
+    def test_null_model_drops_model_flag(self) -> None:
+        self.assertEqual(self.resolved("claude", "builder")["model"], "sonnet")
+        data: dict[str, Any] = self.resolved("opencode", "builder")
+        self.assertIsNone(data["model"])
+
+    def test_unsupported_role_rejected(self) -> None:
+        result = command("grok", "lead")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("lead", result.stderr)
+
+    def test_handoff_agent_has_no_command(self) -> None:
+        self.assertEqual(command("cursor", "builder").returncode, 1)
 
 
 def fake_bin(names: list[str]) -> str:

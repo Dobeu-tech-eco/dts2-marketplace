@@ -40,6 +40,9 @@ NOT_OPTED_IN: Final[str] = (
 SECOND_OPINION: Final[str] = "second-opinion"
 BUDGET_UNKNOWN: Final[str] = "unknown"
 MODEL_TIERS: Final[tuple[str, ...]] = ("frontier", "standard", "economy")
+PROMPT_TOKEN: Final[str] = "{prompt}"
+MODEL_TOKEN: Final[str] = "{model}"
+REVIEWER: Final[str] = "reviewer"
 
 
 class RosterError(Exception):
@@ -362,6 +365,66 @@ def run_probe(config: Path) -> int:
     return 0
 
 
+def base_role(role: str) -> str:
+    return role.split(":", 1)[0]
+
+
+def supports_role(profile: dict[str, Any], role: str) -> bool:
+    return role in profile["roles"] or base_role(role) in {base_role(r) for r in profile["roles"]}
+
+
+def role_template(profile: dict[str, Any], role: str) -> list[str]:
+    """Pick the argv template for a seat: the exact role, then its base (`reviewer:security` ->
+    `reviewer`), then `reviewer` for a second opinion, then the profile `command` plus prompt."""
+    templates: dict[str, list[str]] = profile.get("roleCommands") or {}
+    keys: list[str] = [role, base_role(role)] + ([REVIEWER] if role == SECOND_OPINION else [])
+    for key in keys:
+        if key in templates:
+            return list(templates[key])
+    command: list[str] | None = profile["command"]
+    if not command:
+        raise RosterError(f"agent '{profile['name']}' has no command (invocation {profile['invocation']})")
+    flag: list[str] = [profile["headlessFlag"]] if profile.get("headlessFlag") else []
+    return [*command, *flag, PROMPT_TOKEN]
+
+
+def fill_model(template: list[str], model: str | None) -> list[str]:
+    """Replace `{model}`; with no model, drop the token and the flag in front of it."""
+    argv: list[str] = []
+    for part in template:
+        if part != MODEL_TOKEN:
+            argv.append(part)
+        elif model:
+            argv.append(model)
+        elif argv and argv[-1].startswith("-"):
+            argv.pop()
+    return argv
+
+
+def resolve_command(profile: dict[str, Any], role: str, tier: str) -> dict[str, Any]:
+    if not supports_role(profile, role):
+        raise RosterError(f"role '{role}' is not supported by agent '{profile['name']}'")
+    model: str | None = profile["models"][tier]
+    return {
+        "agent": profile["name"], "role": role, "model": model,
+        "argv": fill_model(role_template(profile, role), model),
+        "notes": list(profile.get("notes") or []),
+    }
+
+
+def run_command(agent: str, role: str, tier: str) -> int:
+    profile: dict[str, Any] | None = load_profiles().get(agent)
+    try:
+        if profile is None:
+            raise RosterError(f"unknown agent '{agent}'")
+        result: dict[str, Any] = resolve_command(profile, role, tier)
+    except RosterError as error:
+        print(f"roster error: {error}", file=sys.stderr)
+        return 1
+    print(json.dumps(result))
+    return 0
+
+
 def run_model(agent: str, tier: str) -> int:
     profile: dict[str, Any] | None = load_profiles().get(agent)
     if profile is None:
@@ -384,6 +447,10 @@ def main() -> int:
     mdl = sub.add_parser("model")
     mdl.add_argument("--agent", required=True)
     mdl.add_argument("--tier", required=True, choices=MODEL_TIERS)
+    cmd = sub.add_parser("command", help="argv for one seat; the caller replaces {prompt}")
+    cmd.add_argument("--agent", required=True)
+    cmd.add_argument("--role", required=True)
+    cmd.add_argument("--tier", default="standard", choices=MODEL_TIERS)
     args = parser.parse_args()
     if args.command == "detect":
         print(json.dumps(detect(Path(args.project))))
@@ -392,6 +459,8 @@ def main() -> int:
         return run_probe(Path(args.config))
     if args.command == "model":
         return run_model(args.agent, args.tier)
+    if args.command == "command":
+        return run_command(args.agent, args.role, args.tier)
     return run_resolve(Path(args.config))
 
 

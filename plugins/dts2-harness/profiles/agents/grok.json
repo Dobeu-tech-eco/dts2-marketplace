@@ -25,7 +25,7 @@
   "models": {
     "frontier": "grok-4.7",
     "standard": "grok-4.7",
-    "economy": "grok-4-fast"
+    "economy": "grok-4.7-build-fast"
   },
   "modelsVerified": false,
   "subscriptionName": "Grok Build",
@@ -38,5 +38,41 @@
     "~/.deno/bin",
     "$APPDATA/npm",
     "$LOCALAPPDATA/Programs"
+  ],
+  "roleCommands": {
+    "reviewer": [
+      "grok",
+      "-p",
+      "{prompt}",
+      "-m",
+      "{model}",
+      "--permission-mode",
+      "plan",
+      "--deny",
+      "Bash",
+      "--disable-web-search"
+    ],
+    "builder": [
+      "grok",
+      "-p",
+      "{prompt}",
+      "-m",
+      "{model}",
+      "--permission-mode",
+      "acceptEdits",
+      "--allow",
+      "Edit",
+      "--allow",
+      "Write",
+      "--deny",
+      "Bash",
+      "--disable-web-search"
+    ]
+  },
+  "notes": [
+    "In headless `grok -p`, tools that need approval are auto-denied; the run ends with \"permission required: ... was not run, as a headless run cannot ask for approval\". Grant what a seat needs with --permission-mode and --allow up front.",
+    "acceptEdits alone still blocked Edit in headless mode; builders also need --allow Edit --allow Write.",
+    "Builders get no shell (--deny Bash): the lead runs tests and commits.",
+    "Status: grok version. Models: grok models (grok-4.7, grok-4.7-build-fast, grok-4.6, grok-4.5)."
   ]
 }

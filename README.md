@@ -59,7 +59,7 @@ If your WSL `claude` command wraps the Windows `claude.exe`, both shells share t
 ## Known limits
 - Login state for gemini, grok, and opencode is self-reported by you; the harness cannot verify it.
 - Impeccable and marketing-skills are external plugins. The harness uses them when installed and does not bundle them.
-- Grok CLI commands are untested.
+- Grok review and builder commands (`roster.py command`) were exercised on 2026-10-22; model ids stay marked unverified.
 - The Sol 6.1 roster slot is user-editable; check it matches what you run.
 
 ## Acknowledgements
