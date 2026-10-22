@@ -21,7 +21,7 @@ SCHEMA_KEYS: Final[frozenset[str]] = frozenset({
     "costTier", "statusCommand", "loginCommand", "models", "modelsVerified",
     "subscriptionName", "apiKeyEnv", "searchPaths",
 })
-OPTIONAL_KEYS: Final[frozenset[str]] = frozenset({"roleCommands", "notes"})
+OPTIONAL_KEYS: Final[frozenset[str]] = frozenset({"roleCommands", "notes", "stdin"})
 VERIFIED: Final[frozenset[str]] = frozenset({"claude", "codex", "opencode"})
 COST_TIERS: Final[dict[str, int]] = {
     "claude": 3, "codex": 2, "gemini": 1, "opencode": 1,
@@ -157,6 +157,16 @@ class ProfileExtensionTests(unittest.TestCase):
         for phrase in ("--add-dir", "run it from the target repo", "never ask it to run commands"):
             self.assertIn(phrase, notes)
 
+    def test_codex_profile(self) -> None:
+        data: dict[str, Any] = json.loads((PROFILE_DIR / "codex.json").read_text())
+        self.assertEqual(data["models"], {"frontier": None, "standard": None, "economy": None})
+        self.assertNotIn("gpt-5-codex", json.dumps(data["models"]) + json.dumps(data["roleCommands"]))
+        self.assertEqual(data["stdin"], "/dev/null")
+        notes: str = " ".join(data["notes"])
+        self.assertIn("do not commit", notes)
+        self.assertIn("lead commits", notes)
+        self.assertIn("< /dev/null", notes)
+
     def test_only_gemini_owns_agy(self) -> None:
         owners: list[str] = []
         for name in PROFILE_NAMES:
@@ -227,8 +237,14 @@ class CommandTests(unittest.TestCase):
 
     def test_null_model_drops_model_flag(self) -> None:
         self.assertEqual(self.resolved("claude", "builder")["model"], "sonnet")
-        data: dict[str, Any] = self.resolved("opencode", "builder")
+        self.assertIsNone(self.resolved("opencode", "builder")["model"])
+        data: dict[str, Any] = self.resolved("codex", "builder", "frontier")
         self.assertIsNone(data["model"])
+        self.assertEqual(data["argv"], ["codex", "exec", "{prompt}"])
+
+    def test_codex_stdin_is_dev_null(self) -> None:
+        self.assertEqual(self.resolved("codex", "builder")["stdin"], "/dev/null")
+        self.assertIsNone(self.resolved("grok", "builder")["stdin"])
 
     def test_unsupported_role_rejected(self) -> None:
         result = command("grok", "lead")

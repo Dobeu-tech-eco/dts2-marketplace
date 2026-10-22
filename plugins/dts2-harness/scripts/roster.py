@@ -408,6 +408,7 @@ def resolve_command(profile: dict[str, Any], role: str, tier: str) -> dict[str, 
     return {
         "agent": profile["name"], "role": role, "model": model,
         "argv": fill_model(role_template(profile, role), model),
+        "stdin": profile.get("stdin"),
         "notes": list(profile.get("notes") or []),
     }
 

@@ -195,7 +195,7 @@ def second_opinion(backend: str, diff: str, repo: Path) -> str:
         return f"(second opinion skipped: {backend} CLI not found)"
     prompt: str = f"Review this diff. List CRITICAL/HIGH/MEDIUM/LOW findings with file:line.\n\n{diff}"
     result = subprocess.run(command + [prompt], cwd=repo, capture_output=True, text=True,
-                            timeout=SECOND_OPINION_TIMEOUT_S)
+                            stdin=subprocess.DEVNULL, timeout=SECOND_OPINION_TIMEOUT_S)
     return result.stdout or result.stderr
 
 

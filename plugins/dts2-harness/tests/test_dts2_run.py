@@ -87,6 +87,13 @@ class Dts2RunTests(unittest.TestCase):
         with mock.patch.dict(os.environ, {}, clear=True):
             self.assertEqual(self.run_mod.resolve_auth(None), "subscription (existing Claude Code login)")
 
+    def test_second_opinion_closes_stdin(self) -> None:
+        done = mock.Mock(stdout="ok", stderr="")
+        with mock.patch.object(self.run_mod.shutil, "which", return_value="/bin/codex"), \
+                mock.patch.object(self.run_mod.subprocess, "run", return_value=done) as run:
+            self.run_mod.second_opinion("codex", "diff", Path("."))
+        self.assertIs(run.call_args.kwargs["stdin"], self.run_mod.subprocess.DEVNULL)
+
 
 if __name__ == "__main__":
     unittest.main()
