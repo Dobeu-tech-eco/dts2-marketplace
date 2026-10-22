@@ -6,6 +6,9 @@ Claude Code plugin marketplace for Dobeu Tech Solutions.
 |---|---|
 | [`dts2-harness`](plugins/dts2-harness) | Plan-build-review-verify agent harness: end-state interview, Plan and Ship checkpoints, agent roster, deployment verification, GTM, machine prep, multi-repo scaffolding, lessons memory, and a headless Agent SDK runner. Windows, WSL, Linux, macOS. |
 
+## What's new in 3.6.1
+- Gtm is self-sufficient: auto-installs marketing-skills, runs a deep-dive (optional deep-interview re-run), selects the applicable skills, and runs them as one seamless pass.
+
 ## What's new in 3.6.0
 - Strict delegation: frontier models only for advisory and sign-off, builders run the cheapest capable model at a complexity-scaled effort; Muse delegation fields (`effortLevels`, `tokenBurn`) join every profile.
 - `/dts2-harness:upgrade` (one-command in-place upgrade), `/dts2-harness:model` (selectable lead provider), and lead failover on a stall that prefers verified providers.

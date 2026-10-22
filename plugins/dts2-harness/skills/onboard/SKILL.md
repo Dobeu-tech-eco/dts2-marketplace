@@ -25,7 +25,7 @@ Explanation only. Do not invoke agents or change files from this skill.
 | `sdk` | Run the same pipeline headless with the Agent SDK, using your existing Claude login, or an API key or key command for CI. |
 | `evolve` | Change the harness itself in its source repo: edit, validate, test, bump both manifests, commit; push only on an explicit yes. |
 | `action-items` | List open secrets, decisions, handoffs, deploy steps and promotions with the command that resolves each; `done`, `add`, `assign`. Pass-off for any agent: `.harness/handoff/latest.md`, resumed with `run resume`. |
-| `gtm` | Go-to-market in one pass through the `marketing-skills` plugin, ending in a `readiness.md` scorecard. |
+| `gtm` | Go-to-market in one seamless pass: auto-installs `marketing-skills` if missing, runs a deep-dive, picks the applicable skills, and ends in a `readiness.md` scorecard. |
 | `upgrade` | `/dts2-harness:upgrade` is the one-command in-place upgrade: handoff, marketplace update, verify the version advanced, then re-run from the handoff. |
 | `model` | `/dts2-harness:model` picks which agent provider leads (the lead, advisory and sign-off seats); default Claude. Builders are unaffected. |
 | `find-skills` | `/dts2-harness:find-skills` is available any time: rescan the repo, answer one to three questions, get suggested skills, and wire the ones you pick into the project. |
