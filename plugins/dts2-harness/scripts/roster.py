@@ -73,6 +73,7 @@ CONTEXT_BUDGET: Final[re.Pattern[str]] = re.compile(
 )
 TAIL_LINES: Final[int] = 20
 CONTEXT_BUDGET_REASON: Final[str] = "context budget exceeded"
+DISPATCH_FAILED: Final[str] = "dispatch exited non-zero"
 RESET_AT: Final[re.Pattern[str]] = re.compile(
     r"resets at\s+(\d{4}-\d{2}-\d{2}T[0-9:.]+(?:Z|[+-]\d{2}:?\d{2})?)", re.I,
 )
@@ -561,7 +562,8 @@ def classify_dispatch(
 ) -> dict[str, Any]:
     """Read a live dispatch's output. `dropForRun` drops the agent for the rest of the run (402/429);
     `context-budget` gives only this seat to the profile's fallback. `seatFailed` stays false either
-    way, so the seat is reassigned instead of counted as a failed round."""
+    way, so the seat is reassigned instead of counted as a failed round. Any other non-zero exit is
+    `failed` with `seatFailed: true`: a crashed dispatch is a failed round, never finished work."""
     seat: str = seat_of(profile, role, axis)
     base: dict[str, Any] = {"agent": agent, "role": role, "seat": seat, "seatFailed": False}
     hit: dict[str, Any] | None = classify_output(output, exit_code, agent)
@@ -571,6 +573,11 @@ def classify_dispatch(
         return {
             **base, "outcome": "context-budget", "reason": CONTEXT_BUDGET_REASON, "resetAt": None,
             "dropForRun": False, "fallback": seat_fallback(profile, seat, usable),
+        }
+    if exit_code != 0:
+        return {
+            **base, "outcome": "failed", "reason": DISPATCH_FAILED, "resetAt": None,
+            "dropForRun": False, "fallback": None, "seatFailed": True,
         }
     return {**base, "outcome": "ok", "reason": "ok", "resetAt": None, "dropForRun": False, "fallback": None}
 

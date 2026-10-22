@@ -571,10 +571,11 @@ class ClassifyTests(unittest.TestCase):
             for marker in QUOTE_MARKERS:
                 for code in (0, 1):
                     data: dict[str, Any] = classify("muse", "reviewer", f"Review done.\n{marker}{line}\nLOW: none\n", exit_code=code)
-                    self.assertEqual(data["outcome"], "ok", f"{marker!r} exit {code}")
+                    self.assertEqual(data["outcome"], "ok" if code == 0 else "failed", f"{marker!r} exit {code}")
+                    self.assertFalse(data["dropForRun"], f"{marker!r} exit {code}")
 
     def test_ordinary_output_is_ok(self) -> None:
-        data: dict[str, Any] = classify("muse", "builder", "Edited src/app.ts; 3 tests pass. HTTP 4290 rows.")
+        data: dict[str, Any] = classify("muse", "builder", "Edited src/app.ts; 3 tests pass. HTTP 4290 rows.", exit_code=0)
         self.assertEqual(data["outcome"], "ok")
         self.assertFalse(data["dropForRun"])
 
@@ -601,7 +602,9 @@ class ClassifyTests(unittest.TestCase):
 
     def test_only_the_tail_is_read(self) -> None:
         output: str = QUOTA_429 + "\n".join(f"line {n}" for n in range(30))
-        self.assertEqual(classify("muse", "builder", output)["outcome"], "ok")
+        data: dict[str, Any] = classify("muse", "builder", output)
+        self.assertEqual(data["outcome"], "failed")
+        self.assertFalse(data["dropForRun"])
 
 
 CONTEXT_BUDGET: Final[str] = recorded("copilot-context-budget.txt")
@@ -643,19 +646,33 @@ class CopilotFallbackTests(unittest.TestCase):
             data: dict[str, Any] = classify("copilot", "reviewer:security", marker + message)
             self.assertEqual(data["outcome"], "context-budget", repr(marker))
 
+    def test_unrecognised_nonzero_exit_fails_the_seat(self) -> None:
+        for agent, role in (("grok", "builder"), ("codex", "builder"), ("copilot", "reviewer:security")):
+            data: dict[str, Any] = classify(agent, role, "Traceback (most recent call last):\nboom\n", "--usable", "grok")
+            self.assertEqual(data["outcome"], "failed", f"{agent} {role}")
+            self.assertTrue(data["seatFailed"], f"{agent} {role}")
+            self.assertFalse(data["dropForRun"], f"{agent} {role}")
+            self.assertIsNone(data["fallback"], f"{agent} {role}")
+        ok: dict[str, Any] = classify("grok", "builder", "done\n", exit_code=0)
+        self.assertEqual(ok["outcome"], "ok")
+        self.assertFalse(ok["seatFailed"])
+
     def test_recorded_copilot_quota_drops_it_for_the_run(self) -> None:
         data: dict[str, Any] = classify("copilot", "reviewer:security", COPILOT_QUOTA, "--usable", "grok")
         self.assertEqual(data["outcome"], "unavailable")
         self.assertTrue(data["dropForRun"])
         self.assertEqual(data["fallback"], "grok")
         self.assertEqual(classify("copilot", "builder", COPILOT_QUOTA, exit_code=0)["outcome"], "ok")
-        self.assertEqual(classify("copilot", "builder", "> " + COPILOT_QUOTA)["outcome"], "ok")
+        quoted: dict[str, Any] = classify("copilot", "builder", "> " + COPILOT_QUOTA)
+        self.assertEqual(quoted["outcome"], "failed")
+        self.assertFalse(quoted["dropForRun"])
 
     def test_quoted_recorded_error_never_matches(self) -> None:
         message: str = recorded("copilot-context-budget.txt").splitlines()[2][2:]
         for marker in QUOTE_MARKERS:
             data: dict[str, Any] = classify("copilot", "reviewer:security", marker + message)
-            self.assertEqual(data["outcome"], "ok", repr(marker))
+            self.assertEqual(data["outcome"], "failed", repr(marker))
+            self.assertIsNone(data["fallback"], repr(marker))
 
     def test_bare_reviewer_role_is_copilots_security_seat(self) -> None:
         data: dict[str, Any] = classify("copilot", "reviewer", CONTEXT_BUDGET, "--usable", "grok")
