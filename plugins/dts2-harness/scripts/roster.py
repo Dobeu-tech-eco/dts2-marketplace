@@ -43,6 +43,13 @@ MODEL_TIERS: Final[tuple[str, ...]] = ("frontier", "standard", "economy")
 PROMPT_TOKEN: Final[str] = "{prompt}"
 MODEL_TOKEN: Final[str] = "{model}"
 REVIEWER: Final[str] = "reviewer"
+UNAVAILABLE: Final[str] = "unavailable (billing/quota)"
+BILLING_OR_QUOTA: Final[re.Pattern[str]] = re.compile(
+    r"\bAPI error (?:402|429)\b|Billing verification failed|Subscription quota exhausted", re.I,
+)
+RESET_AT: Final[re.Pattern[str]] = re.compile(
+    r"resets at\s+(\d{4}-\d{2}-\d{2}T[0-9:.]+(?:Z|[+-]\d{2}:?\d{2})?)", re.I,
+)
 
 
 class RosterError(Exception):
@@ -199,18 +206,33 @@ def search_paths_of(profile: dict[str, Any]) -> list[str]:
     return list(profile.get("searchPaths") or [])
 
 
-def command_ok(command: list[str], env: dict[str, str], search_paths: list[str]) -> bool:
+def classify_output(text: str) -> dict[str, Any] | None:
+    """A 402 (billing) or 429 (quota) answer means the agent is unavailable for this run, not that
+    the seat failed. Returns the reason, with the reset time when the CLI printed one."""
+    if not BILLING_OR_QUOTA.search(text):
+        return None
+    match: re.Match[str] | None = RESET_AT.search(text)
+    reset: str | None = match.group(1) if match else None
+    reason: str = f"{UNAVAILABLE}; resets at {reset}" if reset else UNAVAILABLE
+    return {"outcome": "unavailable", "reason": reason, "resetAt": reset}
+
+
+def run_status(command: list[str], env: dict[str, str], search_paths: list[str]) -> tuple[bool, str]:
     resolved: str | None = resolve_binary(command[0], env, search_paths)
     if resolved is None:
-        return False
+        return False, ""
     try:
         result = subprocess.run(
-            [resolved, *command[1:]], capture_output=True,
+            [resolved, *command[1:]], capture_output=True, text=True, errors="replace", stdin=subprocess.DEVNULL,
             timeout=PROBE_TIMEOUT_S, check=False, env=env,
         )
     except Exception:
-        return False
-    return result.returncode == 0
+        return False, ""
+    return result.returncode == 0, (result.stdout or "") + (result.stderr or "")
+
+
+def command_ok(command: list[str], env: dict[str, str], search_paths: list[str]) -> bool:
+    return run_status(command, env, search_paths)[0]
 
 
 def availability(profile: dict[str, Any], env: dict[str, str]) -> tuple[bool, str]:
@@ -220,7 +242,16 @@ def availability(profile: dict[str, Any], env: dict[str, str]) -> tuple[bool, st
         return True, "ok"
     if resolve_binary(command[0], env, search_paths) is None:
         return False, "not installed"
-    return (True, "ok") if command_ok(command, env, search_paths) else (False, STATUS_FAILED)
+    ok, output = run_status(command, env, search_paths)
+    hit: dict[str, Any] | None = classify_output(output)
+    if hit is not None:
+        return False, hit["reason"]
+    return (True, "ok") if ok else (False, STATUS_FAILED)
+
+
+def reset_of(reason: str) -> str | None:
+    match: re.Match[str] | None = RESET_AT.search(reason)
+    return match.group(1) if match else None
 
 
 def has_api_key(profile: dict[str, Any], env: dict[str, str]) -> bool:
@@ -283,6 +314,7 @@ def probe_entry(
     return {
         "available": available, "reason": reason, "budget": budget or BUDGET_UNKNOWN,
         "costTier": profile["costTier"], "roles": roles if available else [], "auth": auth,
+        "resetAt": reset_of(reason),
     }
 
 
@@ -426,6 +458,21 @@ def run_command(agent: str, role: str, tier: str) -> int:
     return 0
 
 
+def classify_dispatch(agent: str, role: str, output: str) -> dict[str, Any]:
+    """Read a live dispatch's output. `dropForRun` drops the agent for the rest of the run;
+    `seatFailed` stays false so the seat is reassigned instead of counted as a failed round."""
+    hit: dict[str, Any] | None = classify_output(output)
+    base: dict[str, Any] = {"agent": agent, "role": role}
+    if hit is None:
+        return {**base, "outcome": "ok", "reason": "ok", "resetAt": None, "dropForRun": False, "seatFailed": False}
+    return {**base, **hit, "dropForRun": True, "seatFailed": False}
+
+
+def run_classify(agent: str, role: str) -> int:
+    print(json.dumps(classify_dispatch(agent, role, sys.stdin.read())))
+    return 0
+
+
 def run_model(agent: str, tier: str) -> int:
     profile: dict[str, Any] | None = load_profiles().get(agent)
     if profile is None:
@@ -452,6 +499,9 @@ def main() -> int:
     cmd.add_argument("--agent", required=True)
     cmd.add_argument("--role", required=True)
     cmd.add_argument("--tier", default="standard", choices=MODEL_TIERS)
+    cls = sub.add_parser("classify", help="classify a live dispatch's output read from stdin")
+    cls.add_argument("--agent", required=True)
+    cls.add_argument("--role", required=True)
     args = parser.parse_args()
     if args.command == "detect":
         print(json.dumps(detect(Path(args.project))))
@@ -462,6 +512,8 @@ def main() -> int:
         return run_model(args.agent, args.tier)
     if args.command == "command":
         return run_command(args.agent, args.role, args.tier)
+    if args.command == "classify":
+        return run_classify(args.agent, args.role)
     return run_resolve(Path(args.config))
 
 

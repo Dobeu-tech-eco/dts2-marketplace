@@ -13,7 +13,7 @@ from helpers import PLUGIN_ROOT, run_script
 
 PROFILE_DIR: Final[Path] = PLUGIN_ROOT / "profiles" / "agents"
 PROFILE_NAMES: Final[tuple[str, ...]] = (
-    "claude", "codex", "gemini", "opencode", "copilot", "cursor", "antigravity", "grok",
+    "claude", "codex", "gemini", "opencode", "copilot", "cursor", "antigravity", "grok", "muse",
 )
 SCHEMA_KEYS: Final[frozenset[str]] = frozenset({
     "name", "displayName", "form", "rulesFile", "invocation", "command",
@@ -25,10 +25,17 @@ OPTIONAL_KEYS: Final[frozenset[str]] = frozenset({"roleCommands", "notes", "stdi
 VERIFIED: Final[frozenset[str]] = frozenset({"claude", "codex", "opencode"})
 COST_TIERS: Final[dict[str, int]] = {
     "claude": 3, "codex": 2, "gemini": 1, "opencode": 1,
-    "copilot": 2, "cursor": 2, "antigravity": 2, "grok": 2,
+    "copilot": 2, "cursor": 2, "antigravity": 2, "grok": 2, "muse": 2,
 }
 MODEL_TIERS: Final[tuple[str, ...]] = ("frontier", "standard", "economy")
-LIVE_AGENTS: Final[frozenset[str]] = frozenset({"claude", "codex", "gemini", "opencode", "copilot", "grok"})
+LIVE_AGENTS: Final[frozenset[str]] = frozenset({
+    "claude", "codex", "gemini", "opencode", "copilot", "grok", "muse",
+})
+BILLING_402: Final[str] = "Error: API error 402 Payment Required: Billing verification failed for this account."
+QUOTA_429: Final[str] = (
+    "Error: API error 429 Too Many Requests: Subscription quota exhausted. "
+    "Your usage window resets at 2026-10-22T18:30:00Z."
+)
 ROSTER: Final[Path] = PLUGIN_ROOT / "scripts" / "roster.py"
 
 
@@ -88,7 +95,7 @@ class ProfileExtensionTests(unittest.TestCase):
             "claude": ["claude", "auth", "status"], "codex": ["codex", "login", "status"],
             "gemini": ["agy", "--version"], "opencode": ["opencode", "--version"],
             "copilot": ["gh", "auth", "status"], "grok": ["grok", "version"],
-            "cursor": None, "antigravity": None,
+            "muse": ["muse", "--version"], "cursor": None, "antigravity": None,
         }
         for name, command in expected.items():
             data: dict[str, Any] = json.loads((PROFILE_DIR / f"{name}.json").read_text())
@@ -98,7 +105,7 @@ class ProfileExtensionTests(unittest.TestCase):
         expected: dict[str, Any] = {
             "claude": ["claude", "auth", "status"], "codex": ["codex", "login", "status"],
             "copilot": ["gh", "auth", "status"], "gemini": None, "grok": None,
-            "opencode": None, "cursor": None, "antigravity": None,
+            "opencode": None, "cursor": None, "antigravity": None, "muse": None,
         }
         for name, command in expected.items():
             data: dict[str, Any] = json.loads((PROFILE_DIR / f"{name}.json").read_text())
@@ -166,6 +173,20 @@ class ProfileExtensionTests(unittest.TestCase):
         self.assertIn("do not commit", notes)
         self.assertIn("lead commits", notes)
         self.assertIn("< /dev/null", notes)
+
+    def test_muse_profile(self) -> None:
+        data: dict[str, Any] = json.loads((PROFILE_DIR / "muse.json").read_text())
+        self.assertEqual(data["form"], "cli")
+        self.assertEqual(data["invocation"], "live")
+        self.assertEqual(data["command"], ["muse", "exec"])
+        self.assertEqual(data["roles"], ["builder", "reviewer"])
+        self.assertEqual(data["models"], {
+            "frontier": "muse-wonder-1.0", "standard": "muse-spark-1.3", "economy": "muse-spark-1.3",
+        })
+        self.assertEqual(data["searchPaths"], [])
+        notes: str = " ".join(data["notes"])
+        for phrase in ("muse login", "402", "429", "unavailable (billing/quota)"):
+            self.assertIn(phrase, notes)
 
     def test_only_gemini_owns_agy(self) -> None:
         owners: list[str] = []
@@ -318,6 +339,69 @@ class ProbeTests(unittest.TestCase):
         script.chmod(0o755)
         data: dict[str, Any] = probe("roster:\n  - name: codex\n", folder)
         self.assertEqual(data["dropped"][0]["reason"], "status check failed")
+
+
+    def test_quota_status_drops_with_reset_time(self) -> None:
+        folder: str = fake_bin([])
+        script: Path = Path(folder) / "muse"
+        script.write_text(f"#!/bin/sh\necho '{QUOTA_429}' >&2\nexit 1\n")
+        script.chmod(0o755)
+        data: dict[str, Any] = probe("roster:\n  - name: muse\n", folder)
+        self.assertEqual(data["usable"], [])
+        reason: str = data["dropped"][0]["reason"]
+        self.assertTrue(reason.startswith("unavailable (billing/quota)"), reason)
+        self.assertIn("2026-10-22T18:30:00Z", reason)
+        self.assertEqual(data["agents"]["muse"]["resetAt"], "2026-10-22T18:30:00Z")
+
+    def test_fake_muse_available(self) -> None:
+        data: dict[str, Any] = probe("roster:\n  - name: muse\n", fake_bin(["muse"]))
+        self.assertEqual(data["usable"], ["muse"])
+        self.assertEqual(data["agents"]["muse"]["roles"], ["builder", "reviewer"])
+
+
+def classify(agent: str, role: str, output: str, *extra: str) -> dict[str, Any]:
+    result = subprocess.run(
+        [sys.executable, "-I", str(ROSTER), "classify", "--agent", agent, "--role", role, *extra],
+        input=output, capture_output=True, text=True, cwd=str(PLUGIN_ROOT),
+    )
+    return json.loads(result.stdout)
+
+
+class ClassifyTests(unittest.TestCase):
+    def test_billing_402_is_unavailable_for_run(self) -> None:
+        data: dict[str, Any] = classify("muse", "builder", BILLING_402)
+        self.assertEqual(data["outcome"], "unavailable")
+        self.assertEqual(data["reason"], "unavailable (billing/quota)")
+        self.assertIsNone(data["resetAt"])
+        self.assertTrue(data["dropForRun"])
+        self.assertFalse(data["seatFailed"])
+
+    def test_quota_429_reports_reset_time(self) -> None:
+        data: dict[str, Any] = classify("muse", "reviewer", QUOTA_429)
+        self.assertEqual(data["outcome"], "unavailable")
+        self.assertEqual(data["resetAt"], "2026-10-22T18:30:00Z")
+        self.assertIn("resets at 2026-10-22T18:30:00Z", data["reason"])
+        self.assertTrue(data["dropForRun"])
+        self.assertFalse(data["seatFailed"])
+
+    def test_quota_without_reset_time(self) -> None:
+        data: dict[str, Any] = classify("muse", "builder", "API error 429: Subscription quota exhausted")
+        self.assertEqual(data["outcome"], "unavailable")
+        self.assertIsNone(data["resetAt"])
+
+    def test_ordinary_output_is_ok(self) -> None:
+        data: dict[str, Any] = classify("muse", "builder", "Edited src/app.ts; 3 tests pass. HTTP 4290 rows.")
+        self.assertEqual(data["outcome"], "ok")
+        self.assertFalse(data["dropForRun"])
+
+    def test_unit_classifier(self) -> None:
+        sys.path.insert(0, str(ROSTER.parent))
+        try:
+            import roster as module
+        finally:
+            sys.path.pop(0)
+        self.assertIsNone(module.classify_output("all good"))
+        self.assertEqual(module.classify_output(QUOTA_429)["resetAt"], "2026-10-22T18:30:00Z")
 
 
 class CostOrderTests(unittest.TestCase):

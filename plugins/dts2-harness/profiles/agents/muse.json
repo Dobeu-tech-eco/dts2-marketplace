@@ -1,0 +1,54 @@
+{
+  "name": "muse",
+  "displayName": "Muse",
+  "form": "cli",
+  "rulesFile": "AGENTS.md",
+  "invocation": "live",
+  "command": [
+    "muse",
+    "exec"
+  ],
+  "headlessFlag": null,
+  "roles": [
+    "builder",
+    "reviewer"
+  ],
+  "specialty": "Headless terminal agent for implementation and review from a prompt file.",
+  "verified": false,
+  "costTier": 2,
+  "statusCommand": [
+    "muse",
+    "--version"
+  ],
+  "loginCommand": null,
+  "models": {
+    "frontier": "muse-wonder-1.0",
+    "standard": "muse-spark-1.3",
+    "economy": "muse-spark-1.3"
+  },
+  "modelsVerified": false,
+  "subscriptionName": "Muse",
+  "apiKeyEnv": null,
+  "searchPaths": [],
+  "roleCommands": {
+    "builder": [
+      "muse",
+      "exec",
+      "--model",
+      "{model}",
+      "{prompt}"
+    ],
+    "reviewer": [
+      "muse",
+      "exec",
+      "--model",
+      "{model}",
+      "{prompt}"
+    ]
+  },
+  "notes": [
+    "Login: muse login (interactive; the harness never runs it). Status: muse --version. Headless: muse exec [--model <id>] [--json] [--prompt-file PATH] [--permission-profile ID] [--workspace PATH] [PROMPT].",
+    "API error 402 (Billing verification failed) and API error 429 (Subscription quota exhausted, with a reset time) mean unavailable (billing/quota): drop muse for this run and reassign the seat; never count it as a failed builder or review. Pipe its output to roster.py classify.",
+    "A tiny prompt can pass while a long task then hits 429, so classify every dispatch's output, not just the probe."
+  ]
+}

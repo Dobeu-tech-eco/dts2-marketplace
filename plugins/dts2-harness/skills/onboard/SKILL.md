@@ -42,6 +42,7 @@ Every run checks which agents are usable and what budget is left (the budget che
 | gemini | live | builder, reviewer, second-opinion reviewer |
 | grok | live | builder, reviewer, second-opinion reviewer |
 | opencode | live | builder |
+| muse | live | builder, reviewer |
 | copilot | live | builder, security reviewer |
 | cursor | handoff | builder |
 | antigravity | handoff | builder |
