@@ -83,6 +83,15 @@ class VerifierAgentTests(TextContractMixin):
     def test_inherits_all_tools(self) -> None:
         self.assert_absent(self.PATH, ["tools:"])
 
+    def test_head_guard(self) -> None:
+        self.assert_contains(self.PATH, [
+            "## HEAD guard", "git rev-parse HEAD", "at the start and again at the end",
+            "| HEAD | PASS/MOVED | start <sha> / end <sha> |", "which commit each check ran against",
+            "HEAD moved", "only for checks that cannot be attributed", "never a blanket BLOCKED",
+        ])
+        text: str = _read(self.PATH)
+        self.assertLess(text.find("## HEAD guard"), text.find("## Checklist"))
+
 
 class ScoutAgentTests(TextContractMixin):
     PATH: Final[Path] = AGENTS / "scout.md"
@@ -160,6 +169,12 @@ class RunSkillContracts(TextContractMixin):
 
     def test_retired_phrases(self) -> None:
         self.assert_absent(self.PATH, ["Gate 1", "Gate 2"])
+
+    def test_verifier_dispatch_mentions_head_guard(self) -> None:
+        text: str = _read(self.PATH)
+        block: str = text[text.find("## Phase 3 "):text.find("## Phase 3b")]
+        for phrase in ("HEAD guard", "HEAD moved", "per check"):
+            self.assertIn(phrase, block, phrase)
 
     def test_after_ship_commits_critique_report(self) -> None:
         text: str = _read(self.PATH)
