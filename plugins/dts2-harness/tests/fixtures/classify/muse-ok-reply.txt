@@ -1,0 +1,9 @@
+muse: workspace root: /private/tmp/dts2-muse-probe (cwd default)
+muse: Skills: 260 loaded · 1366 warnings · 2177 details hidden
+muse:   `skills_catalog` was trimmed to fit its size limit (32 KB): 260 descriptions compacted, 1362 skill ids omitted
+muse:   agent-sdk-master: invalid skill package: skill file at $HOME/.codex/skills/agent-sdk-master/SKILL.md is malformed: invalid skill name `Google Cloud Agent SDK Master`
+muse:   vertex-media-master: invalid skill package: skill file at $HOME/.codex/skills/vertex-media-master/SKILL.md is malformed: invalid skill name `Vertex AI Media Master`
+muse:   managing-autonomous-development: duplicate-active-skill-id: duplicate active skill id `managing-autonomous-development` from $HOME/.codex/skills/managing-autonomous-development/SKILL.md, $HOME/.codex/skills/sugar/SKILL.md; disable one entry or select by path
+muse:   Run `muse skills list --source all` for full diagnostics.
+muse: Agent delegation: auto unavailable: workspace is untrusted.
+OK

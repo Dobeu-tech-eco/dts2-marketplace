@@ -54,7 +54,16 @@ UNAVAILABLE: Final[str] = "unavailable (billing/quota)"
 # `|`, `1.`) and any other prefix are not allowed, so quoted error text never matches.
 STATUS_MARKER: Final[str] = r"(?:[!\u2717\u00d7]|error:|fatal:)"
 ERROR_LINE: Final[str] = r"^(?:" + STATUS_MARKER + r"[ \t]+)?"
-BILLING_OR_QUOTA: Final[re.Pattern[str]] = re.compile(ERROR_LINE + r"API error (?:402|429)\b", re.I | re.M)
+MODEL_FAILED: Final[str] = r"(?:agent loop failed: model failed: )?"
+BILLING_OR_QUOTA: Final[re.Pattern[str]] = re.compile(
+    ERROR_LINE + MODEL_FAILED + r"API error (?:402|429)\b", re.I | re.M,
+)
+# muse's exit code on 402/429 is unrecorded (a probe run succeeded), so its two recorded forms are
+# decisive even at exit 0: `agent loop failed: model failed: API error 4xx` or `API error 4xx` at
+# column 0 with no marker. Marker forms still need a non-zero exit.
+DECISIVE_BILLING_OR_QUOTA: Final[re.Pattern[str]] = re.compile(
+    r"^" + MODEL_FAILED + r"API error (?:402|429)\b", re.M,
+)
 CONTEXT_BUDGET: Final[re.Pattern[str]] = re.compile(
     ERROR_LINE + r"Static system messages and tool definitions exceed the model's usable context budget",
     re.I | re.M,
@@ -237,6 +246,8 @@ def classify_output(text: str, exit_code: int) -> dict[str, Any] | None:
     """A 402 (billing) or 429 (quota) answer means the agent is unavailable for this run, not that
     the seat failed. Returns the reason, with the reset time when the CLI printed one."""
     last: str | None = error_tail(text, exit_code, BILLING_OR_QUOTA)
+    if last is None and DECISIVE_BILLING_OR_QUOTA.search(tail(text)):
+        last = tail(text)
     if last is None:
         return None
     match: re.Match[str] | None = RESET_AT.search(last)

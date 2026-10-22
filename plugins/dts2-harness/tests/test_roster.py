@@ -32,11 +32,6 @@ MODEL_TIERS: Final[tuple[str, ...]] = ("frontier", "standard", "economy")
 LIVE_AGENTS: Final[frozenset[str]] = frozenset({
     "claude", "codex", "gemini", "opencode", "copilot", "grok", "muse",
 })
-BILLING_402: Final[str] = "Error: API error 402 Payment Required: Billing verification failed for this account."
-QUOTA_429: Final[str] = (
-    "Error: API error 429 Too Many Requests: Subscription quota exhausted. "
-    "Your usage window resets at 2026-10-22T18:30:00Z."
-)
 ROSTER: Final[Path] = PLUGIN_ROOT / "scripts" / "roster.py"
 FIXTURES: Final[Path] = PLUGIN_ROOT / "tests" / "fixtures" / "classify"
 
@@ -46,6 +41,9 @@ def recorded(name: str) -> str:
     return (FIXTURES / name).read_text(encoding="utf-8")
 
 
+BILLING_402: Final[str] = recorded("muse-402.txt")
+QUOTA_429: Final[str] = recorded("muse-429.txt")
+RESET: Final[str] = "2026-10-22T12:54:03Z"
 QUOTE_MARKERS: Final[tuple[str, ...]] = ("- ", "* ", "> ", "| ", "1. ", "  - ", 'muse.json:48: "')
 
 
@@ -448,13 +446,13 @@ class ProbeTests(unittest.TestCase):
         self.assertEqual(data["usable"], [])
         reason: str = data["dropped"][0]["reason"]
         self.assertTrue(reason.startswith("unavailable (billing/quota)"), reason)
-        self.assertIn("2026-10-22T18:30:00Z", reason)
-        self.assertEqual(data["agents"]["muse"]["resetAt"], "2026-10-22T18:30:00Z")
+        self.assertIn(RESET, reason)
+        self.assertEqual(data["agents"]["muse"]["resetAt"], RESET)
 
-    def test_quota_text_with_ok_status_stays_available(self) -> None:
+    def test_quoted_quota_text_with_ok_status_stays_available(self) -> None:
         folder: str = fake_bin([])
         script: Path = Path(folder) / "muse"
-        script.write_text(f"#!/bin/sh\necho '{QUOTA_429}'\nexit 0\n")
+        script.write_text(f"#!/bin/sh\necho '> {QUOTA_429.strip()}'\nexit 0\n")
         script.chmod(0o755)
         self.assertEqual(probe("roster:\n  - name: muse\n", folder)["usable"], ["muse"])
 
@@ -462,14 +460,6 @@ class ProbeTests(unittest.TestCase):
         data: dict[str, Any] = probe("roster:\n  - name: muse\n", fake_bin(["muse"]))
         self.assertEqual(data["usable"], ["muse"])
         self.assertEqual(data["agents"]["muse"]["roles"], ["builder", "second-opinion"])
-
-
-QUOTED_402: Final[str] = (
-    "Review: no blocking findings.\n"
-    'profiles/agents/muse.json:48: "API error 402 (Billing verification failed) and API error 429 '
-    '(Subscription quota exhausted, with a reset time)"\n'
-    "LOW: the note could name the reset field.\n"
-)
 
 
 def classify(agent: str, role: str, output: str, *extra: str, exit_code: int = 1) -> dict[str, Any]:
@@ -482,7 +472,10 @@ def classify(agent: str, role: str, output: str, *extra: str, exit_code: int = 1
 
 
 class ClassifyTests(unittest.TestCase):
-    def test_billing_402_is_unavailable_for_run(self) -> None:
+    """Every error fixture is recorded output (fixtures/classify/README.txt). Negative cases quote
+    those recorded lines; they never invent new error text."""
+
+    def test_recorded_402_is_unavailable_for_run(self) -> None:
         data: dict[str, Any] = classify("muse", "builder", BILLING_402)
         self.assertEqual(data["outcome"], "unavailable")
         self.assertEqual(data["reason"], "unavailable (billing/quota)")
@@ -490,18 +483,41 @@ class ClassifyTests(unittest.TestCase):
         self.assertTrue(data["dropForRun"])
         self.assertFalse(data["seatFailed"])
 
-    def test_quota_429_reports_reset_time(self) -> None:
-        data: dict[str, Any] = classify("muse", "reviewer", QUOTA_429)
+    def test_recorded_429_reports_reset_time(self) -> None:
+        data: dict[str, Any] = classify("muse", "builder", QUOTA_429)
         self.assertEqual(data["outcome"], "unavailable")
-        self.assertEqual(data["resetAt"], "2026-10-22T18:30:00Z")
-        self.assertIn("resets at 2026-10-22T18:30:00Z", data["reason"])
+        self.assertEqual(data["resetAt"], RESET)
+        self.assertIn(f"resets at {RESET}", data["reason"])
         self.assertTrue(data["dropForRun"])
         self.assertFalse(data["seatFailed"])
 
-    def test_quota_without_reset_time(self) -> None:
-        data: dict[str, Any] = classify("muse", "builder", "API error 429: Subscription quota exhausted")
+    def test_recorded_preamble_then_402(self) -> None:
+        for code in (0, 1):
+            self.assertEqual(classify("muse", "builder", recorded("muse-402-preamble.txt"), exit_code=code)["outcome"],
+                             "unavailable", code)
+
+    def test_recorded_forms_are_decisive_at_exit_zero(self) -> None:
+        self.assertEqual(classify("muse", "builder", BILLING_402, exit_code=0)["outcome"], "unavailable")
+        data: dict[str, Any] = classify("muse", "builder", QUOTA_429, exit_code=0)
         self.assertEqual(data["outcome"], "unavailable")
-        self.assertIsNone(data["resetAt"])
+        self.assertEqual(data["resetAt"], RESET)
+
+    def test_marker_form_needs_a_non_zero_exit(self) -> None:
+        line: str = "Error: " + QUOTA_429.strip()
+        self.assertEqual(classify("muse", "builder", line, exit_code=0)["outcome"], "ok")
+        self.assertEqual(classify("muse", "builder", line, exit_code=1)["outcome"], "unavailable")
+
+    def test_recorded_successful_run_is_ok(self) -> None:
+        data: dict[str, Any] = classify("muse", "builder", recorded("muse-ok-reply.txt"), exit_code=0)
+        self.assertEqual(data["outcome"], "ok")
+        self.assertFalse(data["dropForRun"])
+
+    def test_quoted_recorded_lines_never_match(self) -> None:
+        for line in (BILLING_402.strip(), QUOTA_429.strip()):
+            for marker in QUOTE_MARKERS:
+                for code in (0, 1):
+                    data: dict[str, Any] = classify("muse", "reviewer", f"Review done.\n{marker}{line}\nLOW: none\n", exit_code=code)
+                    self.assertEqual(data["outcome"], "ok", f"{marker!r} exit {code}")
 
     def test_ordinary_output_is_ok(self) -> None:
         data: dict[str, Any] = classify("muse", "builder", "Edited src/app.ts; 3 tests pass. HTTP 4290 rows.")
@@ -515,38 +531,15 @@ class ClassifyTests(unittest.TestCase):
         finally:
             sys.path.pop(0)
         self.assertIsNone(module.classify_output("all good", 1))
-        self.assertIsNone(module.classify_output(QUOTA_429, 0))
-        self.assertEqual(module.classify_output(QUOTA_429, 1)["resetAt"], "2026-10-22T18:30:00Z")
-
-    def test_bare_error_line_counts(self) -> None:
-        self.assertEqual(classify("muse", "builder", "API error 402 Billing verification failed")["outcome"], "unavailable")
-        self.assertEqual(classify("muse", "builder", "error: API error 429 slow down")["outcome"], "unavailable")
-
-    def test_quoted_text_in_successful_review_is_ok(self) -> None:
-        data: dict[str, Any] = classify("muse", "reviewer", QUOTED_402, exit_code=0)
-        self.assertEqual(data["outcome"], "ok")
-        self.assertFalse(data["dropForRun"])
-
-    def test_quoted_text_in_failed_run_is_not_billing(self) -> None:
-        self.assertEqual(classify("muse", "reviewer", QUOTED_402, exit_code=2)["outcome"], "ok")
-
-    def test_real_error_line_with_exit_zero_is_ok(self) -> None:
-        self.assertEqual(classify("muse", "builder", QUOTA_429, exit_code=0)["outcome"], "ok")
+        self.assertIsNone(module.classify_output("> " + QUOTA_429, 1))
+        self.assertEqual(module.classify_output(QUOTA_429, 0)["resetAt"], RESET)
 
     def test_only_the_tail_is_read(self) -> None:
-        output: str = QUOTA_429 + "\n" + "\n".join(f"line {n}" for n in range(30))
+        output: str = QUOTA_429 + "\n".join(f"line {n}" for n in range(30))
         self.assertEqual(classify("muse", "builder", output)["outcome"], "ok")
 
-    def test_quoted_context_budget_is_ok(self) -> None:
-        quoted: str = "copilot.json:30: \"Static system messages and tool definitions exceed the model's usable context budget\"\n"
-        data: dict[str, Any] = classify("copilot", "reviewer:security", quoted)
-        self.assertEqual(data["outcome"], "ok")
-        self.assertIsNone(data["fallback"])
 
-
-CONTEXT_BUDGET: Final[str] = (
-    "Error: Static system messages and tool definitions exceed the model's usable context budget."
-)
+CONTEXT_BUDGET: Final[str] = recorded("copilot-context-budget.txt")
 
 
 class CopilotFallbackTests(unittest.TestCase):
