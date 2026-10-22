@@ -60,9 +60,10 @@ SECOND_OPINION_COMMANDS: Final[dict[str, list[str]]] = {
 ROSTER_SCRIPT: Final[Path] = PLUGIN_ROOT / "scripts" / "roster.py"
 ROSTER_TIMEOUT_S: Final[int] = 30
 GEMINI_FALLBACK: Final[list[str]] = [
-    "agy", "-p", "{prompt}", "--mode", "plan", "--print-timeout", "15m", "--add-dir", "{addDir}",
+    "agy", "-p", "{prompt}", "--mode", "plan", "--print-timeout", "9m", "--add-dir", "{addDir}",
 ]
 DIFF_FILE: Final[str] = "second-opinion.diff"
+TIMED_OUT: Final[str] = "(second opinion timed out after {seconds}s; the run continues without it)"
 REVIEW_ASK: Final[str] = "List CRITICAL/HIGH/MEDIUM/LOW findings with file:line."
 
 
@@ -227,8 +228,16 @@ def gemini_second_opinion(diff: str, repo: Path) -> str:
             f"do not run commands. {REVIEW_ASK}"
         )
         argv: list[str] = fill_tokens(template, {"{prompt}": prompt, "{addDir}": folder})
+        return run_second_opinion(argv, repo)
+
+
+def run_second_opinion(argv: list[str], repo: Path) -> str:
+    """Run one second-opinion CLI; a timeout becomes a note so the run still reaches the receipt."""
+    try:
         result = subprocess.run(argv, cwd=repo, capture_output=True, text=True,
                                 stdin=subprocess.DEVNULL, timeout=SECOND_OPINION_TIMEOUT_S)
+    except subprocess.TimeoutExpired:
+        return TIMED_OUT.format(seconds=SECOND_OPINION_TIMEOUT_S)
     return result.stdout or result.stderr
 
 
@@ -239,9 +248,7 @@ def second_opinion(backend: str, diff: str, repo: Path) -> str:
     if command is None or shutil.which(command[0]) is None:
         return f"(second opinion skipped: {backend} CLI not found)"
     prompt: str = f"Review this diff. List CRITICAL/HIGH/MEDIUM/LOW findings with file:line.\n\n{diff}"
-    result = subprocess.run(command + [prompt], cwd=repo, capture_output=True, text=True,
-                            stdin=subprocess.DEVNULL, timeout=SECOND_OPINION_TIMEOUT_S)
-    return result.stdout or result.stderr
+    return run_second_opinion(command + [prompt], repo)
 
 
 def git_diff(repo: Path) -> str:

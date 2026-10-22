@@ -61,7 +61,7 @@ class SdkV3Contract(TextContractMixin):
     def test_sdk_gemini_second_opinion(self) -> None:
         self.assert_contains(SKILLS / "sdk" / "SKILL.md", [
             "roster.py command --agent gemini --role second-opinion",
-            "agy -p … --mode plan --print-timeout 15m", "--add-dir", "stdin from /dev/null",
+            "agy -p … --mode plan --print-timeout 9m", "--add-dir", "stdin from /dev/null",
             "runs from the repo", "never asked to run commands",
         ])
 

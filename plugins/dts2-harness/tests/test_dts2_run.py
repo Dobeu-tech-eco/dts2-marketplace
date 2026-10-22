@@ -131,9 +131,32 @@ class Dts2RunTests(unittest.TestCase):
     def test_gemini_second_opinion_falls_back_to_plan_mode_agy(self) -> None:
         cmd, kwargs, _ = self.gemini_call(None)
         self.assertEqual(cmd[:2], ["agy", "-p"])
-        self.assertEqual(cmd[3:7], ["--mode", "plan", "--print-timeout", "15m"])
+        self.assertEqual(cmd[3:7], ["--mode", "plan", "--print-timeout", "9m"])
         self.assertEqual(cmd[7], "--add-dir")
         self.assertIs(kwargs["stdin"], self.run_mod.subprocess.DEVNULL)
+
+    def print_timeout_s(self, argv: list[str]) -> int:
+        value: str = argv[argv.index("--print-timeout") + 1]
+        self.assertTrue(value.endswith("m"), value)
+        return int(value[:-1]) * 60
+
+    def test_agy_print_timeout_fires_before_subprocess_timeout(self) -> None:
+        limit: int = self.run_mod.SECOND_OPINION_TIMEOUT_S
+        self.assertLess(self.print_timeout_s(self.run_mod.GEMINI_FALLBACK), limit)
+        self.assertLess(self.print_timeout_s(self.run_mod.profile_command("gemini", "second-opinion")), limit)
+
+    def timed_out(self, backend: str) -> str:
+        expired = self.run_mod.subprocess.TimeoutExpired(["x"], 600)
+        with mock.patch.object(self.run_mod, "profile_command", side_effect=RuntimeError("no roster")), \
+                mock.patch.object(self.run_mod.shutil, "which", return_value="/bin/x"), \
+                mock.patch.object(self.run_mod.subprocess, "run", side_effect=expired):
+            return self.run_mod.second_opinion(backend, "diff", Path("."))
+
+    def test_gemini_timeout_is_a_note(self) -> None:
+        self.assertIn("second opinion timed out", self.timed_out("gemini"))
+
+    def test_codex_timeout_is_a_note(self) -> None:
+        self.assertIn("second opinion timed out", self.timed_out("codex"))
 
     def test_profile_command_reads_roster(self) -> None:
         argv: list[str] = self.run_mod.profile_command("gemini", "second-opinion")
