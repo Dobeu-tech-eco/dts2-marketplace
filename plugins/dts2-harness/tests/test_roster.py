@@ -102,8 +102,12 @@ class ProfileExtensionTests(unittest.TestCase):
         self.assertEqual(data["invocation"], "live")
         self.assertEqual(data["command"], ["grok", "-p"])
         self.assertIsNone(data["headlessFlag"])
-        self.assertEqual(data["roles"], ["second-opinion"])
+        self.assertEqual(data["roles"], ["builder", "reviewer", "second-opinion"])
         self.assertFalse(data["verified"])
+
+    def test_gemini_profile_roles(self) -> None:
+        data: dict[str, Any] = json.loads((PROFILE_DIR / "gemini.json").read_text())
+        self.assertEqual(data["roles"], ["builder", "reviewer", "second-opinion"])
 
 
 class ModelTests(unittest.TestCase):

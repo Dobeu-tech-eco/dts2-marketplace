@@ -10,9 +10,11 @@
   ],
   "headlessFlag": null,
   "roles": [
+    "builder",
+    "reviewer",
     "second-opinion"
   ],
-  "specialty": "Independent second-opinion reviewer from a different model family, useful for catching blind spots.",
+  "specialty": "Different model family: builds, reviews, and gives independent second opinions that catch blind spots.",
   "verified": false,
   "costTier": 2,
   "statusCommand": [
