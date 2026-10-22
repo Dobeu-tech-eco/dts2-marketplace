@@ -125,12 +125,18 @@ class ProfileExtensionTests(unittest.TestCase):
         })
         self.assertEqual(data["roleCommands"]["reviewer"], [
             "grok", "-p", "{prompt}", "-m", "{model}", "--permission-mode", "plan",
-            "--deny", "Bash", "--disable-web-search",
+            "--deny", "Bash", "--deny", "Edit", "--deny", "Write", "--deny", "MCPTool",
+            "--no-subagents", "--disable-web-search",
         ])
         self.assertEqual(data["roleCommands"]["builder"], [
             "grok", "-p", "{prompt}", "-m", "{model}", "--permission-mode", "acceptEdits",
-            "--allow", "Edit", "--allow", "Write", "--deny", "Bash", "--disable-web-search",
+            "--allow", "Edit", "--allow", "Write", "--deny", "Bash",
+            "--deny", "Edit(.git/**)", "--deny", "Write(.git/**)", "--deny", "MCPTool",
+            "--no-subagents", "--disable-web-search",
         ])
+        notes: str = " ".join(data["notes"])
+        for phrase in ("subagents", "~/.claude/settings.json", ".claude/settings.json", "~/.grok/config.toml"):
+            self.assertIn(phrase, notes)
         self.assertTrue(any("auto-denied" in note for note in data["notes"]))
 
     def test_notes_and_role_commands_shape(self) -> None:
@@ -227,21 +233,34 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         return json.loads(result.stdout)
 
+    @staticmethod
+    def rules(argv: list[str], flag: str) -> list[str]:
+        return [argv[i + 1] for i, part in enumerate(argv) if part == flag]
+
     def test_grok_reviewer_is_plan_mode(self) -> None:
         data: dict[str, Any] = self.resolved("grok", "reviewer", "frontier")
-        self.assertEqual(data["argv"], [
-            "grok", "-p", "{prompt}", "-m", "grok-4.7", "--permission-mode", "plan",
-            "--deny", "Bash", "--disable-web-search",
-        ])
+        argv: list[str] = data["argv"]
         self.assertEqual(data["model"], "grok-4.7")
+        self.assertEqual(argv[argv.index("--permission-mode") + 1], "plan")
+        self.assertEqual(argv[argv.index("-m") + 1], "grok-4.7")
+        self.assertEqual(self.rules(argv, "--allow"), [])
+
+    def test_grok_reviewer_cannot_write_spawn_or_use_mcp(self) -> None:
+        argv: list[str] = self.resolved("grok", "reviewer")["argv"]
+        self.assertEqual(sorted(self.rules(argv, "--deny")), ["Bash", "Edit", "MCPTool", "Write"])
+        self.assertIn("--no-subagents", argv)
+        self.assertIn("--disable-web-search", argv)
 
     def test_grok_builder_allows_edits_not_shell(self) -> None:
         argv: list[str] = self.resolved("grok", "builder", "economy")["argv"]
         self.assertIn("grok-4.7-build-fast", argv)
-        self.assertIn("acceptEdits", argv)
-        self.assertEqual(argv[argv.index("--deny") + 1], "Bash")
-        self.assertIn("Edit", argv)
-        self.assertIn("Write", argv)
+        self.assertEqual(argv[argv.index("--permission-mode") + 1], "acceptEdits")
+        self.assertEqual(self.rules(argv, "--allow"), ["Edit", "Write"])
+        self.assertEqual(sorted(self.rules(argv, "--deny")), [
+            "Bash", "Edit(.git/**)", "MCPTool", "Write(.git/**)",
+        ])
+        self.assertIn("--no-subagents", argv)
+        self.assertIn("--disable-web-search", argv)
 
     def test_second_opinion_uses_reviewer_command(self) -> None:
         self.assertIn("plan", self.resolved("grok", "second-opinion")["argv"])
