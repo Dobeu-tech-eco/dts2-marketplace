@@ -241,7 +241,7 @@ class RunSkillContracts(TextContractMixin):
 
 
 class ReleaseContract(unittest.TestCase):
-    VERSION: Final[str] = "3.6.1"
+    VERSION: Final[str] = "3.6.2"
     SKILL_COUNT: Final[int] = 13
     AGENT_COUNT: Final[int] = 6
     REPO_ROOT: Final[Path] = PLUGIN_ROOT.parent.parent

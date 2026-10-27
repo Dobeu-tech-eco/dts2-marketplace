@@ -54,14 +54,13 @@ Installed with `npx skills add https://github.com/mattpocock/skills --skill <nam
 | skill | when the harness runs it |
 |---|---|
 | `grill-me` | setup: immediately after the deep interview, on the draft end state, before the first approval |
-| `improve-codebase-architecture` | setup: immediately after the user's first sign-off of the end state (brownfield: against the code; greenfield: against the Blueprint and Sections) |
+| `improve-codebase-architecture` | setup: immediately after the user's first sign-off of the end state (brownfield: against the code; greenfield: against the Blueprint and Sections). run: finalization pass before tests are written, after a builder's implementation is complete: scope it to the builder's file set for a refactor plan on the just-written code (`npx skills add https://github.com/mattpocock/skills --skill improve-codebase-architecture`), apply the worthwhile simplifications inside the file set, then write the tests. If it cannot run, do a manual scoped simplification pass instead (duplication, dead code, unclear names, speculative abstraction). It replaces `request-refactor-plan`, which upstream retired into `to-spec` and `improve-codebase-architecture` |
 | `writing-for-agents` | setup: after the amended end state is signed off again, to rewrite end-state.md and the lead's plan template into agent-friendly form |
 | `pr` | run: every time a PR is created or its body is rewritten |
 | `resolving-merge-conflicts` | run: whenever a merge conflict arises (builder branch merge, rebase, or `review-pr`) |
 | `diagnosing-bugs` | run: at fix round 2 on the same failure, before the second fix |
 | `ask-matt` | setup/run: when the user asks a question (`/ask-matt`) |
 | `research` | setup/run: when still unsure after ask-matt (`/research`) |
-| `request-refactor-plan` | run: finalization pass before tests are written, after a builder's implementation is complete: get a refactor plan (`npx skills add https://github.com/mattpocock/skills --skill request-refactor-plan`), apply the worthwhile simplifications, then write the tests |
 | `diagnose` | run: hard 3-round cap, bugs still failing; auto-run before escalating to the user (`npx skills add https://github.com/mattpocock/skills --skill diagnose`); distinct from the round-2 `diagnosing-bugs` |
 | `loop-me` | run: on /dts2-harness:run trigger — check in with the user, before dispatching builders (`npx skills add https://github.com/mattpocock/skills --skill loop-me`) |
 | `setup-pre-commit` | run: before every commit, as the last gate before `git commit` (`npx skills add https://github.com/mattpocock/skills --skill setup-pre-commit`) |

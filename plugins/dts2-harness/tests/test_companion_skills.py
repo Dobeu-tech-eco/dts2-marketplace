@@ -1,4 +1,4 @@
-"""Companion skills from mattpocock/skills (3.4.0, extended in 3.5.0): discipline, setup, run, lead, keep template."""
+"""Companion skills from mattpocock/skills (3.4.0, extended in 3.5.0; request-refactor-plan retired upstream in 3.6.2): discipline, setup, run, lead, keep template."""
 from __future__ import annotations
 
 import unittest
@@ -10,11 +10,12 @@ INSTALL_PATTERN: Final[str] = "`npx skills add https://github.com/mattpocock/ski
 SKILLS: Final[tuple[str, ...]] = (
     "grill-me", "improve-codebase-architecture", "writing-for-agents",
     "pr", "resolving-merge-conflicts", "ask-matt", "research", "diagnosing-bugs",
-    "request-refactor-plan", "diagnose", "loop-me", "setup-pre-commit", "code-review",
+    "diagnose", "loop-me", "setup-pre-commit", "code-review",
 )
+RETIRED: Final[tuple[str, ...]] = ("request-refactor-plan",)
 INSTALL: Final[str] = "npx skills add https://github.com/mattpocock/skills --skill"
 MOMENTS: Final[dict[str, str]] = {
-    "request-refactor-plan": "finalization pass before tests are written",
+    "improve-codebase-architecture": "finalization pass before tests are written",
     "diagnose": "hard 3-round cap, bugs still failing",
     "loop-me": "on /dts2-harness:run trigger — check in with the user",
     "setup-pre-commit": "before every commit",
@@ -63,7 +64,7 @@ class CompanionSkills(unittest.TestCase):
 
     def test_run_wires_each_new_hook_with_its_command(self) -> None:
         text: str = read("skills/run/SKILL.md")
-        for name in ("request-refactor-plan", "diagnose", "loop-me", "setup-pre-commit", "code-review"):
+        for name in ("improve-codebase-architecture", "diagnose", "loop-me", "setup-pre-commit", "code-review"):
             self.assertIn(f"{INSTALL} {name}`", text, name)
 
     def test_setup_runs_code_review_once_on_first_contact(self) -> None:
@@ -71,9 +72,20 @@ class CompanionSkills(unittest.TestCase):
         self.assertIn(f"{INSTALL} code-review`", text)
         self.assertIn("once per repo", text)
 
-    def test_exactly_thirteen_companion_skills(self) -> None:
-        self.assertEqual(len(SKILLS), 13)
-        self.assertEqual(len(set(SKILLS)), 13)
+    def test_exactly_twelve_companion_skills(self) -> None:
+        self.assertEqual(len(SKILLS), 12)
+        self.assertEqual(len(set(SKILLS)), 12)
+
+    def test_retired_upstream_skills_are_not_referenced(self) -> None:
+        for path in PLUGIN_ROOT.rglob("*"):
+            if path.is_file() and "tests" not in path.parts and path.suffix in {".md", ".yaml", ".json", ".py", ".sh"}:
+                text: str = path.read_text(encoding="utf-8", errors="ignore")
+                for name in RETIRED:
+                    self.assertNotIn(f"--skill {name}", text, str(path))
+
+    def test_finalization_has_manual_fallback(self) -> None:
+        text: str = read("skills/run/SKILL.md")
+        self.assertIn("manual scoped simplification pass", text)
 
     def test_setup_phrases(self) -> None:
         text: str = read("skills/setup/SKILL.md")

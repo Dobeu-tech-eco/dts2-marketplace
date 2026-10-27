@@ -31,7 +31,7 @@ Explanation only. Do not invoke agents or change files from this skill.
 | `find-skills` | `/dts2-harness:find-skills` is available any time: rescan the repo, answer one to three questions, get suggested skills, and wire the ones you pick into the project. |
 | `check-in` | `/dts2-harness:check-in` is available any time: a read-only checklist from where the project started through the approved end state, each item marked complete or outstanding, with an `N of M complete` percent. |
 
-Setup and run pull in companion skills from mattpocock/skills at the moment they are needed (grill-me, improve-codebase-architecture, writing-for-agents, pr, resolving-merge-conflicts, plus ask-matt and research for your questions, request-refactor-plan before tests, diagnose at the hard 3-round fix cap, loop-me when a run starts, setup-pre-commit before every commit, and code-review on first contact with a new repo), recorded in keep.yaml.
+Setup and run pull in companion skills from mattpocock/skills at the moment they are needed (grill-me, improve-codebase-architecture, writing-for-agents, pr, resolving-merge-conflicts, plus ask-matt and research for your questions, improve-codebase-architecture again before tests, diagnose at the hard 3-round fix cap, loop-me when a run starts, setup-pre-commit before every commit, and code-review on first contact with a new repo), recorded in keep.yaml.
 
 Setup maps the whole project into sections; `run` keeps builders busy on ready sections and parks stuck ones instead of stopping. The `run` skill pivots to the workspace root when started inside a member repo, and a context guard stops it and re-runs setup on a context spike.
 
