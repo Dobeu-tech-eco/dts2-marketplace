@@ -1,4 +1,4 @@
-"""Companion skills from mattpocock/skills (3.4.0, extended in 3.5.0; request-refactor-plan retired upstream in 3.6.2): discipline, setup, run, lead, keep template."""
+"""Companion skills from mattpocock/skills (3.4.0, extended in 3.5.0; request-refactor-plan retired and diagnose renamed upstream, fixed in 3.6.2): discipline, setup, run, lead, keep template."""
 from __future__ import annotations
 
 import unittest
@@ -10,13 +10,13 @@ INSTALL_PATTERN: Final[str] = "`npx skills add https://github.com/mattpocock/ski
 SKILLS: Final[tuple[str, ...]] = (
     "grill-me", "improve-codebase-architecture", "writing-for-agents",
     "pr", "resolving-merge-conflicts", "ask-matt", "research", "diagnosing-bugs",
-    "diagnose", "loop-me", "setup-pre-commit", "code-review",
+    "loop-me", "setup-pre-commit", "code-review",
 )
-RETIRED: Final[tuple[str, ...]] = ("request-refactor-plan",)
+RETIRED: Final[tuple[str, ...]] = ("request-refactor-plan", "diagnose")
 INSTALL: Final[str] = "npx skills add https://github.com/mattpocock/skills --skill"
 MOMENTS: Final[dict[str, str]] = {
     "improve-codebase-architecture": "finalization pass before tests are written",
-    "diagnose": "hard 3-round cap, bugs still failing",
+    "diagnosing-bugs": "hard 3-round cap, bugs still failing",
     "loop-me": "on /dts2-harness:run trigger — check in with the user",
     "setup-pre-commit": "before every commit",
     "code-review": "first contact — repo the harness has never been in",
@@ -56,15 +56,16 @@ class CompanionSkills(unittest.TestCase):
             self.assertIn(moment, text, name)
             self.assertIn(f"{INSTALL} {name}`", text, name)
 
-    def test_hard_cap_runs_diagnose_distinct_from_diagnosing_bugs(self) -> None:
+    def test_hard_cap_reruns_diagnosing_bugs_fresh(self) -> None:
         for relative in ("templates/discipline.md", "skills/run/SKILL.md"):
             text: str = read(relative)
-            self.assertIn(f"{INSTALL} diagnose`", text, relative)
-            self.assertIn("diagnosing-bugs", text, relative)
+            self.assertIn(f"{INSTALL} diagnosing-bugs`", text, relative)
+            self.assertIn("fresh `/diagnosing-bugs` pass", text, relative)
+            self.assertNotIn("/diagnose`", text, relative)
 
     def test_run_wires_each_new_hook_with_its_command(self) -> None:
         text: str = read("skills/run/SKILL.md")
-        for name in ("improve-codebase-architecture", "diagnose", "loop-me", "setup-pre-commit", "code-review"):
+        for name in ("improve-codebase-architecture", "diagnosing-bugs", "loop-me", "setup-pre-commit", "code-review"):
             self.assertIn(f"{INSTALL} {name}`", text, name)
 
     def test_setup_runs_code_review_once_on_first_contact(self) -> None:
@@ -72,9 +73,9 @@ class CompanionSkills(unittest.TestCase):
         self.assertIn(f"{INSTALL} code-review`", text)
         self.assertIn("once per repo", text)
 
-    def test_exactly_twelve_companion_skills(self) -> None:
-        self.assertEqual(len(SKILLS), 12)
-        self.assertEqual(len(set(SKILLS)), 12)
+    def test_exactly_eleven_companion_skills(self) -> None:
+        self.assertEqual(len(SKILLS), 11)
+        self.assertEqual(len(set(SKILLS)), 11)
 
     def test_retired_upstream_skills_are_not_referenced(self) -> None:
         for path in PLUGIN_ROOT.rglob("*"):

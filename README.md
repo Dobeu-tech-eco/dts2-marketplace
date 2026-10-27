@@ -12,7 +12,7 @@ Claude Code plugin marketplace for Dobeu Tech Solutions.
 ## What's new in 3.6.0
 - Strict delegation: frontier models only for advisory and sign-off, builders run the cheapest capable model at a complexity-scaled effort; Muse delegation fields (`effortLevels`, `tokenBurn`) join every profile.
 - `/dts2-harness:upgrade` (one-command in-place upgrade), `/dts2-harness:model` (selectable lead provider), and lead failover on a stall that prefers verified providers.
-- Per-agent project memory, `/dts2-harness:find-skills`, `/dts2-harness:check-in`, and companion-skill hooks (improve-codebase-architecture before tests, diagnose, loop-me, setup-pre-commit, code-review).
+- Per-agent project memory, `/dts2-harness:find-skills`, `/dts2-harness:check-in`, and companion-skill hooks (improve-codebase-architecture before tests, diagnosing-bugs at the fix cap, loop-me, setup-pre-commit, code-review).
 
 ## What's new in 3.5.0
 - muse joins the roster as a builder and second opinion (never a review seat), and every agent seat gets its own headless command from `roster.py command`.

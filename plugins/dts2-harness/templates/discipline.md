@@ -7,7 +7,7 @@ Read by lead, builder, reviewer and verifier. Copied to `.harness/discipline.md`
 2. **End with a receipt.**
    Where it bites: `receipt.md` lists tests run with pass/fail counts, review verdict, approver, steps outside the change, open risks, rollback point. Shown at the ship checkpoint and appended to the PR body.
 3. **Cap fix rounds at three.**
-   Where it bites: in `run` and per builder. After three rounds, stop and escalate with what failed; the escalation goes into `.harness/state.md`. On hitting the hard round-3 cap with bugs still failing, first auto-run `npx skills add https://github.com/mattpocock/skills --skill diagnose` (the hard-cap escalation, distinct from the round-2 `diagnosing-bugs`), apply its findings, and only then escalate to the user with what still fails.
+   Where it bites: in `run` and per builder. After three rounds, stop and escalate with what failed; the escalation goes into `.harness/state.md`. On hitting the hard round-3 cap with bugs still failing, first auto-run a fresh `/diagnosing-bugs` pass (`npx skills add https://github.com/mattpocock/skills --skill diagnosing-bugs`) on everything still failing (upstream renamed `diagnose` to `diagnosing-bugs`, so the hard cap reruns that skill from scratch, not the round-2 output), apply its findings, and only then escalate to the user with what still fails.
 4. **Repeat mistake becomes a check.**
    Where it bites: `learn` detects a lesson seen twice (same normalized text or same file+rule) and offers to promote it: a line in `.harness/checks.sh` (run by the Stop hook), a test skeleton in the repo's test dir, or a line in `review-checklist.md`. It records "lives at <path>" in `lessons.md`.
 5. **State outside the chat.**
@@ -58,10 +58,9 @@ Installed with `npx skills add https://github.com/mattpocock/skills --skill <nam
 | `writing-for-agents` | setup: after the amended end state is signed off again, to rewrite end-state.md and the lead's plan template into agent-friendly form |
 | `pr` | run: every time a PR is created or its body is rewritten |
 | `resolving-merge-conflicts` | run: whenever a merge conflict arises (builder branch merge, rebase, or `review-pr`) |
-| `diagnosing-bugs` | run: at fix round 2 on the same failure, before the second fix |
+| `diagnosing-bugs` | run: at fix round 2 on the same failure, before the second fix; and again at the hard 3-round cap, bugs still failing, as a fresh `/diagnosing-bugs` pass (`npx skills add https://github.com/mattpocock/skills --skill diagnosing-bugs`) on everything still failing (upstream renamed `diagnose` to `diagnosing-bugs`, so the hard cap reruns that skill from scratch, not the round-2 output) before escalating to the user |
 | `ask-matt` | setup/run: when the user asks a question (`/ask-matt`) |
 | `research` | setup/run: when still unsure after ask-matt (`/research`) |
-| `diagnose` | run: hard 3-round cap, bugs still failing; auto-run before escalating to the user (`npx skills add https://github.com/mattpocock/skills --skill diagnose`); distinct from the round-2 `diagnosing-bugs` |
 | `loop-me` | run: on /dts2-harness:run trigger — check in with the user, before dispatching builders (`npx skills add https://github.com/mattpocock/skills --skill loop-me`) |
 | `setup-pre-commit` | run: before every commit, as the last gate before `git commit` (`npx skills add https://github.com/mattpocock/skills --skill setup-pre-commit`) |
 | `code-review` | setup/run: first contact — repo the harness has never been in (no `.harness/` marker); fires once per repo (`npx skills add https://github.com/mattpocock/skills --skill code-review`) |
