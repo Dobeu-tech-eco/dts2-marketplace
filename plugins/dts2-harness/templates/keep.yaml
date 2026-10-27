@@ -30,12 +30,6 @@ skills:           # skills installed for this project; source is "npx skills add
   # - name: research
   #   source: npx skills add https://github.com/mattpocock/skills --skill research
   #   serves: harness
-  # - name: request-refactor-plan
-  #   source: npx skills add https://github.com/mattpocock/skills --skill request-refactor-plan
-  #   serves: harness
-  # - name: diagnose
-  #   source: npx skills add https://github.com/mattpocock/skills --skill diagnose
-  #   serves: harness
   # - name: loop-me
   #   source: npx skills add https://github.com/mattpocock/skills --skill loop-me
   #   serves: harness
