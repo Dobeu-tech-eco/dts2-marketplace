@@ -18,8 +18,8 @@ skills:           # skills installed for this project; source is "npx skills add
   # - name: pr
   #   source: npx skills add https://github.com/mattpocock/skills --skill pr
   #   serves: harness
-  # - name: resolving-merge-conflicts
-  #   source: npx skills add https://github.com/mattpocock/skills --skill resolving-merge-conflicts
+  # - name: resolve-merge-conflicts
+  #   source: npx skills add warpdotdev/common-skills@resolve-merge-conflicts
   #   serves: harness
   # - name: diagnosing-bugs
   #   source: npx skills add https://github.com/mattpocock/skills --skill diagnosing-bugs

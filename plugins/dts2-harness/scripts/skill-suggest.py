@@ -12,7 +12,7 @@ GENERAL: Final[tuple[str, ...]] = ("grill-me", "research")
 CATALOG: Final[tuple[tuple[str, bool, tuple[str, ...]], ...]] = (
     ("is_brownfield", True, ("improve-codebase-architecture",)),
     ("is_large", True, ("improve-codebase-architecture",)),
-    ("has_pr", True, ("pr", "resolving-merge-conflicts")),
+    ("has_pr", True, ("pr", "resolve-merge-conflicts")),
     ("has_tests", False, ("test-driven-development",)),
     ("has_tests", True, ("diagnosing-bugs",)),
     ("has_ci", True, ("diagnosing-bugs",)),

@@ -15,6 +15,6 @@ Frontier-tier seats (lead planning, advisory review, sign-off) default to Claude
 5. **Confirm** in one line: `Lead provider: <name>. Builders still run the cheapest capable model.`
 
 ## Notes
-- A stalled lead fails over to the next eligible provider automatically (`scripts/failover.py`); the handoff file is the same one `/dts2-harness:upgrade` uses.
+- A stalled lead fails over to the next eligible provider automatically (`scripts/failover.py`); the handoff file is the same one the run Pre-check writes before an upgrade.
 - Restart Claude Code after editing so hooks pick up the setting.
 - A provider outside the eligible list is ignored and Claude is used instead.
