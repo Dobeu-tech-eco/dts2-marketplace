@@ -5,7 +5,9 @@
 set -uo pipefail
 
 RECEIPT_MARKER="## Change receipt"
-ORG_TEMPLATE_API="repos/Dobeu-tech-eco/.github/contents/.github/pull_request_template.md"
+ORG_TEMPLATE_PATH=".github/pull_request_template.md"
+ORG_PATTERN='^[A-Za-z0-9][A-Za-z0-9-]*$'
+CONFIG_FILE=".harness/config.yaml"
 LOCAL_TEMPLATE=".github/pull_request_template.md"
 COMMIT_MESSAGE="chore: add change receipt to PR template"
 VIEW_FIELDS="number,body,headRefName,isCrossRepository,headRepositoryOwner,baseRepository"
@@ -108,12 +110,30 @@ add_receipt_to_pr() {
   rm -f "$file"
 }
 
+# Org that owns the shared `.github` repo: DTS2_PR_ORG, then a top-level `org:` line in the harness
+# config, then the owner of the current repo. Prints nothing when none is known or the value is unsafe.
+resolve_org() {
+  local org="${DTS2_PR_ORG:-}"
+  if [[ -z "$org" && -f "$CONFIG_FILE" ]]; then
+    org=$(sed -n 's/^org:[[:space:]]*\([^[:space:]#]*\).*$/\1/p' "$CONFIG_FILE" | head -1)
+  fi
+  if [[ -z "$org" ]]; then
+    org=$("$GH" repo view --json owner --jq .owner.login 2>/dev/null | head -1)
+  fi
+  [[ "$org" =~ $ORG_PATTERN ]] && printf '%s' "$org"
+  return 0
+}
+
 # Caches only a definitive answer: the template exists (yes/no section) or the API said 404.
+# An unknown org is not an answer: the check is skipped and the local template is used.
 org_has_receipt() {
-  local cache="${TMPDIR:-/tmp}/dts2-org-template.$1.cache" out err rc
+  local org cache out err rc
+  org=$(resolve_org)
+  [[ -n "$org" ]] || return 1
+  cache="${TMPDIR:-/tmp}/dts2-org-template.$org.$1.cache"
   if [[ -f "$cache" ]]; then [[ "$(cat "$cache")" == "yes" ]]; return; fi
   err=$(mktemp "${TMPDIR:-/tmp}/dts2-api-err.XXXXXX") || return 1
-  out=$("$GH" api "$ORG_TEMPLATE_API" -H "Accept: application/vnd.github.raw" 2>"$err"); rc=$?
+  out=$("$GH" api "repos/$org/.github/contents/$ORG_TEMPLATE_PATH" -H "Accept: application/vnd.github.raw" 2>"$err"); rc=$?
   if [[ $rc -eq 0 ]]; then
     if grep -qF "$RECEIPT_MARKER" <<<"$out"; then echo yes > "$cache"; rm -f "$err"; return 0; fi
     echo no > "$cache"
