@@ -39,13 +39,13 @@ Applies to every agent provider the roster can dispatch; the lead is the session
 
 ## Rule 10 — Branches, worktrees and pull requests
 
-1. **One run, one branch.** `run` creates `dts2/<stamp>` from the current branch and all builder work lands there. The default branch is never a run's working branch.
-2. **One builder, one worktree (git).** In a git repo each builder gets `git worktree add ../<repo>-dts2-<n> -b dts2/<stamp>/b<n> dts2/<stamp>` and works only inside it. `use_worktrees: never` is the explicit opt-out; `always` forces it in workspace mode too.
+1. **One run, one branch.** `run` creates `dts2/<stamp>/main` from the current branch and all builder work lands there. The default branch is never a run's working branch.
+2. **One builder, one worktree (git).** In a git repo each builder gets `git worktree add ../<repo>-dts2-<n> -b dts2/<stamp>/main-b<n> dts2/<stamp>/main` and works only inside it. `use_worktrees: never` is the explicit opt-out; `always` forces it in workspace mode too.
 3. **One builder, one scratch dir (no git).** In a plain folder each builder owns `.harness/wt/<n>/` and a disjoint file list; the lead copies results into place and keeps a diff summary in the run folder.
-4. **Lead merges, after green.** When the verifier reports VERIFIED, the lead merges each builder branch into `dts2/<stamp>` in plan order, re-runs the full test suite and every configured check after each merge, resolves conflicts itself, then removes the builder worktrees (`git worktree remove` + branch delete). A conflict it cannot resolve stops the run and goes to the user.
-5. **Ship = receipt + user push.** At the ship checkpoint the lead commits on `dts2/<stamp>` with the receipt. Before every commit, as the last gate before `git commit`, the lead runs `npx skills add https://github.com/mattpocock/skills --skill setup-pre-commit` (`/setup-pre-commit`) so the repo's pre-commit hooks are in place. The user pushes; `gh pr create --body-file <receipt>` opens the PR; `pr-receipt.sh` guarantees the receipt section and template.
+4. **Lead merges, after green.** When the verifier reports VERIFIED, the lead merges each builder branch into `dts2/<stamp>/main` in plan order, re-runs the full test suite and every configured check after each merge, resolves conflicts itself, then removes the builder worktrees (`git worktree remove` + branch delete). A conflict it cannot resolve stops the run and goes to the user.
+5. **Ship = receipt + user push.** At the ship checkpoint the lead commits on `dts2/<stamp>/main` with the receipt. Before every commit, as the last gate before `git commit`, the lead runs `npx skills add https://github.com/mattpocock/skills --skill setup-pre-commit` (`/setup-pre-commit`) so the repo's pre-commit hooks are in place. The user pushes; `gh pr create --body-file <receipt>` opens the PR; `pr-receipt.sh` guarantees the receipt section and template.
 6. **PR checkout for review.** `run review-pr <number>` checks out the PR (`gh pr checkout <number>`), runs only the review and verify phases (walkthrough → reviewers → finish passes → verifier) on the PR diff against its base, and posts the findings as a PR comment on an explicit yes. It never builds or commits on a PR it did not open.
-7. **Cleanup.** After the PR merges, `git worktree prune` and delete the local `dts2/<stamp>` branches; `.harness/runs/<stamp>/` stays as the record.
+7. **Cleanup.** After the PR merges, `git worktree prune` and delete the local `dts2/<stamp>/` branches; `.harness/runs/<stamp>/` stays as the record.
 
 ## Companion skills (installed per project, recorded in keep.yaml)
 

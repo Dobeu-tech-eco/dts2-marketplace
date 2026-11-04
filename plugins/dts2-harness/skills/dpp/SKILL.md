@@ -5,7 +5,7 @@ description: Run several autopilot lanes in parallel as headless sons, one workt
 
 # dpp — parallel autopilot under one head
 
-`/dts2-harness:dpp [dry-run] [--full] [resume]` is the head. Each lane is `/dts2-harness:autopilot --son <stamp>/<lane>` (autopilot §6) in its own worktree on `dts2/<stamp>/<lane>`, run dir `.harness/runs/<stamp>/<lane>/`. The rules are `discipline.md`, the run and ship skills and autopilot §0–§5a; this file only says what the head does with them.
+`/dts2-harness:dpp [dry-run] [--full] [resume]` is the head. Each lane is `/dts2-harness:autopilot --son <stamp>/<lane>` (autopilot §6) in its own worktree on `dts2/<stamp>/lane-<lane>`, run dir `.harness/runs/<stamp>/<lane>/`. The rules are `discipline.md`, the run and ship skills and autopilot §0–§5a; this file only says what the head does with them.
 
 ## 0. Pre-check
 1. Pre-check as the run skill defines it (Rule 1); read `.claude/dts2-harness.local.md` for `son_permission_mode`, `builder_timeout_min` and `MAX_BUNDLE`.

@@ -24,8 +24,8 @@ panel: claude/opus, <agent>/<model>, <agent>/<model> · tiebreak: claude/fable
 council: <five seats> · head: claude/fable
 | # | step | branch | plan vote | build vote | council | PR | CI | merged | status |
 |---|------|--------|-----------|------------|---------|----|----|--------|--------|
-| 1 | section 3: <name> | dts2/<stamp>-s3 | 3-0 | 2-1 → fable approve | — | #41 | green | 9f3c2a1 | done |
-| 2 | section 4: <name> | dts2/<stamp>-s4 | 3-0 | r1 1-2, r2 2-1, r3 1-2 | 3-2 → head approve (2 updates) | #42 | green | 4b7d0e3 | done |
+| 1 | section 3: <name> | dts2/<stamp>/step-3 | 3-0 | 2-1 → fable approve | — | #41 | green | 9f3c2a1 | done |
+| 2 | section 4: <name> | dts2/<stamp>/step-4 | 3-0 | r1 1-2, r2 2-1, r3 1-2 | 3-2 → head approve (2 updates) | #42 | green | 4b7d0e3 | done |
 ```
 Status is one of `queued`, `planning`, `building`, `voting`, `council`, `pr-open`, `merged`, `done`, `parked (<action-item id>)`, `stopped`.
 
@@ -59,7 +59,7 @@ Used twice per step: on the plan (instead of the Plan checkpoint) and on the bui
 
 ## 2. Per step: plan, build, verify, vote
 For each queued step, in order:
-1. **Branch** from the freshly fetched base: `git fetch origin` then `git switch -c dts2/<stamp>-<step> origin/<base>` (`dev` when it exists, else the default branch). Never build on a previous step's unmerged branch.
+1. **Branch** from the freshly fetched base: `git fetch origin` then `git switch -c dts2/<stamp>/step-<step> origin/<base>` (`dev` when it exists, else the default branch). Never build on a previous step's unmerged branch.
 2. Run the run skill's Phase 0 (size, budget), Phase 1 (lead plan) and the **plan vote** in place of the Plan checkpoint. A `feature` step is a step like any other: the feature skill's plan patch is the plan, its approval questions are answered by the plan vote, its PR goes through section 3 and is merged before the sections it added are planned, so they branch from a base that already contains them.
 3. Run Phases 2, 3, 3b and 3c exactly as the run skill does: parallel builders on separate file sets in worktrees, never a frontier builder, the walkthrough, axis reviews, the final review, the verifier. Verifier BLOCKED is a not-passed build; it gets the normal fix rounds. A value the builder needs and the user has not supplied (a secret, a decision, a paid side effect) is filed as a user-input item with its `TASK_` link (section 4) and the build keeps going: wired by name, mocked in tests.
 4. Run the **build vote** in place of the Ship checkpoint.
@@ -67,7 +67,7 @@ For each queued step, in order:
 6. **Bundle**. A step may carry up to `MAX_BUNDLE` (5) queued tasks of the same section on one branch and one PR when they share no file and none depends on an unmerged step; the head assigns the bundle in the brief, never the builder. Each task ends in its own checkpoint commit `dts2(<lane>): checkpoint <k>/<n> <task>` after its own verifier pass, and the run dir's `status.json` lists them under `"checkpoints"`, so a stopped bundle resumes at the last passed checkpoint instead of the first task. A question raised mid-bundle is a ballot like any other; a task that parks drops out of the bundle and the rest ships.
 
 ## 3. Per step: PR, CI, merge
-1. Commit with a Conventional Commits message, after the setup-pre-commit gate the run skill names. Push the step branch (`git push -u origin dts2/<stamp>-<step>`; never force, never to `main` or `dev`).
+1. Commit with a Conventional Commits message, after the setup-pre-commit gate the run skill names. Push the step branch (`git push -u origin dts2/<stamp>/step-<step>`; never force, never to `main` or `dev`).
 2. Open the PR the way `/dts2-harness:ship` steps 5–6 do (template, `/pr`, receipt), with the template's **Consensus** section filled from the votes. Then post the three verdicts, the tiebreak if any, the council decision record if the step went to council, and the receipt as a PR comment (`gh pr comment <n> --body-file <file>`) so the merge carries visible review evidence.
 3. Watch CI: `gh pr checks <n> --watch`, 30-minute cap. A red check → collect `gh run view <id> --log-failed`, send the root cause to the owning builder as a fix round (same 3-round cap), push the fix (a new commit, never a force-push), and run the **build vote** again on the new diff before re-watching CI. A Vercel preview canceled only because a commit is unsigned is non-blocking, as the run skill says.
 4. **Merge** when CI is green, the latest build vote passed, and the merge target is allowed (preflight step 4): read the base's protection (`gh api repos/<owner>/<repo>/branches/<base>/protection`); `required_linear_history` or no preference → `gh pr merge <n> --squash --delete-branch`; never `--admin`, never bypass a required review or check. If the merge is refused (a required human review, a missing required check, a permission or tool denial) → do not work around it: park the step with a Decisions action item `merge PR #<n> (autopilot consensus passed, CI green)` and stop every step that depends on it; independent steps continue.
@@ -93,7 +93,7 @@ Print the progress table, then one line each: steps done, parked (with action-it
 
 ## 6. Son mode
 `/dts2-harness:autopilot --son <stamp>/<lane>` is one headless lane of a `dpp` run, started by the head in the lane's worktree. Everything in sections 0 to 5a applies unchanged; `discipline.md` and the run and ship skills are the rules, this section only says what differs.
-- Input: `.harness/runs/<stamp>/<lane>/brief.md` (lane id, branch `dts2/<stamp>/<lane>`, file set, task list, `MAX_BUNDLE`). Output: `status.json`, `report.md` and the receipts in that run dir, nothing else under `.harness/`; `harness-lock.py --role son` refuses the shared records, which the head folds on completion.
+- Input: `.harness/runs/<stamp>/<lane>/brief.md` (lane id, branch `dts2/<stamp>/lane-<lane>`, file set, task list, `MAX_BUNDLE`). Output: `status.json`, `report.md` and the receipts in that run dir, nothing else under `.harness/`; `harness-lock.py --role son` refuses the shared records, which the head folds on completion.
 - A question goes to `questions/<n>.md` in the run dir and the son waits for the head's answer file; the head answers alone. A son talks to the head, never the user.
 - The son takes a step through to `pr-open` and waits for `merge-go.md` from the head before section 3 step 4; the head serialises merges across lanes.
 - A son never runs setup or onboard, never writes `.harness/lessons.md` (lessons go in `report.md` for the head), never starts another son, and never runs `dpp`.

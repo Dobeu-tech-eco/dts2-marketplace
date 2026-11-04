@@ -38,7 +38,7 @@ class OrchestrationRulesTests(unittest.TestCase):
 
     def test_run_skill_isolation_and_review_mode(self) -> None:
         self.assert_contains(RUN_SKILL, [
-            "## Isolation (Rule 10)", "dts2/<stamp>/b<n>", ".harness/wt/<n>/",
+            "## Isolation (Rule 10)", "dts2/<stamp>/main-b<n>", ".harness/wt/<n>/",
             "## review-pr mode", "gh pr checkout", "one tier up",
             "Every dispatch names a model AND an effort (Rule 9.2).",
         ])
