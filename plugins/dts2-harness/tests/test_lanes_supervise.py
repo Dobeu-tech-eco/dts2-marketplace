@@ -121,7 +121,7 @@ class SuperviseTests(unittest.TestCase):
         result = self.run_cmd("plan", "--from-checkin", checkin, "--draft", draft, "--full")
         self.assertTrue(result["ok"], result)
         self.assertEqual(result["refused"], [])
-        self.assertEqual([l["id"] for l in result["manifest"]["lanes"]], ["a"])
+        self.assertEqual([ln["id"] for ln in result["manifest"]["lanes"]], ["a"])
         reported = {r["lane"]: r["reasons"] for r in result["reported"]}
         self.assertEqual(set(reported), {"q1", "q2"})
         self.assertTrue(any("files" in reason for reason in reported["q1"]), reported)

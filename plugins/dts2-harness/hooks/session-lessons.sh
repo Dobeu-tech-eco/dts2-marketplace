@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # SessionStart: put the most recent harness lessons, open state items and open action items into context. Never fails the session.
 set -uo pipefail
+# shellcheck source=lib-settings.sh
 source "$(dirname "$0")/lib-settings.sh"
 MAX_LESSONS_DEFAULT=10
 MAX_OPEN_ITEMS=5

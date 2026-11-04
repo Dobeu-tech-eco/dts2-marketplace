@@ -127,7 +127,7 @@ class LanesPlanTests(unittest.TestCase):
         self.assertFalse(result["ok"], result)
         self.assertEqual(result["_code"], 2)
         self.assertEqual([r["item"] for r in result["refused"]], ["S9"])
-        self.assertEqual([l["id"] for l in result["manifest"]["lanes"]], ["a"])
+        self.assertEqual([ln["id"] for ln in result["manifest"]["lanes"]], ["a"])
 
     def test_plan_accepts_outside_marker(self) -> None:
         draft = self.write("draft.json", manifest([lane("a", ["src/a.py"]), lane("9", ["src/z.py"])]))
@@ -135,7 +135,7 @@ class LanesPlanTests(unittest.TestCase):
                               "--outside", "S9: hotfix the login redirect")
         self.assertTrue(result["ok"], result)
         self.assertEqual(result["refused"], [])
-        lanes = {l["id"]: l for l in result["manifest"]["lanes"]}
+        lanes = {ln["id"]: ln for ln in result["manifest"]["lanes"]}
         self.assertTrue(lanes["9"]["outside_checkin"])
         self.assertNotIn("outside_checkin", lanes["a"])
         for item in lanes.values():
@@ -147,15 +147,15 @@ class LanesPlanTests(unittest.TestCase):
                                                    lane("c", ["src/a.py"])]))
         result = self.run_cmd("plan", "--from-checkin", self.checkin(["Sa", "Sb", "Sc"]), "--draft", draft, "--full")
         self.assertTrue(result["ok"], result)
-        self.assertEqual([l["id"] for l in result["manifest"]["lanes"]], ["a", "b"])
+        self.assertEqual([ln["id"] for ln in result["manifest"]["lanes"]], ["a", "b"])
         self.assertEqual([r["lane"] for r in result["reported"]], ["c"])
         self.assertEqual(result["note"], NONE_FOUND)
         self.assertTrue(result["feasibility"]["ok"])
 
     def test_full_caps_at_max(self) -> None:
-        lanes = [lane(l, [f"src/{l}.py"]) for l in "abcdefg"]
+        lanes = [lane(ln, [f"src/{ln}.py"]) for ln in "abcdefg"]
         draft = self.write("draft.json", manifest(lanes))
-        result = self.run_cmd("plan", "--from-checkin", self.checkin([f"S{l}" for l in "abcdefg"]), "--draft", draft,
+        result = self.run_cmd("plan", "--from-checkin", self.checkin([f"S{ln}" for ln in "abcdefg"]), "--draft", draft,
                               "--full", "--max", "5")
         self.assertEqual(len(result["manifest"]["lanes"]), 5)
         self.assertNotIn("note", result)

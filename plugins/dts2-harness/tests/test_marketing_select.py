@@ -91,8 +91,8 @@ class GtmSelfSufficientTests(unittest.TestCase):
         self.assertNotIn("and stop.", text)
 
     def test_description_has_no_angle_brackets(self) -> None:
-        line: str = next(l for l in SKILL.read_text(encoding="utf-8").splitlines()
-                         if l.startswith("description:"))
+        line: str = next(ln for ln in SKILL.read_text(encoding="utf-8").splitlines()
+                         if ln.startswith("description:"))
         self.assertNotIn("<", line)
         self.assertNotIn(">", line)
 

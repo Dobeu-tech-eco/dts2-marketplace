@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # PostToolUse (all tools): stop a run on a context spike before the plan checkpoint, or when started in a member repo. Never fails the session.
 set -uo pipefail
+# shellcheck source=lib-settings.sh
 source "$(dirname "$0")/lib-settings.sh"
 PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 TOOL_CALLS_DEFAULT=250
