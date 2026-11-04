@@ -5,6 +5,7 @@ stop-check and report-check."""
 from __future__ import annotations
 
 import argparse
+import contextlib
 import fnmatch
 import json
 import os
@@ -14,7 +15,10 @@ import subprocess
 import sys
 import time
 from pathlib import Path, PurePosixPath
-from typing import Any, Final
+from typing import Any, Final, Iterator
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from state_io import atomic_write  # noqa: E402
 
 RUNS_DIR: Final[str] = ".harness/runs"
 MANIFEST_NAME: Final[str] = "lanes.json"
@@ -33,7 +37,11 @@ KIND_DEPENDS: Final[str] = "depends_on"
 KIND_AREA: Final[str] = "area"
 KIND_SCOPE: Final[str] = "scope"
 BRANCH_PREFIX: Final[str] = "dts2"
-HEAD_SUFFIX: Final[str] = "-dpp"
+HEAD_NAME: Final[str] = "main"
+LANE_PREFIX: Final[str] = "lane-"
+BUILDER_INFIX: Final[str] = "-b"
+MIN_GIT: Final[tuple[int, int]] = (2, 38)
+GIT_VERSION: Final[re.Pattern[str]] = re.compile(r"git version (\d+)\.(\d+)")
 TIMEOUT_S: Final[int] = 30
 GH_PR_FIELDS: Final[str] = "number,files"
 MAX_LANES: Final[int] = 5
@@ -277,7 +285,56 @@ def find_lane(manifest: dict[str, Any], lane_id: str) -> dict[str, Any]:
     raise LaneError(f"unknown lane '{lane_id}'")
 
 
-def lease(manifest: dict[str, Any], lane_id: str, runs_dir: Path, cwd: Path, with_prs: bool) -> dict[str, Any]:
+def read_lease(path: Path) -> dict[str, Any] | None:
+    try:
+        data: Any = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+LOCK_TRIES: Final[int] = 50
+LOCK_WAIT_SEC: Final[float] = 0.1
+LOCK_MODE: Final[int] = 0o600
+
+
+@contextlib.contextmanager
+def lane_lock(lease_path: Path) -> Iterator[bool]:
+    """Per-lane exclusive lock around a lease read-compare-write; yields False when it cannot be taken."""
+    lock_path: Path = lease_path.with_suffix(".json.lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    held: bool = False
+    for _ in range(LOCK_TRIES):
+        try:
+            os.close(os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, LOCK_MODE))
+        except FileExistsError:
+            time.sleep(LOCK_WAIT_SEC)
+            continue
+        held = True
+        break
+    try:
+        yield held
+    finally:
+        if held:
+            lock_path.unlink(missing_ok=True)
+
+
+def busy(lane_id: str) -> dict[str, Any]:
+    return {"ok": False, "lane": lane_id, "lease": None, "conflicts": [], "detail": "lease busy"}
+
+
+def lease_epoch(record: dict[str, Any] | None) -> int:
+    value: Any = (record or {}).get("epoch", 0)
+    return value if isinstance(value, int) and not isinstance(value, bool) else 0
+
+
+def epoch_refusal(lane_id: str, given: int, stored: int) -> dict[str, Any]:
+    return {"ok": False, "lane": lane_id, "lease": None, "conflicts": [],
+            "detail": f"stale epoch {given} is older than the stored lease epoch {stored}; the lease is unchanged"}
+
+
+def lease(manifest: dict[str, Any], lane_id: str, runs_dir: Path, cwd: Path, with_prs: bool,
+          epoch: int | None = None) -> dict[str, Any]:
     lane: dict[str, Any] = find_lane(manifest, lane_id)
     result: dict[str, Any] = check(manifest, runs_dir, cwd, with_prs)
     blocking: list[dict[str, Any]] = [c for c in result["conflicts"] if lane_id in (c["lane"], c["with"])]
@@ -285,16 +342,58 @@ def lease(manifest: dict[str, Any], lane_id: str, runs_dir: Path, cwd: Path, wit
         return {"ok": False, "lane": lane_id, "lease": None, "conflicts": blocking}
     stamp: str = str(manifest.get("stamp"))
     path: Path = runs_dir / stamp / lane_id / LEASE_NAME
-    path.parent.mkdir(parents=True, exist_ok=True)
-    record: dict[str, Any] = {"stamp": stamp, "lane": lane_id, "status": STATUS_ACTIVE, "created": int(time.time()),
-                              "base": manifest.get("base"), "files": sorted(lane_files(lane)),
-                              "ids": sorted(lane_ids(lane))}
-    path.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
-    return {"ok": True, "lane": lane_id, "lease": str(path), "conflicts": []}
+    with lane_lock(path) as held:
+        if not held:
+            return busy(lane_id)
+        return write_lease(manifest, lane, path, epoch)
+
+
+def write_lease(manifest: dict[str, Any], lane: dict[str, Any], path: Path, epoch: int | None) -> dict[str, Any]:
+    lane_id: str = str(lane["id"])
+    previous: dict[str, Any] | None = read_lease(path)
+    if previous is None and path.exists():
+        return {"ok": False, "lane": lane_id, "lease": None, "conflicts": [],
+                "detail": f"unreadable lease at {path}; refusing to overwrite"}
+    stored: int = lease_epoch(previous)
+    if epoch is not None and epoch < stored:
+        return epoch_refusal(lane_id, epoch, stored)
+    new_epoch: int = stored + 1
+    record: dict[str, Any] = {"stamp": str(manifest.get("stamp")), "lane": lane_id, "status": STATUS_ACTIVE,
+                              "created": int(time.time()), "epoch": new_epoch, "base": manifest.get("base"),
+                              "files": sorted(lane_files(lane)), "ids": sorted(lane_ids(lane))}
+    atomic_write(path, json.dumps(record, indent=2) + "\n")
+    return {"ok": True, "lane": lane_id, "lease": str(path), "epoch": new_epoch, "conflicts": []}
+
+
+def head_ref(stamp: str) -> str:
+    return f"{BRANCH_PREFIX}/{stamp}/{HEAD_NAME}"
+
+
+def lane_ref(stamp: str, lane_id: str) -> str:
+    return f"{BRANCH_PREFIX}/{stamp}/{LANE_PREFIX}{lane_id}"
+
+
+def builder_ref(base_ref: str, n: int) -> str:
+    """A builder branch is a sibling of its base ref: dts2/<stamp>/main-b<n> or dts2/<stamp>/lane-<x>-b<n>."""
+    return f"{base_ref}{BUILDER_INFIX}{n}"
 
 
 def planned_refs(stamp: str, lanes: list[str]) -> list[str]:
-    return [f"{BRANCH_PREFIX}/{stamp}{HEAD_SUFFIX}", *(f"{BRANCH_PREFIX}/{stamp}/{lane}" for lane in lanes)]
+    return [head_ref(stamp), *(lane_ref(stamp, lane_id) for lane_id in lanes)]
+
+
+def git_version_error(cwd: Path) -> str | None:
+    """None when git is at least MIN_GIT, else why not. Fails closed on output it cannot parse."""
+    code, out = run([*binary("DTS2_GIT_BIN", "git"), "--version"], cwd)
+    match = GIT_VERSION.search(out) if code == 0 else None
+    need: str = ".".join(str(part) for part in MIN_GIT)
+    if match is None:
+        return f"cannot read the git version; git merge-tree --write-tree needs git {need} or newer"
+    found: tuple[int, int] = (int(match.group(1)), int(match.group(2)))
+    if found < MIN_GIT:
+        return (f"git {match.group(1)}.{match.group(2)} found; git merge-tree --write-tree needs git {need} "
+                f"or newer")
+    return None
 
 
 def existing_refs(cwd: Path) -> list[str]:
@@ -310,6 +409,9 @@ def ref_collides(planned: str, existing: str) -> bool:
 
 
 def branch_check(stamp: str, lanes: list[str], cwd: Path) -> dict[str, Any]:
+    version_error: str | None = git_version_error(cwd)
+    if version_error is not None:
+        return {"ok": False, "planned": [], "collisions": [], "error": version_error}
     planned: list[str] = planned_refs(stamp, lanes)
     present: list[str] = existing_refs(cwd)
     collisions: list[dict[str, str]] = [
@@ -494,24 +596,33 @@ def status(runs_dir: Path, stamp: str, cwd: Path) -> dict[str, Any]:
 
 def sendback(runs_dir: Path, stamp: str, lane_id: str, reason: str) -> dict[str, Any]:
     folder: Path = runs_dir / stamp / lane_id
-    folder.mkdir(parents=True, exist_ok=True)
     count: int = len(list(folder.glob(SEND_BACK_GLOB)))
     if count >= MAX_SEND_BACKS:
         return {"ok": False, "lane": lane_id, "count": count, "path": None,
                 "detail": f"{MAX_SEND_BACKS} send-backs already used; the lane ends incomplete"}
     path: Path = folder / SEND_BACK_NAME.format(n=count + 1)
-    path.write_text(f"# Send-back {count + 1} for lane {lane_id}\n\n{reason}\n", encoding="utf-8")
+    atomic_write(path, f"# Send-back {count + 1} for lane {lane_id}\n\n{reason}\n")
     return {"ok": True, "lane": lane_id, "count": count + 1, "path": str(path)}
 
 
-def release(runs_dir: Path, stamp: str, lane_id: str) -> dict[str, Any]:
+def release(runs_dir: Path, stamp: str, lane_id: str, epoch: int | None = None) -> dict[str, Any]:
     path: Path = runs_dir / stamp / lane_id / LEASE_NAME
+    with lane_lock(path) as held:
+        if not held:
+            return busy(lane_id)
+        return close_lease(path, lane_id, epoch)
+
+
+def close_lease(path: Path, lane_id: str, epoch: int | None) -> dict[str, Any]:
     try:
         record: Any = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         raise LaneError(f"no lease at {path}: {exc}") from exc
+    stored: int = lease_epoch(record)
+    if epoch is not None and epoch < stored:
+        return epoch_refusal(lane_id, epoch, stored)
     closed: dict[str, Any] = {**record, "status": STATUS_CLOSED, "released": int(time.time())}
-    path.write_text(json.dumps(closed, indent=2) + "\n", encoding="utf-8")
+    atomic_write(path, json.dumps(closed, indent=2) + "\n")
     return {"ok": True, "lane": lane_id, "lease": str(path), "status": STATUS_CLOSED}
 
 
@@ -616,6 +727,8 @@ def add_run_parsers(sub: Any) -> None:
         lane_p.add_argument("--lane", required=True)
         if name == "sendback":
             lane_p.add_argument("--reason", required=True)
+        else:
+            lane_p.add_argument("--epoch", type=int, default=None, help="refuse when older than the stored epoch")
     sub.add_parser("fold").add_argument("stamp")
     stop_p = sub.add_parser("stop-check")
     stop_p.add_argument("stamp")
@@ -635,6 +748,7 @@ def build_parser() -> argparse.ArgumentParser:
     lease_p = sub.add_parser("lease")
     lease_p.add_argument("manifest")
     lease_p.add_argument("--lane", required=True)
+    lease_p.add_argument("--epoch", type=int, default=None, help="refuse when older than the stored lease epoch")
     branch_p = sub.add_parser("branch-check")
     branch_p.add_argument("stamp")
     branch_p.add_argument("--lanes", required=True, help="comma-separated lane ids")
@@ -663,7 +777,7 @@ def dispatch_run(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> dict[st
     if args.command == "sendback":
         return sendback(runs_dir, args.stamp, args.lane, args.reason)
     if args.command == "release":
-        return release(runs_dir, args.stamp, args.lane)
+        return release(runs_dir, args.stamp, args.lane, args.epoch)
     if args.command == "fold":
         return fold(runs_dir, args.stamp)
     if args.command == "stop-check":
@@ -683,7 +797,7 @@ def dispatch(args: argparse.Namespace) -> dict[str, Any]:
         return handled
     manifest: dict[str, Any] = load_manifest(Path(args.manifest))
     if args.command == "lease":
-        return lease(manifest, args.lane, runs_dir, cwd, not args.no_prs)
+        return lease(manifest, args.lane, runs_dir, cwd, not args.no_prs, args.epoch)
     if args.command == "son-command":
         return son_command(manifest, args.lane, Path(args.worktree), cwd)
     return check(manifest, runs_dir, cwd, not args.no_prs)
