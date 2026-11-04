@@ -7,12 +7,10 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Any, Final
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from state_io import atomic_write  # noqa: E402
 
 SHARED_FILES: Final[tuple[str, ...]] = (
     ".harness/state.md", ".harness/action-items.md", ".harness/council.md", ".harness/lessons.md",
@@ -68,13 +66,22 @@ def is_stale(record: dict[str, Any] | None, ttl_sec: int) -> bool:
 
 
 def try_create(path: Path, holder: str) -> bool:
+    """Exclusive create with the record already in place: write a temp file, then os.link it to the lock path.
+
+    os.link fails if the path exists, so a concurrent holder is never replaced and no empty-file window exists.
+    """
+    record: dict[str, Any] = {"holder": holder, "pid": os.getpid(), "created": time.time()}
+    descriptor, temp_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
     try:
-        descriptor: int = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps(record))
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.link(temp_name, path)
     except FileExistsError:
         return False
-    os.close(descriptor)
-    record: dict[str, Any] = {"holder": holder, "pid": os.getpid(), "created": time.time()}
-    atomic_write(path, json.dumps(record))
+    finally:
+        Path(temp_name).unlink(missing_ok=True)
     return True
 
 

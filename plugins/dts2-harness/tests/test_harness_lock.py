@@ -1,6 +1,7 @@
 """harness-lock.py: head-only locks on shared .harness records, stale reclaim, son role refusal."""
 from __future__ import annotations
 
+import importlib.util
 import json
 import subprocess
 import time
@@ -68,6 +69,18 @@ class HarnessLockTests(unittest.TestCase):
     def test_head_role_allowed_on_shared_file(self) -> None:
         code, data = run(self.lock_dir, "check", "--file", STATE, "--holder", "head", "--role", "head")
         self.assertEqual((code, data["ok"]), (0, True))
+
+    def test_try_create_never_replaces_existing_lock(self) -> None:
+        spec = importlib.util.spec_from_file_location("harness_lock", SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.lock_dir.mkdir(parents=True)
+        path = self.lock_dir / "x.lock"
+        self.assertTrue(module.try_create(path, "first"))
+        before = path.read_text(encoding="utf-8")
+        self.assertFalse(module.try_create(path, "second"))
+        self.assertEqual(path.read_text(encoding="utf-8"), before)
+        self.assertEqual(json.loads(before)["holder"], "first")
 
 
 if __name__ == "__main__":

@@ -5,6 +5,7 @@ stop-check and report-check."""
 from __future__ import annotations
 
 import argparse
+import contextlib
 import fnmatch
 import json
 import os
@@ -14,7 +15,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path, PurePosixPath
-from typing import Any, Final
+from typing import Any, Final, Iterator
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from state_io import atomic_write  # noqa: E402
@@ -292,6 +293,36 @@ def read_lease(path: Path) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
+LOCK_TRIES: Final[int] = 50
+LOCK_WAIT_SEC: Final[float] = 0.1
+LOCK_MODE: Final[int] = 0o600
+
+
+@contextlib.contextmanager
+def lane_lock(lease_path: Path) -> Iterator[bool]:
+    """Per-lane exclusive lock around a lease read-compare-write; yields False when it cannot be taken."""
+    lock_path: Path = lease_path.with_suffix(".json.lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    held: bool = False
+    for _ in range(LOCK_TRIES):
+        try:
+            os.close(os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, LOCK_MODE))
+        except FileExistsError:
+            time.sleep(LOCK_WAIT_SEC)
+            continue
+        held = True
+        break
+    try:
+        yield held
+    finally:
+        if held:
+            lock_path.unlink(missing_ok=True)
+
+
+def busy(lane_id: str) -> dict[str, Any]:
+    return {"ok": False, "lane": lane_id, "lease": None, "conflicts": [], "detail": "lease busy"}
+
+
 def lease_epoch(record: dict[str, Any] | None) -> int:
     value: Any = (record or {}).get("epoch", 0)
     return value if isinstance(value, int) and not isinstance(value, bool) else 0
@@ -311,14 +342,25 @@ def lease(manifest: dict[str, Any], lane_id: str, runs_dir: Path, cwd: Path, wit
         return {"ok": False, "lane": lane_id, "lease": None, "conflicts": blocking}
     stamp: str = str(manifest.get("stamp"))
     path: Path = runs_dir / stamp / lane_id / LEASE_NAME
+    with lane_lock(path) as held:
+        if not held:
+            return busy(lane_id)
+        return write_lease(manifest, lane, path, epoch)
+
+
+def write_lease(manifest: dict[str, Any], lane: dict[str, Any], path: Path, epoch: int | None) -> dict[str, Any]:
+    lane_id: str = str(lane["id"])
     previous: dict[str, Any] | None = read_lease(path)
+    if previous is None and path.exists():
+        return {"ok": False, "lane": lane_id, "lease": None, "conflicts": [],
+                "detail": f"unreadable lease at {path}; refusing to overwrite"}
     stored: int = lease_epoch(previous)
     if epoch is not None and epoch < stored:
         return epoch_refusal(lane_id, epoch, stored)
     new_epoch: int = stored + 1
-    record: dict[str, Any] = {"stamp": stamp, "lane": lane_id, "status": STATUS_ACTIVE, "created": int(time.time()),
-                              "epoch": new_epoch, "base": manifest.get("base"), "files": sorted(lane_files(lane)),
-                              "ids": sorted(lane_ids(lane))}
+    record: dict[str, Any] = {"stamp": str(manifest.get("stamp")), "lane": lane_id, "status": STATUS_ACTIVE,
+                              "created": int(time.time()), "epoch": new_epoch, "base": manifest.get("base"),
+                              "files": sorted(lane_files(lane)), "ids": sorted(lane_ids(lane))}
     atomic_write(path, json.dumps(record, indent=2) + "\n")
     return {"ok": True, "lane": lane_id, "lease": str(path), "epoch": new_epoch, "conflicts": []}
 
@@ -565,6 +607,13 @@ def sendback(runs_dir: Path, stamp: str, lane_id: str, reason: str) -> dict[str,
 
 def release(runs_dir: Path, stamp: str, lane_id: str, epoch: int | None = None) -> dict[str, Any]:
     path: Path = runs_dir / stamp / lane_id / LEASE_NAME
+    with lane_lock(path) as held:
+        if not held:
+            return busy(lane_id)
+        return close_lease(path, lane_id, epoch)
+
+
+def close_lease(path: Path, lane_id: str, epoch: int | None) -> dict[str, Any]:
     try:
         record: Any = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:

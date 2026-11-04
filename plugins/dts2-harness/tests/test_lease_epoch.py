@@ -70,6 +70,14 @@ class LeaseEpochTests(unittest.TestCase):
         self.lease()
         self.assertTrue(self.cmd("release", STAMP, "--lane", "a")["ok"])
 
+    def test_corrupt_lease_is_not_overwritten(self) -> None:
+        self.lease_file.parent.mkdir(parents=True)
+        self.lease_file.write_text("garbage", encoding="utf-8")
+        result = self.lease("--epoch", "1")
+        self.assertFalse(result["ok"])
+        self.assertIn("unreadable lease", result["detail"])
+        self.assertEqual(self.lease_file.read_text(encoding="utf-8"), "garbage")
+
 
 if __name__ == "__main__":
     unittest.main()
