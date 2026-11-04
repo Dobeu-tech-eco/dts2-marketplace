@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from model_call import (  # noqa: E402
     cli_version, fallback_used, invoke, is_overload, is_terminated, parse_result, read_budget, read_supervisor,
 )
-from son_launch import cli_too_old, launch_flags, merge_config, sandbox_config, son_env  # noqa: E402
+from son_launch import SON_MARKER, cli_too_old, launch_flags, merge_config, sandbox_config, son_env  # noqa: E402
 from state_io import atomic_write  # noqa: E402
 
 RUNS_DIR: Final[str] = ".harness/runs"
@@ -503,7 +503,7 @@ def son_command(manifest: dict[str, Any], lane_id: str, worktree: Path, cwd: Pat
     mode: str = read_setting(cwd, PERMISSION_FIELD, DEFAULT_PERMISSION_MODE)
     argv: list[str] = binary("DTS2_CLAUDE_BIN", "claude") + [
         "-p", f"{SON_SKILL} {manifest['stamp']}/{lane['id']}",
-        *launch_flags(cwd, mode), "--model", SON_MODEL, "--plugin-dir", str(PLUGIN_ROOT),
+        *launch_flags(cwd, mode, manifest, str(lane["id"]), worktree), "--model", SON_MODEL, "--plugin-dir", str(PLUGIN_ROOT),
         *cap_flags(cwd, remaining_usd, session),
     ]
     return {"ok": True, "lane": lane["id"], "cwd": str(worktree), "permission_mode": mode, "argv": argv,
@@ -1072,15 +1072,34 @@ def claude_version(cwd: Path) -> str | None:
     return cli_version(out) if code == 0 else None
 
 
+def push_access_problem(cwd: Path, env: dict[str, str]) -> str | None:
+    """Why the son env cannot reach the remote (it has no GH_TOKEN or SSH_AUTH_SOCK unless the owner passes them), or None."""
+    try:
+        done = subprocess.run([*binary("DTS2_GIT_BIN", "git"), "ls-remote", "--exit-code", "origin", "HEAD"], cwd=str(cwd), env=env,
+                              capture_output=True, text=True, timeout=TIMEOUT_S, stdin=subprocess.DEVNULL, check=False)
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        return f"`git ls-remote origin` could not run under the son env: {exc}"
+    if done.returncode == 0:
+        return None
+    return ("`git ls-remote origin` fails under the son env, so a son cannot push or open PRs; pass the credential it needs "
+            "(for example GH_TOKEN, or SSH_AUTH_SOCK for ssh remotes) with DTS2_SON_ENV_PASS")
+
+
 def preflight(runs_dir: Path, stamp: str, cwd: Path) -> dict[str, Any]:
-    """Pin `claude --version` in the run's run.json and prove `claude -p` answers within 30 s. A second preflight that
-    finds another version refuses (the CLI changed mid-run). Fails closed: spawn refuses without a passing preflight."""
+    """Pin `claude --version` in the run's run.json and prove the real son launch answers within 30 s: `claude -p ok` with
+    the son's flags, settings and env, so auth, the sandbox (bwrap with failIfUnavailable) and the flags fail once here and
+    not in every son. Also proves the son env can reach the remote. A second preflight that finds another version refuses.
+    Fails closed: spawn refuses without a passing preflight."""
     path: Path = runs_dir / stamp / RUN_NAME
     pinned: Any = read_json_object(path).get("claude_version")
     version: str | None = claude_version(cwd)
     emit = ledger_emitter(runs_dir, stamp, "-")
-    call: dict[str, Any] = invoke(binary("DTS2_CLAUDE_BIN", "claude") + ["-p", "ok", "--output-format", "json"], cwd,
-                                  PREFLIGHT_TIMEOUT_S, "preflight", emit)
+    probe: dict[str, Any] = {"stamp": stamp, "lanes": [{"id": "preflight"}]}
+    mode: str = read_setting(cwd, PERMISSION_FIELD, DEFAULT_PERMISSION_MODE)
+    env: dict[str, str] = son_env(probe, "preflight", cwd)
+    argv: list[str] = [*binary("DTS2_CLAUDE_BIN", "claude"), "-p", "ok", *launch_flags(cwd, mode, probe, "preflight", cwd),
+                       "--output-format", "json"]
+    call: dict[str, Any] = invoke(argv, cwd, PREFLIGHT_TIMEOUT_S, "preflight", emit, env=env)
     parsed: dict[str, Any] | None = parse_result(call["stdout"])
     problems: list[str] = []
     too_old: str | None = cli_too_old(version)
@@ -1091,7 +1110,11 @@ def preflight(runs_dir: Path, stamp: str, cwd: Path) -> dict[str, Any]:
     elif isinstance(pinned, str) and pinned != version:
         problems.append(f"claude {version} differs from the version {pinned} pinned for this run")
     if call["code"] != 0 or parsed is None or parsed["is_error"]:
-        problems.append(f"`claude -p ok --output-format json` failed (exit {call['code']})")
+        problems.append(f"`claude -p ok` with the son launch flags failed (exit {call['code']}); check auth, the sandbox "
+                        "(bwrap) and the flags")
+    access: str | None = push_access_problem(cwd, env)
+    if access is not None:
+        problems.append(access)
     ok: bool = not problems
     record: dict[str, Any] = {"claude_version": pinned if isinstance(pinned, str) else version, "preflight_ok": ok,
                               "checked": int(time.time()), "problems": problems}
@@ -1207,7 +1230,9 @@ def gc_pause(runs_dir: Path, stamp: str, cwd: Path) -> None:
 
 
 def gc_restore(runs_dir: Path, stamp: str, cwd: Path) -> dict[str, Any]:
-    """Put gc.auto back to what it was before gc_pause (unset when it was unset). Safe to call twice."""
+    """Put gc.auto back to what it was before gc_pause (unset when it was unset). Safe to call twice. A son is refused."""
+    if inside_son():
+        return son_refusal("gc-restore")
     path: Path = runs_dir / stamp / RUN_NAME
     data: dict[str, Any] = read_json_object(path)
     if not data.get("gc_auto_paused"):
@@ -1427,12 +1452,16 @@ def merge_target_state(runs_dir: Path, stamp: str, cwd: Path) -> dict[str, Any]:
 
 def set_merge_target(runs_dir: Path, stamp: str, cwd: Path, branch: str | None, yes_default: bool) -> dict[str, Any]:
     """Record the run's merge target; `yes_default` is the explicit, recorded yes the default branch needs."""
+    if inside_son():
+        return son_refusal("merge-target")
     if branch is not None and not re.match(r"^[A-Za-z0-9._/-]+$", branch):
         raise LaneError(f"unsafe branch name {branch!r}")
     changes: dict[str, Any] = {**({"merge_target": branch} if branch else {}),
                                **({"default_branch_yes": True, "default_branch_yes_at": int(time.time())} if yes_default else {})}
     if changes:
         merge_json(runs_dir / stamp / RUN_NAME, changes)
+    if branch:
+        atomic_write(runs_dir / stamp / "merge-target.txt", branch + "\n")  # read by the merge guard, which never opens run state
     return {"ok": True, "stamp": stamp, **merge_target_state(runs_dir, stamp, cwd)}
 
 
@@ -1441,10 +1470,21 @@ def base_tip(cwd: Path, target: str) -> str | None:
     return out.strip() if code == 0 and re.match(r"^[0-9a-f]{7,40}$", out.strip()) else None
 
 
+def inside_son() -> bool:
+    """True in a son's process: the marker its env carries, or its lane branch prefix."""
+    return bool(os.environ.get(SON_MARKER) or os.environ.get("DTS2_SON_BRANCH_PREFIX"))
+
+
+def son_refusal(what: str) -> dict[str, Any]:
+    return {"ok": False, "detail": f"{what} is the head's alone; a son never grants its own merge or changes the merge state"}
+
+
 def merge_go(manifest: dict[str, Any], runs_dir: Path, lane_id: str, head: str, cwd: Path = Path("."),
              base: str | None = None) -> dict[str, Any]:
     """Write the lane's merge-go.md, only when it is next in order, no other merge is in flight, the run's target is
-    allowed and the base commit it was cleared against is known (recorded as `Base:` for the merge guard)."""
+    allowed and the base commit it was cleared against is known (recorded as `Base:` for the merge guard). A son is refused."""
+    if inside_son():
+        return {**son_refusal("merge-go"), "lane": lane_id}
     find_lane(manifest, lane_id)
     stamp: str = str(manifest["stamp"])
     state: dict[str, Any] = merge_target_state(runs_dir, stamp, cwd)

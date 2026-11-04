@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PreToolUse (Bash, `gh pr merge *` and `git push *` only): refuse a force-push, and a merge or push to a protected branch
+# PreToolUse (Bash, `git *` and `gh *` lines; guard.py returns early on anything that is not a merge or push): refuse a force-push, and a merge or push to a protected branch
 # unless a lane's merge-go.md names the head and the base commit. Denials are printed as PreToolUse JSON and appended to .harness/merge-guard.log.
 # Fails open only when python3 is missing; every other path is decided by scripts/guard.py.
 set -uo pipefail

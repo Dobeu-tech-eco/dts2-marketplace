@@ -7,6 +7,8 @@ import fnmatch
 import json
 import os
 import re
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any, Final
 
@@ -29,6 +31,7 @@ MIN_CLI: Final[tuple[int, int, int]] = (2, 1, 242)  # CLAUDE_CODE_PROMPT_CACHE_T
 DEFAULT_PORT_BASE: Final[int] = 4000
 PORT_STRIDE: Final[int] = 10
 CACHE_DIR: Final[str] = ".harness/cache"
+RUNS_DIR: Final[str] = ".harness/runs"
 NAME_UNSAFE: Final[re.Pattern[str]] = re.compile(r"[^a-z0-9]+")
 BLOCK_SANDBOX: Final[str] = "sandbox"
 BLOCK_MERGE: Final[str] = "merge"
@@ -39,11 +42,14 @@ ALLOWED_DOMAINS: Final[tuple[str, ...]] = (
 )
 TOOLS: Final[str] = "Bash,Read,Edit,Write,Glob,Grep,Skill,Agent"
 DISALLOWED: Final[tuple[str, ...]] = (
-    "Bash(gh pr merge *)", "Bash(gh repo delete *)", "Bash(git -c *)", "Bash(git push --force *)",
+    "Bash(gh pr merge *)", "Bash(*lanes.py merge-go*)", "Bash(*lanes.py merge-target*)", "Bash(gh repo delete *)", "Bash(git -c *)", "Bash(git push --force *)",
     "Bash(git push -f *)", "Read(~/.ssh/**)", "Read(**/.env)", "Read(**/.env.*)", "Read(~/.aws/**)",
     "Read(~/.config/gcloud/**)", "Edit(.claude/**)", "Write(.claude/**)", "Edit(.mcp.json)", "Write(.mcp.json)",
     "Edit(.git/hooks/**)", "Write(.git/hooks/**)",
 )
+SON_MARKER: Final[str] = "DTS2_SON"  # set in every son's env; lanes.py refuses the merge-granting commands when present
+SETTING_SOURCES: Final[str] = "local"  # `--setting-sources` takes user, project, local; local-only drops shared hooks and allow rules
+GIT_TIMEOUT_S: Final[int] = 20
 GUARDED_TOOLS: Final[str] = "Bash|Read|Edit|Write|Glob|Grep|NotebookEdit"
 
 
@@ -78,7 +84,7 @@ def lane_env(manifest: dict[str, Any], lane_id: str, cwd: Path) -> dict[str, str
         "PORT": str(port_base(cwd) + PORT_STRIDE * lane_index(manifest, lane_id)),
         "COMPOSE_PROJECT_NAME": f"dts2-{key}",
         "DTS2_DB_NAME": f"dts2_{key.replace('-', '_')}",
-        "DTS2_SON_BRANCH_PREFIX": f"dts2/{stamp}/lane-{lane_id}",
+        SON_MARKER: "1", "DTS2_SON_BRANCH_PREFIX": f"dts2/{stamp}/lane-{lane_id}",
         "npm_config_cache": f"{cache}/npm", "PIP_CACHE_DIR": f"{cache}/pip", "UV_CACHE_DIR": f"{cache}/uv",
         "YARN_CACHE_FOLDER": f"{cache}/yarn", "PNPM_HOME": f"{cache}/pnpm",
         CACHE_TTL_VAR: CACHE_TTL,
@@ -103,25 +109,55 @@ def merge_config(cwd: Path) -> dict[str, str]:
     return {"target": raw.get("target") or DEFAULT_TARGET, "default_branch": raw.get("default_branch") or "main"}
 
 
-def son_settings(cwd: Path) -> dict[str, Any]:
+def git_common_dir(cwd: Path) -> Path:
+    """Absolute `git rev-parse --git-common-dir` of the root (a linked worktree commits into it); `<root>/.git` when git
+    cannot say."""
+    value: str = os.environ.get("DTS2_GIT_BIN", "git")
+    cmd: list[str] = [sys.executable, value] if value.endswith(".py") else [value]
+    try:
+        done = subprocess.run([*cmd, "rev-parse", "--path-format=absolute", "--git-common-dir"], cwd=cwd, capture_output=True,
+                              text=True, timeout=GIT_TIMEOUT_S, check=False)
+        out: str = done.stdout.strip() if done.returncode == 0 else ""
+    except (OSError, subprocess.SubprocessError):
+        out = ""
+    path: Path = Path(out) if out else cwd / ".git"
+    return (path if path.is_absolute() else cwd / path).resolve()
+
+
+def write_scope(manifest: dict[str, Any], lane_id: str, cwd: Path, worktree: Path) -> tuple[list[str], list[str]]:
+    """(allowWrite, denyWrite) for one son. Sandbox protected paths cover `.git/hooks` and `.git/config` only inside the
+    working directory, and a linked worktree commits into the main repo's git dir, so the deny entries are explicit."""
+    root: Path = cwd.resolve()
+    common: Path = git_common_dir(root)
+    lane_dir: Path = root / RUNS_DIR / str(manifest["stamp"]) / lane_id
+    builders: Path = root.parent / f"{root.name}-dts2-{lane_id}-*"
+    allow: list[str] = [str(root / CACHE_DIR), str(common), str(lane_dir), str(worktree.resolve()), str(builders)]
+    return allow, [str(common / "hooks"), str(common / "config")]
+
+
+def son_settings(cwd: Path, manifest: dict[str, Any], lane_id: str, worktree: Path) -> dict[str, Any]:
     """The settings a son runs with: the deny hook, and the sandbox with default-deny egress when it is on."""
     hook: dict[str, Any] = {"type": "command", "timeout": 10,
                             "command": f'python3 -I "{GUARD}" --mode son'}
     settings: dict[str, Any] = {"hooks": {"PreToolUse": [{"matcher": GUARDED_TOOLS, "hooks": [hook]}]}}
     box: dict[str, Any] = sandbox_config(cwd)
     if box["enabled"]:
+        allow, deny = write_scope(manifest, lane_id, cwd, worktree)
         settings["sandbox"] = {
             "enabled": True, "failIfUnavailable": True, "allowUnsandboxedCommands": False,
             "network": {"allowedDomains": box["domains"], "strictAllowlist": True},
-            "filesystem": {"allowWrite": [str(cwd.resolve() / CACHE_DIR)]},
+            "filesystem": {"allowWrite": allow, "denyWrite": deny},
         }
     return settings
 
 
-def launch_flags(cwd: Path, mode: str) -> list[str]:
-    """Permission mode, tool allowlist, deny list, minimal startup and explicit settings for one son."""
-    return ["--bare", "--permission-mode", mode, "--tools", TOOLS, "--allowedTools", TOOLS,
-            "--disallowedTools", ",".join(DISALLOWED), "--settings", json.dumps(son_settings(cwd), separators=(",", ":")),
+def launch_flags(cwd: Path, mode: str, manifest: dict[str, Any], lane_id: str, worktree: Path) -> list[str]:
+    """Permission mode, tool allowlist, deny list and explicit settings for one son. No `--bare`: bare mode ignores hooks
+    passed with `--settings` and in a loaded plugin, and drops OAuth and keychain auth. `--setting-sources local` isolates
+    the son from user and project settings instead."""
+    return ["--setting-sources", SETTING_SOURCES, "--permission-mode", mode, "--tools", TOOLS, "--allowedTools", TOOLS,
+            "--disallowedTools", ",".join(DISALLOWED),
+            "--settings", json.dumps(son_settings(cwd, manifest, lane_id, worktree), separators=(",", ":")),
             "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}']
 
 

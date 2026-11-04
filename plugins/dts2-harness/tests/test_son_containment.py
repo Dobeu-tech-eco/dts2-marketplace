@@ -27,6 +27,8 @@ if a[:1] == ["--version"]:
     print("git version 2.40.0")
 elif a[:2] == ["rev-parse", "HEAD"]:
     print(os.environ.get("FAKE_HEAD", "aaaaaaa1"))
+elif a[:1] == ["rev-parse"] and a[-1].endswith("^{commit}"):
+    print(os.environ.get("FAKE_HEAD", "aaaaaaa1"))
 elif a[:2] == ["rev-parse", "--abbrev-ref"]:
     print(os.environ.get("FAKE_BRANCH", "feature"))
 elif a[:1] == ["rev-parse"] and "refs/remotes/origin/" in a[-1]:
@@ -127,7 +129,8 @@ class EnvAndFlagTests(unittest.TestCase):
         argv: list[str] = self.command("a")["argv"]
         self.assertEqual(argv[argv.index("--permission-mode") + 1], "dontAsk")
         self.assertNotIn("bypassPermissions", argv)
-        self.assertIn("--bare", argv)
+        self.assertNotIn("--bare", argv)  # bare mode would ignore the deny hook passed with --settings
+        self.assertEqual(argv[argv.index("--setting-sources") + 1], "local")
         self.assertIn("Bash", argv[argv.index("--tools") + 1].split(","))
         self.assertIn("Bash(gh pr merge *)", argv[argv.index("--disallowedTools") + 1])
         self.assertIn("--mcp-config", argv)
@@ -135,11 +138,12 @@ class EnvAndFlagTests(unittest.TestCase):
         hook = settings["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
         self.assertIn("guard.py", hook)
         self.assertIn("--mode son", hook)
+        self.assertEqual(settings["hooks"]["PreToolUse"][0]["matcher"], son_launch.GUARDED_TOOLS)
         self.assertTrue(settings["sandbox"]["enabled"])
         self.assertIn("github.com", settings["sandbox"]["network"]["allowedDomains"])
 
     def test_son_still_loads_the_harness_skills(self) -> None:
-        # --bare skips discovery, so the plugin dir passed to the son must hold the skills the son prompt names.
+        # the plugin dir passed to the son must hold the skills the son prompt names.
         argv = self.command("a")["argv"]
         plugin = Path(argv[argv.index("--plugin-dir") + 1])
         self.assertTrue((plugin / "skills" / "autopilot" / "SKILL.md").is_file())
@@ -326,7 +330,7 @@ class HooksJsonTests(unittest.TestCase):
     def test_merge_guard_is_a_pretooluse_bash_hook_with_if_rules(self) -> None:
         entry = self.hooks["PreToolUse"][0]
         self.assertEqual(entry["matcher"], "Bash")
-        self.assertEqual({h["if"] for h in entry["hooks"]}, {"Bash(gh pr merge *)", "Bash(git push *)"})
+        self.assertEqual({h["if"] for h in entry["hooks"]}, {"Bash(gh *)", "Bash(git *)"})
 
 
 class PrPayloadTests(unittest.TestCase):
