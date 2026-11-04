@@ -1,0 +1,17 @@
+# Run caps and supervisor settings for parallel autopilot (dpp, dpp-full, fullauto).
+# Merge these two blocks into .harness/config.yaml; every key is optional and the value shown is the default.
+# Only scripts/lanes.py reads them. A missing block means the defaults.
+budget:
+  max_turns: 80            # --max-turns for every son; a lane that hits it parks as incomplete (max-turns)
+  max_wall_minutes: 90     # wall clock for the whole run; a son still running at the limit is stopped (exit 143, timeout)
+  max_rounds: 4            # most son starts (first run plus resumes) for one lane
+  max_fullauto_loops: 3    # check-in passes fullauto may make before it parks the run as incomplete
+  # max_usd: 25            # optional dollar cap; passed to each son as --max-budget-usd with what is left
+  # There is no token cap: Claude Code has no per-session token limit, and turns plus wall clock bound the run.
+supervisor:
+  max_model_calls: 4       # model calls (sons, voters, council seats) running at once across all processes
+  stall_minutes: 10        # no heartbeat for this long marks a lane stalled and snapshots its status and git diff
+  retry_max: 4             # retries after a 429 or overload error, with exponential backoff and jitter
+  backoff_base_s: 2        # first backoff step in seconds; doubles each retry up to backoff_cap_s
+  backoff_cap_s: 60
+  fallback_models: sonnet  # --fallback-model for sons: comma-separated chain of up to 3 models, tried in order; empty turns it off

@@ -30,6 +30,7 @@ delegation_strict: true   # block ship if any builder ran a frontier model
 lead_provider: claude   # agent that fills the lead/advisory/sign-off seats; execution still uses the cheapest capable per delegate.py
 # tokenBurn and effortLevels in profiles/agents/*.json are relative, user-editable weights, NOT prices or quotas: tokenBurn only ranks agents for a seat (lower = cheaper to run).
 # roster: see .harness/config.yaml (agent roster lives there, not here)
+# budget, supervisor: run caps, call limit, stall_minutes and fallback model for dpp live in .harness/config.yaml (see templates/config-supervisor.yaml)
 # dev_server: command to start the app for walkthrough review, set in .harness/config.yaml
 ---
 

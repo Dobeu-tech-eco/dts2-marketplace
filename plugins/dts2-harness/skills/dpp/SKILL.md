@@ -8,7 +8,7 @@ description: Run several autopilot lanes in parallel as headless sons, one workt
 `/dts2-harness:dpp [dry-run] [--full] [resume]` is the head. Each lane is `/dts2-harness:autopilot --son <stamp>/<lane>` (autopilot §6) in its own worktree on `dts2/<stamp>/lane-<lane>` (the head works on `dts2/<stamp>/main`), run dir `.harness/runs/<stamp>/<lane>/`. The rules are `discipline.md`, the run and ship skills and autopilot §0–§5a; this file only says what the head does with them.
 
 ## 0. Pre-check
-1. Pre-check as the run skill defines it (Rule 1); read `.claude/dts2-harness.local.md` for `son_permission_mode`, `builder_timeout_min` and `MAX_BUNDLE`.
+1. Pre-check as the run skill defines it (Rule 1); read `.claude/dts2-harness.local.md` for `son_permission_mode`, `builder_timeout_min` and `MAX_BUNDLE`. The caps (`budget:`), the model-call limit and `stall_minutes` (`supervisor:`) live in `.harness/config.yaml`; only `lanes.py` reads them.
 2. `dry-run` prints the lane plan from section 2 and stops before any lease, worktree or son.
 3. `resume`: run `python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/task-ledger.py <stamp> --resolved` first; every PR it lists has all its `TASK_` items done, so dispatch a merge son per PR (rebase, verifier with the real value, autopilot §3 merge path, post-merge walkthrough), then continue with section 5 on the lanes still live (autopilot §5a).
 
@@ -28,10 +28,12 @@ description: Run several autopilot lanes in parallel as headless sons, one workt
 - Every lane's build vote, in the son and in the head's fold, follows the autopilot §1 gate as written: `checks.py run`, then `council.py route --ledger`, and `council.py blind` ballots when voters pick between competing proposals; a build-ballot council decision is checked with `check-decision --ledger`, while a plan-ballot council decision is checked without `--ledger` (a plan has no check records). A red or missing check is a fix round with zero votes. The same holds inside a build-ballot council: re-run the checks and `council.py route --ledger` after each of its fix rounds, and ask for no confirmation unless route allows the vote.
 
 ## 4. Start sons
-For each approved lane, in dependency order: `lanes.py lease <manifest> --lane <id>` (reserves the file set and ids and prints the lease epoch), `git worktree add`, write `brief.md` with that epoch, then start the command `lanes.py son-command <manifest> --lane <id> --worktree <path>` prints. Up to five live sons. The head is the only party a son talks to (autopilot §6).
+1. Once per run, before the first son: `lanes.py preflight <stamp>`. It pins the CLI version in `run.json` and proves `claude -p` answers; `ok: false` stops the run and `spawn` refuses without it.
+2. For each approved lane, in dependency order: `lanes.py lease <manifest> --lane <id>` (reserves the file set and ids and prints the lease epoch), `git worktree add`, write `brief.md` with that epoch, then run `lanes.py spawn <manifest> --lane <id> --worktree <path>` in the background. `spawn` is the only way a son starts: it applies every cap, the fallback model and the shared call limit, records the session id, spend and exit reason, and parks the lane `incomplete` itself. `son-command` only prints the command, for `dry-run`.
+3. Up to five live sons. The head is the only party a son talks to (autopilot §6).
 
 ## 5. Supervise
-1. Poll `lanes.py status <stamp>` (it reads each lane's `status.json`): per lane `phase`, `updated`, `stale`. `stale: true` past `builder_timeout_min` with no process → mark the lane `incomplete`, reason `stalled`, then send-back, re-plan or escalate (autopilot §4).
+1. Poll `lanes.py status <stamp>`: per lane `phase`, `last_seen`, `stale`, `snapshot`. The script itself marks a stalled lane `incomplete` (reason `stalled`) and keeps its last `status.json` and `git diff`, but only when no process of that lane is running: a stale lane that still shows `alive: true` is left untouched (its snapshot is kept once per stall window, and the run's wall-clock limit ends it), and `spawn` refuses a lane whose son is running (reason `running`). A lane at `pr-open` is never marked stalled: it waits for the merge however long that takes. For a lane the script marked `incomplete` you then send-back, resume (`spawn --resume`), re-plan or escalate (autopilot §4). `lanes.py budget <stamp>` shows spend, caps and whether the spend figure is complete.
 2. `questions/<n>.md` is answered by the head alone and never forwarded to the user (autopilot §6); the only thing the user hears from a son is a yes/no the head itself asks at send-back round 3.
 3. `lanes.py sendback <stamp> --lane <id> --reason "..."` writes `send-back-<n>.md`; it refuses a third. After two, get a second opinion (a reviewer on another provider, advisory) before escalating.
 4. A son touching files outside its lane is out-of-lane: stop it, log the finding, re-plan. Any head override is logged with `$(git config user.name)`, the date and the reason.
@@ -39,7 +41,7 @@ For each approved lane, in dependency order: `lanes.py lease <manifest> --lane <
 6. A `TASK_` item never slows a lane (autopilot §4); a PR that needs the value waits at `pr-open` with status `blocked` (autopilot §5a).
 
 ## 6. Merge order
-One merge at a time, dependency order first, then lane order. Before each: rebase the lane branch on the updated base, verifier sign-off on HEAD (Rule 7), then write `merge-go.md` into the lane's run dir; the son merges and runs the post-merge walkthrough (autopilot §3). A dirty rebase goes back to the son as a send-back.
+`lanes.py merge-order <manifest>` fixes the order and says who is next. Before each merge: rebase the lane branch on the updated base and get verifier sign-off on HEAD (Rule 7), then `lanes.py merge-go <manifest> --lane <id> --head <sha>` writes `merge-go.md`; it refuses a lane that is not next or while another merge is in flight. The son merges and runs the post-merge walkthrough (autopilot §3), then `lanes.py merge-done <manifest> --lane <id>` releases the turn. A dirty rebase goes back to the son as a send-back.
 
 ## 7. Lessons and memory roll-up
 After each son: its `report.md` lessons go into `.harness/lessons.md` (Rule 8), new D/H/S/Y/P rows into `.harness/action-items.md`, then `python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/agent-memory.py"` so the memory files match. Sons never write these (autopilot §6).
@@ -52,6 +54,7 @@ After each son: its `report.md` lessons go into `.harness/lessons.md` (Rule 8), 
 
 ## Guardrails
 - Never more than five live sons; never a lane without a lease; never a merge without `merge-go.md`.
+- Lane state, leases, send-back counts, the budget counter and merge order are written by `lanes.py` alone; the head and the sons call it and never edit those files.
 - The head never edits lane files itself; it plans, answers, merges and reports (discipline.md).
 - Stop at `pr-open` is the default; merges happen only under autopilot's gate or the user's merge.
 - A `blocked` PR is never merged by this skill (autopilot §5a).
