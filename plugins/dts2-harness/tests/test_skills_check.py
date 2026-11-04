@@ -58,7 +58,8 @@ if "/git/trees/" in target:
     trees = json.loads((d / "trees.json").read_text())
     if repo not in trees:
         sys.exit(1)
-    print("\n".join(["false", *trees[repo]])); sys.exit(0)
+    truncated = "true" if repo in os.environ.get("FAKE_TRUNCATED", "").split(",") else "false"
+    print("\n".join([truncated, *trees[repo]])); sys.exit(0)
 if "plugin.json" in target:
     print(json.dumps({"version": os.environ.get("FAKE_PUBLISHED", "3.7.0")})); sys.exit(0)
 if "/contents/" in target and target.endswith("SKILL.md"):
@@ -104,12 +105,13 @@ class Fixture:
         self.fail: str = ""
         self.claude_fail: str = ""
         self.no_contents: str = ""
+        self.truncated: str = ""
 
     def run(self, *flags: str) -> dict[str, Any]:
         (self.fake / "trees.json").write_text(json.dumps(self.trees))
         (self.fake / "listed.json").write_text(json.dumps(self.listed))
         (self.fake / "find.txt").write_text(self.find, encoding="utf-8")
-        env = {**os.environ, "PYTHONIOENCODING": "utf-8", "FAKE_DIR": str(self.fake), "FAKE_PUBLISHED": self.published, "FAKE_FAIL": self.fail, "FAKE_CLAUDE_FAIL": self.claude_fail, "FAKE_NO_CONTENTS": self.no_contents,
+        env = {**os.environ, "PYTHONIOENCODING": "utf-8", "FAKE_DIR": str(self.fake), "FAKE_PUBLISHED": self.published, "FAKE_FAIL": self.fail, "FAKE_CLAUDE_FAIL": self.claude_fail, "FAKE_NO_CONTENTS": self.no_contents, "FAKE_TRUNCATED": self.truncated,
                "DTS2_NPX_BIN": str(self.fake / "npx.py"), "DTS2_GH_BIN": str(self.fake / "gh.py"),
                "DTS2_CLAUDE_BIN": str(self.fake / "claude.py")}
         done = subprocess.run([sys.executable, str(SCRIPT), str(self.repo), "--home", str(self.home),
@@ -228,6 +230,37 @@ class SkillsCheckTests(unittest.TestCase):
         fx.no_contents = "1"
         out = fx.run()
         self.assertEqual(out["skills"]["gone"], [])
+
+    def test_truncated_tree_never_proves_gone(self) -> None:
+        fx = self.gone_pr_fixture()
+        fx.truncated = "mattpocock/skills"
+        out = fx.run()
+        self.assertEqual(out["skills"]["gone"], [])
+
+    def test_unsafe_tree_paths_are_skipped_not_run(self) -> None:
+        fx = self.gone_pr_fixture()
+        fx.listed["mattpocock/skills"] = ["grill-me"]
+        fx.trees["mattpocock/skills"].append("skills/x & calc/SKILL.md")
+        out = fx.run()
+        self.assertEqual([g["name"] for g in out["skills"]["gone"]], ["pr"])
+        self.assertNotIn("calc", fx.log("gh"))
+
+    def test_swap_preserves_crlf_and_appends_under_commented_skills_key(self) -> None:
+        template = (PLUGIN_ROOT / "templates" / "keep.yaml").read_bytes().decode("utf-8").replace("\n", "\r\n")
+        fx = Fixture()
+        (fx.repo / ".harness" / "keep.yaml").write_bytes(template.encode("utf-8"))
+        fx.trees["mattpocock/skills"] = [p for p in MATT if "/pr/" not in p]
+        fx.listed["mattpocock/skills"] = [p.split("/")[-2] for p in fx.trees["mattpocock/skills"]]
+        fx.trees["acme/skills"] = ["skills/open-pr/SKILL.md"]
+        out = fx.run("--fix", "--swap", "pr=acme/skills@open-pr")
+        self.assertEqual([s["to"] for s in out["skills"]["swapped"]], ["open-pr"])
+        raw = (fx.repo / ".harness" / "keep.yaml").read_bytes().decode("utf-8")
+        self.assertIn("\r\n", raw)
+        self.assertNotIn("\n\n\n", raw.replace("\r\n", "\n") + "x")
+        self.assertEqual(sum(1 for line in raw.splitlines() if line.startswith("skills:")), 1)
+        self.assertIn("  - name: open-pr  # swapped from pr", raw)
+        again = fx.run()
+        self.assertNotIn("pr", [g["name"] for g in again["skills"]["gone"]])
 
     def test_unsafe_sources_are_rejected_before_any_command(self) -> None:
         keep = ("skills:\n  - name: evil\n    source: npx skills add a/b@c & calc\n"

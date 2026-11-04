@@ -52,13 +52,14 @@ NOT_FOUND: Final[int] = 127
 CANDIDATES_SHOWN: Final[int] = 3
 # On Windows npx is npx.cmd, run through cmd.exe, which interprets & | > even in list-form argv,
 # so every value that reaches a command line must match one of these first.
-SAFE_NAME: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9][\w.-]{0,99}$")
-SAFE_REPO: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9][\w.-]{0,99}/[A-Za-z0-9][\w.-]{0,99}$")
+SAFE_NAME: Final[re.Pattern[str]] = re.compile(r"[A-Za-z0-9][\w.-]{0,99}", re.ASCII)
 SAFE_REF: Final[tuple[re.Pattern[str], ...]] = (
-    re.compile(r"^https://github\.com/([A-Za-z0-9][\w.-]*/[A-Za-z0-9][\w.-]*) --skill ([A-Za-z0-9][\w.-]*)$"),
-    re.compile(r"^([A-Za-z0-9][\w.-]*/[A-Za-z0-9][\w.-]*)@([A-Za-z0-9][\w.-]*)$"),
+    re.compile(r"https://github\.com/([A-Za-z0-9][\w.-]*/[A-Za-z0-9][\w.-]*) --skill ([A-Za-z0-9][\w.-]*)", re.ASCII),
+    re.compile(r"([A-Za-z0-9][\w.-]*/[A-Za-z0-9][\w.-]*)@([A-Za-z0-9][\w.-]*)", re.ASCII),
 )
-SAFE_PLUGIN: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9][\w.-]*@[A-Za-z0-9][\w.-]*$")
+SAFE_PLUGIN: Final[re.Pattern[str]] = re.compile(r"[A-Za-z0-9][\w.-]*@[A-Za-z0-9][\w.-]*", re.ASCII)
+SAFE_TREE_PATH: Final[re.Pattern[str]] = re.compile(r"[\w.-]+(?:/[\w.-]+)*/SKILL\.md", re.ASCII)
+FIND_HITS_EXAMINED: Final[int] = 8
 FIND_LINE: Final[re.Pattern[str]] = re.compile(r"^([\w.-]+/[\w.-]+)@([\w.-]+)\s+([\d.]+)([KkMm]?) installs")
 LIST_LINE: Final[re.Pattern[str]] = re.compile(r"^\S\s{4}([\w.-]+)\s*$")
 ANSI: Final[re.Pattern[str]] = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
@@ -98,7 +99,7 @@ def npx(*args: str) -> list[str]:
 def parse_ref(ref: str) -> tuple[str, str] | None:
     """(owner/repo, skill) for an allowlisted ref, else None. Nothing else ever reaches a command line."""
     for pattern in SAFE_REF:
-        m = pattern.match(ref.strip())
+        m = pattern.fullmatch(ref.strip())
         if m:
             return m.group(1), m.group(2)
     return None
@@ -120,8 +121,9 @@ def read_keep(repo: Path) -> dict[str, Any]:
     path: Path = repo / ".harness" / "keep.yaml"
     skills: list[dict[str, str]] = []
     plugins: list[str] = []
+    swapped: list[str] = []
     if not path.is_file():
-        return {"skills": skills, "plugins": plugins}
+        return {"skills": skills, "plugins": plugins, "swapped": swapped}
     section: str = ""
     for raw in path.read_text(encoding="utf-8").splitlines():
         if raw.lstrip().startswith("#") or not raw.strip():
@@ -135,18 +137,22 @@ def read_keep(repo: Path) -> dict[str, Any]:
             plugins.append(strip_comment(item[2:]))
         elif section == "skills" and item.startswith("- name:"):
             skills.append({"name": strip_comment(item.split(":", 1)[1]), "source": ""})
+            m = re.search(r"#\s*swapped from ([\w.-]+)", item)
+            if m:
+                swapped.append(m.group(1))
         elif section == "skills" and item.startswith("source:") and skills:
             skills[-1]["source"] = strip_comment(item.split(":", 1)[1])
-    return {"skills": skills, "plugins": plugins}
+    return {"skills": skills, "plugins": plugins, "swapped": swapped}
 
 
 def swap_keep_entry(repo: Path, old: str, new: str, ref: str) -> None:
     """Replace the `old` entry (or append one) so a setup re-run keeps the replacement."""
     path: Path = repo / ".harness" / "keep.yaml"
-    text: str = path.read_text(encoding="utf-8") if path.is_file() else "skills:\n"
+    text: str = path.read_bytes().decode("utf-8") if path.is_file() else "skills:\n"
     newline: str = "\r\n" if "\r\n" in text else "\n"
     lines: list[str] = text.splitlines()
     entry_re = re.compile(rf"^(\s*)-\s*name:\s*{re.escape(old)}\s*(#.*)?$")
+    skills_key = re.compile(r"^skills:\s*(#.*)?$")
     note: str = f"# swapped from {old} {date.today().isoformat()} (gone upstream)"
     out: list[str] = []
     replaced, skipping = False, False
@@ -163,9 +169,9 @@ def swap_keep_entry(repo: Path, old: str, new: str, ref: str) -> None:
         skipping = False
         out.append(line)
     if not replaced:
-        if not any(line.strip() == "skills:" for line in out):
+        if not any(skills_key.match(line) for line in out):
             out.append("skills:")
-        at: int = next(i for i, line in enumerate(out) if line.strip() == "skills:") + 1
+        at: int = next(i for i, line in enumerate(out) if skills_key.match(line)) + 1
         out[at:at] = [f"  - name: {new}  {note}", f"    source: npx skills add {ref}", "    serves: harness"]
     tmp: Path = path.with_suffix(".yaml.tmp")
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -214,6 +220,8 @@ def frontmatter_names(repo_id: str, cwd: Path) -> set[str] | None:
         names = None
     else:
         for path in paths:
+            if not SAFE_TREE_PATH.fullmatch(path):
+                continue  # a tree path is third-party data; an odd name is skipped, never run
             code, out = run([*binary("DTS2_GH_BIN", "gh"), "api", f"repos/{repo_id}/contents/{path}",
                              "-H", "Accept: application/vnd.github.raw"], cwd)
             if code != 0:
@@ -263,7 +271,8 @@ def swap_candidates(name: str, gone_ref: str, cwd: Path) -> list[dict[str, Any]]
             seen.setdefault(f"{m.group(1)}@{m.group(2)}", install_count(m.group(3), m.group(4)))
     gone = parse_ref(gone_ref)
     ranked: list[dict[str, Any]] = []
-    for candidate, installs in sorted(seen.items(), key=lambda kv: kv[1], reverse=True):
+    top: list[tuple[str, float]] = sorted(seen.items(), key=lambda kv: kv[1], reverse=True)[:FIND_HITS_EXAMINED]
+    for candidate, installs in top:
         parsed = parse_ref(candidate)
         if parsed is None or (gone and parsed == gone):
             continue
@@ -319,12 +328,14 @@ def ref_from_source(source: str) -> str | None:
 
 
 def wanted_skills(repo: Path, report: dict[str, Any]) -> list[dict[str, Any]]:
-    entries: dict[str, dict[str, Any]] = {n: {"name": n, "ref": r, "origin": "companion"} for n, r in COMPANIONS.items()}
-    for item in read_keep(repo)["skills"]:
+    keep: dict[str, Any] = read_keep(repo)
+    entries: dict[str, dict[str, Any]] = {n: {"name": n, "ref": r, "origin": "companion"}
+                                          for n, r in COMPANIONS.items() if n not in keep["swapped"]}
+    for item in keep["skills"]:
         name, source = item["name"], item["source"]
         if name in RETIRED or name in entries:
             continue
-        if not SAFE_NAME.match(name):
+        if not SAFE_NAME.fullmatch(name):
             report["rejected"].append({"name": name[:60], "reason": "unsafe skill name"})
             continue
         if not source.startswith("npx skills add "):
@@ -344,7 +355,7 @@ def new_report() -> dict[str, Any]:
 
 def do_swap(repo: Path, home: Path, old: str, ref: str, report: dict[str, Any]) -> None:
     parsed = parse_ref(ref)
-    if not SAFE_NAME.match(old) or parsed is None:
+    if not SAFE_NAME.fullmatch(old) or parsed is None:
         report["rejected"].append({"name": old[:60], "reason": "unsafe --swap value"})
         return
     if exists_upstream(ref, repo) is not True:
@@ -352,7 +363,7 @@ def do_swap(repo: Path, home: Path, old: str, ref: str, report: dict[str, Any]) 
         return
     new_name: str = parsed[1]
     code, out = run(npx("add", *ref_args(ref), *INSTALL_FLAGS), repo)
-    if installed(repo, new_name, home) != "claude":
+    if code != 0 or installed(repo, new_name, home) != "claude":
         report["failed"].append({"name": old, "output": out[-400:]})
         return
     swap_keep_entry(repo, old, new_name, ref)
@@ -422,7 +433,7 @@ def check_skills(repo: Path, home: Path, fix: bool, verify_upstream: bool, swaps
 # --- marketplaces and harness version -------------------------------------------------------
 
 def marketplaces(plugins: list[str]) -> list[str]:
-    names: list[str] = [p.split("@", 1)[1] for p in [HARNESS_PLUGIN, *plugins] if SAFE_PLUGIN.match(p)]
+    names: list[str] = [p.split("@", 1)[1] for p in [HARNESS_PLUGIN, *plugins] if SAFE_PLUGIN.fullmatch(p)]
     return list(dict.fromkeys(names))
 
 
@@ -455,7 +466,7 @@ def check_harness(repo: Path, home: Path, plugin_root: Path, fix: bool) -> dict[
     if marker.is_file():
         result["resume_upgrade"] = upgrade.check(marker, plugin_json)
         return result
-    plugins: list[str] = [p for p in read_keep(repo)["plugins"] if SAFE_PLUGIN.match(p)]
+    plugins: list[str] = [p for p in read_keep(repo)["plugins"] if SAFE_PLUGIN.fullmatch(p)]
     claude = binary("DTS2_CLAUDE_BIN", "claude")
     if fix:
         for name in marketplaces(plugins):
