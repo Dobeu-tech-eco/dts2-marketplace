@@ -11,17 +11,23 @@ Subcommands print one JSON object each:
                  append the vote, every member's reasons, the decision and the head's brief to the harness record
   seats          --usable a,b,c [--config FILE] [--failed provider:model,...]
                  seat five council members across as many providers as possible, one model per seat
+  route          --ledger FILE [--votes V,V,V] [--decision APPROVE|FIX|STRIKE]
+                 deterministic checks first: a red check means a fix round with zero votes and no approval
+  blind          --proposals DIR --out DIR --voters a,b,c --seed S [--ledger FILE]
+                 strip author identity from proposals and shuffle option order per voter; the seed goes to the ledger
 """
 from __future__ import annotations
 
 import argparse
 import json
+import random
 import re
 import sys
 from pathlib import Path
 from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from checks import append_ledger, gate as checks_gate, read_ledger  # noqa: E402
 from state_io import atomic_write  # noqa: E402
 
 DECISIONS_HEADER: Final[str] = ("# Council decisions\n\nEvery autopilot step that went to council: the vote, each member's reasons, "
@@ -178,7 +184,7 @@ def dissent_problems(text: str, dissenters: list[str]) -> list[str]:
     return problems
 
 
-def check_decision(path: Path, tally_result: dict[str, Any], entries: int) -> dict[str, Any]:
+def check_decision(path: Path, tally_result: dict[str, Any], entries: int, red: list[str] | None = None) -> dict[str, Any]:
     text: str = path.read_text(encoding="utf-8")
     match = DECISION_LINE.match(first_line(text))
     decision: str | None = match.group(1) if match else None
@@ -192,7 +198,65 @@ def check_decision(path: Path, tally_result: dict[str, Any], entries: int) -> di
     heading: str | None = REQUIRED_LIST.get(decision or "")
     if heading and not re.search(r"^\s*- \S", section(text, heading), re.MULTILINE):
         problems.append(f"{decision} needs at least one item under '{heading}'")
+    if decision == "APPROVE" and red:
+        problems.append(f"APPROVE over red deterministic checks ({', '.join(red)}); a vote cannot override a red check")
     return {"ok": not problems, "decision": decision, "problems": problems}
+
+
+def route(records: list[dict[str, Any]], votes: list[str], decision: str | None) -> dict[str, Any]:
+    """Where a step goes next. Red or missing checks come first: zero votes, and no head approval over them."""
+    gate: dict[str, Any] = checks_gate(records)
+    if not gate["votes_allowed"]:
+        return {"ok": False, "action": gate["action"], "votes": 0, "red": gate["red"], "reason": gate["reason"]}
+    if decision:
+        return {"ok": True, "action": "done" if decision == "APPROVE" else "fix", "votes": 0, "red": [],
+                "reason": f"checks green; head decision {decision}"}
+    if not votes:
+        return {"ok": True, "action": "vote", "votes": PANEL_SEATS, "red": [], "reason": "checks green; run the panel in parallel"}
+    valid: list[str] = [v for v in votes if v in ("APPROVE", "REJECT")]
+    if len(valid) != PANEL_SEATS:
+        return {"ok": False, "action": "revote", "votes": 0, "red": [], "reason": f"need {PANEL_SEATS} valid votes, got {len(valid)}"}
+    if all(v == "APPROVE" for v in valid):
+        return {"ok": True, "action": "pass", "votes": 0, "red": [], "reason": "unanimous approve; no council"}
+    if all(v == "REJECT" for v in valid):
+        return {"ok": True, "action": "fix", "votes": 0, "red": [], "reason": "unanimous reject; fix round, no council"}
+    return {"ok": True, "action": "escalate", "votes": 0, "red": [], "reason": "split vote; escalate (tiebreak, then council per `eligible`)"}
+
+
+AUTHOR_LINE: Final[re.Pattern[str]] = re.compile(r"^\s*(?:\*\*)?(?:author|model|provider|written by|by)(?:\*\*)?\s*:.*$", re.IGNORECASE | re.MULTILINE)
+OPTION_LABELS: Final[str] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+
+def strip_identity(text: str, names: list[str]) -> str:
+    cleaned: str = AUTHOR_LINE.sub("", text)
+    for name in sorted({n for n in names if n}, key=len, reverse=True):
+        cleaned = re.sub(re.escape(name), "the author", cleaned, flags=re.IGNORECASE)
+    return re.sub(r"\n{3,}", "\n\n", cleaned).strip() + "\n"
+
+
+def blind_ballots(proposals_dir: Path, out: Path, voters: list[str], seed: str, ledger: Path | None) -> dict[str, Any]:
+    paths: list[Path] = sorted(p for p in proposals_dir.glob("*.md") if p.is_file())
+    if len(paths) < 2 or len(paths) > len(OPTION_LABELS):
+        return {"ok": False, "error": f"need 2 to {len(OPTION_LABELS)} proposals, found {len(paths)}"}
+    names: list[str] = [p.stem for p in paths]
+    names += [part for stem in names for part in re.split(r"[-_.]", stem) if len(part) > 2]
+    bodies: list[str] = [strip_identity(p.read_text(encoding="utf-8"), names) for p in paths]
+    orders: dict[str, list[int]] = {}
+    for voter in voters:
+        order: list[int] = list(range(len(paths)))
+        random.Random(f"{seed}:{voter}").shuffle(order)
+        orders[voter] = order
+        parts: list[str] = [f"# Ballot for {voter}\n"]
+        parts += [f"\n## Option {OPTION_LABELS[slot]}\n\n{bodies[index]}" for slot, index in enumerate(order)]
+        out.mkdir(parents=True, exist_ok=True)
+        atomic_write(out / f"ballot-{voter}.md", "".join(parts))
+    key: dict[str, dict[str, str]] = {v: {OPTION_LABELS[s]: names[i] for s, i in enumerate(o)} for v, o in orders.items()}
+    record: dict[str, Any] = {"kind": "ballot", "seed": seed, "voters": voters,
+                              "order": {v: [OPTION_LABELS[s] for s in range(len(o))] for v, o in orders.items()}}
+    atomic_write(out / "blind-key.json", json.dumps({"seed": seed, "key": key}, sort_keys=True))
+    if ledger is not None:
+        append_ledger(ledger, record)
+    return {"ok": True, "seed": seed, "voters": voters, "options": len(paths), "out": str(out), "key": str(out / "blind-key.json")}
 
 
 def reasons(text: str) -> str:
@@ -309,6 +373,17 @@ def main() -> int:
     c.add_argument("decision")
     c.add_argument("--tally", required=True)
     c.add_argument("--entries", required=True, type=int)
+    c.add_argument("--ledger", default=None, help="run ledger; a red deterministic check blocks an APPROVE decision")
+    r = sub.add_parser("route")
+    r.add_argument("--ledger", required=True)
+    r.add_argument("--votes", default="")
+    r.add_argument("--decision", default=None, choices=["APPROVE", "FIX", "STRIKE"])
+    b = sub.add_parser("blind")
+    b.add_argument("--proposals", required=True)
+    b.add_argument("--out", required=True)
+    b.add_argument("--voters", required=True)
+    b.add_argument("--seed", required=True)
+    b.add_argument("--ledger", default=None)
     led = sub.add_parser("ledger")
     for flag in ("--ballots-dir", "--tally", "--decision", "--step", "--stamp", "--out"):
         led.add_argument(flag, required=True)
@@ -334,9 +409,15 @@ def main() -> int:
     elif args.cmd == "ledger":
         tally_json: dict[str, Any] = json.loads(Path(args.tally).read_text(encoding="utf-8"))
         result = write_ledger(Path(args.ballots_dir), tally_json, Path(args.decision), args.step, args.stamp, Path(args.out))
+    elif args.cmd == "route":
+        result = route(read_ledger(Path(args.ledger)), [v.strip() for v in args.votes.split(",") if v.strip()], args.decision)
+    elif args.cmd == "blind":
+        result = blind_ballots(Path(args.proposals), Path(args.out), [v.strip() for v in args.voters.split(",") if v.strip()],
+                               args.seed, Path(args.ledger) if args.ledger else None)
     else:
         tally_result: dict[str, Any] = json.loads(Path(args.tally).read_text(encoding="utf-8"))
-        result = check_decision(Path(args.decision), tally_result, args.entries)
+        red: list[str] = checks_gate(read_ledger(Path(args.ledger)))["red"] if args.ledger else []
+        result = check_decision(Path(args.decision), tally_result, args.entries, red)
     print(json.dumps(result))
     return 0
 
