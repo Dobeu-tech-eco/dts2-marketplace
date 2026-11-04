@@ -35,7 +35,7 @@ def fsync_dir(folder: Path) -> None:
     try:
         os.fsync(descriptor)
     except OSError:
-        pass
+        pass  # some filesystems refuse fsync on a directory; the rename itself already happened
     finally:
         os.close(descriptor)
 

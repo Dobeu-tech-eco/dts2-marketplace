@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 from types import ModuleType
 from typing import Final
-from unittest import mock
+import unittest.mock as mock
 
 STATE_IO: Final[Path] = Path(__file__).resolve().parent.parent / "scripts" / "state_io.py"
 EXISTING_MODE: Final[int] = 0o640

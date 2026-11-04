@@ -326,7 +326,7 @@ def clear_stale_lock(lock_path: Path) -> None:
         if time.time() - lock_path.stat().st_mtime > LOCK_STALE_SEC:
             lock_path.unlink(missing_ok=True)
     except OSError:
-        pass
+        pass  # lock vanished or is unreadable: the O_EXCL create in lane_lock decides who wins
 
 
 def busy(lane_id: str) -> dict[str, Any]:

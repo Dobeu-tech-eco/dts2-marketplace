@@ -21,6 +21,8 @@ if [[ -f "tsconfig.json" ]]; then
 fi
 if ls .eslintrc* eslint.config.* >/dev/null 2>&1; then
   changed=$(git diff --name-only --diff-filter=ACMR HEAD 2>/dev/null | grep -E '\.(ts|tsx|js|jsx)$' || true)
-  [[ -n "$changed" ]] && echo "$changed" | xargs timeout "$CHECK_TIMEOUT_S" npx eslint --no-error-on-unmatched-pattern 2>&1 | tail -20 >&2 || true
+  if [[ -n "$changed" ]]; then
+    echo "$changed" | xargs timeout "$CHECK_TIMEOUT_S" npx eslint --no-error-on-unmatched-pattern 2>&1 | tail -20 >&2 || true
+  fi
 fi
 exit 0
