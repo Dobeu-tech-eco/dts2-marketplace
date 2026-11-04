@@ -32,6 +32,12 @@ Record `git rev-parse HEAD` at the start and again at the end, in every repo you
    - Return one row per screen, `Production <screen> | PASS/FAIL | expected / observed / <screenshot> / <console or network errors>`, then `### Verdict: VERIFIED | BLOCKED` and `walkthrough PASS n/n`.
    - Read-only against production: only GET navigation; never submit forms that create data, never sign in with credentials you were not given.
 
+5a. **Post-merge walkthrough** — only when the caller passes `Mode: post-merge` and the merge SHA.
+   - Target production when that merge deploys there; otherwise start a local server from the merged base and walk the same screens the plan's `Done` lines name.
+   - Save screenshots as `.harness/review/screens/<stamp>/merged-<screen>.png`; collect console errors and failed network requests per screen.
+   - Return one row per screen, `Post-merge <screen> | PASS/FAIL | expected / observed / <screenshot> / <errors>`, then `### Verdict: VERIFIED | BLOCKED` and `walkthrough PASS n/n`.
+   - No browser available: report `Post-merge | BLOCKED | no browser available` so the caller parks the task. This mode never SKIPs.
+
 6. **Coverage** — list changed source files (from `git diff --name-only HEAD`, excluding tests, docs and config) that no test imports or exercises (grep the test tree for the module name). One line per file, `Coverage: <file> (no test)`; when none, `Coverage: all changed files tested`. Evidence only; it is not a blocker by itself.
 
 ## Output
