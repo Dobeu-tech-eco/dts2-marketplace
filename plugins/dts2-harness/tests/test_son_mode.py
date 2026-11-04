@@ -28,7 +28,7 @@ GUARDRAILS_HEADING: Final[str] = "## Guardrails"
 # A run of this many consecutive words shared with a rule source is a copied rule, not a reference.
 COPY_WINDOW: Final[int] = 12
 FAKE_CLAUDE: Final[str] = "#!/usr/bin/env python3\nprint('fake claude')\n"
-DEFAULT_PERMISSION_MODE: Final[str] = "bypassPermissions"
+DEFAULT_PERMISSION_MODE: Final[str] = "dontAsk"
 
 
 def _read(path: Path) -> str:
