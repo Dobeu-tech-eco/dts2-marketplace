@@ -13,7 +13,7 @@ write_handoff() {
 }
 write_handoff
 [[ "$(setting stop_checks true)" == "true" ]] || exit 0
-CACHE_EXCLUDE=':(exclude).harness/cache'
+EXCLUDES=(':(exclude).harness/cache' ':(exclude).harness/handoff')
 state_dir() {
   if [[ -d ".harness" ]]; then
     echo ".harness/cache"
@@ -26,16 +26,19 @@ mkdir -p "$STATE_DIR" 2>/dev/null || true
 FINGERPRINT_FILE="$STATE_DIR/stop-fingerprint"
 TSBUILDINFO_FILE="$STATE_DIR/tsbuildinfo"
 compute_fingerprint() {
-  git diff HEAD --stat -- . "$CACHE_EXCLUDE" 2>/dev/null || true
-  git status --porcelain --untracked-files=normal -- . "$CACHE_EXCLUDE" 2>/dev/null || true
+  { git diff HEAD -- . "${EXCLUDES[@]}" 2>/dev/null
+    git ls-files -o --exclude-standard -- . "${EXCLUDES[@]}" 2>/dev/null
+    git ls-files -o --exclude-standard -z -- . "${EXCLUDES[@]}" 2>/dev/null | xargs -0 -r git hash-object -- 2>/dev/null
+  } | git hash-object --stdin 2>/dev/null || true
 }
 FINGERPRINT=""
 IN_GIT=false
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   IN_GIT=true
+  RAW="$(git status --porcelain -- . "${EXCLUDES[@]}" 2>/dev/null)"
+  [[ -n "$RAW" ]] || exit 0
   FINGERPRINT="$(compute_fingerprint)"
-  [[ -n "$FINGERPRINT" ]] || exit 0
-  if [[ -f "$FINGERPRINT_FILE" && "$(cat "$FINGERPRINT_FILE")" == "$FINGERPRINT" ]]; then
+  if [[ -n "$FINGERPRINT" && -f "$FINGERPRINT_FILE" && "$(cat "$FINGERPRINT_FILE")" == "$FINGERPRINT" ]]; then
     exit 0
   fi
 fi

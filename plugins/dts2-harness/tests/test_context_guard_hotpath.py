@@ -1,4 +1,4 @@
-"""Context guard hot path: byte-offset transcript counting, session scope cache, single python process."""
+"""Context guard hot path: byte-offset transcript counting, per-call scope check, single python process."""
 from __future__ import annotations
 
 import json
@@ -82,15 +82,13 @@ class HotPathTests(unittest.TestCase):
         run_guard(self.cwd, self.transcript, SESSION, self.tmp)
         self.assertEqual(self.offset_state()["calls"], 2)
 
-    def test_scope_cache_reused_within_session(self) -> None:
+    def test_scope_rechecked_each_call(self) -> None:
         member: Path = self.cwd / "api"
         member.mkdir()
         self.transcript.write_text(TOOL_LINE, encoding="utf-8")
         self.assertEqual(run_guard(member, self.transcript, "keep", self.tmp).stdout, "")
         (self.cwd / MANIFEST).write_text("repos: []\n", encoding="utf-8")
-        self.assertEqual(run_guard(member, self.transcript, "keep", self.tmp).stdout, "")
-        fresh: str = run_guard(member, self.transcript, "other", self.tmp).stdout
-        self.assertIn("CONTEXT GUARD (misplaced)", fresh)
+        self.assertIn("(misplaced)", run_guard(member, self.transcript, "keep", self.tmp).stdout)
 
     def test_scope_cache_recomputed_when_cwd_changes(self) -> None:
         (self.cwd / MANIFEST).write_text("repos: []\n", encoding="utf-8")

@@ -77,6 +77,33 @@ class StopChecksIncrementalTests(unittest.TestCase):
         (env.repo / "a.txt").write_text("two\nthree\n", encoding="utf-8")
         self.assertIn(CHECKS_MARKER, env.run().stderr)
 
+    def test_same_line_count_edits_each_run(self) -> None:
+        env = make_env()
+        (env.repo / "a.txt").write_text("x = 1\n", encoding="utf-8")
+        self.assertIn(CHECKS_MARKER, env.run().stderr)
+        (env.repo / "a.txt").write_text("x = 2\n", encoding="utf-8")
+        self.assertIn(CHECKS_MARKER, env.run().stderr)
+        (env.repo / "a.txt").write_text("x = 'oops'\n", encoding="utf-8")
+        self.assertIn(CHECKS_MARKER, env.run().stderr)
+        self.assertNotIn(CHECKS_MARKER, env.run().stderr)
+
+    def test_untracked_file_edit_reruns(self) -> None:
+        env = make_env()
+        (env.repo / "new.txt").write_text("aaa\n", encoding="utf-8")
+        self.assertIn(CHECKS_MARKER, env.run().stderr)
+        self.assertNotIn(CHECKS_MARKER, env.run().stderr)
+        (env.repo / "new.txt").write_text("bbb\n", encoding="utf-8")
+        self.assertIn(CHECKS_MARKER, env.run().stderr)
+
+    def test_handoff_rewrite_alone_still_skips(self) -> None:
+        env = make_env()
+        (env.repo / "a.txt").write_text("two\n", encoding="utf-8")
+        self.assertIn(CHECKS_MARKER, env.run().stderr)
+        latest: Path = env.repo / ".harness" / "handoff" / "latest.md"
+        latest.parent.mkdir(parents=True, exist_ok=True)
+        latest.write_text("rewritten handoff\n", encoding="utf-8")
+        self.assertNotIn(CHECKS_MARKER, env.run().stderr)
+
     def test_tsc_runs_incrementally_under_harness_cache(self) -> None:
         env = make_env(with_ts=True)
         (env.repo / "a.txt").write_text("two\n", encoding="utf-8")

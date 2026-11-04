@@ -45,22 +45,14 @@ def read_json(path: Path) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
-def get_scope(marker_dir: Path, session: str, cwd: str) -> dict[str, Any]:
-    cache: Path = marker_dir / f"dts2-guard-{session}-scope.json"
-    cached: dict[str, Any] = read_json(cache)
-    if cached.get("cwd") == cwd and "scope" in cached:
-        return cached
-    found: dict[str, Any] = load_scope_module().detect(Path(cwd))
-    fresh: dict[str, Any] = {"cwd": cwd, "scope": found.get("scope"), "workspaceRoot": found.get("workspaceRoot")}
-    atomic_write(cache, json.dumps(fresh))
-    return fresh
-
-
 def fire(marker_dir: Path, session: str, trigger: str, details: str) -> None:
     marker: Path = marker_dir / f"dts2-guard-{session}-{trigger}"
     if marker.exists():
         return
-    marker.touch()
+    try:
+        marker.touch()
+    except OSError:
+        pass
     output: dict[str, Any] = {"hookSpecificOutput": {
         "hookEventName": "PostToolUse", "additionalContext": MESSAGE % (trigger, details)}}
     print(json.dumps(output))
@@ -89,7 +81,10 @@ def count_new_calls(transcript: Path, state_file: Path) -> tuple[int, int]:
     complete: int = chunk.rfind(NEWLINE) + 1
     calls += sum(1 for line in chunk[:complete].split(NEWLINE) if TOOL_USE.search(line))
     offset += complete
-    atomic_write(state_file, json.dumps({"path": str(transcript), "offset": offset, "calls": calls}))
+    try:
+        atomic_write(state_file, json.dumps({"path": str(transcript), "offset": offset, "calls": calls}))
+    except OSError:
+        pass
     return calls, size
 
 
@@ -104,7 +99,7 @@ def run(tool_calls: int, mb: int) -> None:
     if not cwd or not os.path.isdir(cwd):
         cwd = os.getcwd()
     marker_dir: Path = Path(os.environ.get("TMPDIR") or "/tmp")
-    scope: dict[str, Any] = get_scope(marker_dir, session, cwd)
+    scope: dict[str, Any] = load_scope_module().detect(Path(cwd))
     if scope.get("scope") == MISPLACED:
         fire(marker_dir, session, "misplaced", f"cwd {cwd} is a member repo of workspace {scope.get('workspaceRoot')}")
         return
