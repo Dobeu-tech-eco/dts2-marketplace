@@ -4,7 +4,8 @@
 Report mode (default) changes nothing. `--fix` installs missing skills, removes retired ones whose
 provenance is confirmed, updates the rest, refreshes marketplaces, and starts a harness upgrade when
 a newer version is published. A skill gone upstream is never replaced automatically: `--fix` lists
-ranked candidates and `--swap OLD=REF` (after the user says yes) installs one. Never pushes.
+ranked candidates and `--swap OLD=REF` (after the user says yes) installs one. Never pushes, and never
+deletes or overwrites a git-tracked file: tracked skills are skipped and reported in `tracked_skipped`.
 """
 from __future__ import annotations
 
@@ -315,6 +316,111 @@ def installed(repo: Path, name: str, home: Path) -> str:
     return "missing"
 
 
+# --- git-tracked skill files ----------------------------------------------------------------
+# A repo can commit skill files (e.g. a vendored .claude/skills/stripe-*). The skills CLI treats every
+# project skill as its own to rewrite, and `npx skills update` once deleted committed Stripe skill files.
+# So no step here may delete or overwrite a git-tracked file: removals of a tracked skill are skipped,
+# and every other mutating npx call runs under a snapshot that puts tracked files back byte-for-byte
+# (and drops files the CLI added inside a tracked skill). Each skip is reported in `tracked_skipped`.
+SKILL_ROOTS: Final[tuple[str, ...]] = (".claude/skills", ".agents/skills")
+LOCK_FILE: Final[str] = "skills-lock.json"
+
+
+def tracked_files(repo: Path, report: dict[str, Any]) -> list[str] | None:
+    """Tracked paths under the skill roots (plus the lock file), relative to repo. None = cannot tell."""
+    if "_tracked" in report:
+        return report["_tracked"]
+    code, out = run([*binary("DTS2_GIT_BIN", "git"), "ls-files", "-z", "--", *SKILL_ROOTS, LOCK_FILE], repo)
+    paths: list[str] | None
+    if code == 0:
+        paths, report["tracked_check"] = [p for p in out.split("\0") if p.strip()], "ok"
+    elif any((d / ".git").exists() for d in (repo, *repo.parents)):
+        paths, report["tracked_check"] = None, "unavailable"  # inside a git repo but git failed: fail closed
+    else:
+        paths, report["tracked_check"] = [], "no-git"
+    report["_tracked"] = paths
+    return paths
+
+
+def skill_of(path: str) -> str | None:
+    parts: list[str] = path.split("/")
+    return parts[2] if len(parts) > 3 and "/".join(parts[:2]) in SKILL_ROOTS else None
+
+
+def tracked_skills(repo: Path, report: dict[str, Any]) -> set[str] | None:
+    paths = tracked_files(repo, report)
+    return None if paths is None else {n for n in map(skill_of, paths) if n}
+
+
+def is_tracked(repo: Path, report: dict[str, Any], name: str) -> bool:
+    """True when the skill has a tracked file, or when tracked files cannot be listed (fail closed)."""
+    names = tracked_skills(repo, report)
+    return names is None or name in names
+
+
+def note_skip(report: dict[str, Any], name: str, step: str, reverted: list[str]) -> None:
+    report["tracked_skipped"].append({"name": name, "step": step, "reverted": reverted})
+
+
+def skill_dir(repo: Path, rel: str) -> Path:
+    return repo.joinpath(*rel.split("/")[:3])
+
+
+def snapshot(repo: Path, paths: list[str]) -> dict[str, Any]:
+    files: dict[str, tuple[bytes, int]] = {}
+    for rel in paths:
+        target: Path = repo / rel
+        if target.is_file() and not target.is_symlink():
+            files[rel] = (target.read_bytes(), target.stat().st_mode)
+    dirs: set[Path] = {skill_dir(repo, rel) for rel in paths if skill_of(rel)}
+    present: set[str] = {f.relative_to(repo).as_posix() for d in dirs if d.is_dir()
+                         for f in d.rglob("*") if f.is_file() or f.is_symlink()}
+    return {"files": files, "dirs": dirs, "present": present}
+
+
+def restore(repo: Path, snap: dict[str, Any]) -> list[str]:
+    """Put every snapshotted tracked file back; drop files the CLI added inside a tracked skill."""
+    changed: list[str] = []
+    for rel, (data, mode) in snap["files"].items():
+        target: Path = repo / rel
+        if target.is_symlink():
+            target.unlink()
+        elif target.is_dir():
+            shutil.rmtree(target)
+        elif target.is_file() and target.read_bytes() == data:
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+        os.chmod(target, mode)
+        changed.append(rel)
+    for d in snap["dirs"]:
+        added: list[Path] = [f for f in d.rglob("*") if (f.is_file() or f.is_symlink())] if d.is_dir() else []
+        for f in added:
+            rel = f.relative_to(repo).as_posix()
+            if rel not in snap["present"] and rel not in snap["files"]:
+                f.unlink()
+                changed.append(rel)
+    return changed
+
+
+def guarded_npx(repo: Path, report: dict[str, Any], step: str, cmd: list[str]) -> tuple[int, str]:
+    """Run a mutating npx call; tracked files (skills and the lock file) come out exactly as they went in.
+
+    `update` reports every tracked skill as skipped (the sweep covers all of them); other steps report
+    only a tracked skill the call actually touched."""
+    paths: list[str] = tracked_files(repo, report) or []
+    snap = snapshot(repo, paths)
+    code, out = run(cmd, repo)
+    by_skill: dict[str, list[str]] = {}
+    for rel in restore(repo, snap):
+        by_skill.setdefault(skill_of(rel) or LOCK_FILE, []).append(rel)
+    names: set[str] = {n for n in map(skill_of, paths) if n} if step == "update" else set(by_skill) - {LOCK_FILE}
+    for name in sorted(names):
+        note_skip(report, name, step, sorted(by_skill.get(name, [])))
+    if LOCK_FILE in by_skill:
+        note_skip(report, LOCK_FILE, step, by_skill[LOCK_FILE])
+    return code, out
+
 def lock_source(repo: Path, name: str) -> str | None:
     path: Path = repo / "skills-lock.json"
     try:
@@ -370,7 +476,7 @@ def wanted_skills(repo: Path, report: dict[str, Any]) -> list[dict[str, Any]]:
 def new_report() -> dict[str, Any]:
     return {"freshness": "fast", "installed": [], "missing": [], "retired_removed": [], "retired_kept": [],
             "swapped": [], "gone": [], "failed": [], "rejected": [], "updated": None, "npx": "ok",
-            "lesson_candidates": []}
+            "lesson_candidates": [], "tracked_skipped": [], "tracked_check": None}
 
 
 def do_swap(repo: Path, home: Path, old: str, ref: str, report: dict[str, Any]) -> None:
@@ -382,13 +488,16 @@ def do_swap(repo: Path, home: Path, old: str, ref: str, report: dict[str, Any]) 
         report["failed"].append({"name": old, "output": f"{ref} not confirmed upstream; not installed"})
         return
     new_name: str = parsed[1]
-    code, out = run(npx("add", *ref_args(ref), *INSTALL_FLAGS), repo)
+    code, out = guarded_npx(repo, report, "swap-install", npx("add", *ref_args(ref), *INSTALL_FLAGS))
     if code != 0 or installed(repo, new_name, home) != "claude":
         report["failed"].append({"name": old, "output": out[-400:]})
         return
     swap_keep_entry(repo, old, new_name, ref)
     if installed(repo, old, home) != "missing" and new_name != old:
-        run(npx("remove", old, "-y"), repo)
+        if is_tracked(repo, report, old):
+            note_skip(report, old, "swap-remove", [])
+        else:
+            run(npx("remove", old, "-y"), repo)
     report["swapped"].append({"from": old, "to": new_name, "source": ref})
     if old in COMPANIONS:
         report["lesson_candidates"].append(
@@ -412,6 +521,8 @@ def check_skills(repo: Path, home: Path, fix: bool, daily: bool, verify_upstream
             source = lock_source(repo, name)
             if source != origin:
                 report["retired_kept"].append({"name": name, "source": source or "unknown"})
+            elif fix and is_tracked(repo, report, name):
+                note_skip(report, name, "remove-retired", [])
             elif fix:
                 code, _ = run(npx("remove", name, "-y"), repo)
                 (report["retired_removed"] if code == 0 else report["failed"]).append(name)
@@ -434,7 +545,10 @@ def check_skills(repo: Path, home: Path, fix: bool, daily: bool, verify_upstream
         if report["npx"] != "ok":
             report["failed"].append({"name": name, "output": f"npx {report['npx']}"})
             continue
-        code, out = run(npx("add", *ref_args(ref), *INSTALL_FLAGS), repo)
+        if tracked_files(repo, report) is None and (repo / ".claude" / "skills" / name).exists():
+            note_skip(report, name, "install", [])  # cannot tell what is tracked; never write over it
+            continue
+        code, out = guarded_npx(repo, report, "install", npx("add", *ref_args(ref), *INSTALL_FLAGS))
         if code == NOT_FOUND:
             report["npx"] = "unavailable"
         elif code == TIMED_OUT:
@@ -443,8 +557,10 @@ def check_skills(repo: Path, home: Path, fix: bool, daily: bool, verify_upstream
             report["installed"].append(name)
         else:
             report["failed"].append({"name": name, "output": out[-400:]})
-    if daily and fix and report["npx"] == "ok":
-        _, out = run(npx("update", "-p", "-y"), repo)
+    if daily and fix and report["npx"] == "ok" and tracked_files(repo, report) is None:
+        note_skip(report, "*", "update", [])  # git is present but could not list tracked files
+    elif daily and fix and report["npx"] == "ok":
+        _, out = guarded_npx(repo, report, "update", npx("update", "-p", "-y"))
         lower: str = out.lower()
         # The Windows CLI can end on a libuv assertion after a clean update, and an upstream skill with
         # bad YAML prints a "⚠ Skipped … parse error" warning; judge by the result line, and count a
@@ -452,6 +568,7 @@ def check_skills(repo: Path, home: Path, fix: bool, daily: bool, verify_upstream
         good: bool = "up to date" in lower or bool(re.search(r"\bupdated \d+", lower))
         bad: bool = bool(re.search(r"^(✗|×|error:|fatal:)", out, re.M | re.I))
         report["updated"] = good and not bad
+    report.pop("_tracked", None)
     return report
 
 

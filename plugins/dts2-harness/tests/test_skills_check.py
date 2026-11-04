@@ -43,6 +43,14 @@ if cmd == "remove":
     shutil.rmtree(Path.cwd() / ".claude" / "skills" / args[1], ignore_errors=True)
     sys.exit(0)
 if cmd == "update":
+    import shutil
+    for name in filter(None, os.environ.get("FAKE_UPDATE_CLOBBER", "").split(",")):
+        d = Path.cwd() / ".claude" / "skills" / name
+        shutil.rmtree(d, ignore_errors=True)  # what the real CLI did to committed Stripe skills
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "SKILL.md").write_text("---\nname: " + name + "\n---\nupstream v2\n")
+        (d / "NEW.md").write_text("added by update\n")
+        (Path.cwd() / "skills-lock.json").write_text('{"skills": {}}\n')
     print("✓ All project skills are up to date"); sys.exit(0)
 if cmd == "find":
     print((Path(os.environ["FAKE_DIR"]) / "find.txt").read_text()); sys.exit(0)
@@ -109,14 +117,18 @@ class Fixture:
         self.no_contents: str = ""
         self.truncated: str = ""
         self.no_npx: str = ""
+        self.clobber: str = ""
+        self.git_bin: str = ""
 
     def run(self, *flags: str) -> dict[str, Any]:
         (self.fake / "trees.json").write_text(json.dumps(self.trees))
         (self.fake / "listed.json").write_text(json.dumps(self.listed))
         (self.fake / "find.txt").write_text(self.find, encoding="utf-8")
-        env = {**os.environ, "PYTHONIOENCODING": "utf-8", "FAKE_DIR": str(self.fake), "FAKE_PUBLISHED": self.published, "FAKE_FAIL": self.fail, "FAKE_CLAUDE_FAIL": self.claude_fail, "FAKE_NO_CONTENTS": self.no_contents, "FAKE_TRUNCATED": self.truncated, "FAKE_NO_NPX": self.no_npx,
+        env = {**os.environ, "PYTHONIOENCODING": "utf-8", "FAKE_DIR": str(self.fake), "FAKE_PUBLISHED": self.published, "FAKE_FAIL": self.fail, "FAKE_CLAUDE_FAIL": self.claude_fail, "FAKE_NO_CONTENTS": self.no_contents, "FAKE_TRUNCATED": self.truncated, "FAKE_NO_NPX": self.no_npx, "FAKE_UPDATE_CLOBBER": self.clobber,
                "DTS2_NPX_BIN": str(self.fake / "npx.py"), "DTS2_GH_BIN": str(self.fake / "gh.py"),
                "DTS2_CLAUDE_BIN": str(self.fake / "claude.py")}
+        if self.git_bin:
+            env["DTS2_GIT_BIN"] = self.git_bin
         done = subprocess.run([sys.executable, str(SCRIPT), str(self.repo), "--home", str(self.home),
                                "--plugin-root", str(self.root), *flags],
                               capture_output=True, text=True, env=env, check=True)
@@ -129,6 +141,16 @@ class Fixture:
 
     def skill(self, name: str) -> Path:
         return self.repo / ".claude" / "skills" / name / "SKILL.md"
+
+    def commit(self, files: dict[str, str]) -> None:
+        """Make the repo a git repo with these files committed (paths relative to the repo)."""
+        for rel, body in files.items():
+            (self.repo / rel).parent.mkdir(parents=True, exist_ok=True)
+            (self.repo / rel).write_text(body, encoding="utf-8")
+        git = ["git", "-C", str(self.repo), "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"]
+        subprocess.run([*git, "init", "-q"], check=True)
+        subprocess.run([*git, "add", *files], check=True)
+        subprocess.run([*git, "commit", "-q", "-m", "vendor skills"], check=True)
 
     def mark_today(self) -> None:
         import datetime
@@ -392,3 +414,101 @@ class SkillsCheckTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+STRIPE: Final[dict[str, str]] = {
+    ".claude/skills/stripe-best-practices/SKILL.md": "---\nname: stripe-best-practices\n---\nours\n",
+    ".claude/skills/stripe-best-practices/references/webhooks.md": "committed reference\n",
+    "skills-lock.json": '{"skills": {"stripe-best-practices": {"source": "stripe/ai"}}}\n',
+}
+
+
+class TrackedFilesTests(unittest.TestCase):
+    """The sweep never deletes or overwrites a git-tracked file; it skips and reports instead."""
+
+    def assert_untouched(self, fx: Fixture) -> None:
+        for rel, body in STRIPE.items():
+            self.assertEqual((fx.repo / rel).read_text(encoding="utf-8"), body, rel)
+        self.assertFalse((fx.repo / ".claude/skills/stripe-best-practices/NEW.md").exists())
+        status = subprocess.run(["git", "-C", str(fx.repo), "status", "--porcelain", "--", ".claude/skills/stripe-best-practices", "skills-lock.json"],
+                                capture_output=True, text=True, check=True).stdout
+        self.assertEqual(status, "")
+
+    def test_update_that_deletes_tracked_skill_is_reverted_and_reported(self) -> None:
+        fx = Fixture()
+        fx.commit(STRIPE)
+        fx.clobber = "stripe-best-practices"
+        out = fx.run("--fix")
+        self.assert_untouched(fx)
+        self.assertEqual(out["skills"]["tracked_check"], "ok")
+        skipped = {(e["name"], e["step"]): e["reverted"] for e in out["skills"]["tracked_skipped"]}
+        reverted = skipped[("stripe-best-practices", "update")]
+        self.assertIn(".claude/skills/stripe-best-practices/references/webhooks.md", reverted)
+        self.assertIn(".claude/skills/stripe-best-practices/NEW.md", reverted)
+        self.assertEqual(skipped[("skills-lock.json", "update")], ["skills-lock.json"])
+        self.assertNotIn("_tracked", out["skills"])
+
+    def test_force_full_is_protected_too(self) -> None:
+        fx = Fixture()
+        fx.commit(STRIPE)
+        fx.run("--fix")
+        fx.clobber = "stripe-best-practices"
+        out = fx.run("--fix", "--force-full")
+        self.assertEqual(out["skills"]["freshness"], "full")
+        self.assert_untouched(fx)
+        self.assertIn("stripe-best-practices", [e["name"] for e in out["skills"]["tracked_skipped"]])
+
+    def test_clean_update_reports_tracked_skill_as_skipped_with_nothing_reverted(self) -> None:
+        fx = Fixture()
+        fx.commit(STRIPE)
+        out = fx.run("--fix")
+        self.assertIn({"name": "stripe-best-practices", "step": "update", "reverted": []}, out["skills"]["tracked_skipped"])
+        self.assert_untouched(fx)
+
+    def test_uncommitted_edits_to_tracked_files_survive(self) -> None:
+        fx = Fixture()
+        fx.commit(STRIPE)
+        edited = fx.repo / ".claude/skills/stripe-best-practices/SKILL.md"
+        edited.write_text("work in progress\n", encoding="utf-8")
+        fx.clobber = "stripe-best-practices"
+        fx.run("--fix")
+        self.assertEqual(edited.read_text(encoding="utf-8"), "work in progress\n")
+
+    def test_untracked_skills_still_update(self) -> None:
+        fx = Fixture()
+        fx.commit(STRIPE)
+        fx.run("--fix")  # installs companions, untracked
+        fx.clobber = "pr"
+        out = fx.run("--fix", "--force-full")
+        self.assertIn("upstream v2", fx.skill("pr").read_text(encoding="utf-8"))
+        self.assertNotIn("pr", [e["name"] for e in out["skills"]["tracked_skipped"]])
+
+    def test_tracked_retired_skill_is_not_removed(self) -> None:
+        fx = Fixture()
+        fx.commit({".claude/skills/diagnose/SKILL.md": "---\nname: diagnose\n---\n",
+                   "skills-lock.json": '{"skills": {"diagnose": {"source": "mattpocock/skills"}}}\n'})
+        out = fx.run("--fix")
+        self.assertTrue(fx.skill("diagnose").is_file())
+        self.assertNotIn("diagnose", out["skills"]["retired_removed"])
+        self.assertIn({"name": "diagnose", "step": "remove-retired", "reverted": []}, out["skills"]["tracked_skipped"])
+        self.assertNotIn("remove diagnose", fx.log("npx"))
+
+    def test_git_failure_inside_a_repo_skips_the_update(self) -> None:
+        fx = Fixture()
+        fx.commit(STRIPE)
+        broken = fx.fake / "git.py"
+        broken.write_text("import sys\nsys.exit(1)\n", encoding="utf-8")
+        fx.git_bin = str(broken)
+        fx.clobber = "stripe-best-practices"
+        out = fx.run("--fix")
+        self.assertEqual(out["skills"]["tracked_check"], "unavailable")
+        self.assertNotIn("update -p -y", fx.log("npx"))
+        self.assertIn({"name": "*", "step": "update", "reverted": []}, out["skills"]["tracked_skipped"])
+        self.assert_untouched(fx)
+
+    def test_non_git_repo_behaves_as_before(self) -> None:
+        fx = Fixture()
+        out = fx.run("--fix")
+        self.assertEqual(out["skills"]["tracked_check"], "no-git")
+        self.assertIn("update -p -y", fx.log("npx"))
+        self.assertEqual(out["skills"]["tracked_skipped"], [])
