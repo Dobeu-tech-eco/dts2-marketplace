@@ -14,15 +14,7 @@ from typing import Any, Final
 
 SCRIPT_DIR: Final[Path] = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
-try:
-    from state_io import atomic_write
-except ImportError:  # state_io ships separately; keep the guard working without it
-    def atomic_write(path: Path | str, text: str) -> Path:
-        target: Path = Path(path)
-        temp: Path = target.with_name(f".tmp-{target.name}.{os.getpid()}")
-        temp.write_text(text, encoding="utf-8")
-        os.replace(temp, target)
-        return target
+from state_io import atomic_write  # noqa: E402
 
 BYTES_PER_MB: Final[int] = 1048576
 SESSION_UNSAFE: Final[re.Pattern[str]] = re.compile(r"[^A-Za-z0-9_-]")
