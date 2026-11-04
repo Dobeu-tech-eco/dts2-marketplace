@@ -62,6 +62,32 @@ class SkillTests(unittest.TestCase):
         self.assertIn("lanes.py call", text)
 
 
+class CallLimitTests(unittest.TestCase):
+    """A6: no dispatch line in autopilot or dpp starts a CLI model outside `lanes.py call` or `spawn`."""
+
+    def test_cli_model_lines_go_through_the_supervisor(self) -> None:
+        for name in ("autopilot", "dpp"):
+            for number, line in enumerate(skill(name).splitlines(), 1):
+                starts_model = "roster.py command" in line or re.search(r"claude -p\s+\S", line)
+                if starts_model:
+                    self.assertTrue("lanes.py call" in line or "lanes.py spawn" in line,
+                                    f"{name} line {number} starts a model outside the call limit")
+
+    def test_roster_shell_is_never_run_directly(self) -> None:
+        for name in ("autopilot", "dpp"):
+            self.assertNotIn("the `shell` of", skill(name))
+
+    def test_seats_receive_their_ballot_and_agent_tool_seats_are_called_out(self) -> None:
+        text = skill("autopilot")
+        self.assertIn("--prompt-file <ballot> -- claude -p", text)
+        self.assertIn("cannot be gated", text)
+
+    def test_readme_does_not_claim_every_call_is_gated(self) -> None:
+        readme = (PLUGIN_ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertNotIn("every model call goes through", readme)
+        self.assertIn("Agent-tool seats", readme)
+
+
 class SingleWriterTests(unittest.TestCase):
     def test_only_lanes_py_names_the_supervisor_state_files(self) -> None:
         for path in sorted((PLUGIN_ROOT / "scripts").glob("*.py")):

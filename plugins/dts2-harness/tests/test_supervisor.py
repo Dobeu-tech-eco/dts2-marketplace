@@ -361,11 +361,14 @@ class RetryTests(SupervisorBase):
         self.assertEqual([e["attempt"] for e in retries], [1, 2])
         self.assertEqual(retries[0]["reason"], "429-or-overload")
 
-    def test_overload_in_json_result_is_retried_then_gives_up(self) -> None:
+    def test_overload_in_json_result_parks_the_son_with_its_session(self) -> None:
+        # changed with the retry fix: a son whose failed attempt reports a session is parked `overload` and resumed,
+        # not rerun from scratch (the retry-until-cap path for non-son calls is in test_supervisor_fixes)
         result = self.spawn(FAKE_MODE="always-429", FAKE_PHASE="building")
         self.assertFalse(result["ok"])
-        self.assertEqual(result["retries"], 3)
-        self.assertEqual(result["reason"], "error")
+        self.assertEqual(result["retries"], 0)
+        self.assertEqual(result["reason"], "overload")
+        self.assertEqual(self.status_json()["session_id"], "sess-1")
 
     def test_plain_failure_is_not_retried(self) -> None:
         self.assertEqual(self.spawn(FAKE_MODE="error", FAKE_PHASE="building")["retries"], 0)
@@ -463,6 +466,8 @@ class HeartbeatTests(SupervisorBase):
         path = self.lane_dir / "status.json"
         path.write_text(json.dumps({"lane": "a", "status": "building", "worktree": str(self.worktree), **fields}),
                         encoding="utf-8")
+        if "heartbeat" in fields:  # a lane that has gone quiet has an old file too (a fresh mtime counts as activity)
+            os.utime(path, (fields["heartbeat"], fields["heartbeat"]))
         return path
 
     def test_heartbeat_command_merges_into_status(self) -> None:
@@ -512,6 +517,7 @@ class HeartbeatTests(SupervisorBase):
         data = json.loads(path.read_text(encoding="utf-8"))
         del data["worktree"]
         path.write_text(json.dumps(data), encoding="utf-8")
+        os.utime(path, (data["heartbeat"], data["heartbeat"]))
         row = self.lanes("status", STAMP)["lanes"][0]
         self.assertEqual(Path(row["snapshot"]).read_text(encoding="utf-8"), "")
 
@@ -545,7 +551,8 @@ class MergeOrderTests(SupervisorBase):
             self.phase(lane_id, "pr-open")
         refused = self.go("a")
         self.assertFalse(refused["ok"])
-        self.assertEqual(refused["next"], "b")
+        self.assertEqual(refused["waiting_on"], ["b"])
+        self.assertEqual(self.lanes("merge-order", str(self.manifest))["next"], "b")
         self.assertTrue(self.go("b")["ok"])
         self.assertIn("deadbeef", (self.runs / "b" / "merge-go.md").read_text(encoding="utf-8"))
         self.assertIn("holds the merge", self.go("a")["detail"])
@@ -561,10 +568,12 @@ class MergeOrderTests(SupervisorBase):
         self.assertFalse(self.go("c")["ok"])
         self.assertIsNone(self.lanes("merge-order", str(self.manifest))["next"])
 
-    def test_parked_lane_loses_its_turn(self) -> None:
+    def test_parked_lane_loses_its_turn_for_lanes_that_do_not_depend_on_it(self) -> None:
+        # a depends on b, so a parked b no longer lets a through (see test_supervisor_fixes); c is independent
         self.phase("b", "incomplete")
         self.phase("a", "pr-open")
-        self.assertTrue(self.go("a")["ok"])
+        self.phase("c", "pr-open")
+        self.assertTrue(self.go("c")["ok"])
 
     def test_dependency_cycle_is_an_error(self) -> None:
         lanes = [{"id": "a", "item": "S1", "files": [], "depends_on": ["b"]},

@@ -111,18 +111,19 @@ def slot_lock(path: Path) -> Any:
     return handle
 
 
-def acquire_slot(cwd: Path, limit: int, wait_s: float, sleep: Callable[[float], None] = time.sleep) -> Any | None:
+def acquire_slot(cwd: Path, limit: int, wait_s: float, sleep: Callable[[float], None] = time.sleep,
+                 clock: Callable[[], float] = time.monotonic) -> Any | None:
     """Take one of `limit` machine-wide slots (flock, so a crashed holder frees its slot). None when none frees in time.
     Without fcntl the limit cannot be enforced and a placeholder is returned."""
     if fcntl is None:
         return object()
-    deadline: float = time.monotonic() + wait_s
+    deadline: float = clock() + wait_s
     while True:
         for index in range(limit):
             handle = slot_lock(cwd / SLOTS_DIR / f"slot-{index}.lock")
             if handle is not None:
                 return handle
-        if time.monotonic() >= deadline:
+        if clock() >= deadline:
             return None
         sleep(POLL_S)
 
@@ -160,53 +161,78 @@ def terminate(proc: subprocess.Popen[str]) -> tuple[str, str]:
     return "", ""
 
 
-def run_once(argv: list[str], cwd: Path, timeout_s: float, env: dict[str, str] | None) -> dict[str, Any]:
-    """Run one command to completion or to the wall-clock limit. A timeout reports exit 143 and `timed_out`."""
+def run_once(argv: list[str], cwd: Path, timeout_s: float, env: dict[str, str] | None,
+             stdin_text: str | None = None) -> dict[str, Any]:
+    """Run one command to completion or to the wall-clock limit. A timeout reports exit 143 and `timed_out`.
+    `stdin_text` is piped to the child (a prompt); without it stdin is closed."""
     try:
         proc: subprocess.Popen[str] = subprocess.Popen(
-            argv, cwd=str(cwd), stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.DEVNULL, text=True,
+            argv, cwd=str(cwd), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            stdin=subprocess.DEVNULL if stdin_text is None else subprocess.PIPE, text=True,
             encoding="utf-8", errors="replace", env=env, start_new_session=True)
     except OSError as exc:
         return {"code": 127, "stdout": "", "stderr": str(exc), "timed_out": False}
     try:
-        out, err = proc.communicate(timeout=max(1.0, timeout_s))
+        out, err = proc.communicate(input=stdin_text, timeout=max(1.0, timeout_s))
     except subprocess.TimeoutExpired:
         out, err = terminate(proc)
         return {"code": EXIT_TERMINATED, "stdout": out, "stderr": err, "timed_out": True}
     return {"code": proc.returncode, "stdout": out or "", "stderr": err or "", "timed_out": False}
 
 
+def timeout_result(code: int, detail: str) -> dict[str, Any]:
+    return {"code": code, "stdout": "", "stderr": detail, "timed_out": True, "attempts": 0, "retries": 0,
+            "results": [], "halted_overload": False}
+
+
 def invoke(argv: list[str], cwd: Path, timeout_s: float, label: str, on_event: Event | None = None,
            env: dict[str, str] | None = None, sleep: Callable[[float], None] = time.sleep,
-           rng: random.Random | None = None, root: Path | None = None) -> dict[str, Any]:
+           rng: random.Random | None = None, root: Path | None = None, stdin_text: str | None = None,
+           halt_on_session: bool = False, clock: Callable[[], float] = time.monotonic) -> dict[str, Any]:
     """The only way harness scripts start a model: slot, run, retry overloads with backoff, report each retry.
-    `cwd` is where the process runs (a lane worktree); `root` is the repo whose config and slot files apply."""
+    `cwd` is where the process runs (a lane worktree); `root` is the repo whose config and slot files apply.
+    One deadline covers the wait for a slot and every attempt. The result lists every attempt's code and stdout under
+    `results`. With `halt_on_session`, a failed attempt that reports a session id ends the retries (`halted_overload`):
+    rerunning the whole command would start over, so the caller resumes that session instead."""
     base: Path = root or cwd
     settings: dict[str, Any] = read_supervisor(base)
     emit: Event = on_event or (lambda _event: None)
-    handle = acquire_slot(base, settings["max_model_calls"], timeout_s, sleep)
+    deadline: float = clock() + timeout_s
+    handle = acquire_slot(base, settings["max_model_calls"], timeout_s, sleep, clock)
     if handle is None:
         emit({"event": "slot-timeout", "label": label, "limit": settings["max_model_calls"]})
-        return {"code": 75, "stdout": "", "stderr": "no model-call slot freed in time", "timed_out": True,
-                "attempts": 0, "retries": 0}
+        return timeout_result(75, "no model-call slot freed in time")
     try:
-        return retry_loop(argv, cwd, timeout_s, label, settings, emit, env, sleep, rng)
+        left: float = deadline - clock()
+        if left <= 0:
+            emit({"event": "slot-timeout", "label": label, "limit": settings["max_model_calls"], "late": True})
+            return timeout_result(EXIT_TERMINATED, "wall-clock time ran out waiting for a model-call slot")
+        return retry_loop(argv, cwd, left, label, settings, emit, env, sleep, rng, stdin_text, halt_on_session, clock)
     finally:
         release_slot(handle)
 
 
 def retry_loop(argv: list[str], cwd: Path, timeout_s: float, label: str, settings: dict[str, Any], emit: Event,
-               env: dict[str, str] | None, sleep: Callable[[float], None], rng: random.Random | None) -> dict[str, Any]:
-    deadline: float = time.monotonic() + timeout_s
+               env: dict[str, str] | None, sleep: Callable[[float], None], rng: random.Random | None,
+               stdin_text: str | None = None, halt_on_session: bool = False,
+               clock: Callable[[], float] = time.monotonic) -> dict[str, Any]:
+    deadline: float = clock() + timeout_s
     attempt: int = 0
+    results: list[dict[str, Any]] = []
     while True:
-        result: dict[str, Any] = run_once(argv, cwd, deadline - time.monotonic(), env)
+        result: dict[str, Any] = run_once(argv, cwd, deadline - clock(), env, stdin_text)
+        results.append({"code": result["code"], "stdout": result["stdout"]})
         retriable: bool = not result["timed_out"] and is_overload(result["code"], result["stdout"], result["stderr"])
+        done: dict[str, Any] = {**result, "attempts": attempt + 1, "retries": attempt, "results": results,
+                                "halted_overload": False}
         if not retriable or attempt >= settings["retry_max"]:
-            return {**result, "attempts": attempt + 1, "retries": attempt}
+            return done
+        if halt_on_session and (parse_result(result["stdout"]) or {}).get("session_id"):
+            emit({"event": "retry-halted", "label": label, "attempt": attempt + 1, "reason": "session-open"})
+            return {**done, "halted_overload": True}
         delay: float = backoff_delay(attempt, settings["backoff_base_s"], settings["backoff_cap_s"], rng)
-        if time.monotonic() + delay >= deadline:
-            return {**result, "attempts": attempt + 1, "retries": attempt}
+        if clock() + delay >= deadline:
+            return done
         emit({"event": "retry", "label": label, "attempt": attempt + 1, "delay_s": round(delay, 3),
               "code": result["code"], "reason": "429-or-overload"})
         sleep(delay)
