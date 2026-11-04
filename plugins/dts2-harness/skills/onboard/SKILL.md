@@ -29,6 +29,9 @@ Explanation only. Do not invoke agents or change files from this skill.
 | `ship` | `/dts2-harness:ship` opens a PR on your own initiative: pre-check, type/lint/test/build, secret and do-not-touch scan, verifier and reviewer, receipt, PR template, push and open; then sweeps PRs and branches so only main and dev remain. Never merges. |
 | `feature` | `/dts2-harness:feature <idea>` adds a feature to the roadmap: clarity score, a scoped deep interview when it is unclear, the lead writes it into the end state and every plan doc, then a PR. |
 | `autopilot` | `/dts2-harness:autopilot <steps>` runs steps unattended: three frontier providers must agree on the plan and the build (Claude Fable 5.1 breaks a split), one PR per step merged on green CI before the next. Progress shows in check-in. |
+| `dpp` | `/dts2-harness:dpp [dry-run]` runs up to five autopilot lanes in parallel as headless sons under one head: lane plan and feasibility from the check-in list, approval, supervision, serialised merges, one report and the task ledger. |
+| `dpp-full` | `/dts2-harness:dpp-full` is dpp with `--full`: delegation scan for extra lanes and continuous dispatch without a new approval. |
+| `fullauto` | `/dts2-harness:fullauto` is dpp-full with autopilot on, looping check-in between rounds until nothing is outstanding and every lane is done or blocked in the ledger. |
 | `model` | `/dts2-harness:model` picks which agent provider leads (the lead, advisory and sign-off seats); default Claude. Builders are unaffected. |
 | `find-skills` | `/dts2-harness:find-skills` is available any time: rescan the repo, answer one to three questions, get suggested skills, and wire the ones you pick into the project. |
 | `check-in` | `/dts2-harness:check-in` is available any time: a read-only checklist from where the project started through the approved end state, each item marked complete or outstanding, with an `N of M complete` percent. |
