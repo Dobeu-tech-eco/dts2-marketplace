@@ -517,11 +517,11 @@ def shell_line(argv: list[str], stdin: str | None, env: dict[str, str] | None = 
 def resolve_command(
     profile: dict[str, Any], role: str, tier: str,
     prompt_file: Path | None = None, workspace: Path | None = None,
-    effort: str | None = None,
+    effort: str | None = None, model_override: str | None = None,
 ) -> dict[str, Any]:
     if not supports_role(profile, role):
         raise RosterError(f"role '{role}' is not supported by agent '{profile['name']}'")
-    model: str | None = profile["models"][tier]
+    model: str | None = model_override or profile["models"][tier]
     chosen_effort: str | None = effort or tier_effort(profile, tier)
     argv: list[str] = fill_effort(fill_model(role_template(profile, role), model), chosen_effort)
     stdin: str | None = profile.get("stdin")
@@ -542,7 +542,7 @@ def resolve_command(
 
 def run_command(
     agent: str, role: str, tier: str, prompt_file: str | None, workspace: str | None,
-    effort: str | None,
+    effort: str | None, model: str | None = None,
 ) -> int:
     profile: dict[str, Any] | None = load_profiles().get(agent)
     try:
@@ -550,7 +550,7 @@ def run_command(
             raise RosterError(f"unknown agent '{agent}'")
         result: dict[str, Any] = resolve_command(
             profile, role, tier, Path(prompt_file) if prompt_file else None,
-            Path(workspace) if workspace else None, effort,
+            Path(workspace) if workspace else None, effort, model,
         )
     except RosterError as error:
         print(f"roster error: {error}", file=sys.stderr)
@@ -644,6 +644,7 @@ def main() -> int:
     cmd.add_argument("--effort", default=None, help="reasoning effort; default is the profile tierEffort for --tier")
     cmd.add_argument("--prompt-file", default=None, help="file holding the brief or review prompt")
     cmd.add_argument("--workspace", default=None, help="repo the agent works in (default: cwd)")
+    cmd.add_argument("--model", default=None, help="exact model id; overrides the --tier model (council doubled seats)")
     cls = sub.add_parser("classify", help="classify a live dispatch's output read from stdin")
     cls.add_argument("--agent", required=True)
     cls.add_argument("--role", required=True)
@@ -659,7 +660,7 @@ def main() -> int:
     if args.command == "model":
         return run_model(args.agent, args.tier)
     if args.command == "command":
-        return run_command(args.agent, args.role, args.tier, args.prompt_file, args.workspace, args.effort)
+        return run_command(args.agent, args.role, args.tier, args.prompt_file, args.workspace, args.effort, args.model)
     if args.command == "classify":
         return run_classify(args.agent, args.role, args.exit_code, args.usable, args.axis)
     return run_resolve(Path(args.config))
