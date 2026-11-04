@@ -13,8 +13,9 @@ Subcommands print one JSON object each:
                  seat five council members across as many providers as possible, one model per seat
   route          --ledger FILE [--votes V,V,V] [--decision APPROVE|FIX|STRIKE]
                  deterministic checks first: a red check means a fix round with zero votes and no approval
-  blind          --proposals DIR --out DIR --voters a,b,c --seed S [--ledger FILE]
-                 strip author identity from proposals and shuffle option order per voter; the seed goes to the ledger
+  blind          --proposals DIR --out DIR --voters a,b,c --seed S [--ledger FILE] [--authors a,b]
+                 strip author identity from proposals and shuffle option order per voter; the seed and each voter's
+                 option order go to the ledger
 """
 from __future__ import annotations
 
@@ -184,7 +185,8 @@ def dissent_problems(text: str, dissenters: list[str]) -> list[str]:
     return problems
 
 
-def check_decision(path: Path, tally_result: dict[str, Any], entries: int, red: list[str] | None = None) -> dict[str, Any]:
+def check_decision(path: Path, tally_result: dict[str, Any], entries: int, red: list[str] | None = None,
+                   gate: dict[str, Any] | None = None) -> dict[str, Any]:
     text: str = path.read_text(encoding="utf-8")
     match = DECISION_LINE.match(first_line(text))
     decision: str | None = match.group(1) if match else None
@@ -200,6 +202,8 @@ def check_decision(path: Path, tally_result: dict[str, Any], entries: int, red: 
         problems.append(f"{decision} needs at least one item under '{heading}'")
     if decision == "APPROVE" and red:
         problems.append(f"APPROVE over red deterministic checks ({', '.join(red)}); a vote cannot override a red check")
+    elif decision == "APPROVE" and gate is not None and not gate.get("votes_allowed"):
+        problems.append(f"APPROVE refused: {gate.get('reason', 'no deterministic check results on record')}")
     return {"ok": not problems, "decision": decision, "problems": problems}
 
 
@@ -227,20 +231,41 @@ AUTHOR_LINE: Final[re.Pattern[str]] = re.compile(r"^\s*(?:\*\*)?(?:author|model|
 OPTION_LABELS: Final[str] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 
+KNOWN_AUTHORS: Final[frozenset[str]] = frozenset(DEFAULT_ORDER) | CLAUDE_AGENT_ALIASES | frozenset({"gpt", "agy", "copilot"})
+
+
+def author_values(text: str) -> list[str]:
+    """Values written on author-style lines, read before those lines are removed."""
+    values: list[str] = []
+    for match in AUTHOR_LINE.finditer(text):
+        value: str = match.group(0).split(":", 1)[1].strip().strip("*").strip() if ":" in match.group(0) else ""
+        if value and len(value) <= 60:
+            values.append(value)
+    return values
+
+
+def identity_names(stem: str, text: str, extra: list[str]) -> list[str]:
+    """Whole tokens that identify an author: the full stem, roster or provider fragments of it, author-line values, --authors."""
+    fragments: list[str] = [part for part in re.split(r"[-_.]", stem) if part.lower() in KNOWN_AUTHORS]
+    return [stem, *fragments, *author_values(text), *extra]
+
+
 def strip_identity(text: str, names: list[str]) -> str:
     cleaned: str = AUTHOR_LINE.sub("", text)
-    for name in sorted({n for n in names if n}, key=len, reverse=True):
-        cleaned = re.sub(re.escape(name), "the author", cleaned, flags=re.IGNORECASE)
+    for name in sorted({n.strip() for n in names if n.strip()}, key=len, reverse=True):
+        cleaned = re.sub(r"\b" + re.escape(name) + r"\b", "the author", cleaned, flags=re.IGNORECASE)
     return re.sub(r"\n{3,}", "\n\n", cleaned).strip() + "\n"
 
 
-def blind_ballots(proposals_dir: Path, out: Path, voters: list[str], seed: str, ledger: Path | None) -> dict[str, Any]:
+def blind_ballots(proposals_dir: Path, out: Path, voters: list[str], seed: str, ledger: Path | None,
+                  authors: list[str] | None = None) -> dict[str, Any]:
     paths: list[Path] = sorted(p for p in proposals_dir.glob("*.md") if p.is_file())
     if len(paths) < 2 or len(paths) > len(OPTION_LABELS):
         return {"ok": False, "error": f"need 2 to {len(OPTION_LABELS)} proposals, found {len(paths)}"}
     names: list[str] = [p.stem for p in paths]
-    names += [part for stem in names for part in re.split(r"[-_.]", stem) if len(part) > 2]
-    bodies: list[str] = [strip_identity(p.read_text(encoding="utf-8"), names) for p in paths]
+    texts: list[str] = [p.read_text(encoding="utf-8") for p in paths]
+    every: list[str] = [n for stem, text in zip(names, texts) for n in identity_names(stem, text, authors or [])]
+    bodies: list[str] = [strip_identity(text, every) for text in texts]
     orders: dict[str, list[int]] = {}
     for voter in voters:
         order: list[int] = list(range(len(paths)))
@@ -252,7 +277,7 @@ def blind_ballots(proposals_dir: Path, out: Path, voters: list[str], seed: str, 
         atomic_write(out / f"ballot-{voter}.md", "".join(parts))
     key: dict[str, dict[str, str]] = {v: {OPTION_LABELS[s]: names[i] for s, i in enumerate(o)} for v, o in orders.items()}
     record: dict[str, Any] = {"kind": "ballot", "seed": seed, "voters": voters,
-                              "order": {v: [OPTION_LABELS[s] for s in range(len(o))] for v, o in orders.items()}}
+                              "order": {v: [names[i] for i in o] for v, o in orders.items()}}
     atomic_write(out / "blind-key.json", json.dumps({"seed": seed, "key": key}, sort_keys=True))
     if ledger is not None:
         append_ledger(ledger, record)
@@ -384,6 +409,7 @@ def main() -> int:
     b.add_argument("--voters", required=True)
     b.add_argument("--seed", required=True)
     b.add_argument("--ledger", default=None)
+    b.add_argument("--authors", default="", help="comma-separated extra author names to strip as whole tokens")
     led = sub.add_parser("ledger")
     for flag in ("--ballots-dir", "--tally", "--decision", "--step", "--stamp", "--out"):
         led.add_argument(flag, required=True)
@@ -413,11 +439,13 @@ def main() -> int:
         result = route(read_ledger(Path(args.ledger)), [v.strip() for v in args.votes.split(",") if v.strip()], args.decision)
     elif args.cmd == "blind":
         result = blind_ballots(Path(args.proposals), Path(args.out), [v.strip() for v in args.voters.split(",") if v.strip()],
-                               args.seed, Path(args.ledger) if args.ledger else None)
+                               args.seed, Path(args.ledger) if args.ledger else None,
+                               [a.strip() for a in args.authors.split(",") if a.strip()])
     else:
         tally_result: dict[str, Any] = json.loads(Path(args.tally).read_text(encoding="utf-8"))
-        red: list[str] = checks_gate(read_ledger(Path(args.ledger)))["red"] if args.ledger else []
-        result = check_decision(Path(args.decision), tally_result, args.entries, red)
+        gate_result: dict[str, Any] | None = checks_gate(read_ledger(Path(args.ledger))) if args.ledger else None
+        result = check_decision(Path(args.decision), tally_result, args.entries,
+                                gate_result["red"] if gate_result else [], gate_result)
     print(json.dumps(result))
     return 0
 

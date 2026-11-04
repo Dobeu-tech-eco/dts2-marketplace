@@ -146,8 +146,9 @@ class RedactionTests(unittest.TestCase):
 class RouteTests(unittest.TestCase):
     def ledger(self, status: str) -> Path:
         path: Path = Path(tempfile.mkdtemp(prefix="dts2-route-")) / "ledger.jsonl"
-        record = {"kind": "check", "name": "test", "status": status, "duration_ms": 1, "log_path": "x"}
-        path.write_text(json.dumps(record) + "\n")
+        names = ("test", "typecheck", "lint", "secret-scan", "scope-check")
+        records = [{"kind": "check", "name": n, "status": status if n == "test" else "pass", "duration_ms": 1, "log_path": "x"} for n in names]
+        path.write_text("".join(json.dumps(r) + "\n" for r in records))
         return path
 
     def route(self, status: str, *extra: str) -> dict[str, Any]:
@@ -216,13 +217,17 @@ class BlindTests(unittest.TestCase):
         key1 = json.loads(Path(first["key"]).read_text())["key"]
         key2 = json.loads(Path(again["key"]).read_text())["key"]
         self.assertEqual(key1, key2)
-        orders = {tuple(k.values()) for k in key1.values()}
         different = [tuple(json.loads(Path(self.blind(f"s{i}")["key"]).read_text())["key"]["v1"].values()) for i in range(6)]
         self.assertGreater(len(set(different)), 1)
-        self.assertGreaterEqual(len(orders), 1)
         records = [json.loads(x) for x in (self.root / "ledger.jsonl").read_text().splitlines()]
         self.assertEqual(records[0]["kind"], "ballot")
         self.assertEqual(records[0]["seed"], "seed1")
+        order = records[0]["order"]
+        self.assertEqual(set(order), {"v1", "v2", "v3"})
+        for voter, stems in order.items():
+            self.assertEqual(stems, list(key1[voter].values()))
+            self.assertEqual(sorted(stems), ["claude-opus", "codex", "gemini-pro"])
+        self.assertGreater(len({tuple(v) for v in order.values()}), 1)
 
 
 class ScoutTests(unittest.TestCase):
