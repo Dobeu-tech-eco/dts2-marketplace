@@ -9,7 +9,8 @@ from pathlib import Path
 from typing import Any, Final
 
 PROFILE_DIR: Final[Path] = Path(__file__).resolve().parent.parent / "profiles" / "agents"
-EFFORT_LEVELS: Final[tuple[str, ...]] = ("low", "medium", "high", "max")
+EFFORT_LEVELS: Final[tuple[str, ...]] = ("low", "medium", "high", "xhigh", "max", "ultra")
+HIGH: Final[str] = "high"
 SEATS: Final[tuple[str, ...]] = ("execution", "advisory", "signoff")
 BUDGETS: Final[tuple[str, ...]] = ("ok", "low", "exhausted")
 EXECUTION_EFFORT: Final[dict[str, str]] = {"mechanical": "low", "normal": "medium", "design": "high"}
@@ -86,25 +87,61 @@ def check_inputs(seat: str, complexity: str, budget: str) -> None:
         raise DelegationError(f"unknown budget '{budget}'")
 
 
+def model_for(profile: dict[str, Any], tier: str) -> str | None:
+    value: Any = profile["models"].get(tier)
+    return value if isinstance(value, str) and value else None
+
+
+def supported_efforts(profile: dict[str, Any], model: str | None) -> list[str]:
+    """Levels the model accepts. A profile without per-model lists uses effortLevels."""
+    by_model: dict[str, Any] = profile.get("modelEfforts") or {}
+    listed: Any = by_model.get(model) if isinstance(model, str) else None
+    if isinstance(listed, list) and listed:
+        return [str(level) for level in listed]
+    return [str(level) for level in (profile.get("effortLevels") or [DEFAULT_EFFORT])]
+
+
+def automatic_efforts(profile: dict[str, Any], model: str | None, seat: str) -> list[str]:
+    """Levels delegate may choose. explicitOnlyEfforts (max, ultra) stay out unless requested.
+    Builders and advisory stay at or below high; sign-off may use the next listed level (xhigh)."""
+    levels: list[str] = supported_efforts(profile, model)
+    blocked: set[str] = {str(level) for level in (profile.get("explicitOnlyEfforts") or [])}
+    auto: list[str] = [level for level in levels if level not in blocked]
+    if seat != "signoff":
+        capped: list[str] = [
+            level for level in auto if level in EFFORT_LEVELS and level_index(level) <= level_index(HIGH)
+        ]
+        return capped or auto or levels
+    return auto or levels
+
+
+def explicit_effort(profile: dict[str, Any], tier: str, effort: str) -> str:
+    """An explicit request may use max or ultra, clamped to what that model accepts."""
+    if effort not in EFFORT_LEVELS:
+        raise DelegationError(f"unknown effort '{effort}'")
+    return clamp_effort(effort, supported_efforts(profile, model_for(profile, tier)))
+
+
 def execution_plan(profile: dict[str, Any], complexity: str, budget: str) -> tuple[str, str]:
-    levels: list[str] = profile.get("effortLevels", [DEFAULT_EFFORT])
     if budget == "exhausted":
         assert_execution_not_frontier(ECONOMY)
-        return ECONOMY, clamp_effort(EXHAUSTED_EFFORT, levels)
-    tier: str = execution_tier(complexity)
-    desired: str = EXECUTION_EFFORT[complexity]
-    if budget == "low" and level_index(desired) > level_index(LOW_BUDGET_EFFORT_CAP):
-        desired = LOW_BUDGET_EFFORT_CAP
-    assert_execution_not_frontier(tier)
-    return tier, clamp_effort(desired, levels)
+        tier, desired = ECONOMY, EXHAUSTED_EFFORT
+    else:
+        tier = execution_tier(complexity)
+        desired = EXECUTION_EFFORT[complexity]
+        if budget == "low" and level_index(desired) > level_index(LOW_BUDGET_EFFORT_CAP):
+            desired = LOW_BUDGET_EFFORT_CAP
+        assert_execution_not_frontier(tier)
+    return tier, clamp_effort(desired, automatic_efforts(profile, model_for(profile, tier), "execution"))
 
 
 def seat_plan(profile: dict[str, Any], seat: str, complexity: str, budget: str) -> tuple[str, str]:
     if seat == "execution":
         return execution_plan(profile, complexity, budget)
-    levels: list[str] = profile.get("effortLevels", [DEFAULT_EFFORT])
     tier: str = ADVISORY_TIER[complexity] if seat == "advisory" else FRONTIER
-    return tier, clamp_effort(SEAT_EFFORT[seat][complexity], levels)
+    return tier, clamp_effort(
+        SEAT_EFFORT[seat][complexity], automatic_efforts(profile, model_for(profile, tier), seat),
+    )
 
 
 def pick_profile(
@@ -122,14 +159,43 @@ def pick_profile(
 def delegate(
     profile: dict[str, Any], seat: str, complexity: str, budget: str = "ok",
     lead_provider: str | None = None, profiles: dict[str, dict[str, Any]] | None = None,
+    effort: str | None = None,
 ) -> dict[str, Any]:
     check_inputs(seat, complexity, budget)
     chosen: dict[str, Any] = pick_profile(profile, seat, lead_provider, profiles)
-    tier, effort = seat_plan(chosen, seat, complexity, budget)
+    tier, planned = seat_plan(chosen, seat, complexity, budget)
+    resolved: str = explicit_effort(chosen, tier, effort) if effort else planned
     return {
         "agent": chosen["name"], "seat": seat, "model": chosen["models"][tier], "tier": tier,
-        "effort": effort, "tokenBurn": chosen.get("tokenBurn", {}).get(tier),
+        "effort": resolved, "tokenBurn": chosen.get("tokenBurn", {}).get(tier),
     }
+
+
+def observed_model(profile: dict[str, Any], model: str | None) -> str | None:
+    """The model a run actually used. An empty id is the profile default (codex: gpt-6.1-sol)."""
+    if isinstance(model, str) and model:
+        return model
+    default: Any = profile.get("defaultModel")
+    if isinstance(default, str) and default:
+        return default
+    return model_for(profile, STANDARD)
+
+
+def tier_of_model(profile: dict[str, Any], model: str | None) -> str | None:
+    """Map an observed model id to frontier, standard, or economy. First matching tier wins."""
+    observed: str | None = observed_model(profile, model)
+    for tier in ("frontier", "standard", "economy"):
+        if model_for(profile, tier) == observed and observed is not None:
+            return tier
+    return None
+
+
+def receipt_line(profile: dict[str, Any], seat: str, effort: str, model: str | None = None) -> str:
+    """One Delegation row: model, tier, and effort. An unpinned codex default reports as standard."""
+    shown: str = observed_model(profile, model) or "unpinned"
+    tier: str | None = tier_of_model(profile, model)
+    tier_bit: str = f" tier={tier}" if tier else ""
+    return f"- {profile['name']} {shown}{tier_bit} effort={effort} ({seat})"
 
 
 def load_profiles(profile_dir: Path) -> dict[str, dict[str, Any]]:
@@ -148,6 +214,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--complexity", required=True)
     parser.add_argument("--budget", default="ok")
     parser.add_argument("--lead-provider", default=None)
+    parser.add_argument("--effort", default=None, help="explicit effort; max and ultra are not chosen otherwise")
     return parser
 
 
@@ -160,6 +227,7 @@ def main() -> int:
     try:
         result: dict[str, Any] = delegate(
             profiles[args.agent], args.seat, args.complexity, args.budget, args.lead_provider, profiles,
+            args.effort,
         )
     except DelegationError as error:
         print(f"delegate error: {error}", file=sys.stderr)

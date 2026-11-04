@@ -25,7 +25,7 @@ One profile per agent in `profiles/agents/`. `tokenBurn` is a relative, user-edi
 | Agent | Models (frontier / standard / economy) | Roles and specialization | tokenBurn (standard) | Effort support |
 |---|---|---|---|---|
 | claude | opus / sonnet / haiku | lead, verifier, builder, reviewer; plans, signs off and reviews | 3 | low, medium, high, max |
-| codex | gpt-5-codex / gpt-5-codex / gpt-5-mini | builder, second-opinion; self-contained implementation and independent review | 3 | low, medium, high |
+| codex | gpt-6-astra / gpt-6.1-sol / gpt-6-luna | builder, second-opinion; self-contained implementation and independent review | 3 | low, medium, high, xhigh (max and ultra only when requested; luna has no ultra) |
 | gemini | gemini-2.5-pro / gemini-2.5-flash / gemini-2.5-flash-lite | builder, reviewer, second-opinion (via the Antigravity `agy` CLI) | 2 | medium |
 | grok | grok-4.7 / grok-4.7 / grok-4-fast | builder, reviewer, second-opinion | 3 | medium |
 | opencode | CLI default | builder | 2 | medium |
@@ -77,6 +77,7 @@ Restart Claude Code, then run `/dts2-harness:onboard`.
 
 ## Changelog
 
+- 3.6.3 — codex tiers are pinned from a ChatGPT Pro model list (2026-11-03): frontier gpt-6-astra, standard gpt-6.1-sol, economy gpt-6-luna. `codex exec` gets `-m` and `-c model_reasoning_effort` so a global config.toml high does not apply to every seat. Builders stay on standard or economy at low–high; sign-off may use xhigh; max and ultra only when explicitly requested. An unpinned run (default gpt-6.1-sol) reports as the standard tier. Other agent profiles were already tiered and were left unchanged.
 - 3.6.2 — the builder finalization pass uses `improve-codebase-architecture` scoped to the builder's file set, because upstream retired `request-refactor-plan`. A manual scoped simplification pass is the documented fallback. The hard-cap `diagnose` companion (renamed upstream to `diagnosing-bugs`) becomes a fresh `diagnosing-bugs` pass.
 - 3.6.1 — gtm is self-sufficient: auto-installs marketing-skills, runs a deep-dive (optional deep-interview re-run), selects the applicable skills, and runs them as one seamless pass.
 - 3.6.0 — strict delegation: frontier models only for advisory and sign-off, builders run the cheapest capable model at a complexity-scaled effort (new delegate.py); effort factored into the calc; Muse Code (Meta) added to the roster; plus /dts2-harness:upgrade (one-command in-place upgrade) and user-selectable lead provider via /dts2-harness:model; auto hand-off and lead failover on a usage/token-limit stall; every detected agent gets a seeded project memory file at scaffold; /dts2-harness:find-skills rescans and suggests skills on demand; request-refactor-plan finalization pass before tests; auto diagnose at the hard 3-round fix cap; loop-me check-in on run trigger; setup-pre-commit before every commit; code-review on first contact with a new repo; /dts2-harness:check-in shows complete vs outstanding against the end state; exhausted-budget effort is clamped to the profile's levels.

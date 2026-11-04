@@ -13,7 +13,7 @@
 ### Delegation
 
 Models:
-- <agent> <model> effort=<e> (execution | advisory | signoff)
+- <agent> <model> tier=<tier> effort=<e> (execution | advisory | signoff)
 
 Delegation policy: OK | VIOLATION: <builder> ran frontier
 

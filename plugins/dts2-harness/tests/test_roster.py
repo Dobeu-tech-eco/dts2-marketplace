@@ -22,8 +22,12 @@ SCHEMA_KEYS: Final[frozenset[str]] = frozenset({
     "costTier", "statusCommand", "loginCommand", "models", "modelsVerified",
     "subscriptionName", "apiKeyEnv", "searchPaths", "effortLevels", "tokenBurn",
 })
-OPTIONAL_KEYS: Final[frozenset[str]] = frozenset({"roleCommands", "notes", "stdin", "fallback", "env"})
+OPTIONAL_KEYS: Final[frozenset[str]] = frozenset({
+    "roleCommands", "notes", "stdin", "fallback", "env",
+    "tierEffort", "modelEfforts", "explicitOnlyEfforts", "defaultModel",
+})
 VERIFIED: Final[frozenset[str]] = frozenset({"claude", "codex", "opencode"})
+VERIFIED_MODELS: Final[frozenset[str]] = frozenset({"claude", "codex"})
 COST_TIERS: Final[dict[str, int]] = {
     "claude": 3, "codex": 2, "gemini": 1, "opencode": 1,
     "copilot": 2, "cursor": 2, "antigravity": 2, "grok": 2, "muse": 2,
@@ -102,7 +106,7 @@ class ProfileExtensionTests(unittest.TestCase):
             self.assertEqual(data["costTier"], COST_TIERS[name], name)
             self.assertEqual(set(data["models"]), set(MODEL_TIERS), name)
             self.assertIsInstance(data["modelsVerified"], bool)
-            self.assertEqual(data["modelsVerified"], name == "claude", name)
+            self.assertEqual(data["modelsVerified"], name in VERIFIED_MODELS, name)
 
     def test_status_commands(self) -> None:
         expected: dict[str, Any] = {
@@ -188,19 +192,32 @@ class ProfileExtensionTests(unittest.TestCase):
 
     def test_codex_profile(self) -> None:
         data: dict[str, Any] = json.loads((PROFILE_DIR / "codex.json").read_text())
-        self.assertEqual(data["models"], {"frontier": None, "standard": None, "economy": None})
+        self.assertEqual(data["models"], {
+            "frontier": "gpt-6-astra", "standard": "gpt-6.1-sol", "economy": "gpt-6-luna",
+        })
+        self.assertTrue(data["modelsVerified"])
+        self.assertEqual(data["defaultModel"], "gpt-6.1-sol")
+        self.assertEqual(data["tierEffort"], {"frontier": "high", "standard": "medium", "economy": "low"})
+        self.assertNotIn("ultra", data["modelEfforts"]["gpt-6-luna"])
+        self.assertIn("ultra", data["modelEfforts"]["gpt-6-astra"])
+        self.assertEqual(data["explicitOnlyEfforts"], ["max", "ultra"])
         self.assertNotIn("gpt-5-codex", json.dumps(data["models"]) + json.dumps(data["roleCommands"]))
         self.assertEqual(data["stdin"], "/dev/null")
         self.assertEqual(data["roleCommands"]["builder"], [
-            "codex", "exec", "-m", "{model}", "--sandbox", "workspace-write", "--", "{prompt}",
+            "codex", "exec", "-m", "{model}", "-c", "model_reasoning_effort={effort}",
+            "--sandbox", "workspace-write", "--", "{prompt}",
         ])
         self.assertEqual(data["roleCommands"]["second-opinion"], [
-            "codex", "exec", "-m", "{model}", "--sandbox", "read-only", "--", "{prompt}",
+            "codex", "exec", "-m", "{model}", "-c", "model_reasoning_effort={effort}",
+            "--sandbox", "read-only", "--", "{prompt}",
         ])
         notes: str = " ".join(data["notes"])
         self.assertIn("do not commit", notes)
         self.assertIn("lead commits", notes)
         self.assertIn("< /dev/null", notes)
+        self.assertIn("2026-11-03", notes)
+        self.assertIn("models_cache.json", notes)
+        self.assertNotIn("No model pin", notes)
 
     def test_muse_profile(self) -> None:
         data: dict[str, Any] = json.loads((PROFILE_DIR / "muse.json").read_text())
@@ -339,9 +356,31 @@ class CommandTests(unittest.TestCase):
     def test_null_model_drops_model_flag(self) -> None:
         self.assertEqual(self.resolved("claude", "builder")["model"], "sonnet")
         self.assertIsNone(self.resolved("opencode", "builder")["model"])
-        data: dict[str, Any] = self.resolved("codex", "builder", "frontier")
-        self.assertIsNone(data["model"])
-        self.assertEqual(data["argv"], ["codex", "exec", "--sandbox", "workspace-write", "--", "{prompt}"])
+        self.assertNotIn("-m", self.resolved("opencode", "builder")["argv"])
+
+    def test_codex_command_pins_model_and_effort(self) -> None:
+        builder: dict[str, Any] = self.resolved("codex", "builder", "standard")
+        self.assertEqual(builder["model"], "gpt-6.1-sol")
+        self.assertEqual(builder["effort"], "medium")
+        self.assertEqual(builder["argv"][builder["argv"].index("-m") + 1], "gpt-6.1-sol")
+        self.assertIn("model_reasoning_effort=medium", builder["argv"])
+        economy: dict[str, Any] = self.resolved("codex", "builder", "economy")
+        self.assertEqual(economy["model"], "gpt-6-luna")
+        self.assertIn("model_reasoning_effort=low", economy["argv"])
+        frontier: dict[str, Any] = self.resolved("codex", "second-opinion", "frontier")
+        self.assertEqual(frontier["model"], "gpt-6-astra")
+        self.assertEqual(frontier["argv"][frontier["argv"].index("-m") + 1], "gpt-6-astra")
+        self.assertIn("model_reasoning_effort=high", frontier["argv"])
+        self.assertIn("--sandbox", frontier["argv"])
+        self.assertIn("read-only", frontier["argv"])
+
+    def test_codex_effort_flag_overrides_tier_default(self) -> None:
+        result = raw_run("command", "--agent", "codex", "--role", "builder", "--tier", "standard", "--effort", "high")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data: dict[str, Any] = json.loads(result.stdout)
+        self.assertEqual(data["model"], "gpt-6.1-sol")
+        self.assertEqual(data["effort"], "high")
+        self.assertIn("model_reasoning_effort=high", data["argv"])
 
     def test_codex_stdin_is_dev_null(self) -> None:
         self.assertEqual(self.resolved("codex", "builder")["stdin"], "/dev/null")
