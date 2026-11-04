@@ -207,9 +207,9 @@ def check_decision(path: Path, tally_result: dict[str, Any], entries: int, red: 
     return {"ok": not problems, "decision": decision, "problems": problems}
 
 
-def route(records: list[dict[str, Any]], votes: list[str], decision: str | None) -> dict[str, Any]:
+def route(records: list[dict[str, Any]], votes: list[str], decision: str | None, head: str | None = None) -> dict[str, Any]:
     """Where a step goes next. Red or missing checks come first: zero votes, and no head approval over them."""
-    gate: dict[str, Any] = checks_gate(records)
+    gate: dict[str, Any] = checks_gate(records, head)
     if not gate["votes_allowed"]:
         return {"ok": False, "action": gate["action"], "votes": 0, "red": gate["red"], "reason": gate["reason"]}
     if decision:
@@ -234,10 +234,22 @@ OPTION_LABELS: Final[str] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 KNOWN_AUTHORS: Final[frozenset[str]] = frozenset(DEFAULT_ORDER) | CLAUDE_AGENT_ALIASES | frozenset({"gpt", "agy", "copilot"})
 
 
+def split_header(text: str) -> tuple[str, str, str]:
+    """(before, header, after): the header is the block after an optional title heading, up to the next blank line or heading."""
+    lines: list[str] = text.splitlines(keepends=True)
+    start: int = 1 if lines and lines[0].lstrip().startswith("#") else 0
+    while start < len(lines) and not lines[start].strip():
+        start += 1
+    end: int = start
+    while end < len(lines) and lines[end].strip() and not lines[end].lstrip().startswith("#"):
+        end += 1
+    return "".join(lines[:start]), "".join(lines[start:end]), "".join(lines[end:])
+
+
 def author_values(text: str) -> list[str]:
-    """Values written on author-style lines, read before those lines are removed."""
+    """Values written on author-style lines of the header block, read before those lines are removed."""
     values: list[str] = []
-    for match in AUTHOR_LINE.finditer(text):
+    for match in AUTHOR_LINE.finditer(split_header(text)[1]):
         value: str = match.group(0).split(":", 1)[1].strip().strip("*").strip() if ":" in match.group(0) else ""
         if value and len(value) <= 60:
             values.append(value)
@@ -245,13 +257,17 @@ def author_values(text: str) -> list[str]:
 
 
 def identity_names(stem: str, text: str, extra: list[str]) -> list[str]:
-    """Whole tokens that identify an author: the full stem, roster or provider fragments of it, author-line values, --authors."""
+    """Whole tokens that identify an author: the stem when it is a known or listed author (or holds one), those fragments,
+    author-line values, --authors. An ordinary stem such as `plan` or `1` is never stripped from the body."""
     fragments: list[str] = [part for part in re.split(r"[-_.]", stem) if part.lower() in KNOWN_AUTHORS]
-    return [stem, *fragments, *author_values(text), *extra]
+    listed: set[str] = {name.lower() for name in extra}
+    full: list[str] = [stem] if fragments or stem.lower() in KNOWN_AUTHORS or stem.lower() in listed else []
+    return [*full, *fragments, *author_values(text), *extra]
 
 
 def strip_identity(text: str, names: list[str]) -> str:
-    cleaned: str = AUTHOR_LINE.sub("", text)
+    before, header, after = split_header(text)
+    cleaned: str = before + AUTHOR_LINE.sub("", header) + after
     for name in sorted({n.strip() for n in names if n.strip()}, key=len, reverse=True):
         cleaned = re.sub(r"\b" + re.escape(name) + r"\b", "the author", cleaned, flags=re.IGNORECASE)
     return re.sub(r"\n{3,}", "\n\n", cleaned).strip() + "\n"
@@ -398,9 +414,11 @@ def main() -> int:
     c.add_argument("decision")
     c.add_argument("--tally", required=True)
     c.add_argument("--entries", required=True, type=int)
-    c.add_argument("--ledger", default=None, help="run ledger; a red deterministic check blocks an APPROVE decision")
+    c.add_argument("--ledger", default=None, help="run ledger; a red deterministic check blocks an APPROVE decision (build ballot only)")
+    c.add_argument("--head", default=None, help="commit SHA; checks recorded on another commit count as missing")
     r = sub.add_parser("route")
     r.add_argument("--ledger", required=True)
+    r.add_argument("--head", default=None, help="commit SHA; checks recorded on another commit count as missing")
     r.add_argument("--votes", default="")
     r.add_argument("--decision", default=None, choices=["APPROVE", "FIX", "STRIKE"])
     b = sub.add_parser("blind")
@@ -436,14 +454,14 @@ def main() -> int:
         tally_json: dict[str, Any] = json.loads(Path(args.tally).read_text(encoding="utf-8"))
         result = write_ledger(Path(args.ballots_dir), tally_json, Path(args.decision), args.step, args.stamp, Path(args.out))
     elif args.cmd == "route":
-        result = route(read_ledger(Path(args.ledger)), [v.strip() for v in args.votes.split(",") if v.strip()], args.decision)
+        result = route(read_ledger(Path(args.ledger)), [v.strip() for v in args.votes.split(",") if v.strip()], args.decision, args.head)
     elif args.cmd == "blind":
         result = blind_ballots(Path(args.proposals), Path(args.out), [v.strip() for v in args.voters.split(",") if v.strip()],
                                args.seed, Path(args.ledger) if args.ledger else None,
                                [a.strip() for a in args.authors.split(",") if a.strip()])
     else:
         tally_result: dict[str, Any] = json.loads(Path(args.tally).read_text(encoding="utf-8"))
-        gate_result: dict[str, Any] | None = checks_gate(read_ledger(Path(args.ledger))) if args.ledger else None
+        gate_result: dict[str, Any] | None = checks_gate(read_ledger(Path(args.ledger)), args.head) if args.ledger else None
         result = check_decision(Path(args.decision), tally_result, args.entries,
                                 gate_result["red"] if gate_result else [], gate_result)
     print(json.dumps(result))

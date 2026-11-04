@@ -6,11 +6,11 @@ Subcommands print one JSON object each:
                                     run test, typecheck, lint, secret scan and scope check; one ledger line each.
                                     The scope check covers committed, uncommitted and untracked files since the base:
                                     --base, else the run's recorded `.harness/runs/<stamp>/base`, else origin's default branch
-  gate      --stamp S               may the vote start? red checks mean a fix round with zero votes
+  gate      --stamp S [--head SHA]  may the vote start? red checks mean a fix round with zero votes; with --head, checks taken on another commit count as missing
   summary   --stamp S               one markdown table built from the ledger, for the lead's brief and the PR receipt
   env-missing --stamp S NAME ...    record env var NAMES that are missing (never values)
   scout-check FILE                  an evidence file must hold no verdict token
-The ledger is .harness/runs/<stamp>/ledger.jsonl: one JSON object per line, kind `check`, `env` or `ballot`."""
+The ledger is .harness/runs/<stamp>/ledger.jsonl: one JSON object per line, kind `check` (with the `head` SHA it ran on), `env` or `ballot`."""
 from __future__ import annotations
 
 import argparse
@@ -105,17 +105,26 @@ def append_ledger(path: Path, record: dict[str, Any]) -> None:
     atomic_write(path, existing + json.dumps(record, sort_keys=True) + "\n")
 
 
-def latest_checks(records: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    """The newest `check` record per check name, so a re-run after a fix replaces the red one."""
+def latest_checks(records: list[dict[str, Any]], head: str | None = None) -> dict[str, dict[str, Any]]:
+    """The newest `check` record per check name, so a re-run after a fix replaces the red one.
+
+    With `head`, only records taken on that commit count; any other (or a record with no head) is treated as missing."""
     latest: dict[str, dict[str, Any]] = {}
     for record in records:
         if record.get("kind") == "check" and isinstance(record.get("name"), str):
+            if head is not None and record.get("head") != head:
+                continue
             latest[record["name"]] = record
     return latest
 
 
-def red_checks(records: list[dict[str, Any]]) -> list[str]:
-    return sorted(name for name, rec in latest_checks(records).items() if rec.get("status") == FAIL)
+def red_checks(records: list[dict[str, Any]], head: str | None = None) -> list[str]:
+    return sorted(name for name, rec in latest_checks(records, head).items() if rec.get("status") == FAIL)
+
+
+def current_head(cwd: Path) -> str | None:
+    lines: list[str] | None = git_lines(cwd, "rev-parse", "HEAD")
+    return lines[0] if lines else None
 
 
 def inline_list(value: str) -> list[str] | None:
@@ -134,6 +143,8 @@ def parse_config(text: str) -> dict[str, Any]:
     unreadable: bool = False
     block: str = ""
     for raw in text.splitlines():
+        if raw.lstrip().startswith("#"):
+            continue
         line: str = raw.rstrip()
         if line and not line.startswith((" ", "\t", "-")):
             block, _, rest = line.partition(":")
@@ -258,6 +269,12 @@ def changed_files(cwd: Path, base: str | None) -> list[str] | None:
     return sorted({f for part in parts for f in part or []})
 
 
+def matches_forbidden(path: str, pattern: str) -> bool:
+    """fnmatch on the path or its basename; a leading `**/` also matches zero directories, as in gitignore."""
+    patterns: list[str] = [pattern, pattern[3:]] if pattern.startswith("**/") and len(pattern) > 3 else [pattern]
+    return any(fnmatch.fnmatch(path, pat) or fnmatch.fnmatch(Path(path).name, pat) for pat in patterns)
+
+
 def scope_check(cwd: Path, forbidden: list[str], log: Path, base: str | None = None, unreadable: bool = False) -> dict[str, Any]:
     started: float = time.monotonic()
     if unreadable:
@@ -267,7 +284,7 @@ def scope_check(cwd: Path, forbidden: list[str], log: Path, base: str | None = N
         if forbidden:
             return finish("scope-check", FAIL, started, log, "could not list changed files (pass --base <ref> or record the base); do_not_touch is set, so this fails closed\n", cwd)
         return finish("scope-check", SKIP, started, log, "could not list changed files; nothing is protected, scope check skipped\n", cwd)
-    hits: list[str] = [f for f in files if any(fnmatch.fnmatch(f, pat) or fnmatch.fnmatch(Path(f).name, pat) for pat in forbidden)]
+    hits: list[str] = [f for f in files if any(matches_forbidden(f, pat) for pat in forbidden)]
     body: str = "".join(f"touches do_not_touch: {f}\n" for f in hits) or f"{len(files)} changed files, none protected\n"
     return finish("scope-check", FAIL if hits else PASS, started, log, body, cwd)
 
@@ -279,14 +296,17 @@ def run_checks(cwd: Path, stamp: str, base: str | None = None) -> dict[str, Any]
     results.append(secret_scan(cwd, logs / "secret-scan.log"))
     results.append(scope_check(cwd, config["do_not_touch"], logs / "scope-check.log", resolve_base(cwd, stamp, base), config["unreadable"]))
     path: Path = ledger_path(cwd, stamp)
+    head: str | None = current_head(cwd)
     for record in results:
+        if head:
+            record["head"] = head
         append_ledger(path, record)
-    return gate(read_ledger(path)) | {"checks": results, "ledger": str(path)}
+    return gate(read_ledger(path), head) | {"checks": results, "ledger": str(path)}
 
 
-def gate(records: list[dict[str, Any]]) -> dict[str, Any]:
-    latest: dict[str, dict[str, Any]] = latest_checks(records)
-    red: list[str] = red_checks(records)
+def gate(records: list[dict[str, Any]], head: str | None = None) -> dict[str, Any]:
+    latest: dict[str, dict[str, Any]] = latest_checks(records, head)
+    red: list[str] = red_checks(records, head)
     missing: list[str] = [name for name in EXPECTED_CHECKS if name not in latest]
     if red:
         return {"ok": False, "votes_allowed": False, "red": red, "missing": missing, "action": "fix",
@@ -329,6 +349,8 @@ def main() -> int:
         p = sub.add_parser(name)
         p.add_argument("--stamp", required=True)
         p.add_argument("--cwd", default=".")
+        if name == "gate":
+            p.add_argument("--head", default=None, help="commit SHA; checks recorded on another commit count as missing")
         if name == "run":
             p.add_argument("--base", default=None, help="ref the run started from; default the recorded base or origin's default branch")
         if name == "env-missing":
@@ -344,7 +366,7 @@ def main() -> int:
     if args.cmd == "run":
         result = run_checks(cwd, args.stamp, args.base)
     elif args.cmd == "gate":
-        result = gate(read_ledger(path))
+        result = gate(read_ledger(path), args.head)
     elif args.cmd == "summary":
         result = {"ok": True, "markdown": summary(read_ledger(path))}
     else:
