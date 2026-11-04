@@ -238,8 +238,8 @@ class SpawnTests(SupervisorBase):
         self.spawn("--resume", FAKE_COST="0.75", FAKE_PHASE="done")
         first, second = self.son_calls()
         self.assertEqual(first[first.index("--max-budget-usd") + 1], "2.00")
-        # the CLI counts the resumed session's whole cost: the share left (1.50) plus the 0.50 already reported
-        self.assertEqual(second[second.index("--max-budget-usd") + 1], "2.00")
+        # the flag counts only new spend on a resume, so the resumed son gets the share left
+        self.assertEqual(second[second.index("--max-budget-usd") + 1], "1.50")
 
     def test_resume_charges_only_the_difference(self) -> None:
         self.spawn(FAKE_COST="1.0", FAKE_PHASE="building")

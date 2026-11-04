@@ -1,5 +1,5 @@
 """Review fixes for the supervisor: a lane is never parked or resumed under a running son, a JSON-reported 429 on a
-retried attempt is not unknown spend, and a resumed son's dollar flag covers the session's cumulative cost. Every
+retried attempt is not unknown spend, and a resumed son's dollar flag is the lane's share. Every
 model is a fake DTS2_CLAUDE_BIN script; nothing real runs."""
 from __future__ import annotations
 
@@ -134,7 +134,7 @@ class JsonReported429Tests(FixBase):
 
 
 class ResumeBudgetTests(FixBase):
-    def test_resumed_flag_covers_the_sessions_cumulative_cost(self) -> None:
+    def test_resumed_flag_is_the_lanes_share_only(self) -> None:
         self.config("budget:\n  max_usd: 10\n")
         self.preflight()
         first = self.spawn(**self.say({"stdout": result(1.0, "S1")}))
@@ -146,17 +146,58 @@ class ResumeBudgetTests(FixBase):
         cap = float(argv[argv.index("--max-budget-usd") + 1])
         share = round(10.0 - 1.0, 2)
         self.assertEqual(first_cap, 10.0)
-        self.assertGreaterEqual(cap, 1.0 + share)
+        self.assertEqual(cap, share)
         self.assertEqual(argv[argv.index("--resume") + 1], "S1")
         self.assertEqual(self.budget()["spent_usd"], 1.5)
 
-    def test_fallback_flag_is_a_single_model(self) -> None:
+    def test_fallback_flag_is_a_chain_passed_once(self) -> None:
         self.config("supervisor:\n  fallback_models: sonnet, haiku\n")
         self.preflight()
         self.spawn(**self.say({"stdout": result(0.1, "S1")}))
         argv = self.son_calls()[0]
-        self.assertEqual(argv[argv.index("--fallback-model") + 1], "sonnet")
+        self.assertEqual(argv[argv.index("--fallback-model") + 1], "sonnet,haiku")
         self.assertEqual(argv.count("--fallback-model"), 1)
+
+
+class ParkedLaneLifecycleTests(FixBase):
+    def write_status(self, data: dict[str, Any], age: int = 0) -> None:
+        path = self.lane_dir / "status.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data))
+        old = int(time.time()) - age
+        os.utime(path, (old, old))
+
+    def test_pr_open_lane_with_an_old_heartbeat_is_not_parked(self) -> None:
+        self.preflight()
+        self.write_status({"lane": "a", "status": "pr-open", "heartbeat": int(time.time()) - 700}, age=3600)
+        rows = self.lanes("status", STAMP)["lanes"]
+        self.assertEqual(rows[0]["phase"], "pr-open")
+        self.assertFalse(rows[0]["stale"])
+        self.assertEqual(json.loads((self.lane_dir / "status.json").read_text())["status"], "pr-open")
+        manifest = json.loads(self.manifest.read_text())
+        self.assertEqual(manifest["lanes"][0]["id"], "a")
+        self.assertTrue(self.lanes("merge-go", str(self.manifest), "--lane", "a", "--head", "abc")["ok"])
+
+    def test_resume_of_a_parked_lane_resets_its_phase(self) -> None:
+        self.preflight()
+        first = self.spawn(**self.say({"code": 1, "stdout": result(0.5, "S1", True, "boom")}))
+        self.assertFalse(first["ok"])
+        parked = self.status_json()
+        self.assertEqual((parked["status"], parked["reason"]), ("incomplete", "error"))
+        resumed = self.spawn("--resume", **self.say({"stdout": result(0.8, "S1")}))
+        self.assertFalse(resumed["ok"], resumed)
+        self.assertEqual(resumed["reason"], "no-final-status")
+        now = self.status_json()
+        self.assertEqual(now["status"], "incomplete")
+        self.assertEqual(now["reason"], "no-final-status")
+
+    def test_stale_live_lane_is_snapshotted_once_per_stall_window(self) -> None:
+        self.preflight()
+        self.write_status({"lane": "a", "status": "building", "heartbeat": int(time.time()) - 3600,
+                           "son_pid": os.getpid(), "worktree": str(self.worktree)}, age=3600)
+        for _ in range(3):
+            self.assertTrue(self.lanes("status", STAMP)["lanes"][0]["alive"])
+        self.assertEqual(len(list(self.lane_dir.glob("stall-*.diff"))), 1)
 
 
 class MergeOrderLockTests(base.SupervisorBase):

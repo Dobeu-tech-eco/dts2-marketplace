@@ -151,8 +151,8 @@ class CostSourceDocTests(unittest.TestCase):
         self.assertIn("covers Claude spend only", readme)
         self.assertIn("unreported_calls", readme)
 
-    def test_fallback_template_names_one_model(self) -> None:
-        self.assertIn("one model name", TEMPLATE.read_text(encoding="utf-8"))
+    def test_fallback_template_names_a_chain_of_three(self) -> None:
+        self.assertIn("chain of up to 3 models", TEMPLATE.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

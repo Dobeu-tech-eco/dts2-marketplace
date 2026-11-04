@@ -488,7 +488,7 @@ def cap_flags(cwd: Path, remaining_usd: float | None, session: str | None) -> li
     chain: list[str] = read_supervisor(cwd)["fallback_models"]
     flags: list[str] = ["--max-turns", str(caps["max_turns"]), "--output-format", "json"]
     if chain:
-        flags += ["--fallback-model", chain[0]]  # the flag takes one model; later entries of the setting are unused
+        flags += ["--fallback-model", ",".join(chain[:3])]  # a comma-separated chain tried in order, at most 3 models
     if caps["max_usd"] is not None and remaining_usd is not None:
         flags += ["--max-budget-usd", f"{max(remaining_usd, 0.01):.2f}"]
     if session:
@@ -669,7 +669,7 @@ def lane_status(path: Path, data: dict[str, Any], threshold: int, now: int, stal
     beat: int | None = valid_beat(data.get("heartbeat"))
     last_seen: int = max(beat, updated) if beat is not None else updated
     limit: int = stall_s if beat is not None else threshold
-    stale: bool = phase not in TERMINAL_PHASES and now - last_seen > limit
+    stale: bool = phase not in TERMINAL_PHASES | {PHASE_PR_OPEN} and now - last_seen > limit
     alive: bool = lane_alive(data)
     return {"lane": str(data.get("lane") or path.parent.name), "phase": phase, "updated": updated,
             "heartbeat": beat, "last_seen": last_seen, "stale": stale, "alive": alive,
@@ -713,6 +713,13 @@ def snapshot_stall(folder: Path, path: Path, data: dict[str, Any], now: int) -> 
     return str(diff)
 
 
+def recent_snapshot(folder: Path, now: int, stall_s: int) -> str | None:
+    """The newest stall diff in the lane's run dir when it is younger than stall_s, so polling a stale but live lane
+    does not write a new snapshot every time."""
+    diffs: list[Path] = sorted(folder.glob("stall-*.diff"), key=lambda p: p.stat().st_mtime)
+    return str(diffs[-1]) if diffs and now - diffs[-1].stat().st_mtime < stall_s else None
+
+
 def mark_stalled(runs_dir: Path, stamp: str, path: Path, data: dict[str, Any], row: dict[str, Any], now: int) -> None:
     row["snapshot"] = snapshot_stall(path.parent, path, data, now)
     merge_json(path, {"status": PHASE_INCOMPLETE, "reason": REASON_STALLED, "stalled_at": now,
@@ -733,7 +740,7 @@ def status(runs_dir: Path, stamp: str, cwd: Path) -> dict[str, Any]:
     for path, data in read_status_files(runs_dir, stamp):
         row: dict[str, Any] = lane_status(path, data, threshold, now, stall_s)
         if row["stale"] and row["alive"]:
-            row["snapshot"] = snapshot_stall(path.parent, path, data, now)
+            row["snapshot"] = recent_snapshot(path.parent, now, stall_s) or snapshot_stall(path.parent, path, data, now)
         elif row["stale"]:
             mark_stalled(runs_dir, stamp, path, data, row, now)
         rows.append(row)
@@ -1165,15 +1172,6 @@ def spawn(manifest: dict[str, Any], lane_id: str, worktree: Path, runs_dir: Path
         merge_json(status_path, dict.fromkeys(PID_KEYS))
 
 
-def resume_cap(runs_dir: Path, stamp: str, lane_id: str, share: float | None, session: str | None) -> float | None:
-    """The dollar flag for a son: its share, plus what the resumed session already reported, because the CLI counts the
-    whole session's cost against --max-budget-usd, not only the new part."""
-    sessions: dict[str, Any] = (((read_json_object(runs_dir / stamp / BUDGET_NAME).get("lanes") or {})
-                                 .get(lane_id) or {}).get("sessions") or {})
-    prior: Any = sessions.get(session) if session else None
-    return share + float(prior) if share is not None and isinstance(prior, (int, float)) else share
-
-
 def start_son(manifest: dict[str, Any], lane_id: str, worktree: Path, runs_dir: Path, cwd: Path, resume: bool) -> dict[str, Any]:
     stamp: str = str(manifest["stamp"])
     refusal: tuple[str, str] | None = spawn_refusal(runs_dir, stamp, cwd, lane_id)
@@ -1191,12 +1189,12 @@ def start_son(manifest: dict[str, Any], lane_id: str, worktree: Path, runs_dir: 
         park(runs_dir, stamp, lane_id, REASON_BUDGET, no_share)
         return {"ok": False, "lane": lane_id, "reason": REASON_BUDGET, "detail": no_share}
     state: dict[str, Any] = spend_state(runs_dir, stamp, cwd)
-    command: dict[str, Any] = son_command(manifest, lane_id, worktree, cwd, resume_cap(runs_dir, stamp, lane_id, share, session),
-                                          session)
+    command: dict[str, Any] = son_command(manifest, lane_id, worktree, cwd, share, session)
     left_s: float = (state["caps"]["max_wall_minutes"] * SECONDS_PER_MINUTE
                      - (time.time() - float(state["budget"].get("started", time.time()))))
-    merge_json(status_path, {"lane": lane_id, "worktree": str(worktree), "heartbeat": int(time.time()),
-                             **({} if read_json_object(status_path).get("status") else {"status": PHASE_STARTING})})
+    fresh: dict[str, Any] = ({} if read_json_object(status_path).get("status") in SETTLED_PHASES else
+                             {"status": PHASE_STARTING, "reason": None, "detail": None, "parked_at": None, "stalled_at": None})
+    merge_json(status_path, {"lane": lane_id, "worktree": str(worktree), "heartbeat": int(time.time()), **fresh})
     emit = ledger_emitter(runs_dir, stamp, lane_id)
     try:
         call: dict[str, Any] = invoke(command["argv"], worktree, max(left_s, 1.0), f"son:{lane_id}", emit, root=cwd,
