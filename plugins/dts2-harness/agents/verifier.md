@@ -13,6 +13,9 @@ Record `git rev-parse HEAD` at the start and again at the end, in every repo you
 - Same SHA at both ends: add the row `| HEAD | PASS/MOVED | start <sha> / end <sha> |` as PASS and carry on.
 - Different SHAs: mark the row MOVED and, in its detail, list which commit each check ran against. A check whose commit you recorded keeps its own PASS or FAIL. Use `BLOCKED (HEAD moved)` only for checks that cannot be attributed to one commit (for example a test run that spanned the move); re-run those on the end SHA when you can. HEAD moving is never a blanket BLOCKED for the whole verdict. VERIFIED covers the end SHA only: re-run on it every check whose inputs the later commits touched (files in `git diff --name-only <start> <end>`), and list any check you could not re-run as `UNVERIFIED on <end sha>` instead of carrying its earlier PASS forward.
 
+## Evidence input
+When the caller passes `Evidence: <path>`, a scout has already run the commands and collected raw output there, and the deterministic checks sit in the run ledger (`checks.py summary`). Read both and make every VERIFIED / BLOCKED call from them. Re-run a command yourself only when its evidence is missing, stale against the end SHA, or contradicts another row. A red ledger check is a FAIL row you cannot overrule. Without an `Evidence:` line, work as the checklist below says.
+
 ## Checklist
 1. Run `commands` from `.harness/config.yaml` in order: test, typecheck, lint, build. Skip empty ones and say so.
 2. Grep changed files (`git diff --name-only HEAD`) for TODO, FIXME, HACK, `.only`, `.skip`, `xit`, `xdescribe`, `not implemented`, empty bodies, leftover debug prints.
