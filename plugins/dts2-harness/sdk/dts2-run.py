@@ -310,8 +310,7 @@ def approve(plan: str, assume_yes: bool) -> bool:
 
 
 def save(run_dir: Path, name: str, text: str) -> None:
-    run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / f"{name}.md").write_text(text, encoding="utf-8")
+    atomic_write(run_dir / f"{name}.md", text)
 
 
 def collect_lessons(review: str, repo: Path) -> None:

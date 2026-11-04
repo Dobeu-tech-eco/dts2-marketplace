@@ -7,9 +7,7 @@ DIST := dist
 package:
 	mkdir -p $(DIST)
 	rm -f $(DIST)/dts2-harness-$(VERSION).zip $(DIST)/dts2-marketplace-$(VERSION).zip
-	cd $(PLUGIN_DIR) && zip -r -q ../../$(DIST)/dts2-harness-$(VERSION).zip . \
-		-x '*/__pycache__/*' '__pycache__/*' '*/.pytest_cache/*' '.pytest_cache/*' \
-		'receipts/*' '*/receipts/*' 'review-receipts/*' '*/review-receipts/*'
+	git archive --format=zip -o $(DIST)/dts2-harness-$(VERSION).zip HEAD:$(PLUGIN_DIR)
 	git archive --format=zip -o $(DIST)/dts2-marketplace-$(VERSION).zip HEAD
 
 test:

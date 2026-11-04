@@ -27,14 +27,14 @@ description: Run several autopilot lanes in parallel as headless sons, one workt
 - Under autopilot: the plan goes to the vote (autopilot §1), three rounds unsettled → council (autopilot §1b). A lane the council cannot clear is parked as an action item (autopilot §4).
 
 ## 4. Start sons
-For each approved lane, in dependency order: `lanes.py lease <manifest> --lane <id>` (reserves the file set and ids), `git worktree add`, write `brief.md`, then start the command `lanes.py son-command <manifest> --lane <id> --worktree <path>` prints. Up to five live sons. The head is the only party a son talks to (autopilot §6).
+For each approved lane, in dependency order: `lanes.py lease <manifest> --lane <id>` (reserves the file set and ids and prints the lease epoch), `git worktree add`, write `brief.md` with that epoch, then start the command `lanes.py son-command <manifest> --lane <id> --worktree <path>` prints. Up to five live sons. The head is the only party a son talks to (autopilot §6).
 
 ## 5. Supervise
 1. Poll `lanes.py status <stamp>` (it reads each lane's `status.json`): per lane `phase`, `updated`, `stale`. `stale: true` past `builder_timeout_min` with no process → mark the lane `incomplete`, reason `stalled`, then send-back, re-plan or escalate (autopilot §4).
 2. `questions/<n>.md` is answered by the head alone and never forwarded to the user (autopilot §6); the only thing the user hears from a son is a yes/no the head itself asks at send-back round 3.
 3. `lanes.py sendback <stamp> --lane <id> --reason "..."` writes `send-back-<n>.md`; it refuses a third. After two, get a second opinion (a reviewer on another provider, advisory) before escalating.
 4. A son touching files outside its lane is out-of-lane: stop it, log the finding, re-plan. Any head override is logged with `$(git config user.name)`, the date and the reason.
-5. Continuous dispatch: when a son reports `done` or `incomplete`, fold its lessons and items (section 7), `lanes.py release <stamp> --lane <id>`, re-run `lanes.py plan` and `check` against the new base and live lanes, and start the next eligible lane. In normal mode only lanes from the approved plan are dispatched; a new lane needs section 3 again (`--full` dispatches without asking).
+5. Continuous dispatch: when a son reports `done` or `incomplete`, fold its lessons and items (section 7), `lanes.py release <stamp> --lane <id> --epoch <epoch>` (a stale epoch is refused), re-run `lanes.py plan` and `check` against the new base and live lanes, and start the next eligible lane. In normal mode only lanes from the approved plan are dispatched; a new lane needs section 3 again (`--full` dispatches without asking).
 6. A `TASK_` item never slows a lane (autopilot §4); a PR that needs the value waits at `pr-open` with status `blocked` (autopilot §5a).
 
 ## 6. Merge order

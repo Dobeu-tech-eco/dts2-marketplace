@@ -39,7 +39,6 @@ KIND_SCOPE: Final[str] = "scope"
 BRANCH_PREFIX: Final[str] = "dts2"
 HEAD_NAME: Final[str] = "main"
 LANE_PREFIX: Final[str] = "lane-"
-BUILDER_INFIX: Final[str] = "-b"
 MIN_GIT: Final[tuple[int, int]] = (2, 38)
 GIT_VERSION: Final[re.Pattern[str]] = re.compile(r"git version (\d+)\.(\d+)")
 TIMEOUT_S: Final[int] = 30
@@ -296,6 +295,7 @@ def read_lease(path: Path) -> dict[str, Any] | None:
 LOCK_TRIES: Final[int] = 50
 LOCK_WAIT_SEC: Final[float] = 0.1
 LOCK_MODE: Final[int] = 0o600
+LOCK_STALE_SEC: Final[float] = 60.0  # a lock is held for one read-compare-write; older than this means its writer died
 
 
 @contextlib.contextmanager
@@ -308,6 +308,7 @@ def lane_lock(lease_path: Path) -> Iterator[bool]:
         try:
             os.close(os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, LOCK_MODE))
         except FileExistsError:
+            clear_stale_lock(lock_path)
             time.sleep(LOCK_WAIT_SEC)
             continue
         held = True
@@ -317,6 +318,15 @@ def lane_lock(lease_path: Path) -> Iterator[bool]:
     finally:
         if held:
             lock_path.unlink(missing_ok=True)
+
+
+def clear_stale_lock(lock_path: Path) -> None:
+    """Remove a lock left by a crashed writer, so one crash cannot block a lane forever."""
+    try:
+        if time.time() - lock_path.stat().st_mtime > LOCK_STALE_SEC:
+            lock_path.unlink(missing_ok=True)
+    except OSError:
+        pass
 
 
 def busy(lane_id: str) -> dict[str, Any]:
@@ -372,10 +382,6 @@ def head_ref(stamp: str) -> str:
 def lane_ref(stamp: str, lane_id: str) -> str:
     return f"{BRANCH_PREFIX}/{stamp}/{LANE_PREFIX}{lane_id}"
 
-
-def builder_ref(base_ref: str, n: int) -> str:
-    """A builder branch is a sibling of its base ref: dts2/<stamp>/main-b<n> or dts2/<stamp>/lane-<x>-b<n>."""
-    return f"{base_ref}{BUILDER_INFIX}{n}"
 
 
 def planned_refs(stamp: str, lanes: list[str]) -> list[str]:
