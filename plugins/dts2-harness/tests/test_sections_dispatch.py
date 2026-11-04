@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from typing import Final
 
-from helpers import PLUGIN_ROOT, make_tmp_home
+from helpers import PLUGIN_ROOT, make_tmp_home, read_run_skill
 
 SCRIPT: Final[Path] = PLUGIN_ROOT / "scripts" / "handoff-write.py"
 SECTION_COLUMNS: Final[str] = "| # | section | serves component | files / area | depends on | complexity | status |"
@@ -60,7 +60,7 @@ class SectionsSkillTests(unittest.TestCase):
         self.assertIn("## Sections", text)
 
     def test_run_has_continuous_dispatch(self) -> None:
-        text: str = read("skills/run/SKILL.md")
+        text: str = read_run_skill()
         for phrase in ("## Continuous dispatch (never idle)", "builder_timeout_min", "Sections this run:", "park", "continuous_dispatch"):
             self.assertIn(phrase, text)
         self.assertLess(text.index("## Phase 2"), text.index("## Continuous dispatch (never idle)"))

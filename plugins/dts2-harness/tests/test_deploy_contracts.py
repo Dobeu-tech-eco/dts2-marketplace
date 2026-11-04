@@ -7,11 +7,13 @@ from typing import Final
 
 from helpers import PLUGIN_ROOT
 
-RUN: Final[Path] = PLUGIN_ROOT / "skills" / "run" / "SKILL.md"
+RUN: Final[Path] = PLUGIN_ROOT / "skills" / "run"
 SETUP: Final[Path] = PLUGIN_ROOT / "skills" / "setup" / "SKILL.md"
 
 
 def read(path: Path) -> str:
+    if path.is_dir():
+        return "\n".join(f.read_text(encoding="utf-8") for f in sorted(path.glob("*.md")))
     return path.read_text(encoding="utf-8")
 
 
@@ -26,7 +28,9 @@ class DeployContractTests(unittest.TestCase):
         text: str = read(RUN)
         self.assertIn("## Deployment verification", text)
         self.assertGreater(text.index("## Deployment verification"), text.index("## Phase 4"))
-        self.assertLess(text.index("## Deployment verification"), text.index("## Add secret mode"))
+        ship: str = read(RUN / "phase-4-ship.md")
+        self.assertIn("## Deployment verification", ship)
+        self.assertNotIn("## Add secret mode", ship)  # Deployment verification closes the ship phase file
 
     def test_run_section_phrases(self) -> None:
         body: str = section(read(RUN), "## Deployment verification")

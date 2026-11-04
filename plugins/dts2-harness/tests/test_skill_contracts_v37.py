@@ -66,7 +66,7 @@ class NewSkillsContract(TextContractMixin):
 
 class WiringContract(TextContractMixin):
     def test_run_precheck_and_sweep(self) -> None:
-        self.assert_contains(SKILLS / "run" / "SKILL.md", [
+        self.assert_contains(SKILLS / "run", [
             PRECHECK, "skills-check.py", "-a claude-code --copy -y", "lessons-inbox.md",
             "Harness sweep (evolve)", "Harness lessons", "Never push, deploy, or merge to main",
         ])

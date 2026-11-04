@@ -9,6 +9,12 @@ from pathlib import Path
 from typing import Any, Final
 
 PLUGIN_ROOT: Final[Path] = Path(__file__).resolve().parent.parent
+RUN_SKILL_DIR: Final[Path] = PLUGIN_ROOT / "skills" / "run"
+
+
+def read_run_skill() -> str:
+    """The whole run skill: router plus phase files, sorted, joined with a newline."""
+    return "\n".join(f.read_text(encoding="utf-8") for f in sorted(RUN_SKILL_DIR.glob("*.md")))
 
 
 def run_script(name: str, *args: str) -> dict[str, Any]:

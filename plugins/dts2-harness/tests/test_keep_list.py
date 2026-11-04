@@ -6,7 +6,7 @@ from pathlib import Path
 import unittest
 from typing import Final
 
-from helpers import PLUGIN_ROOT
+from helpers import PLUGIN_ROOT, read_run_skill
 
 REQUIRED_KEYS: Final[tuple[str, ...]] = ("plugins:", "skills:", "agents:")
 
@@ -25,7 +25,7 @@ class KeepListTests(unittest.TestCase):
         setup: str = read("skills/setup/SKILL.md")
         self.assertIn("keep.yaml", setup)
         self.assertIn("never re-ask", setup)
-        self.assertIn("keep.yaml", read("skills/run/SKILL.md"))
+        self.assertIn("keep.yaml", read_run_skill())
         self.assertIn("keep.yaml", read("skills/machine-prep/SKILL.md"))
 
     def test_keep_yaml_is_not_ignored(self) -> None:

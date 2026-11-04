@@ -4,7 +4,7 @@ from __future__ import annotations
 import unittest
 from typing import Final
 
-from helpers import PLUGIN_ROOT
+from helpers import PLUGIN_ROOT, read_run_skill
 
 INSTALL_PATTERN: Final[str] = "`npx skills add https://github.com/mattpocock/skills --skill <name>`"
 SKILLS: Final[tuple[str, ...]] = (
@@ -58,14 +58,13 @@ class CompanionSkills(unittest.TestCase):
             self.assertIn(f"{INSTALL} {name}`", text, name)
 
     def test_hard_cap_reruns_diagnosing_bugs_fresh(self) -> None:
-        for relative in ("templates/discipline.md", "skills/run/SKILL.md"):
-            text: str = read(relative)
-            self.assertIn(f"{INSTALL} diagnosing-bugs`", text, relative)
-            self.assertIn("fresh `/diagnosing-bugs` pass", text, relative)
-            self.assertNotIn("/diagnose`", text, relative)
+        for text in (read("templates/discipline.md"), read_run_skill()):
+            self.assertIn(f"{INSTALL} diagnosing-bugs`", text)
+            self.assertIn("fresh `/diagnosing-bugs` pass", text)
+            self.assertNotIn("/diagnose`", text)
 
     def test_run_wires_each_new_hook_with_its_command(self) -> None:
-        text: str = read("skills/run/SKILL.md")
+        text: str = read_run_skill()
         for name in ("improve-codebase-architecture", "diagnosing-bugs", "loop-me", "setup-pre-commit", "code-review"):
             self.assertIn(f"{INSTALL} {name}`", text, name)
 
@@ -86,7 +85,7 @@ class CompanionSkills(unittest.TestCase):
                     self.assertNotIn(f"--skill {name}", text, str(path))
 
     def test_finalization_has_manual_fallback(self) -> None:
-        text: str = read("skills/run/SKILL.md")
+        text: str = read_run_skill()
         self.assertIn("manual scoped simplification pass", text)
 
     def test_setup_phrases(self) -> None:
@@ -95,7 +94,7 @@ class CompanionSkills(unittest.TestCase):
             self.assertIn(phrase, text)
 
     def test_run_phrases(self) -> None:
-        text: str = read("skills/run/SKILL.md")
+        text: str = read_run_skill()
         for phrase in RUN_PHRASES:
             self.assertIn(phrase, text)
 
