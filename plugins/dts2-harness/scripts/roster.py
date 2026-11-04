@@ -43,6 +43,7 @@ BUDGET_UNKNOWN: Final[str] = "unknown"
 MODEL_TIERS: Final[tuple[str, ...]] = ("frontier", "standard", "economy")
 PROMPT_TOKEN: Final[str] = "{prompt}"
 MODEL_TOKEN: Final[str] = "{model}"
+EFFORT_TOKEN: Final[str] = "{effort}"
 PROMPT_FILE_TOKEN: Final[str] = "{promptFile}"
 ADD_DIR_TOKEN: Final[str] = "{addDir}"
 WORKSPACE_TOKEN: Final[str] = "{workspace}"
@@ -477,6 +478,25 @@ def fill_model(template: list[str], model: str | None) -> list[str]:
     return argv
 
 
+def tier_effort(profile: dict[str, Any], tier: str) -> str | None:
+    """The profile's default effort for a tier, when the caller did not pass one."""
+    mapped: Any = (profile.get("tierEffort") or {}).get(tier)
+    return mapped if isinstance(mapped, str) and mapped else None
+
+
+def fill_effort(template: list[str], effort: str | None) -> list[str]:
+    """Replace `{effort}` inside an argument. With no effort, drop that argument and a leading flag."""
+    argv: list[str] = []
+    for part in template:
+        if EFFORT_TOKEN not in part:
+            argv.append(part)
+        elif effort:
+            argv.append(part.replace(EFFORT_TOKEN, effort))
+        elif argv and argv[-1].startswith("-"):
+            argv.pop()
+    return argv
+
+
 def prompt_values(prompt_file: Path, workspace: Path) -> dict[str, str]:
     """The prompt never enters argv: {promptFile} is its path, {prompt} a fixed pointer to it,
     {addDir} its folder (so agy may read it) and {workspace} the repo the agent works in."""
@@ -497,14 +517,17 @@ def shell_line(argv: list[str], stdin: str | None, env: dict[str, str] | None = 
 def resolve_command(
     profile: dict[str, Any], role: str, tier: str,
     prompt_file: Path | None = None, workspace: Path | None = None,
+    effort: str | None = None,
 ) -> dict[str, Any]:
     if not supports_role(profile, role):
         raise RosterError(f"role '{role}' is not supported by agent '{profile['name']}'")
     model: str | None = profile["models"][tier]
-    argv: list[str] = fill_model(role_template(profile, role), model)
+    chosen_effort: str | None = effort or tier_effort(profile, tier)
+    argv: list[str] = fill_effort(fill_model(role_template(profile, role), model), chosen_effort)
     stdin: str | None = profile.get("stdin")
     result: dict[str, Any] = {
-        "agent": profile["name"], "role": role, "model": model, "argv": argv, "stdin": stdin,
+        "agent": profile["name"], "role": role, "tier": tier, "model": model,
+        "effort": chosen_effort, "argv": argv, "stdin": stdin,
         "binary": resolve_binary(argv[0], probe_env(), search_paths_of(profile)),
         "env": dict(profile.get("env") or {}),
         "notes": list(profile.get("notes") or []),
@@ -517,14 +540,17 @@ def resolve_command(
     return result
 
 
-def run_command(agent: str, role: str, tier: str, prompt_file: str | None, workspace: str | None) -> int:
+def run_command(
+    agent: str, role: str, tier: str, prompt_file: str | None, workspace: str | None,
+    effort: str | None,
+) -> int:
     profile: dict[str, Any] | None = load_profiles().get(agent)
     try:
         if profile is None:
             raise RosterError(f"unknown agent '{agent}'")
         result: dict[str, Any] = resolve_command(
             profile, role, tier, Path(prompt_file) if prompt_file else None,
-            Path(workspace) if workspace else None,
+            Path(workspace) if workspace else None, effort,
         )
     except RosterError as error:
         print(f"roster error: {error}", file=sys.stderr)
@@ -615,6 +641,7 @@ def main() -> int:
     cmd.add_argument("--agent", required=True)
     cmd.add_argument("--role", required=True)
     cmd.add_argument("--tier", default="standard", choices=MODEL_TIERS)
+    cmd.add_argument("--effort", default=None, help="reasoning effort; default is the profile tierEffort for --tier")
     cmd.add_argument("--prompt-file", default=None, help="file holding the brief or review prompt")
     cmd.add_argument("--workspace", default=None, help="repo the agent works in (default: cwd)")
     cls = sub.add_parser("classify", help="classify a live dispatch's output read from stdin")
@@ -632,7 +659,7 @@ def main() -> int:
     if args.command == "model":
         return run_model(args.agent, args.tier)
     if args.command == "command":
-        return run_command(args.agent, args.role, args.tier, args.prompt_file, args.workspace)
+        return run_command(args.agent, args.role, args.tier, args.prompt_file, args.workspace, args.effort)
     if args.command == "classify":
         return run_classify(args.agent, args.role, args.exit_code, args.usable, args.axis)
     return run_resolve(Path(args.config))

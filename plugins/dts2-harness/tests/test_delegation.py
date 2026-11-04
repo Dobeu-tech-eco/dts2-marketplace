@@ -146,6 +146,58 @@ class DelegateTests(unittest.TestCase):
         self.assertEqual(result["model"], profile("codex")["models"]["frontier"])
 
 
+class CodexTierTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.mod: ModuleType = load_module()
+        self.codex: dict[str, Any] = profile("codex")
+
+    def test_builders_get_standard_or_economy_never_frontier(self) -> None:
+        mechanical: dict[str, Any] = self.mod.delegate(self.codex, "execution", "mechanical")
+        normal: dict[str, Any] = self.mod.delegate(self.codex, "execution", "normal")
+        design: dict[str, Any] = self.mod.delegate(self.codex, "execution", "design")
+        self.assertEqual((mechanical["tier"], mechanical["model"], mechanical["effort"]),
+                         ("economy", "gpt-6-luna", "low"))
+        self.assertEqual((normal["tier"], normal["model"], normal["effort"]),
+                         ("standard", "gpt-6.1-sol", "medium"))
+        self.assertEqual((design["tier"], design["model"], design["effort"]),
+                         ("standard", "gpt-6.1-sol", "high"))
+        for result in (mechanical, normal, design):
+            self.assertNotEqual(result["tier"], "frontier")
+            self.assertNotIn(result["effort"], ("xhigh", "max", "ultra"))
+
+    def test_signoff_may_use_frontier_and_xhigh_not_max(self) -> None:
+        normal: dict[str, Any] = self.mod.delegate(self.codex, "signoff", "normal")
+        design: dict[str, Any] = self.mod.delegate(self.codex, "signoff", "design")
+        self.assertEqual((normal["model"], normal["tier"], normal["effort"]), ("gpt-6-astra", "frontier", "high"))
+        self.assertEqual((design["model"], design["tier"], design["effort"]), ("gpt-6-astra", "frontier", "xhigh"))
+        self.assertNotIn(design["effort"], ("max", "ultra"))
+
+    def test_advisory_design_is_frontier_high(self) -> None:
+        result: dict[str, Any] = self.mod.delegate(self.codex, "advisory", "design")
+        self.assertEqual((result["tier"], result["model"], result["effort"]), ("frontier", "gpt-6-astra", "high"))
+
+    def test_explicit_max_is_kept_and_ultra_clamps_on_luna(self) -> None:
+        requested: dict[str, Any] = self.mod.delegate(self.codex, "signoff", "normal", effort="max")
+        self.assertEqual(requested["effort"], "max")
+        clamped: dict[str, Any] = self.mod.delegate(self.codex, "execution", "mechanical", effort="ultra")
+        self.assertEqual(clamped["model"], "gpt-6-luna")
+        self.assertEqual(clamped["effort"], "max")
+
+    def test_unpinned_default_reports_as_standard(self) -> None:
+        self.assertEqual(self.mod.tier_of_model(self.codex, None), "standard")
+        self.assertEqual(self.mod.tier_of_model(self.codex, "gpt-6.1-sol"), "standard")
+        self.assertEqual(self.mod.tier_of_model(self.codex, "gpt-6-astra"), "frontier")
+        self.assertEqual(self.mod.tier_of_model(self.codex, "gpt-6-luna"), "economy")
+        line: str = self.mod.receipt_line(self.codex, "execution", "medium", None)
+        self.assertEqual(line, "- codex gpt-6.1-sol tier=standard effort=medium (execution)")
+        pinned: str = self.mod.receipt_line(self.codex, "signoff", "xhigh", "gpt-6-astra")
+        self.assertEqual(pinned, "- codex gpt-6-astra tier=frontier effort=xhigh (signoff)")
+
+    def test_claude_signoff_still_reaches_max(self) -> None:
+        result: dict[str, Any] = self.mod.delegate(profile("claude"), "signoff", "design")
+        self.assertEqual(result["effort"], "max")
+
+
 class DelegateCliTests(unittest.TestCase):
     def run_cli(self, *args: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
@@ -164,6 +216,14 @@ class DelegateCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("nope", result.stderr)
 
+    def test_explicit_effort_flag(self) -> None:
+        result = self.run_cli(
+            "--agent", "codex", "--seat", "signoff", "--complexity", "normal", "--effort", "ultra",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data: dict[str, Any] = json.loads(result.stdout)
+        self.assertEqual((data["model"], data["effort"]), ("gpt-6-astra", "ultra"))
+
     def test_budget_flag(self) -> None:
         result = self.run_cli(
             "--agent", "claude", "--seat", "execution", "--complexity", "design", "--budget", "exhausted",
@@ -176,12 +236,12 @@ class TokenBurnTests(unittest.TestCase):
     def test_every_profile_has_effort_and_burn(self) -> None:
         for name, data in all_profiles().items():
             self.assertEqual(set(data["tokenBurn"]), {"frontier", "standard", "economy"}, name)
-            self.assertTrue(set(data["effortLevels"]) <= {"low", "medium", "high", "max"}, name)
+            self.assertTrue(set(data["effortLevels"]) <= {"low", "medium", "high", "xhigh", "max", "ultra"}, name)
             self.assertTrue(all(isinstance(v, int) and v >= 0 for v in data["tokenBurn"].values()), name)
 
     def test_verified_effort_levels(self) -> None:
         self.assertEqual(profile("claude")["effortLevels"], ["low", "medium", "high", "max"])
-        self.assertEqual(profile("codex")["effortLevels"], ["low", "medium", "high"])
+        self.assertEqual(profile("codex")["effortLevels"], ["low", "medium", "high", "xhigh", "max", "ultra"])
         for name in ("gemini", "grok", "opencode", "copilot", "cursor", "antigravity", "muse"):
             self.assertEqual(profile(name)["effortLevels"], ["medium"], name)
 

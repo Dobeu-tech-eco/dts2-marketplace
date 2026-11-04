@@ -162,6 +162,8 @@ class Dts2RunTests(unittest.TestCase):
         self.assertEqual(seen["cmd"][:2], ["codex", "exec"])
         self.assertIn("--", seen["cmd"])
         self.assertIn("read-only", seen["cmd"])
+        self.assertEqual(seen["cmd"][seen["cmd"].index("-m") + 1], "gpt-6.1-sol")
+        self.assertIn("model_reasoning_effort=medium", seen["cmd"])
 
     def print_timeout_s(self, argv: list[str]) -> int:
         value: str = argv[argv.index("--print-timeout") + 1]

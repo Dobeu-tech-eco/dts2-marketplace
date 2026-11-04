@@ -27,11 +27,23 @@
     "status"
   ],
   "models": {
-    "frontier": null,
-    "standard": null,
-    "economy": null
+    "frontier": "gpt-6-astra",
+    "standard": "gpt-6.1-sol",
+    "economy": "gpt-6-luna"
   },
-  "modelsVerified": false,
+  "modelsVerified": true,
+  "defaultModel": "gpt-6.1-sol",
+  "tierEffort": {
+    "frontier": "high",
+    "standard": "medium",
+    "economy": "low"
+  },
+  "modelEfforts": {
+    "gpt-6-astra": ["low", "medium", "high", "xhigh", "max", "ultra"],
+    "gpt-6.1-sol": ["low", "medium", "high", "xhigh", "max", "ultra"],
+    "gpt-6-luna": ["low", "medium", "high", "xhigh", "max"]
+  },
+  "explicitOnlyEfforts": ["max", "ultra"],
   "subscriptionName": "ChatGPT Pro (Codex)",
   "apiKeyEnv": "OPENAI_API_KEY",
   "searchPaths": [],
@@ -41,6 +53,8 @@
       "exec",
       "-m",
       "{model}",
+      "-c",
+      "model_reasoning_effort={effort}",
       "--sandbox",
       "workspace-write",
       "--",
@@ -51,6 +65,8 @@
       "exec",
       "-m",
       "{model}",
+      "-c",
+      "model_reasoning_effort={effort}",
       "--sandbox",
       "read-only",
       "--",
@@ -60,14 +76,18 @@
   "stdin": "/dev/null",
   "notes": [
     "Run codex exec with stdin from /dev/null (`codex exec <prompt> < /dev/null`); otherwise it waits on \"Reading additional input from stdin\". roster.py command returns this as stdin.",
-    "No model pin: gpt-5-codex is unsupported on a ChatGPT login, so codex uses its own default. Set a current id here only after `codex` lists it.",
+    "Model ids taken from `codex`'s model list on a ChatGPT Pro login on 2026-11-03: frontier gpt-6-astra, standard gpt-6.1-sol, economy gpt-6-luna. gpt-6.1-sol is the config.toml default, so an unpinned run (no -m) is the standard tier. Re-check ~/.codex/models_cache.json on that login and change these ids only when that list no longer contains them.",
+    "Reasoning effort is passed as `-c model_reasoning_effort=<level>` (`codex exec` config override) so it wins over a global model_reasoning_effort in ~/.codex/config.toml. Defaults are frontier high, standard medium, economy low. Builders stay within low, medium, and high. Sign-off may use xhigh when the seat scale asks for more than high. max and ultra are not chosen automatically (gpt-6-luna has no ultra) and are used only when explicitly requested.",
     "codex exec defaults to a read-only sandbox, so builders pass --sandbox workspace-write rather than relying on the user config. Even then its sandbox cannot write the git index. Tell codex builders \"do not commit\"; the lead commits their work.",
     "{prompt} is a fixed pointer to the prompt file, placed after -- so it is never read as a flag; the second-opinion seat runs --sandbox read-only."
   ],
   "effortLevels": [
     "low",
     "medium",
-    "high"
+    "high",
+    "xhigh",
+    "max",
+    "ultra"
   ],
   "tokenBurn": {
     "frontier": 7,

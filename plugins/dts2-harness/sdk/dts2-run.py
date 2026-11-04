@@ -32,7 +32,7 @@ import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from typing import Final
+from typing import Any, Final
 
 PLUGIN_ROOT: Final[Path] = Path(__file__).resolve().parent.parent
 AGENTS_DIR: Final[Path] = PLUGIN_ROOT / "agents"
@@ -54,9 +54,8 @@ BUILDER_HEADING: Final[re.Pattern[str]] = re.compile(r"^### Builder \d+ \(([a-z0
 DONE_SECTION: Final[re.Pattern[str]] = re.compile(r"^## Done[^\n]*\n(?:[ \t]*\n)*[ \t]*- ", re.M)
 NO_APPROVAL: Final[str] = "not approved (headless run; a person approves at the ship checkpoint)"
 STATUS_ROW: Final[re.Pattern[str]] = re.compile(r"^\|[^|\n]*\|\s*(PASS|FAIL|SKIP)\s*\|", re.M)
-SECOND_OPINION_COMMANDS: Final[dict[str, list[str]]] = {
-    "codex": ["codex", "exec", "--sandbox", "read-only", "--"],
-}
+# Gemini is not listed here: it goes through roster.py. Codex is built from its profile.
+SECOND_OPINION_COMMANDS: Final[dict[str, list[str]]] = {}
 ROSTER_SCRIPT: Final[Path] = PLUGIN_ROOT / "scripts" / "roster.py"
 ROSTER_TIMEOUT_S: Final[int] = 30
 GEMINI_FALLBACK: Final[list[str]] = [
@@ -266,10 +265,27 @@ def run_second_opinion(argv: list[str], repo: Path, env: dict[str, str] | None =
     return result.stdout or result.stderr
 
 
+def codex_second_opinion_argv() -> list[str]:
+    """Standard-tier codex review: pinned model and effort, so config.toml's global high does not apply.
+    The prompt token is omitted; the caller appends the pointer."""
+    profile: dict[str, Any] = json.loads((PROFILES_DIR / "codex.json").read_text(encoding="utf-8"))
+    tier: str = "standard"
+    model: str = str(profile["models"][tier])
+    effort: str = str((profile.get("tierEffort") or {}).get(tier, "medium"))
+    argv: list[str] = []
+    for part in profile["roleCommands"]["second-opinion"]:
+        if part == "{prompt}":
+            continue
+        argv.append(part.replace("{model}", model).replace("{effort}", effort))
+    return argv
+
+
 def second_opinion(backend: str, diff: str, repo: Path) -> str:
     if backend == "gemini":
         return gemini_second_opinion(diff, repo)
-    command: list[str] | None = SECOND_OPINION_COMMANDS.get(backend)
+    command: list[str] | None = (
+        codex_second_opinion_argv() if backend == "codex" else SECOND_OPINION_COMMANDS.get(backend)
+    )
     if command is None or shutil.which(command[0]) is None:
         return f"(second opinion skipped: {backend} CLI not found)"
     with tempfile.TemporaryDirectory(prefix="dts2-second-opinion-") as folder:
