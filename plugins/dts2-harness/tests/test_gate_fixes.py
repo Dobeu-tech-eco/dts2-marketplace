@@ -97,7 +97,7 @@ def stage_git(root: Path, base_diff: str = "", head_diff: str = "", untracked: s
     script: Path = root / "stage_git.py"
     script.write_text(
         "import sys\n"
-        "a = sys.argv[1:]\n"
+        "a = [x for x in sys.argv[1:] if x != '--no-renames']\n"
         f"if a[:2] == ['diff', '--name-only'] and a[2].endswith('...HEAD'): print({base_diff!r})\n"
         f"elif a[:2] == ['diff', '--name-only']: print({head_diff!r})\n"
         f"elif a[:1] == ['ls-files']: print({untracked!r})\n", encoding="utf-8")

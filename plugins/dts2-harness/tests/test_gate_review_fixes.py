@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -56,6 +57,13 @@ class PlanBallotLedgerText(unittest.TestCase):
         for rel in ("skills/dpp/SKILL.md", "skills/run/phase-3-review.md"):
             text = (PLUGIN_ROOT / rel).read_text(encoding="utf-8")
             self.assertIn("plan-ballot council", text, rel)
+
+    def test_fix_round_rechecks_are_described(self) -> None:
+        for rel in ("skills/autopilot/SKILL.md", "skills/run/phase-3-review.md", "skills/dpp/SKILL.md"):
+            text = (PLUGIN_ROOT / rel).read_text(encoding="utf-8")
+            self.assertIn("council.py", text, rel)
+            self.assertRegex(text, r"(?s)fix round.{0,400}(checks\.py\W+run|re-run the checks)", rel)
+            self.assertIn("route --ledger", text, rel)
 
     def test_check_decision_without_ledger_accepts_approve(self) -> None:
         d = Path(tempfile.mkdtemp(prefix="dts2-plan-"))
@@ -114,6 +122,34 @@ class ScopeFixTests(unittest.TestCase):
         self.assertEqual(scope_status(SETUP_DEFAULTS, "credentials.json"), "fail")
         self.assertEqual(scope_status(SETUP_DEFAULTS, "deep/dir/credentials.json"), "fail")
         self.assertEqual(scope_status(SETUP_DEFAULTS, "src/app.py"), "pass")
+
+
+def git(root: Path, *args: str) -> None:
+    subprocess.run(["git", "-C", str(root), "-c", "user.name=t", "-c", "user.email=t@example.invalid", *args], check=True, capture_output=True)
+
+
+def rename_scope_status(commit_rename: bool) -> str:
+    root = repo(GREEN, "do_not_touch:\n  - .env\n")
+    git(root, "init", "-q", "-b", "main")
+    (root / ".env").write_text("A=1\n", encoding="utf-8")
+    (root / "ok.txt").write_text("x\n", encoding="utf-8")
+    git(root, "add", "-A")
+    git(root, "commit", "-q", "-m", "base")
+    git(root, "switch", "-q", "-c", "work")
+    git(root, "mv", ".env", "moved.txt")
+    if commit_rename:
+        git(root, "commit", "-q", "-m", "rename")
+    call("checks.py", "run", "--stamp", "s", "--cwd", str(root), "--base", "main", env={"DTS2_GITLEAKS_BIN": "", "DTS2_TRUFFLEHOG_BIN": ""})
+    ledger = [json.loads(line) for line in (root / ".harness/runs/s/ledger.jsonl").read_text().splitlines()]
+    return next(r["status"] for r in ledger if r["name"] == "scope-check")
+
+
+class RenameScopeTests(unittest.TestCase):
+    def test_committed_rename_of_protected_file_is_red(self) -> None:
+        self.assertEqual(rename_scope_status(True), "fail")
+
+    def test_staged_rename_of_protected_file_is_red(self) -> None:
+        self.assertEqual(rename_scope_status(False), "fail")
 
 
 class ActionItemRedaction(unittest.TestCase):

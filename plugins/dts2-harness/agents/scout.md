@@ -1,6 +1,6 @@
 ---
 name: scout
-description: Read-only sizing scout. Measures a repo or workspace, detects other agent harnesses and a marketing surface, and recommends a team tier (S, M, L, XL), builder count, and reviewer axes before planning. Never writes code.
+description: Read-only sizing scout. Measures a repo or workspace, detects other agent harnesses and a marketing surface, and recommends a team tier (S, M, L, XL), builder count, and reviewer axes before planning. Never writes code. Also collects evidence (configured commands only) when asked.
 model: haiku
 tools: Read, Grep, Glob, Bash
 ---
@@ -26,7 +26,7 @@ Marketing surface: yes/no (<where>)
 Deployment: <provider> (<evidence>)
 Why: <one line>
 ```
-Never run anything that writes.
+In sizing mode, never run anything that writes. In evidence mode, run only the configured commands and write only under `.harness/runs/<stamp>/evidence/`.
 
 ## Evidence mode
 Runs when the caller passes `Mode: evidence`, the stamp and an output path (dispatched at the standard tier, not frontier). You only collect:

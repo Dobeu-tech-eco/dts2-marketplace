@@ -262,7 +262,8 @@ def changed_files(cwd: Path, base: str | None) -> list[str] | None:
     """Union of committed (since the merge-base), uncommitted and untracked files; None when any part cannot be listed."""
     if not base:
         return None
-    parts: list[list[str] | None] = [git_lines(cwd, "diff", "--name-only", f"{base}...HEAD"), git_lines(cwd, "diff", "--name-only", "HEAD"),
+    parts: list[list[str] | None] = [git_lines(cwd, "diff", "--no-renames", "--name-only", f"{base}...HEAD"),
+                                     git_lines(cwd, "diff", "--no-renames", "--name-only", "HEAD"),
                                      git_lines(cwd, "ls-files", "--others", "--exclude-standard")]
     if any(part is None for part in parts):
         return None
