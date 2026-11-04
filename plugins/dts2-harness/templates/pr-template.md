@@ -28,7 +28,7 @@
 
 ## Consensus (autopilot only)
 
-<three frontier verdicts and the tiebreak, or "n/a: human approved">
+<three frontier verdicts per round and the tiebreak; if the step went to council, the council tally, the head of council's decision, its rationale and its response to each dissent; or "n/a: human approved">
 
 ## Screenshots / walkthrough
 
