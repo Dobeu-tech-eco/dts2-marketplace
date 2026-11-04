@@ -65,14 +65,49 @@ class UnknownInstructionChangeTests(unittest.TestCase):
         self.assertIn("`null` means unknown", text)
 
 
+def keep_pin(text: str, name: str) -> str | None:
+    spec = importlib.util.spec_from_file_location("skills_check_pin_mod", PLUGIN_ROOT / "scripts" / "skills-check.py")
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    entry = next((e for e in mod.parse_keep(text)["skills"] if e["name"] == name), None)
+    return None if entry is None else entry.get("pin")
+
+
 class PinTextTests(unittest.TestCase):
-    def test_comment_inside_an_entry_does_not_keep_the_old_pin(self) -> None:
-        text = f"skills:\n  - name: grill-me\n    # note\n    pin: {SHA_A}\n    serves: x\n"
+    def check(self, text: str) -> str:
         out = pins.set_pin_text(text, "grill-me", SHA_B)
         self.assertEqual(out.count("pin:"), 1)
         self.assertIn(f"pin: {SHA_B}", out)
+        self.assertEqual(keep_pin(out, "grill-me"), SHA_B)
+        return out
+
+    def test_comment_inside_an_entry_does_not_keep_the_old_pin(self) -> None:
+        out = self.check(f"skills:\n  - name: grill-me\n    # note\n    pin: {SHA_A}\n    serves: x\n")
         self.assertIn("    # note\n", out)
         self.assertIn("    serves: x\n", out)
+
+    def test_blank_line_inside_an_entry(self) -> None:
+        out = self.check(f"skills:\n  - name: grill-me\n\n    pin: {SHA_A}\n    serves: x\n")
+        self.assertIn("    serves: x\n", out)
+
+    def test_comment_at_the_name_indent_inside_an_entry(self) -> None:
+        out = self.check(f"skills:\n  - name: grill-me\n  # note\n    pin: {SHA_A}\n    serves: x\n")
+        self.assertIn("  # note\n", out)
+
+    def test_old_pin_after_serves(self) -> None:
+        out = self.check(f"skills:\n  - name: grill-me\n    serves: x\n    pin: {SHA_A}\n")
+        self.assertIn("    serves: x\n", out)
+
+    def test_apply_update_on_a_keep_file_with_a_blank_line_in_the_entry(self) -> None:
+        keep = PIN_KEEP.replace("    pin:", "\n    pin:")
+        fx = pin_fixture(keep)
+        store_proposal(fx)
+        out = fx.run("--fix", "--apply-update", f"grill-me={SHA_B}")["skills"]
+        self.assertEqual(out["applied"], [{"name": "grill-me", "pin": SHA_B}])
+        self.assertEqual(fx.keep_text().count("pin:"), 1)
+        self.assertEqual(keep_pin(fx.keep_text(), "grill-me"), SHA_B)
+        self.assertNotIn(SHA_A, fx.keep_text())
 
 
 class PinRefTests(unittest.TestCase):

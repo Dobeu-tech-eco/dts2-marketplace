@@ -57,9 +57,13 @@ def set_pin_text(text: str, name: str, sha: str) -> str:
     indent: str = ""
     for line in lines:
         if state == "inside":
-            if line.strip().startswith("pin:"):
+            stripped: str = line.strip()
+            if not stripped or stripped.startswith("#"):
+                out.append(line)  # blank and comment lines never end an entry
+                continue
+            if stripped.startswith("pin:"):
                 continue  # dropped; the fresh pin was written right after the name line
-            if not line.strip() or not line.startswith(indent + " "):
+            if not line.startswith(indent + " "):
                 state = "done"
         if state == "scan":
             m = head.match(line)

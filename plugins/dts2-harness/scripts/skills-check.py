@@ -142,13 +142,15 @@ def strip_comment(value: str) -> str:
 
 def read_keep(repo: Path) -> dict[str, Any]:
     path: Path = repo / ".harness" / "keep.yaml"
+    return parse_keep(path.read_text(encoding="utf-8") if path.is_file() else "")
+
+
+def parse_keep(text: str) -> dict[str, Any]:
     skills: list[dict[str, str]] = []
     plugins: list[str] = []
     swapped: list[str] = []
-    if not path.is_file():
-        return {"skills": skills, "plugins": plugins, "swapped": swapped}
     section: str = ""
-    for raw in path.read_text(encoding="utf-8").splitlines():
+    for raw in text.splitlines():
         if raw.lstrip().startswith("#") or not raw.strip():
             continue
         line: str = strip_comment(raw) if raw[:1] != " " else raw.rstrip()
@@ -653,6 +655,10 @@ def apply_update(repo: Path, home: Path, spec: str, report: dict[str, Any]) -> N
     updated: str = pins.set_pin_text(text, name, sha)
     if updated == text:  # a default companion with no keep entry yet: add one carrying the pin
         updated = pins.add_entry_text(text, name, entry["ref"], sha)
+    written = next((e for e in parse_keep(updated)["skills"] if e["name"] == name), None)
+    if written is None or written.get("pin") != sha:  # fail closed: never report a pin that is not in the file
+        report["rejected"].append({"name": name, "reason": "could not set the pin in .harness/keep.yaml; edit it by hand"})
+        return
     atomic_write(keep, updated, newline="")
     atomic_write(target, json.dumps([p for p in stored if p is not match], indent=2) + "\n")
     report["applied"].append({"name": name, "pin": sha})
