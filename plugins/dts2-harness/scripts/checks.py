@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from state_io import atomic_write  # noqa: E402
+from state_io import append_text, atomic_write  # noqa: E402
 
 RUNS_DIR: Final[str] = ".harness/runs"
 LEDGER_NAME: Final[str] = "ledger.jsonl"
@@ -99,10 +99,8 @@ def read_ledger(path: Path) -> list[dict[str, Any]]:
 
 
 def append_ledger(path: Path, record: dict[str, Any]) -> None:
-    """Append one line. The whole file is rewritten through atomic_write so a crash never leaves a torn line."""
-    existing: str = path.read_text(encoding="utf-8") if path.is_file() else ""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write(path, existing + json.dumps(record, sort_keys=True) + "\n")
+    """Append one record in a single O_APPEND write, so lanes sharing a stamp never drop each other's lines."""
+    append_text(path, json.dumps(record, sort_keys=True) + "\n")
 
 
 def latest_checks(records: list[dict[str, Any]], head: str | None = None) -> dict[str, dict[str, Any]]:
