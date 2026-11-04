@@ -9,10 +9,11 @@ from helpers import PLUGIN_ROOT
 INSTALL_PATTERN: Final[str] = "`npx skills add https://github.com/mattpocock/skills --skill <name>`"
 SKILLS: Final[tuple[str, ...]] = (
     "grill-me", "improve-codebase-architecture", "writing-for-agents",
-    "pr", "resolving-merge-conflicts", "ask-matt", "research", "diagnosing-bugs",
+    "pr", "resolve-merge-conflicts", "ask-matt", "research", "diagnosing-bugs",
     "loop-me", "setup-pre-commit", "code-review",
 )
-RETIRED: Final[tuple[str, ...]] = ("request-refactor-plan", "diagnose")
+RETIRED: Final[tuple[str, ...]] = ("request-refactor-plan", "diagnose", "resolving-merge-conflicts")
+NON_MATTPOCOCK: Final[dict[str, str]] = {"resolve-merge-conflicts": "warpdotdev/common-skills@resolve-merge-conflicts"}
 INSTALL: Final[str] = "npx skills add https://github.com/mattpocock/skills --skill"
 MOMENTS: Final[dict[str, str]] = {
     "improve-codebase-architecture": "finalization pass before tests are written",
@@ -29,7 +30,7 @@ SETUP_PHRASES: Final[tuple[str, ...]] = (
     "## Questions from the user", "/ask-matt", "/research",
 )
 RUN_PHRASES: Final[tuple[str, ...]] = (
-    "/pr", "/resolving-merge-conflicts", "PR body written by /pr",
+    "/pr", "/resolve-merge-conflicts", "PR body written by /pr",
     "## Questions from the user", "/ask-matt", "/research", "/diagnosing-bugs",
     "Finalization before tests", "Run-trigger check-in (loop-me)", "First contact (code-review, once per repo)",
     "BEFORE writing any tests", "hard round-3 cap", "last gate before `git commit`", ".harness/seen",
@@ -104,7 +105,7 @@ class CompanionSkills(unittest.TestCase):
     def test_keep_template_examples(self) -> None:
         text: str = read("templates/keep.yaml")
         for name in SKILLS:
-            self.assertIn(f"--skill {name}", text)
+            self.assertIn(NON_MATTPOCOCK.get(name, f"--skill {name}"), text)
 
     def test_onboard_mentions_companions(self) -> None:
         self.assertIn("mattpocock/skills", read("skills/onboard/SKILL.md"))

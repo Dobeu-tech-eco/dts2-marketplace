@@ -1,6 +1,38 @@
 ## Summary
 
-<what changed and why>
+<what changed and why, in two or three sentences>
+
+## Linked work
+
+- Section / roadmap item: <end-state section # and name, feature slug, or "none">
+- Action items closed: <ids from .harness/action-items.md, or "none">
+- Supersedes / folds: <PR numbers this one replaces or absorbs, or "none">
+
+## Type
+
+- [ ] feat
+- [ ] fix
+- [ ] refactor
+- [ ] chore / deps
+- [ ] docs
+- [ ] test
+
+## Pre-checks
+
+- [ ] Skills pre-check ran (companions and keep.yaml skills current)
+- [ ] Type-check, lint, tests and build pass locally (commands in the receipt below)
+- [ ] No secrets in the diff (scan clean)
+- [ ] No `do_not_touch` paths changed
+- [ ] New or changed behaviour has a test
+- [ ] Docs, `.env.example` and the end state updated where this change touches them
+
+## Consensus (autopilot only)
+
+<three frontier verdicts and the tiebreak, or "n/a: human approved">
+
+## Screenshots / walkthrough
+
+<changed screens, or "n/a">
 
 ## Change receipt
 

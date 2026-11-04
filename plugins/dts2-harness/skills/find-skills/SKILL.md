@@ -19,7 +19,7 @@ From those and a quick look at the root files, set these facts (true, false, or 
 Ask one to three clarifying questions with AskUserQuestion about what the user wants next (for example: ship a feature, fix bugs, polish the UI, launch). Skip a question the scan already answers.
 
 ## 3. Suggest
-Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/skill-suggest.py" --facts '<the facts as JSON>'`. It returns a ranked list of slugs from the mattpocock companion set (grill-me, improve-codebase-architecture, writing-for-agents, pr, resolving-merge-conflicts, ask-matt, research, diagnosing-bugs) plus design, test and marketing skills. Add any already-installed skills that fit the user's answers. Show at most eight, each with a one-line reason and whether it is installed. Then ask once which to add.
+Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/skill-suggest.py" --facts '<the facts as JSON>'`. It returns a ranked list of slugs from the mattpocock companion set (grill-me, improve-codebase-architecture, writing-for-agents, pr, ask-matt, research, diagnosing-bugs), resolve-merge-conflicts from warpdotdev/common-skills, plus design, test and marketing skills. Add any already-installed skills that fit the user's answers. Show at most eight, each with a one-line reason and whether it is installed. Then ask once which to add.
 
 ## 4. Wire in
 On the user's yes, for each chosen skill:

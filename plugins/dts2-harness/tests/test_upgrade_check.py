@@ -1,4 +1,4 @@
-"""scripts/upgrade-check.py and the upgrade skill."""
+"""scripts/upgrade-check.py and the upgrade flow in the run Pre-check."""
 from __future__ import annotations
 
 import importlib.util
@@ -15,8 +15,7 @@ from helpers import PLUGIN_ROOT
 
 SCRIPT: Final[Path] = PLUGIN_ROOT / "scripts" / "upgrade-check.py"
 PLUGIN_JSON: Final[Path] = PLUGIN_ROOT / ".claude-plugin" / "plugin.json"
-SKILL: Final[Path] = PLUGIN_ROOT / "skills" / "upgrade" / "SKILL.md"
-RELEASE: Final[str] = "3.6.3"
+RELEASE: Final[str] = "3.7.0"
 
 
 def load_module() -> ModuleType:
@@ -102,20 +101,19 @@ class CliTests(unittest.TestCase):
         self.assertTrue(data["advanced"])
 
 
-class SkillTests(unittest.TestCase):
-    def test_skill_exists_and_description_has_no_angle_brackets(self) -> None:
-        self.assertTrue(SKILL.is_file())
-        description: str = description_of(SKILL)
-        self.assertTrue(description)
-        self.assertNotIn("<", description)
-        self.assertNotIn(">", description)
+class PrecheckUpgradeTests(unittest.TestCase):
+    """The upgrade flow lives in the run Pre-check; there is no standalone upgrade skill."""
 
-    def test_skill_steps(self) -> None:
-        text: str = SKILL.read_text(encoding="utf-8")
+    def test_no_standalone_upgrade_skill(self) -> None:
+        self.assertFalse((PLUGIN_ROOT / "skills" / "upgrade").exists())
+
+    def test_precheck_owns_the_upgrade_steps(self) -> None:
+        text: str = (PLUGIN_ROOT / "skills" / "run" / "SKILL.md").read_text(encoding="utf-8")
         for needle in (
-            "handoff-write.py", ".harness/upgrade-from.txt", "/plugin marketplace update dts2",
-            "/plugin install dts2-harness@dts2", "upgrade-check.py", "--from-file", "/dts2-harness:run",
-            "cannot run `/plugin`",
+            "### Pre-check (every run command)", "skills-check.py", ".harness/upgrade-from.txt",
+            ".harness/handoff/latest.md", "claude plugin update dts2-harness@dts2", "/plugin marketplace update dts2",
+            "/plugin install dts2-harness@dts2", "cannot run `/plugin`", "/reload-plugins", "Upgrade re-entry",
+            "the upgrade finishes itself", "Do not start the task on the old version",
         ):
             self.assertIn(needle, text)
 

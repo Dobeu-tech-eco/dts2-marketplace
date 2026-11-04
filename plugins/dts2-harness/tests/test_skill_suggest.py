@@ -40,7 +40,7 @@ class SuggestTests(unittest.TestCase):
     def test_pr_fact_adds_pr_skills(self) -> None:
         result: list[str] = self.mod.suggest({"has_pr": True})
         self.assertIn("pr", result)
-        self.assertIn("resolving-merge-conflicts", result)
+        self.assertIn("resolve-merge-conflicts", result)
 
     def test_frontend_fact_adds_a_design_skill(self) -> None:
         self.assertTrue(DESIGN_SKILLS & set(self.mod.suggest({"has_frontend": True})))

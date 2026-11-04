@@ -11,7 +11,7 @@ Claude Code plugin marketplace for Dobeu Tech Solutions.
 
 ## What's new in 3.6.0
 - Strict delegation: frontier models only for advisory and sign-off, builders run the cheapest capable model at a complexity-scaled effort; Muse delegation fields (`effortLevels`, `tokenBurn`) join every profile.
-- `/dts2-harness:upgrade` (one-command in-place upgrade), `/dts2-harness:model` (selectable lead provider), and lead failover on a stall that prefers verified providers.
+- Automatic in-place upgrades from the pre-check (no separate upgrade command), `/dts2-harness:model` (selectable lead provider), and lead failover on a stall that prefers verified providers.
 - Per-agent project memory, `/dts2-harness:find-skills`, `/dts2-harness:check-in`, and companion-skill hooks (improve-codebase-architecture before tests, diagnosing-bugs at the fix cap, loop-me, setup-pre-commit, code-review).
 
 ## What's new in 3.5.0
@@ -43,7 +43,9 @@ Claude Code plugin marketplace for Dobeu Tech Solutions.
 | `gtm` | Go-to-market in one pass through the `marketing-skills` plugin, ending in a `readiness.md` scorecard. |
 | `sdk` | Run the same pipeline headless with the Agent SDK. |
 | `action-items` | List open secrets, decisions, handoffs, and deploy steps with the command that resolves each. |
-| `upgrade` | The one-command in-place upgrade (`/dts2-harness:upgrade`): handoff, marketplace update, verify the version advanced, re-run from the handoff. |
+| `ship` | Open a PR on your own initiative: pre-checks, review, receipt, PR template, then tidy PRs and branches down to main and dev. |
+| `feature` | Add a feature to the roadmap; deep interview when unclear; every plan doc updated; PR. |
+| `autopilot` | Run steps unattended behind a 3-provider frontier consensus gate (Fable 5.1 tiebreak); one merged PR per step. |
 | `model` | Pick which agent provider leads the lead, advisory and sign-off seats (`/dts2-harness:model`); builders always run the cheapest capable model. |
 | `find-skills` | Available any time (`/dts2-harness:find-skills`): rescan the repo, ask a few questions, suggest skills, wire in the ones you pick. |
 | `check-in` | Available any time (`/dts2-harness:check-in`): a read-only checklist from where the project started through the approved end state, each item complete or outstanding. |
