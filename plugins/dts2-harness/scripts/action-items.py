@@ -19,6 +19,13 @@ SECRET_HEADER: Final[list[str]] = ["name", "unlocks", "consumed in", "how to add
 ITEM_HEADER: Final[list[str]] = ["item", "context", "status", "owner", "added"]
 STATUS_OPEN: Final[str] = "open"
 STATUS_DONE: Final[str] = "done"
+STATUS_RESERVED: Final[str] = "reserved"
+STATUS_RELEASED: Final[str] = "released"
+RESERVED_ITEM: Final[str] = "(reserved)"
+RELEASED_ITEM: Final[str] = "(released)"
+# Rows that are placeholders, not work: hidden from list, never deleted so later ids keep their position.
+HIDDEN_STATUSES: Final[tuple[str, ...]] = (STATUS_RESERVED, STATUS_RELEASED)
+MAX_RESERVE: Final[int] = 50
 HANDOFF_PATH: Final[re.Pattern[str]] = re.compile(r"\.harness/handoff/\S+?\.md")
 LESSON_ID: Final[re.Pattern[str]] = re.compile(r"L-\d+")
 ROW_ID: Final[re.Pattern[str]] = re.compile(r"^([A-Z])(\d+)$")
@@ -115,7 +122,11 @@ def list_items(lines: list[str], today: date) -> list[dict[str, Any]]:
         table: Table | None = tables.get(group)
         rows: range = range(len(table.row_at)) if table else range(0)
         items.extend(build_item(table, lines, i, today) for i in rows if table)
-    return [item for item in items if not item["status"].startswith(STATUS_DONE)]
+    return [item for item in items if is_open(item["status"])]
+
+
+def is_open(status: str) -> bool:
+    return not status.startswith(STATUS_DONE) and status not in HIDDEN_STATUSES
 
 
 def locate(lines: list[str], row_id: str) -> tuple[Table, int]:
@@ -189,6 +200,85 @@ def add_row(lines: list[str], group_name: str, text: str, today: date) -> dict[s
     return {"id": f"{GROUP_IDS[group]}{len(table.row_at) + 1}", "group": group}
 
 
+def reserve_rows(lines: list[str], group_name: str, count: int, holder: str, today: date) -> dict[str, Any]:
+    """Insert `count` placeholder rows owned by `holder` so their ids are fixed before any lane writes."""
+    if not 1 <= count <= MAX_RESERVE:
+        raise ActionItemsError(f"count must be 1..{MAX_RESERVE}")
+    ids: list[str] = []
+    for _ in range(count):
+        row_id: str = add_row(lines, group_name, RESERVED_ITEM, today)["id"]
+        set_cell(lines, row_id, "status", STATUS_RESERVED)
+        set_cell(lines, row_id, "owner", clean_text(holder))
+        ids.append(row_id)
+    return {"group": resolve_group(group_name), "holder": holder, "ids": ids}
+
+
+def set_first_cell(lines: list[str], row_id: str, value: str) -> None:
+    """The first column is `item` or, for Secrets, `name`; write it without adding a column."""
+    table, position = locate(lines, row_id)
+    cells: list[str] = split_row(lines[table.row_at[position]])
+    cells[0] = value
+    lines[table.row_at[position]] = join_row(cells)
+
+
+def row_state(lines: list[str], row_id: str) -> dict[str, str]:
+    table, position = locate(lines, row_id)
+    header: list[str] = split_row(lines[table.header_at])
+    cells: list[str] = split_row(lines[table.row_at[position]])
+    return {"status": cell_at(cells, column(header, "status")), "owner": cell_at(cells, column(header, "owner"))}
+
+
+def fill_reserved(lines: list[str], row_id: str, text: str, holder: str | None) -> dict[str, Any]:
+    """Turn one placeholder into a real open item. Only the holder that reserved it may fill it."""
+    state: dict[str, str] = row_state(lines, row_id)
+    if state["status"] != STATUS_RESERVED:
+        raise ActionItemsError(f"{row_id} is not reserved (status {state['status'] or 'open'})")
+    if holder is None or clean_text(holder) != state["owner"]:
+        raise ActionItemsError(f"{row_id} is reserved by {state['owner']}, not {holder or 'nobody'}")
+    set_first_cell(lines, row_id, clean_text(text))
+    set_cell(lines, row_id, "status", STATUS_OPEN)
+    set_cell(lines, row_id, "owner", "")
+    table, _ = locate(lines, row_id)
+    return {"id": row_id, "group": table.group}
+
+
+def reserved_ids(lines: list[str], holder: str, group: str | None = None) -> list[str]:
+    tables: dict[str, Table] = find_tables(lines)
+    found: list[str] = []
+    for name, table in tables.items():
+        if group is not None and name != group:
+            continue
+        for position in range(len(table.row_at)):
+            row_id: str = f"{GROUP_IDS[name]}{position + 1}"
+            state: dict[str, str] = row_state(lines, row_id)
+            if state["status"] == STATUS_RESERVED and state["owner"] == clean_text(holder):
+                found.append(row_id)
+    return found
+
+
+def release_rows(lines: list[str], holder: str) -> dict[str, Any]:
+    """Mark every unused placeholder of `holder` released. Rows stay so ids after them do not shift."""
+    released: list[str] = reserved_ids(lines, holder)
+    for row_id in released:
+        set_first_cell(lines, row_id, RELEASED_ITEM)
+        set_cell(lines, row_id, "status", STATUS_RELEASED)
+    return {"holder": holder, "released": released}
+
+
+def fold_rows(lines: list[str], lane_lines: list[str], holder: str, today: date) -> dict[str, Any]:
+    """Copy a lane's open items into the shared file: reserved ids first, then appended rows; release the rest."""
+    mapping: dict[str, str] = {}
+    for item in list_items(lane_lines, today):
+        spare: list[str] = reserved_ids(lines, holder, item["group"])
+        if spare:
+            target: str = fill_reserved(lines, spare[0], item["item"], holder)["id"]
+        else:
+            target = add_row(lines, item["group"], item["item"], today)["id"]
+        mapping[item["id"]] = target
+    released: list[str] = release_rows(lines, holder)["released"]
+    return {"holder": holder, "folded": mapping, "released": released}
+
+
 def read_lines(path: Path) -> list[str]:
     return path.read_text(encoding="utf-8").splitlines() if path.is_file() else []
 
@@ -204,6 +294,14 @@ def mutate(path: Path, args: argparse.Namespace, today: date) -> dict[str, Any]:
         result: dict[str, Any] = set_cell(lines, args.row, "status", STATUS_DONE)
     elif args.command == "assign":
         result = set_cell(lines, args.row, "owner", clean_text(args.agent))
+    elif args.command == "reserve":
+        result = reserve_rows(lines, args.group, args.count, args.holder, today)
+    elif args.command == "release":
+        result = release_rows(lines, args.holder)
+    elif args.command == "fold":
+        result = fold_rows(lines, read_lines(Path(args.lane_file)), args.holder, today)
+    elif args.id:
+        result = fill_reserved(lines, args.id, " ".join(args.text), args.holder)
     else:
         result = add_row(lines, args.group, " ".join(args.text), today)
     write_lines(path, lines)
@@ -219,9 +317,19 @@ def build_parser() -> argparse.ArgumentParser:
     add: argparse.ArgumentParser = sub.add_parser("add")
     add.add_argument("group")
     add.add_argument("text", nargs="+")
+    add.add_argument("--id", default=None, help="fill a reserved id instead of appending")
+    add.add_argument("--holder", default=None, help="lane that reserved --id")
     assign: argparse.ArgumentParser = sub.add_parser("assign")
     assign.add_argument("row")
     assign.add_argument("agent")
+    reserve: argparse.ArgumentParser = sub.add_parser("reserve", help="head only: fix ids for a lane")
+    reserve.add_argument("group")
+    reserve.add_argument("count", type=int)
+    reserve.add_argument("--holder", required=True)
+    sub.add_parser("release").add_argument("--holder", required=True)
+    fold: argparse.ArgumentParser = sub.add_parser("fold", help="head only: merge a lane's items")
+    fold.add_argument("lane_file")
+    fold.add_argument("--holder", required=True)
     return parser
 
 
