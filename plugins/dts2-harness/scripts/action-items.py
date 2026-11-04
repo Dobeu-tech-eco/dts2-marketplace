@@ -11,6 +11,9 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Final
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from state_io import atomic_write  # noqa: E402
+
 ITEMS_PATH: Final[str] = ".harness/action-items.md"
 GROUP_IDS: Final[dict[str, str]] = {
     "Secrets": "S", "Decisions": "D", "Handoff": "H", "Deploy": "Y", "Promotions": "P",
@@ -288,7 +291,7 @@ def read_lines(path: Path) -> list[str]:
 
 def write_lines(path: Path, lines: list[str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    atomic_write(path, "\n".join(lines) + "\n")
 
 
 def first_cell(lines: list[str], row_id: str) -> str:

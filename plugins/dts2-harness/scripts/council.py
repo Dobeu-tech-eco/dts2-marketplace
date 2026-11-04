@@ -21,6 +21,12 @@ import sys
 from pathlib import Path
 from typing import Any, Final
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from state_io import atomic_write  # noqa: E402
+
+DECISIONS_HEADER: Final[str] = ("# Council decisions\n\nEvery autopilot step that went to council: the vote, each member's reasons, "
+                                "the decision, and the head of council's brief. Appended, never rewritten.\n")
+
 COUNCIL_SEATS: Final[int] = 5
 PANEL_SEATS: Final[int] = 3
 ROUNDS_BEFORE_COUNCIL: Final[int] = 3
@@ -123,7 +129,7 @@ def build_dossier(votes_dir: Path, out: Path) -> dict[str, Any]:
         label: str = f"{entry['kind']} round {entry['round']} — {entry['seat']}" if entry["recognized"] else "unlabelled note"
         parts.append(f"\n---\n\n## Entry {path.name} ({label})\n\n{path.read_text(encoding='utf-8').strip()}\n")
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text("".join(parts), encoding="utf-8")
+    atomic_write(out, "".join(parts))
     unrecognized: list[str] = [e["file"] for e in entries if not e["recognized"]]
     kinds: dict[str, int] = {}
     for entry in entries:
@@ -226,12 +232,8 @@ def write_ledger(ballots_dir: Path, tally_result: dict[str, Any], decision_path:
         body: str = section(text, heading)
         if body:
             parts += [f"### {heading[3:]}\n", body, ""]
-    if not out.exists():
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text("# Council decisions\n\nEvery autopilot step that went to council: the vote, each member's reasons, "
-                       "the decision, and the head of council's brief. Appended, never rewritten.\n", encoding="utf-8")
-    with out.open("a", encoding="utf-8") as handle:
-        handle.write("\n".join(parts) + "\n")
+    existing: str = out.read_text(encoding="utf-8") if out.exists() else DECISIONS_HEADER
+    atomic_write(out, existing + "\n".join(parts) + "\n")
     return {"ok": bool(seats) and decision != "NONE", "decision": decision, "seats": len(seats), "out": str(out)}
 
 

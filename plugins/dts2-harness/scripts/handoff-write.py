@@ -12,6 +12,9 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Final
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from state_io import atomic_write  # noqa: E402
+
 HARNESS: Final[str] = ".harness"
 OUTPUT: Final[str] = ".harness/handoff/latest.md"
 TEMPLATE: Final[Path] = Path(__file__).resolve().parent.parent / "templates" / "handoff-latest.md"
@@ -196,7 +199,7 @@ def write_handoff(repo: Path) -> dict[str, Any]:
     items: list[dict[str, Any]] = module.list_items(read(repo / module.ITEMS_PATH).splitlines(), date.today())
     path: Path = repo / OUTPUT
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(render(repo, items), encoding="utf-8")
+    atomic_write(path, render(repo, items))
     return {"written": True, "path": OUTPUT, "open_items": len(items), "resume": RESUME_COMMAND}
 
 
