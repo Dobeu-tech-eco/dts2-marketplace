@@ -116,5 +116,22 @@ class ReadinessTextTests(unittest.TestCase):
         self.assertIn("Readiness <row>", text)
 
 
+class SetupSkillTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.text: str = (PLUGIN_ROOT / "skills" / "setup" / "SKILL.md").read_text(encoding="utf-8")
+
+    def test_setup_detects_type_and_fills_table(self) -> None:
+        self.assertIn("app-type-detect.py", self.text)
+        self.assertIn("--table", self.text)
+
+    def test_setup_scaffolds_ci_and_ops(self) -> None:
+        for needle in ("prod-scaffold.py", ".github/workflows/ci.yml", "merge_group", "ops/credential-handoff.md", "RUNBOOK.md"):
+            self.assertIn(needle, self.text)
+
+    def test_setup_never_changes_protection_or_overwrites(self) -> None:
+        self.assertIn("never change branch protection", self.text)
+        self.assertIn("Never overwrite an existing `ci.yml`", self.text)
+
+
 if __name__ == "__main__":
     unittest.main()
