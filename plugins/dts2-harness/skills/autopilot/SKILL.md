@@ -94,6 +94,7 @@ Print the progress table, then one line each: steps done, parked (with action-it
 ## 6. Son mode
 `/dts2-harness:autopilot --son <stamp>/<lane>` is one headless lane of a `dpp` run, started by the head in the lane's worktree. Everything in sections 0 to 5a applies unchanged; `discipline.md` and the run and ship skills are the rules, this section only says what differs.
 - Input: `.harness/runs/<stamp>/<lane>/brief.md` (lane id, branch `dts2/<stamp>/lane-<lane>`, file set, task list, `MAX_BUNDLE`). Output: `status.json`, `report.md` and the receipts in that run dir, nothing else under `.harness/`; `harness-lock.py --role son` refuses the shared records, which the head folds on completion.
+- Builder branches: inside a son, builder `<n>` gets `git worktree add ../<repo>-dts2-<lane>-<n> -b dts2/<stamp>/lane-<lane>-b<n> dts2/<stamp>/lane-<lane>`, and the son merges builder branches into `dts2/<stamp>/lane-<lane>`, not `dts2/<stamp>/main`.
 - A question goes to `questions/<n>.md` in the run dir and the son waits for the head's answer file; the head answers alone. A son talks to the head, never the user.
 - The son takes a step through to `pr-open` and waits for `merge-go.md` from the head before section 3 step 4; the head serialises merges across lanes.
 - A son never runs setup or onboard, never writes `.harness/lessons.md` (lessons go in `report.md` for the head), never starts another son, and never runs `dpp`.
