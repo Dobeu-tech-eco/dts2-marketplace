@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from checks import redact  # noqa: E402
 from state_io import atomic_write  # noqa: E402
 
 ITEMS_PATH: Final[str] = ".harness/action-items.md"
@@ -171,7 +172,7 @@ def set_cell(lines: list[str], row_id: str, name: str, value: str) -> dict[str, 
 
 
 def clean_text(text: str) -> str:
-    return SECRET_ASSIGNMENT.sub(r"\1=<redacted>", text.replace("|", "/").strip())
+    return SECRET_ASSIGNMENT.sub(r"\1=<redacted>", redact(text.replace("|", "/").strip()))
 
 
 def new_row(header: list[str], text: str, today: date) -> list[str]:

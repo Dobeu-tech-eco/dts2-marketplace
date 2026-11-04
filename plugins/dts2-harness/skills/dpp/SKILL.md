@@ -25,6 +25,7 @@ description: Run several autopilot lanes in parallel as headless sons, one workt
 ## 3. Approval
 - Normal mode: the user approves, edits or drops lanes; nothing starts before that (Rule 2).
 - Under autopilot: the plan goes to the vote (autopilot §1), three rounds unsettled → council (autopilot §1b). A lane the council cannot clear is parked as an action item (autopilot §4).
+- Every lane's build vote, in the son and in the head's fold, follows the autopilot §1 gate as written: `checks.py run`, then `council.py route --ledger`, and `council.py blind` ballots when voters pick between competing proposals; a build-ballot council decision is checked with `check-decision --ledger`, while a plan-ballot council decision is checked without `--ledger` (a plan has no check records). A red or missing check is a fix round with zero votes. The same holds inside a build-ballot council: re-run the checks and `council.py route --ledger` after each of its fix rounds, and ask for no confirmation unless route allows the vote.
 
 ## 4. Start sons
 1. Once per run, before the first son: `lanes.py preflight <stamp>`. It pins the CLI version in `run.json` and proves `claude -p` answers; `ok: false` stops the run and `spawn` refuses without it.
