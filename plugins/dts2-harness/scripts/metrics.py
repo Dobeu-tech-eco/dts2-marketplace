@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from state_io import atomic_write  # noqa: E402
+from state_io import append_text  # noqa: E402
 
 METRICS_PATH: Final[str] = ".harness/metrics.jsonl"
 DEFAULT_WINDOW: Final[int] = 5
@@ -25,8 +25,7 @@ def parse_failures(text: str) -> dict[str, int]:
 
 def append_row(repo: Path, row: dict[str, Any]) -> None:
     path: Path = repo / METRICS_PATH
-    existing: str = path.read_text(encoding="utf-8") if path.exists() else ""
-    atomic_write(path, existing + json.dumps(row, separators=(",", ":")) + "\n")
+    append_text(path, json.dumps(row, separators=(",", ":")) + "\n")
 
 
 def parse_line(line: str) -> dict[str, Any] | None:
