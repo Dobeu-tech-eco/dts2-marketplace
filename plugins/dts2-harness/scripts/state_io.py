@@ -13,6 +13,17 @@ from typing import Final
 
 TEMP_PREFIX: Final[str] = ".tmp-"
 ENCODING: Final[str] = "utf-8"
+DEFAULT_MODE: Final[int] = 0o666
+
+
+def target_mode(target: Path) -> int:
+    """Keep an existing file's mode; a new file gets the mode plain open() would give it (mkstemp uses 0600)."""
+    try:
+        return target.stat().st_mode & 0o777
+    except OSError:
+        umask: int = os.umask(0)
+        os.umask(umask)
+        return DEFAULT_MODE & ~umask
 
 
 def fsync_dir(folder: Path) -> None:
@@ -33,12 +44,14 @@ def atomic_write(path: Path | str, text: str) -> Path:
     """Replace `path` with `text` atomically. Creates the parent folder. Returns the path written."""
     target: Path = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
+    mode: int = target_mode(target)
     descriptor, temp_name = tempfile.mkstemp(prefix=TEMP_PREFIX + target.name + ".", dir=str(target.parent))
     try:
         with os.fdopen(descriptor, "w", encoding=ENCODING) as handle:
             handle.write(text)
             handle.flush()
             os.fsync(handle.fileno())
+        os.chmod(temp_name, mode)
         os.replace(temp_name, target)
     except BaseException:
         Path(temp_name).unlink(missing_ok=True)
