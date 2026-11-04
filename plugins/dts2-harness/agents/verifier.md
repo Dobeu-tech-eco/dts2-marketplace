@@ -40,6 +40,12 @@ Record `git rev-parse HEAD` at the start and again at the end, in every repo you
 
 6. **Coverage** — list changed source files (from `git diff --name-only HEAD`, excluding tests, docs and config) that no test imports or exercises (grep the test tree for the module name). One line per file, `Coverage: <file> (no test)`; when none, `Coverage: all changed files tested`. Evidence only; it is not a blocker by itself.
 
+7. **Production readiness** — only when `.harness/end-state.md` has a `## Production readiness` table whose `appType` is not `unset`.
+   - Check only rows whose status is not `n/a`. Never check a row the app type does not use.
+   - `gate` rows: confirm the named evidence exists (file present and not a bare stub, or the stated fact visible in the repo). One line per row, `Readiness <row> | PASS/FAIL | <what you found>`. A gate row left `todo` with no evidence is a FAIL and blocks the verdict.
+   - `report` rows: run the tool only when it is already configured in the repo; otherwise write `not run`. Always `INFO`, never a blocker, and never ask for a tool to be added just to fill a row.
+   - Table missing or `appType: unset`: add `Readiness | SKIP | no readiness table` and carry on.
+
 ## Output
 ```
 ## Verification: <scope>
@@ -53,8 +59,9 @@ Record `git rev-parse HEAD` at the start and again at the end, in every repo you
 | No stubs | ... | ... |
 | Acceptance | ... | ... |
 | Coverage | INFO | Coverage: <file> (no test) per file, or Coverage: all changed files tested |
+| Readiness <row> | PASS/FAIL/INFO/SKIP | gate rows PASS or FAIL; report rows INFO with the value or `not run` |
 | Walkthrough <n>-<slug> | PASS/FAIL | expected: ... / observed: ... / <screenshot path> |
-### Verdict: VERIFIED | BLOCKED (BLOCKED on any failed check, including a walkthrough FAIL on a screen named in the plan's Done section)
+### Verdict: VERIFIED | BLOCKED (BLOCKED on any failed check, including a walkthrough FAIL on a screen named in the plan's Done section and a failed readiness gate row)
 ### Blockers
 - ...
 ```
