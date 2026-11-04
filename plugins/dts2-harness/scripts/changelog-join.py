@@ -27,6 +27,7 @@ PLUGIN_ROOT: Final[Path] = Path(__file__).resolve().parent.parent
 FRAGMENT_DIR: Final[str] = "changelog.d"
 FRAGMENT_GLOB: Final[str] = "batch-*.md"
 UNRELEASED: Final[str] = "## Unreleased"
+MD_HEADING: Final[re.Pattern[str]] = re.compile(r"^#+\s")
 HEADING: Final[re.Pattern[str]] = re.compile(r"^## ", re.MULTILINE)
 NUMBER: Final[re.Pattern[str]] = re.compile(r"(\d+)")
 BULLET: Final[str] = "- "
@@ -50,7 +51,7 @@ def parse_fragment(path: Path) -> tuple[list[str], list[str]]:
     dropped: list[str] = []
     for raw in path.read_text(encoding="utf-8").splitlines():
         line: str = raw.rstrip()
-        if not line.strip() or line.startswith("#"):
+        if not line.strip() or MD_HEADING.match(line):
             continue
         if line.startswith(BULLET):
             lines.append(line)
@@ -75,14 +76,15 @@ def join(readme: str, lines: list[str], version: str | None, today: str) -> str:
     body: str = readme[start + len(UNRELEASED):end].strip("\n")
     if lines:
         body = "\n".join(lines) + ("\n" + body if body else "")
+    tail: str = readme[end:]
     if not version:
-        return readme[:start] + f"{UNRELEASED}\n\n{body}\n\n" + readme[end:]
+        return readme[:start] + f"{UNRELEASED}\n\n{body}\n" + ("\n" + tail if tail else "")
     history: re.Match[str] | None = HISTORY.search(body)
     cut: int = history.start() if history else len(body)
     newest: str = body[:cut].rstrip("\n")
     older: str = body[cut:]
-    section: str = f"## {version} ({today})\n\n{newest}\n\n" + (older + "\n\n" if older else "")
-    return readme[:start] + f"{UNRELEASED}\n\n" + section + readme[end:]
+    section: str = f"## {version} ({today})\n\n{newest}\n" + ("\n" + older.rstrip("\n") + "\n" if older else "")
+    return readme[:start] + f"{UNRELEASED}\n\n" + section + ("\n" + tail if tail else "")
 
 
 def run(root: Path, version: str | None, apply: bool, today: str) -> dict[str, Any]:

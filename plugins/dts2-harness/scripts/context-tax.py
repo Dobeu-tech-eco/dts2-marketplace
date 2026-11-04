@@ -19,22 +19,46 @@ CHARS_PER_TOKEN: Final[int] = 4
 DEFAULT_BUDGET: Final[int] = 6000
 DEFAULT_MAX_DESCRIPTION: Final[int] = 300
 LISTED_KEYS: Final[tuple[str, ...]] = ("name", "description", "when_to_use")
+BLOCK_MARKERS: Final[str] = ">|"
+MALFORMED_START: Final[str] = "[>|"
 KEY_LINE: Final[re.Pattern[str]] = re.compile(r"^([A-Za-z][A-Za-z0-9_-]*):\s*(.*)$")
 
 
 def frontmatter(text: str) -> dict[str, str]:
-    """Top-level `key: value` pairs of the leading --- block. Continuation lines are ignored."""
+    """Top-level keys of the leading --- block. A key whose value is empty or starts with `>` or `|` gathers the
+    indented lines after it (joined with spaces), so folded descriptions and block lists are measured whole."""
     lines: list[str] = text.split("\n")
     if not lines or lines[0].strip() != "---":
         return {}
     found: dict[str, str] = {}
+    key: str | None = None
+    gather: bool = False
     for line in lines[1:]:
         if line.strip() == "---":
             return found
         match: re.Match[str] | None = KEY_LINE.match(line)
         if match:
-            found[match.group(1)] = match.group(2).strip()
+            key = match.group(1)
+            found[key] = match.group(2).strip()
+            gather = not found[key] or found[key][0] in BLOCK_MARKERS
+            if gather:
+                found[key] = ""
+        elif key is not None and gather and line[:1] in (" ", "\t") and line.strip():
+            found[key] = (found[key] + " " + line.strip()).strip()
     return {}
+
+
+def raw_values(text: str) -> dict[str, str]:
+    """First-line value of each top-level key, exactly as written."""
+    found: dict[str, str] = {}
+    lines: list[str] = text.split("\n")
+    for line in lines[1:] if lines and lines[0].strip() == "---" else []:
+        if line.strip() == "---":
+            break
+        match: re.Match[str] | None = KEY_LINE.match(line)
+        if match:
+            found[match.group(1)] = match.group(2).strip()
+    return found
 
 
 def metadata_files(root: Path) -> list[Path]:
@@ -50,8 +74,12 @@ def measure(root: Path, max_description: int) -> tuple[list[dict[str, Any]], lis
     user_only: list[dict[str, Any]] = []
     problems: list[str] = []
     for path in metadata_files(root):
-        meta: dict[str, str] = frontmatter(path.read_text(encoding="utf-8"))
+        text: str = path.read_text(encoding="utf-8")
+        meta: dict[str, str] = frontmatter(text)
         rel: str = str(path.relative_to(root))
+        for key, raw in raw_values(text).items():
+            if key in LISTED_KEYS and (not raw or raw[0] in MALFORMED_START):
+                problems.append(f"{rel}: `{key}` is written as {raw[:2] or 'an empty value'!r}, use a one-line value so the size gate counts it")
         if not meta.get("description"):
             problems.append(f"{rel}: no description")
         listed: str = " ".join(meta.get(key, "") for key in LISTED_KEYS).strip()

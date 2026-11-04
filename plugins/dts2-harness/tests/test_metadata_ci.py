@@ -54,16 +54,24 @@ def frontmatter_lines(path: Path) -> list[str]:
 
 
 def frontmatter_map(path: Path) -> dict[str, str]:
-    found: dict[str, str] = {}
-    for line in frontmatter_lines(path):
-        match = KEY_LINE.match(line)
-        if match:
-            found[match.group(1)] = line.split(":", 1)[1].strip()
-    return found
+    """Same parser the context-tax gate uses (gathers folded and block-list values), so the two cannot drift."""
+    assert path.read_text(encoding="utf-8").startswith("---\n"), path
+    return load_script("context-tax").frontmatter(path.read_text(encoding="utf-8"))
 
 
-def csv(value: str) -> set[str]:
-    return {part.strip() for part in value.split(",") if part.strip()}
+def tool_names(value: str) -> set[str]:
+    """Tool names from a CSV, a flow list `[A, B]` or a gathered block list `- A - B`."""
+    cleaned: str = re.sub(r"(^|\s)-\s", " ", value.replace("[", " ").replace("]", " ").replace(",", " "))
+    return {part for part in cleaned.split() if part}
+
+
+def read_only_violations(meta: dict[str, str]) -> list[str]:
+    """Why an agent is not read-only: no declaration, an empty one, or a write tool on the allowlist."""
+    if not meta.get("tools") and not meta.get("disallowedTools"):
+        return ["declares neither tools nor disallowedTools"]
+    if meta.get("tools"):
+        return sorted(tool_names(meta["tools"]) & WRITE_TOOLS)
+    return sorted(WRITE_TOOLS - tool_names(meta["disallowedTools"]))
 
 
 def agent_files() -> list[Path]:
@@ -120,19 +128,20 @@ class AgentMetadata(unittest.TestCase):
         """Q-3: each read-only agent either allowlists tools without a write tool or denies all of them."""
         for name in READ_ONLY_AGENTS:
             meta: dict[str, str] = frontmatter_map(AGENTS / f"{name}.md")
-            self.assertTrue("tools" in meta or "disallowedTools" in meta, f"{name} declares neither tools nor disallowedTools")
-            if "tools" in meta:
-                self.assertEqual(csv(meta["tools"]) & WRITE_TOOLS, set(), name)
-            else:
-                self.assertEqual(csv(meta["disallowedTools"]) & WRITE_TOOLS, WRITE_TOOLS, name)
+            value: str = meta.get("tools") or meta.get("disallowedTools") or ""
+            self.assertTrue(value, f"{name} declares neither tools nor disallowedTools")
+            self.assertNotRegex(value, r"[\[\]\n]", f"{name}: list form not parsed as plain CSV")
+            self.assertEqual(read_only_violations(meta), [], name)
 
     def test_verifier_keeps_bash_but_denies_writes(self) -> None:
         meta: dict[str, str] = frontmatter_map(AGENTS / "verifier.md")
-        self.assertEqual(csv(meta["disallowedTools"]), set(WRITE_TOOLS))
+        self.assertTrue(meta.get("disallowedTools"))
+        self.assertNotRegex(meta["disallowedTools"], r"[\[\]\n]")
+        self.assertEqual(tool_names(meta["disallowedTools"]), set(WRITE_TOOLS))
         self.assertNotIn("tools", meta, "an allowlist would drop the tools the verifier needs to run tests")
 
     def test_builder_may_write(self) -> None:
-        self.assertLessEqual(WRITE_TOOLS - {"NotebookEdit"}, csv(frontmatter_map(AGENTS / "builder.md")["tools"]))
+        self.assertLessEqual(WRITE_TOOLS - {"NotebookEdit"}, tool_names(frontmatter_map(AGENTS / "builder.md")["tools"]))
 
     def test_seat_wording_matches_pins(self) -> None:
         """Q-12: reviewers are advisory seats on the standard tier, frontier only for design-risk."""
