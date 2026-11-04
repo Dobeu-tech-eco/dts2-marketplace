@@ -43,4 +43,4 @@ jobs:
       - name: Ruff
         run: ruff check plugins/dts2-harness
       - name: Shellcheck
-        run: shellcheck -x -P SCRIPTDIR plugins/dts2-harness/hooks/*.sh
+        run: shellcheck -x plugins/dts2-harness/hooks/*.sh
