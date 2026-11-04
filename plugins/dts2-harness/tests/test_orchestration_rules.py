@@ -8,7 +8,7 @@ from typing import Final
 from helpers import PLUGIN_ROOT
 
 DISCIPLINE: Final[Path] = PLUGIN_ROOT / "templates" / "discipline.md"
-RUN_SKILL: Final[Path] = PLUGIN_ROOT / "skills" / "run" / "SKILL.md"
+RUN_SKILL: Final[Path] = PLUGIN_ROOT / "skills" / "run"
 BUILDER: Final[Path] = PLUGIN_ROOT / "agents" / "builder.md"
 LEAD: Final[Path] = PLUGIN_ROOT / "agents" / "lead.md"
 LOCAL_TEMPLATE: Final[Path] = PLUGIN_ROOT / "templates" / "dts2-harness.local.md"
@@ -21,6 +21,8 @@ SUFFIXES: Final[frozenset[str]] = frozenset({".md"})
 
 
 def _read(path: Path) -> str:
+    if path.is_dir():
+        return "\n".join(f.read_text(encoding="utf-8") for f in sorted(path.glob("*.md")))
     return path.read_text(encoding="utf-8")
 
 

@@ -20,7 +20,7 @@ LOCAL_TEMPLATE: Final[Path] = PLUGIN_ROOT / "templates" / "dts2-harness.local.md
 LANES: Final[Path] = PLUGIN_ROOT / "scripts" / "lanes.py"
 RULE_SOURCES: Final[tuple[Path, ...]] = (
     PLUGIN_ROOT / "templates" / "discipline.md",
-    PLUGIN_ROOT / "skills" / "run" / "SKILL.md",
+    *sorted((PLUGIN_ROOT / "skills" / "run").glob("*.md")),
     PLUGIN_ROOT / "skills" / "ship" / "SKILL.md",
 )
 SON_HEADING: Final[str] = "## 6. Son mode"

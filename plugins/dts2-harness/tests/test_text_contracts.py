@@ -16,6 +16,8 @@ AGENTS: Final[Path] = PLUGIN_ROOT / "agents"
 
 
 def _read(path: Path) -> str:
+    if path.is_dir():
+        return "\n".join(f.read_text(encoding="utf-8") for f in sorted(path.glob("*.md")))
     return path.read_text(encoding="utf-8")
 
 
@@ -160,7 +162,7 @@ class BuilderAgentTests(TextContractMixin):
 
 
 class RunSkillContracts(TextContractMixin):
-    PATH: Final[Path] = PLUGIN_ROOT / "skills" / "run" / "SKILL.md"
+    PATH: Final[Path] = PLUGIN_ROOT / "skills" / "run"
     ISOLATION_HEADING: Final[str] = "## Isolation (Rule 10)"
 
     def test_required_phrases(self) -> None:
@@ -211,8 +213,8 @@ class RunSkillContracts(TextContractMixin):
             self.assertIn(phrase, block, phrase)
 
     def test_after_ship_commits_critique_report(self) -> None:
-        text: str = _read(self.PATH)
-        after: str = text[text.find("## After ship"):text.find("## Add secret mode")]
+        text: str = _read(self.PATH / "phase-4-ship.md")
+        after: str = text[text.find("## After ship"):]
         self.assertIn(".harness/review/critique-<stamp>.md", after)
 
     def test_gh_secret_presence_check(self) -> None:

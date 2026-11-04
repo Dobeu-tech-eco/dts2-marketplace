@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from typing import Final
 
-from helpers import PLUGIN_ROOT
+from helpers import PLUGIN_ROOT, read_run_skill
 
 LAYERS: Final[tuple[str, ...]] = (
     "data model", "api surface", "screens/routes", "auth",
@@ -20,19 +20,19 @@ def read(rel: str) -> str:
 
 class FinishPassTests(unittest.TestCase):
     def test_run_phase_3c_after_3b_before_4(self) -> None:
-        text: str = read("skills/run/SKILL.md")
+        text: str = read_run_skill()
         positions: list[int] = [text.find(h) for h in ("## Phase 3b", "## Phase 3c", "## Phase 4")]
         self.assertNotIn(-1, positions)
         self.assertEqual(positions, sorted(positions))
 
     def test_run_phase_3c_rules(self) -> None:
-        text: str = read("skills/run/SKILL.md")
+        text: str = read_run_skill()
         section: str = text[text.find("## Phase 3c"):text.find("## Phase 4")]
         for phrase in ("simplify", "optimize", "Coverage:", "3-round cap", "never speculative"):
             self.assertIn(phrase, section)
 
     def test_plan_checkpoint_blueprint_rule(self) -> None:
-        text: str = read("skills/run/SKILL.md")
+        text: str = read_run_skill()
         for phrase in ("Blueprint coverage", "unmapped", "Blueprint layer <x> unmapped"):
             self.assertIn(phrase, text)
 

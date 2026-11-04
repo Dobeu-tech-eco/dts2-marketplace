@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from typing import Final
 
-from helpers import PLUGIN_ROOT, _write
+from helpers import PLUGIN_ROOT, _write, read_run_skill
 
 SCRIPT: Final[Path] = PLUGIN_ROOT / "scripts" / "metrics.py"
 METRICS_REL: Final[str] = ".harness/metrics.jsonl"
@@ -106,7 +106,7 @@ class LearningLoopText(unittest.TestCase):
         learn: str = self.read("skills/learn/SKILL.md")
         for phrase in ("learn promote", "add Promotions"):
             self.assertIn(phrase, learn)
-        run: str = self.read("skills/run/SKILL.md")
+        run: str = read_run_skill()
         for phrase in ("Run metrics", "Add secret mode", "add Handoff", "## Deploy"):
             self.assertIn(phrase, run)
         self.assertLess(run.index("## Phase 3c"), run.index("applies the resulting fix list"))
@@ -121,7 +121,7 @@ class LearningLoopText(unittest.TestCase):
             self.assertIn(phrase, text)
 
     def test_run_prints_trend(self) -> None:
-        text: str = self.read("skills/run/SKILL.md")
+        text: str = read_run_skill()
         self.assertIn("metrics.py", text)
         self.assertIn("Trend", text)
 

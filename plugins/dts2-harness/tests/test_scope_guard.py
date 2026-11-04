@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 from typing import Any, Final
 
-from helpers import PLUGIN_ROOT, make_tmp_home
+from helpers import PLUGIN_ROOT, make_tmp_home, read_run_skill
 
 SCOPE_SCRIPT: Final[Path] = PLUGIN_ROOT / "scripts" / "scope-check.py"
 GUARD_HOOK: Final[Path] = PLUGIN_ROOT / "hooks" / "context-guard.sh"
@@ -151,11 +151,12 @@ def read(rel: str) -> str:
 
 class ScopeTextContracts(unittest.TestCase):
     def test_run_skill(self) -> None:
-        text: str = read("skills/run/SKILL.md")
+        text: str = read_run_skill()
         for needle in ("## Context guard and pivot", "Pivot: <repo> belongs to workspace", "scope-check.py",
                        "Context guard fired (<trigger>): stopping all agents and re-running setup.", "- Context guard:"):
             self.assertIn(needle, text)
-        self.assertLess(text.find("## Context guard and pivot"), text.find("## Guardrails"))
+        self.assertIn("## Context guard and pivot", read("skills/run/operations.md"))
+        self.assertIn("## Guardrails", read("skills/run/SKILL.md"))
 
     def test_setup_skill(self) -> None:
         self.assertIn("Run setup at the workspace root instead?", read("skills/setup/SKILL.md"))
