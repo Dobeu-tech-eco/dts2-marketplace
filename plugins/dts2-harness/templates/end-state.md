@@ -74,7 +74,7 @@ Status values: todo | in-progress | blocked | done. `blocked` rows carry the act
 
 appType: unset
 
-Setup runs `scripts/app-type-detect.py <repo> --table` and pastes its rows here. Type is `web-app`, `api`, `cli`, `library` or `static-site`. A row that does not apply to the type is `n/a`. Kind `gate` rows must be `done` or `n/a` before a run reports done; kind `report` rows are shown in the report with whatever value exists and never block. Status is `todo`, `done`, `n/a` or, for report rows, the measured value.
+Setup runs `scripts/app-type-detect.py <repo> --table` and pastes its rows here. Type is `web-app`, `api`, `cli`, `library` or `static-site`. A row that does not apply to the type is `n/a`. Kind `gate` rows must be `done` or `n/a` before the project reports done; kind `report` rows are shown in the report with whatever value exists and never block. Status is `todo`, `done`, `n/a` or, for report rows, the measured value.
 
 | row | kind | evidence | status |
 |---|---|---|---|

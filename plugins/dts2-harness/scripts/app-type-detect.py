@@ -68,7 +68,7 @@ NODE_API: Final[frozenset[str]] = frozenset({
 PY_WEB: Final[tuple[str, ...]] = ("django",)
 PY_API: Final[tuple[str, ...]] = ("fastapi", "flask", "starlette", "aiohttp", "sanic", "litestar", "tornado")
 RUST_API: Final[tuple[str, ...]] = ("axum", "actix-web", "rocket", "warp", "poem")
-GO_API: Final[tuple[str, ...]] = ("net/http", "gin-gonic/gin", "labstack/echo", "go-chi/chi", "gofiber/fiber")
+GO_API: Final[tuple[str, ...]] = ("http.ListenAndServe", "http.HandleFunc", "http.NewServeMux", "gin-gonic/gin", "labstack/echo", "go-chi/chi", "gofiber/fiber")
 STATIC_FILES: Final[tuple[str, ...]] = ("mkdocs.yml", "_config.yml", "hugo.toml", "hugo.yaml", "config.toml")
 MAX_READ: Final[int] = 1_000_000
 

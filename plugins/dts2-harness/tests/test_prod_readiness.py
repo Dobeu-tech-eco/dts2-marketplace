@@ -47,7 +47,7 @@ class AppTypeDetectTests(unittest.TestCase):
         self.assertEqual(detect({"pyproject.toml": "[project]\nname = 'x'"})["appType"], "library")
         self.assertEqual(detect({"Cargo.toml": "[package]\n", "src/main.rs": "fn main(){}"})["appType"], "cli")
         self.assertEqual(detect({"Cargo.toml": "[package]\n", "src/lib.rs": ""})["appType"], "library")
-        self.assertEqual(detect({"go.mod": "module x", "main.go": 'import "net/http"'})["appType"], "api")
+        self.assertEqual(detect({"go.mod": "module x", "main.go": 'import "net/http"\nfunc main(){ http.ListenAndServe(":80", nil) }'})["appType"], "api")
 
     def test_static_and_unknown(self) -> None:
         self.assertEqual(detect({"index.html": "<html>"})["appType"], "static-site")

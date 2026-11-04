@@ -78,8 +78,9 @@ def setup_block(repo: Path, stack: str) -> str:
     return SETUP_STEPS.get(stack, "").rstrip("\n")
 
 
-def read_commands(repo: Path) -> dict[str, str]:
-    """Pull the `commands:` block out of config.yaml without a YAML library. Empty values are dropped."""
+def read_commands(repo: Path, dropped: list[dict[str, str]] | None = None) -> dict[str, str]:
+    """Pull the `commands:` block out of config.yaml without a YAML library. Empty values are dropped;
+    unsafe ones are dropped and reported through `dropped`."""
     path: Path = repo / CONFIG_PATH
     if not path.is_file():
         return {}
@@ -95,8 +96,13 @@ def read_commands(repo: Path) -> dict[str, str]:
         if match is None or match.group(1) not in COMMAND_KEYS:
             continue
         value: str = match.group(2).strip().strip("'\"")
-        if value and value != "null" and not UNSAFE_COMMAND.search(value):
-            found[match.group(1)] = value
+        if not value or value == "null":
+            continue
+        if UNSAFE_COMMAND.search(value):
+            if dropped is not None:
+                dropped.append({"key": match.group(1), "reason": "contains `${{` or a newline; not copied into ci.yml"})
+            continue
+        found[match.group(1)] = value
     return found
 
 
@@ -104,18 +110,18 @@ def step(name: str, command: str) -> str:
     return f"      - name: {name}\n        run: {json.dumps(command)}"
 
 
-def steps_block(repo: Path) -> str:
-    commands: dict[str, str] = read_commands(repo)
+def steps_block(repo: Path, dropped: list[dict[str, str]] | None = None) -> str:
+    commands: dict[str, str] = read_commands(repo, dropped)
     steps: list[str] = [step(key, commands[key]) for key in COMMAND_KEYS if key in commands]
     steps.append(step("repo checks", f"if [ -f {CHECKS_PATH} ]; then bash {CHECKS_PATH}; fi"))
     return "\n".join(steps)
 
 
-def render_ci(repo: Path, stack: str) -> str:
+def render_ci(repo: Path, stack: str, dropped: list[dict[str, str]] | None = None) -> str:
     text: str = (TEMPLATES / "ci.yml").read_text(encoding="utf-8")
     setup: str = setup_block(repo, stack)
     text = text.replace("{{SETUP}}\n", setup + "\n" if setup else "")
-    return text.replace("{{STEPS}}", steps_block(repo))
+    return text.replace("{{STEPS}}", steps_block(repo, dropped))
 
 
 def write_new(repo: Path, rel: str, text: str, written: list[str], skipped: list[str]) -> None:
@@ -130,13 +136,14 @@ def write_new(repo: Path, rel: str, text: str, written: list[str], skipped: list
 def scaffold(repo: Path, app_type: str, *, with_ci: bool = True) -> dict[str, Any]:
     written: list[str] = []
     skipped: list[str] = []
+    dropped: list[dict[str, str]] = []
     stack: str = detect_stack(repo)
     if with_ci:
-        write_new(repo, CI_PATH, render_ci(repo, stack), written, skipped)
+        write_new(repo, CI_PATH, render_ci(repo, stack, dropped), written, skipped)
     for source, target, types in OPS_FILES:
         if app_type == "unknown" or app_type in types:
             write_new(repo, target, (TEMPLATES / source).read_text(encoding="utf-8"), written, skipped)
-    return {"appType": app_type, "stack": stack, "written": written, "skipped": skipped}
+    return {"appType": app_type, "stack": stack, "written": written, "skipped": skipped, "dropped": dropped}
 
 
 def main() -> int:
