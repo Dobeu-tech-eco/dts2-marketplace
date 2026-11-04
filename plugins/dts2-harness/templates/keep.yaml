@@ -2,12 +2,16 @@
 plugins:          # Claude Code plugin ids the user wants on for this project, e.g. impeccable@impeccable
   - dts2-harness@dts2
 skills:           # skills installed for this project; source is "npx skills add <ref>", "plugin", or "synced"
+  # Optional per skill: `pin: <40-character commit sha>` installs exactly that commit. The daily pre-check never
+  # moves a pin: it writes .harness/skill-updates.json (diff summary per skill) and you approve one with
+  # `skills-check.py <repo> --fix --apply-update <name>=<sha>`. Pinned skills are skipped by `npx skills update`.
   # - name: <skill>
   #   source: npx skills add <owner/repo>
   #   serves: <component>
   # companion skills from mattpocock/skills, added when first needed:
   # - name: grill-me
   #   source: npx skills add https://github.com/mattpocock/skills --skill grill-me
+  #   pin: <commit sha>
   #   serves: harness
   # - name: improve-codebase-architecture
   #   source: npx skills add https://github.com/mattpocock/skills --skill improve-codebase-architecture
