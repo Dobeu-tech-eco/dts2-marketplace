@@ -1,4 +1,4 @@
-"""Contracts for the dpp head's supervision helpers in lanes.py: status, sendback, release, fold, stop-check, and 3.9.0."""
+"""Contracts for the dpp head's supervision helpers in lanes.py: status, sendback, release, fold, stop-check, and 3.9.1."""
 from __future__ import annotations
 
 import json
@@ -18,7 +18,7 @@ from test_upgrade_check import RELEASE
 
 SCRIPT: Final[Path] = PLUGIN_ROOT / "scripts" / "lanes.py"
 REPO_ROOT: Final[Path] = PLUGIN_ROOT.parent.parent
-VERSION: Final[str] = "3.9.0"
+VERSION: Final[str] = "3.9.1"
 STAMP: Final[str] = "20261104-7"
 STALE_AGE_S: Final[int] = 4000
 SETTING_TIMEOUT_MIN: Final[int] = 1
@@ -167,7 +167,7 @@ class SuperviseTests(unittest.TestCase):
 
 
 class ReleaseTests(unittest.TestCase):
-    def test_version_is_3_9_0_everywhere(self) -> None:
+    def test_version_is_3_9_1_everywhere(self) -> None:
         plugin = json.loads((PLUGIN_ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
         market = json.loads((REPO_ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))
         self.assertEqual(plugin["version"], VERSION)
