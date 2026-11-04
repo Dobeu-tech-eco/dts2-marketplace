@@ -30,6 +30,7 @@ OPS_FILES: Final[tuple[tuple[str, str, frozenset[str]], ...]] = (
     ("ops/release.md", "ops/release.md", frozenset({"web-app", "api", "static-site", "cli", "library"})),
 )
 COMMAND_LINE: Final[re.Pattern[str]] = re.compile(r"^\s{2,}([a-z_]+):\s*(.*?)\s*$")
+YAML_NULLS: Final[frozenset[str]] = frozenset({"~", "null", "Null", "NULL"})
 UNSAFE_COMMAND: Final[re.Pattern[str]] = re.compile(r"\$\{\{|[\r\n]")
 SETUP_STEPS: Final[dict[str, str]] = {
     "node": (
@@ -115,7 +116,10 @@ def _scalar(raw: str) -> str | None:
         if rest.strip() and not re.match(r"^\s+#", rest):
             return None
         return raw[1:index].replace("''", "'")
-    return re.sub(r"\s+#.*$", "", raw).strip()
+    if raw.startswith("#"):
+        return ""
+    plain: str = re.sub(r"\s+#.*$", "", raw).strip()
+    return "" if plain in YAML_NULLS else plain
 
 
 def read_commands(repo: Path, dropped: list[dict[str, str]] | None = None) -> dict[str, str]:
@@ -144,8 +148,12 @@ def read_commands(repo: Path, dropped: list[dict[str, str]] | None = None) -> di
                 continue
             value: str = parsed
         else:
+            if re.match(r"^[|>][-+0-9]*$", raw) or raw[:1] in ("&", "*", "!"):
+                if dropped is not None:
+                    dropped.append({"key": match.group(1), "reason": "unsupported YAML form (block scalar, anchor, alias or tag); not copied into ci.yml"})
+                continue
             value = _scalar(raw) or ""
-        if not value or value == "null":
+        if not value:
             continue
         if UNSAFE_COMMAND.search(value):
             if dropped is not None:

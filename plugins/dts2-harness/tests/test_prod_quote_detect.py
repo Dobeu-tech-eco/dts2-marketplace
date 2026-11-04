@@ -51,8 +51,54 @@ class QuotedCommandTests(unittest.TestCase):
         self.assertEqual([d["key"] for d in dropped], ["test"])
         self.assertIn("could not parse quoted value", dropped[0]["reason"])
 
+    def test_comment_only_value_is_empty(self) -> None:
+        runs, dropped = scaffold("  test:   # none yet\n")
+        self.assertNotIn("test", runs)
+        self.assertEqual(dropped, [])
+
+    def test_null_value_is_empty(self) -> None:
+        runs, dropped = scaffold("  test: ~\n")
+        self.assertNotIn("test", runs)
+        self.assertEqual(dropped, [])
+
+    def test_block_scalar_dropped(self) -> None:
+        runs, dropped = scaffold("  build: |\n    npm run build\n")
+        self.assertNotIn("build", runs)
+        self.assertEqual([d["key"] for d in dropped], ["build"])
+        self.assertIn("unsupported YAML form", dropped[0]["reason"])
+
+    def test_anchor_dropped(self) -> None:
+        runs, dropped = scaffold("  test: &t pytest\n")
+        self.assertNotIn("test", runs)
+        self.assertEqual([d["key"] for d in dropped], ["test"])
+
 
 class DetectTests(unittest.TestCase):
+    def test_grpc_client_cli_is_cli(self) -> None:
+        repo: Path = Path(tempfile.mkdtemp(prefix="dts2-go-"))
+        _write(repo / "go.mod", "module x\nrequire google.golang.org/grpc v1.60.0\n")
+        _write(repo / "main.go", "package main\nfunc main(){}\n")
+        self.assertEqual(run_script("app-type-detect.py", str(repo))["appType"], "cli")
+
+    def test_grpc_server_is_api(self) -> None:
+        repo: Path = Path(tempfile.mkdtemp(prefix="dts2-go-"))
+        _write(repo / "go.mod", "module x\n")
+        _write(repo / "main.go", "package main\nfunc main(){ s := grpc.NewServer(); _ = s }\n")
+        self.assertEqual(run_script("app-type-detect.py", str(repo))["appType"], "api")
+
+    def test_indirect_api_dependency_ignored(self) -> None:
+        repo: Path = Path(tempfile.mkdtemp(prefix="dts2-go-"))
+        _write(repo / "go.mod", "module x\nrequire github.com/gin-gonic/gin v1.9.0 // indirect\n")
+        _write(repo / "main.go", "package main\nfunc main(){}\n")
+        self.assertEqual(run_script("app-type-detect.py", str(repo))["appType"], "cli")
+
+    def test_no_trailing_newline_does_not_hide_main(self) -> None:
+        repo: Path = Path(tempfile.mkdtemp(prefix="dts2-go-"))
+        _write(repo / "go.mod", "module x\n")
+        _write(repo / "a.go", "package x")
+        _write(repo / "cmd/x/main.go", "package main")
+        self.assertEqual(run_script("app-type-detect.py", str(repo))["appType"], "cli")
+
     def test_go_server_with_mux_is_api(self) -> None:
         repo: Path = Path(tempfile.mkdtemp(prefix="dts2-go-"))
         _write(repo / "go.mod", "module x\nrequire github.com/gorilla/mux v1.8.0\n")

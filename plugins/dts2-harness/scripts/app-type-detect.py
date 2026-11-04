@@ -70,7 +70,7 @@ PY_API: Final[tuple[str, ...]] = ("fastapi", "flask", "starlette", "aiohttp", "s
 RUST_API: Final[tuple[str, ...]] = ("axum", "actix-web", "rocket", "warp", "poem")
 GO_API: Final[tuple[str, ...]] = (
     "http.ListenAndServe", "http.HandleFunc", "http.NewServeMux", "gin-gonic/gin", "labstack/echo", "go-chi/chi", "gofiber/fiber",
-    "http.Server{", "gorilla/mux", "julienschmidt/httprouter", "google.golang.org/grpc")
+    "http.Server{", "gorilla/mux", "julienschmidt/httprouter", "grpc.NewServer(")
 STATIC_FILES: Final[tuple[str, ...]] = ("mkdocs.yml", "_config.yml", "hugo.toml", "hugo.yaml", "config.toml")
 MAX_READ: Final[int] = 1_000_000
 
@@ -161,9 +161,10 @@ def detect_go(repo: Path) -> dict[str, Any] | None:
     files: list[Path] = sorted(repo.glob("*.go"))
     if (repo / "cmd").is_dir():
         files += sorted((repo / "cmd").glob("*/*.go"))
-    sources: str = "".join(read(path) for path in files)
+    sources: str = "\n".join(read(path) for path in files)
+    mod_lines: str = "\n".join(line for line in mod.splitlines() if "// indirect" not in line)
     for name in GO_API:
-        if name in sources or name in mod:
+        if name in sources or name in mod_lines:
             return verdict(API, [f"go import {name}"])
     if re.search(r"^package main\b", sources, re.MULTILINE):
         return verdict(CLI, ["go main package"])
