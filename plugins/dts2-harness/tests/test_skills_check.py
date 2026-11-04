@@ -164,7 +164,7 @@ class DailyGateTests(unittest.TestCase):
         out = fx.run("--fix")
         self.assertEqual(out["skills"]["freshness"], "full")
         self.assertTrue((fx.repo / ".harness" / ".skills-checked").is_file())
-        self.assertIn("update -p -y", fx.log("npx"))
+        self.assertNotIn("update -p -y", fx.log("npx"))  # the daily sweep only proposes; it never updates
 
     def test_second_run_same_day_is_fast_and_touches_no_network(self) -> None:
         fx = Fixture()
@@ -202,7 +202,7 @@ class DailyGateTests(unittest.TestCase):
         fx.mark_today()
         out = fx.run("--fix", "--force-full")
         self.assertEqual(out["skills"]["freshness"], "full")
-        self.assertIn("update -p -y", fx.log("npx"))
+        self.assertNotIn("update -p -y", fx.log("npx"))
 
     def test_failed_full_run_does_not_write_marker(self) -> None:
         fx = Fixture()
@@ -228,8 +228,8 @@ class SkillsCheckTests(unittest.TestCase):
         self.assertEqual(len(out["skills"]["installed"]), 11)
         self.assertTrue(fx.skill("resolve-merge-conflicts").is_file())
         self.assertIn("add warpdotdev/common-skills@resolve-merge-conflicts -a claude-code --copy -y", fx.log("npx"))
-        self.assertIn("update -p -y", fx.log("npx"))
-        self.assertTrue(out["skills"]["updated"])
+        self.assertNotIn("update -p -y", fx.log("npx"))  # B4: the daily sweep never auto-applies
+        self.assertIsNone(out["skills"]["updated"])
 
     def test_keep_list_skills_are_installed_from_their_source(self) -> None:
         keep = ("skills:\n  - name: supabase\n    source: npx skills add supabase/agent-skills@supabase\n"
@@ -441,11 +441,9 @@ class TrackedFilesTests(unittest.TestCase):
         out = fx.run("--fix")
         self.assert_untouched(fx)
         self.assertEqual(out["skills"]["tracked_check"], "ok")
-        skipped = {(e["name"], e["step"]): e["reverted"] for e in out["skills"]["tracked_skipped"]}
-        reverted = skipped[("stripe-best-practices", "update")]
-        self.assertIn(".claude/skills/stripe-best-practices/references/webhooks.md", reverted)
-        self.assertIn(".claude/skills/stripe-best-practices/NEW.md", reverted)
-        self.assertEqual(skipped[("skills-lock.json", "update")], ["skills-lock.json"])
+        # No bulk update runs any more, so nothing can clobber the tracked skill and nothing is reported.
+        self.assertNotIn("update -p -y", fx.log("npx"))
+        self.assertEqual([e for e in out["skills"]["tracked_skipped"] if e["step"] == "update"], [])
         self.assertNotIn("_tracked", out["skills"])
 
     def test_force_full_is_protected_too(self) -> None:
@@ -456,13 +454,13 @@ class TrackedFilesTests(unittest.TestCase):
         out = fx.run("--fix", "--force-full")
         self.assertEqual(out["skills"]["freshness"], "full")
         self.assert_untouched(fx)
-        self.assertIn("stripe-best-practices", [e["name"] for e in out["skills"]["tracked_skipped"]])
+        self.assertNotIn("update -p -y", fx.log("npx"))
 
     def test_clean_update_reports_tracked_skill_as_skipped_with_nothing_reverted(self) -> None:
         fx = Fixture()
         fx.commit(STRIPE)
         out = fx.run("--fix")
-        self.assertIn({"name": "stripe-best-practices", "step": "update", "reverted": []}, out["skills"]["tracked_skipped"])
+        self.assertEqual(out["skills"]["tracked_skipped"], [])  # no update step, so nothing to skip
         self.assert_untouched(fx)
 
     def test_uncommitted_edits_to_tracked_files_survive(self) -> None:
@@ -480,7 +478,7 @@ class TrackedFilesTests(unittest.TestCase):
         fx.run("--fix")  # installs companions, untracked
         fx.clobber = "pr"
         out = fx.run("--fix", "--force-full")
-        self.assertIn("upstream v2", fx.skill("pr").read_text(encoding="utf-8"))
+        self.assertNotIn("upstream v2", fx.skill("pr").read_text(encoding="utf-8"))  # no bulk update runs
         self.assertNotIn("pr", [e["name"] for e in out["skills"]["tracked_skipped"]])
 
     def test_tracked_retired_skill_is_not_removed(self) -> None:
@@ -503,12 +501,12 @@ class TrackedFilesTests(unittest.TestCase):
         out = fx.run("--fix")
         self.assertEqual(out["skills"]["tracked_check"], "unavailable")
         self.assertNotIn("update -p -y", fx.log("npx"))
-        self.assertIn({"name": "*", "step": "update", "reverted": []}, out["skills"]["tracked_skipped"])
+        self.assertNotIn("*", [e["name"] for e in out["skills"]["tracked_skipped"]])
         self.assert_untouched(fx)
 
     def test_non_git_repo_behaves_as_before(self) -> None:
         fx = Fixture()
         out = fx.run("--fix")
         self.assertEqual(out["skills"]["tracked_check"], "no-git")
-        self.assertIn("update -p -y", fx.log("npx"))
+        self.assertNotIn("update -p -y", fx.log("npx"))
         self.assertEqual(out["skills"]["tracked_skipped"], [])

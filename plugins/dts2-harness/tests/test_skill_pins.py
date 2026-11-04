@@ -68,23 +68,29 @@ class PinInstallTests(unittest.TestCase):
         self.assertIn(f"{MATT_URL}/tree/{SHA_A} --skill grill-me", fx.log("npx"))
         self.assertIn(f"{MATT_URL} --skill pr", fx.log("npx"))  # unpinned companions keep the plain ref
 
-    def test_bad_pin_is_rejected_and_the_plain_ref_is_used(self) -> None:
+    def test_bad_pin_is_rejected_and_nothing_is_installed_for_it(self) -> None:
         fx = pin_fixture(PIN_KEEP.replace(SHA_A, "main"))
         out = fx.run("--fix")
         self.assertEqual(out["skills"]["pinned"], [])
-        self.assertTrue(any(r["name"] == "grill-me" and "SHA" in r["reason"] for r in out["skills"]["rejected"]))
-        self.assertNotIn("/tree/main", fx.log("npx"))
+        self.assertTrue(any(r["name"] == "grill-me" and "fix the pin" in r["reason"] for r in out["skills"]["rejected"]))
+        self.assertNotIn("grill-me", fx.log("npx"))  # fail closed: no install command at all, pinned or plain
+        self.assertFalse(fx.skill("grill-me").is_file())
 
-    def test_pinned_skills_stop_the_blanket_update(self) -> None:
+    def test_pinned_skills_get_proposals_not_the_blanket_update(self) -> None:
         fx = pin_fixture()
+        fx.heads["mattpocock/skills"] = SHA_B
         out = fx.run("--fix")
         self.assertNotIn("update -p -y", fx.log("npx"))
-        self.assertIn("approved proposal", out["skills"]["update_skipped"])
+        self.assertIsNone(out["skills"]["update_skipped"])
+        self.assertIn("grill-me", [p["name"] for p in out["skills"]["proposals"]])
 
-    def test_unpinned_repos_still_get_the_update(self) -> None:
+    def test_unpinned_repos_get_proposals_and_no_update(self) -> None:
         fx = pin_fixture("")
-        fx.run("--fix")
-        self.assertIn("update -p -y", fx.log("npx"))
+        fx.heads["mattpocock/skills"] = SHA_B
+        out = fx.run("--fix")
+        self.assertNotIn("update -p -y", fx.log("npx"))
+        self.assertTrue(out["skills"]["proposals"])
+        self.assertTrue((fx.repo / ".harness" / "skill-updates.json").is_file())
 
 
 class ProposalTests(unittest.TestCase):
@@ -166,12 +172,13 @@ class LockSkipTests(unittest.TestCase):
         stamp = time.time() - age_s
         os.utime(path, (stamp, stamp))
 
-    def test_fresh_lock_that_lists_the_skill_skips_its_install(self) -> None:
+    def test_fresh_lock_that_lists_the_skill_still_installs_it_when_missing(self) -> None:
         fx = pin_fixture("")
         self.lock(fx, 3600)
         out = fx.run("--fix")
-        self.assertEqual([s["name"] for s in out["skills"]["install_skipped"]], ["grill-me"])
-        self.assertNotIn("--skill grill-me", fx.log("npx"))
+        self.assertEqual(out["skills"]["install_skipped"], [])
+        self.assertIn("--skill grill-me", fx.log("npx"))
+        self.assertIn("grill-me", out["skills"]["installed"])
 
     def test_old_lock_does_not_skip(self) -> None:
         fx = pin_fixture("")
@@ -213,9 +220,8 @@ class PinTextTests(unittest.TestCase):
         self.assertIsNone(pins.lock_age_s(repo))
         (repo / "skills-lock.json").write_text('{"skills": {"a": {}}}', encoding="utf-8")
         now = time.time()
-        self.assertTrue(pins.skip_install(repo, "a", now + 3600))
-        self.assertFalse(pins.skip_install(repo, "a", now + 90000))
-        self.assertFalse(pins.skip_install(repo, "b", now))
+        self.assertTrue(pins.lock_fresh(repo, now + 3600))
+        self.assertFalse(pins.lock_fresh(repo, now + 90000))
 
 
 def gate(repo: Path, *args: str, git: str | None = None) -> dict[str, Any]:
@@ -227,8 +233,13 @@ def gate(repo: Path, *args: str, git: str | None = None) -> dict[str, Any]:
 
 
 def fake_git(numstat: str, code: int = 0) -> str:
+    """A git stand-in: merge-base answers a SHA, diff answers `numstat` (exit `code`), ls-files lists nothing."""
     path = make_tmp_home() / "git.py"
-    path.write_text(f"import sys\nsys.stdout.write({numstat!r})\nsys.exit({code})\n", encoding="utf-8")
+    path.write_text("import sys\n"
+                    "cmd = sys.argv[1]\n"
+                    "if cmd == 'merge-base':\n    print('a' * 40); sys.exit(%d)\n"
+                    "if cmd == 'diff':\n    sys.stdout.write(%r); sys.exit(%d)\n"
+                    "sys.exit(%d if cmd != 'ls-files' else 0)\n" % (code, numstat, code, 1), encoding="utf-8")
     return str(path)
 
 

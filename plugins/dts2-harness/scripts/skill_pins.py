@@ -6,7 +6,6 @@ is only ever proposed here and applied by an explicit, separate step.
 """
 from __future__ import annotations
 
-import json
 import re
 import time
 from pathlib import Path
@@ -80,18 +79,10 @@ def lock_age_s(repo: Path, now: float | None = None) -> float | None:
         return None
 
 
-def lock_lists(repo: Path, name: str) -> bool:
-    try:
-        data = json.loads((repo / "skills-lock.json").read_text(encoding="utf-8"))
-        return name in data["skills"]
-    except (OSError, ValueError, KeyError, TypeError):
-        return False
-
-
-def skip_install(repo: Path, name: str, now: float | None = None) -> bool:
-    """True when the lock file is under 24 hours old and already lists the skill: a recent install ran."""
+def lock_fresh(repo: Path, now: float | None = None) -> bool:
+    """True when skills-lock.json exists and was written under 24 hours ago: the daily refresh can wait."""
     age = lock_age_s(repo, now)
-    return age is not None and 0 <= age < LOCK_MAX_AGE_S and lock_lists(repo, name)
+    return age is not None and 0 <= age < LOCK_MAX_AGE_S
 
 
 def build_proposals(entries: list[dict[str, str]], head_of: HeadFn, files_between: FilesFn) -> list[dict[str, object]]:
@@ -113,13 +104,14 @@ def build_proposals(entries: list[dict[str, str]], head_of: HeadFn, files_betwee
         if head is None or not valid_pin(head) or head == pin:
             continue
         files = files_between(repo_id, pin, head) if pin else None
-        shown = [f for f in (files or []) if skill in f.split("/") or "/" not in f][:MAX_FILES_SHOWN]
+        relevant = [f for f in (files or []) if skill in f.split("/") or "/" not in f]
+        shown = relevant[:MAX_FILES_SHOWN]
         proposals.append({
             "name": entry["name"], "repo": repo_id, "pinned": pin or None, "upstream": head,
             "kind": "update" if pin else "pin",
             "compare_url": f"https://github.com/{repo_id}/compare/{pin}...{head}" if pin else None,
             "changed_files": shown, "changed_total": None if files is None else len(files),
-            "instruction_files_changed": any(f.endswith(INSTRUCTION_SUFFIXES) for f in shown),
+            "instruction_files_changed": any(f.endswith(INSTRUCTION_SUFFIXES) for f in relevant),
             "apply": f"skills-check.py <repo> --fix --apply-update {entry['name']}={head}",
         })
     return proposals
