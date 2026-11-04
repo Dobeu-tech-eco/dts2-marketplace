@@ -60,3 +60,29 @@ def atomic_write(path: Path | str, text: str, *, newline: str | None = None) -> 
         raise
     fsync_dir(target.parent)
     return target
+
+
+def append_text(path: Path | str, text: str, *, header: str = "") -> Path:
+    """Append `text` to an append-only log in one O_APPEND write, so concurrent writers never drop a record.
+
+    Use this, not atomic_write, for logs such as metrics.jsonl or the council decisions file: a read-then-replace
+    would lose any line another process appended in between. `header` is written first only when the file is new."""
+    target: Path = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if header:
+        try:
+            created: int = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, DEFAULT_MODE)
+        except FileExistsError:
+            pass
+        else:
+            try:
+                os.write(created, header.encode(ENCODING))
+            finally:
+                os.close(created)
+    descriptor: int = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_APPEND, DEFAULT_MODE)
+    try:
+        os.write(descriptor, text.encode(ENCODING))
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+    return target
