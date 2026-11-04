@@ -68,7 +68,9 @@ NODE_API: Final[frozenset[str]] = frozenset({
 PY_WEB: Final[tuple[str, ...]] = ("django",)
 PY_API: Final[tuple[str, ...]] = ("fastapi", "flask", "starlette", "aiohttp", "sanic", "litestar", "tornado")
 RUST_API: Final[tuple[str, ...]] = ("axum", "actix-web", "rocket", "warp", "poem")
-GO_API: Final[tuple[str, ...]] = ("http.ListenAndServe", "http.HandleFunc", "http.NewServeMux", "gin-gonic/gin", "labstack/echo", "go-chi/chi", "gofiber/fiber")
+GO_API: Final[tuple[str, ...]] = (
+    "http.ListenAndServe", "http.HandleFunc", "http.NewServeMux", "gin-gonic/gin", "labstack/echo", "go-chi/chi", "gofiber/fiber",
+    "http.Server{", "gorilla/mux", "julienschmidt/httprouter", "google.golang.org/grpc")
 STATIC_FILES: Final[tuple[str, ...]] = ("mkdocs.yml", "_config.yml", "hugo.toml", "hugo.yaml", "config.toml")
 MAX_READ: Final[int] = 1_000_000
 
@@ -105,6 +107,13 @@ def detect_node(repo: Path) -> dict[str, Any] | None:
     if not isinstance(manifest, dict):
         return None
     deps: set[str] = node_dependencies(manifest)
+    runtime: Any = manifest.get("dependencies")
+    runtime_names: set[str] = set(runtime) if isinstance(runtime, dict) else set()
+    packaged: bool = bool(manifest.get("main") or manifest.get("exports") or manifest.get("module"))
+    if packaged and not manifest.get("bin") and not deps & STATIC_GENERATORS:
+        framework: set[str] = deps & (WEB_FRAMEWORKS | NODE_API)
+        if framework and not framework & runtime_names:
+            return verdict(LIBRARY, ["package.json main/exports; framework only in peer/dev deps"])
     for names, app_type in ((STATIC_GENERATORS, STATIC_SITE), (WEB_FRAMEWORKS, WEB_APP), (NODE_API, API)):
         hit: list[str] = sorted(deps & names)
         if hit:
@@ -149,13 +158,14 @@ def detect_go(repo: Path) -> dict[str, Any] | None:
     mod: str = read(repo / "go.mod")
     if not mod:
         return None
-    sources: str = read(repo / "main.go")
-    for path in sorted((repo / "cmd").glob("*/main.go")) if (repo / "cmd").is_dir() else []:
-        sources += read(path)
+    files: list[Path] = sorted(repo.glob("*.go"))
+    if (repo / "cmd").is_dir():
+        files += sorted((repo / "cmd").glob("*/*.go"))
+    sources: str = "".join(read(path) for path in files)
     for name in GO_API:
         if name in sources or name in mod:
             return verdict(API, [f"go import {name}"])
-    if sources:
+    if re.search(r"^package main\b", sources, re.MULTILINE):
         return verdict(CLI, ["go main package"])
     return verdict(LIBRARY, ["go module without main package"])
 

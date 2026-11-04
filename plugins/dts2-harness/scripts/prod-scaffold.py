@@ -78,6 +78,46 @@ def setup_block(repo: Path, stack: str) -> str:
     return SETUP_STEPS.get(stack, "").rstrip("\n")
 
 
+def _scalar(raw: str) -> str | None:
+    """Parse one YAML scalar: double-quoted (JSON escapes), single-quoted ('' escape) or plain."""
+    raw = raw.strip()
+    if raw.startswith('"'):
+        index: int = 1
+        while index < len(raw):
+            if raw[index] == "\\":
+                index += 2
+                continue
+            if raw[index] == '"':
+                break
+            index += 1
+        else:
+            return None
+        rest: str = raw[index + 1:]
+        if rest.strip() and not re.match(r"^\s+#", rest):
+            return None
+        try:
+            decoded: Any = json.loads(raw[: index + 1])
+        except ValueError:
+            return None
+        return decoded if isinstance(decoded, str) else None
+    if raw.startswith("'"):
+        index = 1
+        while index < len(raw):
+            if raw[index] == "'":
+                if raw[index + 1:index + 2] == "'":
+                    index += 2
+                    continue
+                break
+            index += 1
+        else:
+            return None
+        rest = raw[index + 1:]
+        if rest.strip() and not re.match(r"^\s+#", rest):
+            return None
+        return raw[1:index].replace("''", "'")
+    return re.sub(r"\s+#.*$", "", raw).strip()
+
+
 def read_commands(repo: Path, dropped: list[dict[str, str]] | None = None) -> dict[str, str]:
     """Pull the `commands:` block out of config.yaml without a YAML library. Empty values are dropped;
     unsafe ones are dropped and reported through `dropped`."""
@@ -95,7 +135,16 @@ def read_commands(repo: Path, dropped: list[dict[str, str]] | None = None) -> di
         match = COMMAND_LINE.match(line) if inside else None
         if match is None or match.group(1) not in COMMAND_KEYS:
             continue
-        value: str = match.group(2).strip().strip("'\"")
+        raw: str = match.group(2).strip()
+        if raw[:1] in ("'", '"'):
+            parsed: str | None = _scalar(raw)
+            if parsed is None:
+                if dropped is not None:
+                    dropped.append({"key": match.group(1), "reason": "could not parse quoted value; not copied into ci.yml"})
+                continue
+            value: str = parsed
+        else:
+            value = _scalar(raw) or ""
         if not value or value == "null":
             continue
         if UNSAFE_COMMAND.search(value):
