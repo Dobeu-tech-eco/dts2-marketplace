@@ -160,6 +160,8 @@ ensure_template() {
 main() {
   local payload parsed session selector view number body branch cross
   payload=$(cat)
+  # Cheap prefilter: skip python3 unless the payload mentions `gh pr ` or `gh api ` with `/pulls`.
+  [[ "$payload" == *"gh pr "* || ( "$payload" == *"gh api "* && "$payload" == *"/pulls"* ) ]] || return 0
   parsed=$(parse_payload "$payload") || return 0
   [[ -n "$parsed" ]] || return 0
   session=$(sed -n 1p <<<"$parsed"); selector=$(sed -n 2p <<<"$parsed")

@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from typing import Any, Final
 
-from helpers import PLUGIN_ROOT, make_tmp_home
+from helpers import PLUGIN_ROOT, make_tmp_home, read_run_skill
 from test_hooks import make_repo as make_git_repo, run_hook
 
 SCRIPT: Final[Path] = PLUGIN_ROOT / "scripts" / "handoff-write.py"
@@ -167,7 +167,7 @@ class StopHookTests(unittest.TestCase):
 
 class SkillTextTests(unittest.TestCase):
     def test_run_skill_has_resume_and_write_handoff(self) -> None:
-        text: str = (PLUGIN_ROOT / "skills" / "run" / "SKILL.md").read_text(encoding="utf-8")
+        text: str = read_run_skill()
         for needle in ("run resume", ".harness/handoff/latest.md", "handoff-write.py"):
             self.assertIn(needle, text)
         self.assertLess(text.find("run resume"), text.find("1. **Harness change.**"))

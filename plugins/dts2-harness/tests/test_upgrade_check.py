@@ -11,7 +11,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Final
 
-from helpers import PLUGIN_ROOT
+from helpers import PLUGIN_ROOT, read_run_skill
 
 SCRIPT: Final[Path] = PLUGIN_ROOT / "scripts" / "upgrade-check.py"
 PLUGIN_JSON: Final[Path] = PLUGIN_ROOT / ".claude-plugin" / "plugin.json"
@@ -108,7 +108,7 @@ class PrecheckUpgradeTests(unittest.TestCase):
         self.assertFalse((PLUGIN_ROOT / "skills" / "upgrade").exists())
 
     def test_precheck_owns_the_upgrade_steps(self) -> None:
-        text: str = (PLUGIN_ROOT / "skills" / "run" / "SKILL.md").read_text(encoding="utf-8")
+        text: str = read_run_skill()
         for needle in (
             "### Pre-check (every run command)", "skills-check.py", ".harness/upgrade-from.txt",
             ".harness/handoff/latest.md", "claude plugin update dts2-harness@dts2", "/plugin marketplace update dts2",
