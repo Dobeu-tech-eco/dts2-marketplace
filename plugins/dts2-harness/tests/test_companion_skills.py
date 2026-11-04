@@ -19,7 +19,7 @@ MOMENTS: Final[dict[str, str]] = {
     "improve-codebase-architecture": "finalization pass before tests are written",
     "diagnosing-bugs": "hard 3-round cap, bugs still failing",
     "loop-me": "on /dts2-harness:run trigger — check in with the user",
-    "setup-pre-commit": "before every commit",
+    "setup-pre-commit": "once per repo, as the last gate before `git commit`",
     "code-review": "first contact — repo the harness has never been in",
 }
 SETUP_PHRASES: Final[tuple[str, ...]] = (

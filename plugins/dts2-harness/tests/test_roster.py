@@ -24,7 +24,7 @@ SCHEMA_KEYS: Final[frozenset[str]] = frozenset({
 })
 OPTIONAL_KEYS: Final[frozenset[str]] = frozenset({
     "roleCommands", "notes", "stdin", "fallback", "env",
-    "tierEffort", "modelEfforts", "explicitOnlyEfforts", "defaultModel",
+    "tierEffort", "modelEfforts", "explicitOnlyEfforts", "defaultModel", "councilModels",
 })
 VERIFIED: Final[frozenset[str]] = frozenset({"claude", "codex", "opencode"})
 VERIFIED_MODELS: Final[frozenset[str]] = frozenset({"claude", "codex"})

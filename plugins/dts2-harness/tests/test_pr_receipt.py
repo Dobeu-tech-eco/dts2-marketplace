@@ -24,6 +24,7 @@ if [[ "$1 $2" == "pr edit" ]]; then
   done
   exit 0
 fi
+if [[ "$1 $2" == "repo view" ]]; then echo "${FAKE_GH_OWNER-Dobeu-tech-eco}"; exit 0; fi
 if [[ "$1" == "api" ]]; then echo "${FAKE_GH_API_ERR:-gh: Not Found (HTTP 404)}" >&2; exit 1; fi
 exit 0
 """

@@ -24,6 +24,7 @@ import json
 import random
 import re
 import sys
+from datetime import date
 from pathlib import Path
 from typing import Any, Final
 
@@ -48,10 +49,12 @@ HEAD_BRIEF: Final[str] = "## Head of council brief"
 REQUIRED_LIST: Final[dict[str, str]] = {"FIX": "## Fixes", "STRIKE": "## Struck"}
 PROFILE_DIR: Final[Path] = Path(__file__).resolve().parent.parent / "profiles" / "agents"
 DEFAULT_ORDER: Final[tuple[str, ...]] = ("claude", "codex", "gemini", "grok", "cursor", "muse")
-HEAD_MODELS: Final[frozenset[str]] = frozenset({"fable", "claude-fable-5-1"})
 CLAUDE_AGENT_ALIASES: Final[frozenset[str]] = frozenset({"opus", "sonnet", "haiku", "fable"})
-# Frontier models a provider may field as a second seat when there are not five providers.
-DEFAULT_ALTERNATES: Final[dict[str, tuple[str, ...]]] = {"claude": ("claude-fable-5-0", "claude-opus-5")}
+# Council model ids live in profiles/agents/<provider>.json under `councilModels`:
+#   head: ids reserved for the head of council (never seated as voters)
+#   alternates: frontier ids a provider may field as a further seat when there are not five providers
+#   checked / maxAgeDays: when a person last confirmed the ids, and how old that may get before a warning
+DEFAULT_MAX_AGE_DAYS: Final[int] = 90
 
 
 def first_line(text: str) -> str:
@@ -356,17 +359,50 @@ def parse_council_config(text: str) -> dict[str, list[str]]:
     return found
 
 
-def frontier_model(provider: str) -> str | None:
+def read_profile(provider: str) -> dict[str, Any]:
     path: Path = PROFILE_DIR / f"{provider}.json"
     if not path.is_file():
-        return None
-    return json.loads(path.read_text(encoding="utf-8")).get("models", {}).get("frontier")
+        return {}
+    try:
+        data: Any = json.loads(path.read_text(encoding="utf-8"))
+    except ValueError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def council_models(provider: str) -> dict[str, Any]:
+    block: Any = read_profile(provider).get("councilModels")
+    return block if isinstance(block, dict) else {}
+
+
+def id_list(value: Any) -> list[str]:
+    return [item for item in value if isinstance(item, str) and item] if isinstance(value, list) else []
+
+
+def frontier_model(provider: str) -> str | None:
+    return read_profile(provider).get("models", {}).get("frontier")
 
 
 def candidates(provider: str, extra: list[str], failed: set[str]) -> list[str]:
-    models: list[str] = [m for m in (frontier_model(provider), *DEFAULT_ALTERNATES.get(provider, ()), *extra) if m]
+    block: dict[str, Any] = council_models(provider)
+    models: list[str] = [m for m in (frontier_model(provider), *id_list(block.get("alternates")), *extra) if m]
     unique: list[str] = list(dict.fromkeys(models))
-    return [m for m in unique if m not in HEAD_MODELS and f"{provider}:{m}" not in failed]
+    head: set[str] = set(id_list(block.get("head")))
+    return [m for m in unique if m not in head and f"{provider}:{m}" not in failed]
+
+
+def model_freshness(provider: str, today: date) -> dict[str, Any]:
+    """Age of the provider's council model ids. A missing or malformed `checked` date counts as stale."""
+    block: dict[str, Any] = council_models(provider)
+    limit: Any = block.get("maxAgeDays")
+    max_age: int = limit if isinstance(limit, int) and not isinstance(limit, bool) and limit > 0 else DEFAULT_MAX_AGE_DAYS
+    try:
+        checked: date = date.fromisoformat(str(block.get("checked")))
+    except ValueError:
+        return {"provider": provider, "checked": None, "age_days": None, "max_age_days": max_age, "stale": True}
+    age: int = (today - checked).days
+    return {"provider": provider, "checked": checked.isoformat(), "age_days": age, "max_age_days": max_age,
+            "stale": age > max_age or age < 0}
 
 
 def seat_entry(provider: str, model: str) -> dict[str, str]:
@@ -378,7 +414,7 @@ def seat_entry(provider: str, model: str) -> dict[str, str]:
     return {"seat": slug, "provider": provider, "model": model, "via": via}
 
 
-def pick_seats(usable: list[str], config: dict[str, list[str]], failed: set[str]) -> dict[str, Any]:
+def pick_seats(usable: list[str], config: dict[str, list[str]], failed: set[str], today: date | None = None) -> dict[str, Any]:
     order: list[str] = list(dict.fromkeys([*config.get("order", DEFAULT_ORDER), *usable]))
     excluded: set[str] = set(config.get("exclude", []))
     extra: dict[str, list[str]] = {}
@@ -395,8 +431,10 @@ def pick_seats(usable: list[str], config: dict[str, list[str]], failed: set[str]
     doubled: list[str] = sorted({s["provider"] for s in seats if sum(x["provider"] == s["provider"] for x in seats) > 1})
     problems: list[str] = [] if len(seats) == COUNCIL_SEATS else [
         f"need {COUNCIL_SEATS} distinct provider/model seats, only {len(seats)} available"]
+    fresh: list[dict[str, Any]] = [model_freshness(p, today or date.today()) for p in providers if council_models(p)]
     return {"ok": not problems, "seats": seats, "bench": ranked[COUNCIL_SEATS:], "providers": providers,
-            "doubled": doubled, "problems": problems}
+            "doubled": doubled, "problems": problems, "freshness": fresh,
+            "stale": [f["provider"] for f in fresh if f["stale"]]}
 
 
 def main() -> int:

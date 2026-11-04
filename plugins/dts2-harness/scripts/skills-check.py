@@ -24,6 +24,7 @@ from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from state_io import atomic_write  # noqa: E402
+import skill_pins as pins  # noqa: E402
 
 SCRIPTS: Final[Path] = Path(__file__).resolve().parent
 PLUGIN_ROOT: Final[Path] = SCRIPTS.parent
@@ -58,7 +59,7 @@ CANDIDATES_SHOWN: Final[int] = 3
 # so every value that reaches a command line must match one of these first.
 SAFE_NAME: Final[re.Pattern[str]] = re.compile(r"[A-Za-z0-9][\w.-]{0,99}", re.ASCII)
 SAFE_REF: Final[tuple[re.Pattern[str], ...]] = (
-    re.compile(r"https://github\.com/([A-Za-z0-9][\w.-]*/[A-Za-z0-9][\w.-]*) --skill ([A-Za-z0-9][\w.-]*)", re.ASCII),
+    re.compile(r"https://github\.com/([A-Za-z0-9][\w.-]*/[A-Za-z0-9][\w.-]*)(?:/tree/[0-9a-f]{40})? --skill ([A-Za-z0-9][\w.-]*)", re.ASCII),
     re.compile(r"([A-Za-z0-9][\w.-]*/[A-Za-z0-9][\w.-]*)@([A-Za-z0-9][\w.-]*)", re.ASCII),
 )
 SAFE_PLUGIN: Final[re.Pattern[str]] = re.compile(r"[A-Za-z0-9][\w.-]*@[A-Za-z0-9][\w.-]*", re.ASCII)
@@ -141,13 +142,15 @@ def strip_comment(value: str) -> str:
 
 def read_keep(repo: Path) -> dict[str, Any]:
     path: Path = repo / ".harness" / "keep.yaml"
+    return parse_keep(path.read_text(encoding="utf-8") if path.is_file() else "")
+
+
+def parse_keep(text: str) -> dict[str, Any]:
     skills: list[dict[str, str]] = []
     plugins: list[str] = []
     swapped: list[str] = []
-    if not path.is_file():
-        return {"skills": skills, "plugins": plugins, "swapped": swapped}
     section: str = ""
-    for raw in path.read_text(encoding="utf-8").splitlines():
+    for raw in text.splitlines():
         if raw.lstrip().startswith("#") or not raw.strip():
             continue
         line: str = strip_comment(raw) if raw[:1] != " " else raw.rstrip()
@@ -164,6 +167,8 @@ def read_keep(repo: Path) -> dict[str, Any]:
                 swapped.append(m.group(1))
         elif section == "skills" and item.startswith("source:") and skills:
             skills[-1]["source"] = strip_comment(item.split(":", 1)[1])
+        elif section == "skills" and item.startswith("pin:") and skills:
+            skills[-1]["pin"] = strip_comment(item.split(":", 1)[1])
     return {"skills": skills, "plugins": plugins, "swapped": swapped}
 
 
@@ -405,16 +410,14 @@ def restore(repo: Path, snap: dict[str, Any]) -> list[str]:
 def guarded_npx(repo: Path, report: dict[str, Any], step: str, cmd: list[str]) -> tuple[int, str]:
     """Run a mutating npx call; tracked files (skills and the lock file) come out exactly as they went in.
 
-    `update` reports every tracked skill as skipped (the sweep covers all of them); other steps report
-    only a tracked skill the call actually touched."""
+    Only a tracked skill the call actually touched is reported."""
     paths: list[str] = tracked_files(repo, report) or []
     snap = snapshot(repo, paths)
     code, out = run(cmd, repo)
     by_skill: dict[str, list[str]] = {}
     for rel in restore(repo, snap):
         by_skill.setdefault(skill_of(rel) or LOCK_FILE, []).append(rel)
-    names: set[str] = {n for n in map(skill_of, paths) if n} if step == "update" else set(by_skill) - {LOCK_FILE}
-    for name in sorted(names):
+    for name in sorted(set(by_skill) - {LOCK_FILE}):
         note_skip(report, name, step, sorted(by_skill.get(name, [])))
     if LOCK_FILE in by_skill:
         note_skip(report, LOCK_FILE, step, by_skill[LOCK_FILE])
@@ -455,8 +458,15 @@ def wanted_skills(repo: Path, report: dict[str, Any]) -> list[dict[str, Any]]:
     keep: dict[str, Any] = read_keep(repo)
     entries: dict[str, dict[str, Any]] = {n: {"name": n, "ref": r, "origin": "companion"}
                                           for n, r in COMPANIONS.items() if n not in keep["swapped"]}
+    blocked: set[str] = set()
     for item in keep["skills"]:
         name, source = item["name"], item["source"]
+        if name in blocked:
+            continue
+        if name in entries and item.get("pin") and not attach_pin(entries[name], item["pin"], report):
+            blocked.add(name)  # a malformed pin never falls back to the unpinned upstream ref
+            del entries[name]
+            continue
         if name in RETIRED or name in entries:
             continue
         if not SAFE_NAME.fullmatch(name):
@@ -469,13 +479,33 @@ def wanted_skills(repo: Path, report: dict[str, Any]) -> list[dict[str, Any]]:
             report["rejected"].append({"name": name, "reason": "source is not an allowlisted ref"})
             continue
         entries[name] = {"name": name, "ref": ref, "origin": "keep"}
+        if item.get("pin") and not attach_pin(entries[name], item["pin"], report):
+            blocked.add(name)
+            del entries[name]
     return list(entries.values())
+
+
+def attach_pin(entry: dict[str, Any], pin: str, report: dict[str, Any]) -> bool:
+    """Record a keep.yaml pin on the skill entry. A value that is not a full commit SHA is rejected and
+    the skill is left out entirely (fail closed): False tells the caller not to install or track it."""
+    if pins.valid_pin(pin) and pins.pinned_ref(entry["ref"], pin) is not None:
+        entry["pin"] = pin
+        return True
+    report["rejected"].append({"name": entry["name"],
+                               "reason": "pin is not a 40-character commit SHA, or cannot be applied to this source; fix the pin in .harness/keep.yaml"})
+    return False
+
+
+def install_ref(entry: dict[str, Any]) -> str:
+    """The ref to install: the exact pinned commit when keep.yaml pins the skill, else the plain ref."""
+    return (pins.pinned_ref(entry["ref"], entry["pin"]) if entry.get("pin") else None) or entry["ref"]
 
 
 def new_report() -> dict[str, Any]:
     return {"freshness": "fast", "installed": [], "missing": [], "retired_removed": [], "retired_kept": [],
             "swapped": [], "gone": [], "failed": [], "rejected": [], "updated": None, "npx": "ok",
-            "lesson_candidates": [], "tracked_skipped": [], "tracked_check": None}
+            "lesson_candidates": [], "tracked_skipped": [], "tracked_check": None,
+            "pinned": [], "proposals": [], "install_skipped": [], "update_skipped": None, "applied": []}
 
 
 def do_swap(repo: Path, home: Path, old: str, ref: str, report: dict[str, Any]) -> None:
@@ -505,14 +535,17 @@ def do_swap(repo: Path, home: Path, old: str, ref: str, report: dict[str, Any]) 
 
 
 def check_skills(repo: Path, home: Path, fix: bool, daily: bool, verify_upstream: bool,
-                 swaps: list[str]) -> dict[str, Any]:
+                 swaps: list[str], applies: list[str] | None = None) -> dict[str, Any]:
     """Every call: presence check, install the missing, apply explicit swaps. Daily only: remove
-    retired skills, detect gone-upstream ones, and `npx skills update` the rest."""
+    retired skills, detect gone-upstream ones, and write update proposals. Nothing is ever updated
+    in bulk; an update lands only through an explicit --apply-update."""
     report: dict[str, Any] = new_report()
     report["freshness"] = "full" if daily else "fast"
     for spec in swaps:
         old, _, ref = spec.partition("=")
         do_swap(repo, home, old.strip(), ref.strip(), report)
+    for spec in (applies or []) if fix else []:
+        apply_update(repo, home, spec, report)
     if daily:
         for name, origin in RETIRED.items():
             if installed(repo, name, home) == "missing":
@@ -527,7 +560,9 @@ def check_skills(repo: Path, home: Path, fix: bool, daily: bool, verify_upstream
                 (report["retired_removed"] if code == 0 else report["failed"]).append(name)
             else:
                 report["missing"].append({"name": name, "action": "remove (retired)"})
-    for entry in wanted_skills(repo, report):
+    wanted: list[dict[str, Any]] = wanted_skills(repo, report)
+    report["pinned"] = [e["name"] for e in wanted if e.get("pin")]
+    for entry in wanted:
         name, ref = entry["name"], entry["ref"]
         state: str = installed(repo, name, home)
         if daily and verify_upstream and state != "claude" and exists_upstream(ref, repo) is False:
@@ -547,7 +582,7 @@ def check_skills(repo: Path, home: Path, fix: bool, daily: bool, verify_upstream
         if tracked_files(repo, report) is None and (repo / ".claude" / "skills" / name).exists():
             note_skip(report, name, "install", [])  # cannot tell what is tracked; never write over it
             continue
-        code, out = guarded_npx(repo, report, "install", npx("add", *ref_args(ref), *INSTALL_FLAGS))
+        code, out = guarded_npx(repo, report, "install", npx("add", *ref_args(install_ref(entry)), *INSTALL_FLAGS))
         if code == NOT_FOUND:
             report["npx"] = "unavailable"
         elif code == TIMED_OUT:
@@ -556,19 +591,77 @@ def check_skills(repo: Path, home: Path, fix: bool, daily: bool, verify_upstream
             report["installed"].append(name)
         else:
             report["failed"].append({"name": name, "output": out[-400:]})
-    if daily and fix and report["npx"] == "ok" and tracked_files(repo, report) is None:
-        note_skip(report, "*", "update", [])  # git is present but could not list tracked files
-    elif daily and fix and report["npx"] == "ok":
-        _, out = guarded_npx(repo, report, "update", npx("update", "-p", "-y"))
-        lower: str = out.lower()
-        # The Windows CLI can end on a libuv assertion after a clean update, and an upstream skill with
-        # bad YAML prints a "⚠ Skipped … parse error" warning; judge by the result line, and count a
-        # failure only from a marker at column 0 (never from a warning or a quoted error string).
-        good: bool = "up to date" in lower or bool(re.search(r"\bupdated \d+", lower))
-        bad: bool = bool(re.search(r"^(✗|×|error:|fatal:)", out, re.M | re.I))
-        report["updated"] = good and not bad
+    if daily and verify_upstream:
+        if pins.lock_fresh(repo):
+            report["update_skipped"] = "skills-lock.json under 24h old"
+        else:
+            report["proposals"] = propose_updates(repo, wanted, write=fix)
     report.pop("_tracked", None)
     return report
+
+
+def upstream_head(repo_id: str, cwd: Path) -> str | None:
+    code, out = run([*binary("DTS2_GH_BIN", "gh"), "api", f"repos/{repo_id}/commits/HEAD",
+                     "-H", "Accept: application/vnd.github.sha"], cwd)
+    sha: str = out.strip()
+    return sha if code == 0 and pins.valid_pin(sha) else None
+
+
+def files_between(repo_id: str, base: str, head: str, cwd: Path) -> list[str] | None:
+    code, out = run([*binary("DTS2_GH_BIN", "gh"), "api", f"repos/{repo_id}/compare/{base}...{head}",
+                     "--jq", ".files[].filename"], cwd)
+    return out.splitlines() if code == 0 else None
+
+
+def propose_updates(repo: Path, wanted: list[dict[str, Any]], write: bool = True) -> list[dict[str, Any]]:
+    """Daily sweep: list what changed upstream of each pin (or offer a first pin). With `write` (--fix) it
+    stores them in the proposals file; check-only mode returns them and writes nothing. Nothing is
+    installed and keep.yaml is untouched until an explicit --apply-update."""
+    found = pins.build_proposals(wanted, lambda r: upstream_head(r, repo), lambda r, b, h: files_between(r, b, h, repo))
+    target: Path = repo / ".harness" / pins.PROPOSALS_FILE
+    if write and (found or target.is_file()):
+        atomic_write(target, json.dumps(found, indent=2) + "\n")
+    return found
+
+
+def apply_update(repo: Path, home: Path, spec: str, report: dict[str, Any]) -> None:
+    """Apply one approved proposal: NAME=SHA must match the stored proposal exactly."""
+    name, _, sha = spec.partition("=")
+    name, sha = name.strip(), sha.strip()
+    target: Path = repo / ".harness" / pins.PROPOSALS_FILE
+    try:
+        stored: list[dict[str, Any]] = json.loads(target.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        stored = []
+    match = next((p for p in stored if isinstance(p, dict) and p.get("name") == name and p.get("upstream") == sha), None)
+    entry = next((e for e in wanted_skills(repo, new_report()) if e["name"] == name), None)  # scratch report: rejections already counted
+    if match is None or entry is None or not SAFE_NAME.fullmatch(name) or not pins.valid_pin(sha):
+        report["rejected"].append({"name": name[:60], "reason": "--apply-update does not match a stored proposal"})
+        return
+    ref: str | None = pins.pinned_ref(entry["ref"], sha)
+    if ref and tracked_files(repo, report) is None:  # git cannot say which files are tracked: fail closed
+        note_skip(report, name, "apply-update", [])
+        return
+    code, out = guarded_npx(repo, report, "apply-update", npx("add", *ref_args(ref or ""), *INSTALL_FLAGS)) if ref else (1, "no ref")
+    if any(k.get("step") == "apply-update" and k.get("name") == name and k.get("reverted")
+           for k in report["tracked_skipped"]):  # the install was rolled back: nothing moved, so claim nothing
+        report["rejected"].append({"name": name, "reason": "skill files are git-tracked; update them in a commit, not with --apply-update"})
+        return
+    if code != 0 or installed(repo, name, home) != "claude":
+        report["failed"].append({"name": name, "output": out[-400:]})
+        return
+    keep: Path = repo / ".harness" / "keep.yaml"
+    text: str = keep.read_bytes().decode("utf-8") if keep.is_file() else ""
+    updated: str = pins.set_pin_text(text, name, sha)
+    if updated == text:  # a default companion with no keep entry yet: add one carrying the pin
+        updated = pins.add_entry_text(text, name, entry["ref"], sha)
+    written = next((e for e in parse_keep(updated)["skills"] if e["name"] == name), None)
+    if written is None or written.get("pin") != sha:  # fail closed: never report a pin that is not in the file
+        report["rejected"].append({"name": name, "reason": "could not set the pin in .harness/keep.yaml; edit it by hand"})
+        return
+    atomic_write(keep, updated, newline="")
+    atomic_write(target, json.dumps([p for p in stored if p is not match], indent=2) + "\n")
+    report["applied"].append({"name": name, "pin": sha})
 
 
 # --- marketplaces and harness version -------------------------------------------------------
@@ -645,6 +738,8 @@ def main() -> int:
     parser.add_argument("--fix", action="store_true", help="install, update, refresh and upgrade")
     parser.add_argument("--swap", action="append", default=[], metavar="OLD=REF",
                         help="replace a gone skill with REF; only after the user said yes")
+    parser.add_argument("--apply-update", action="append", default=[], metavar="NAME=SHA",
+                        help="apply one stored update proposal (after the user approved its diff)")
     parser.add_argument("--no-upstream", action="store_true", help="skip the gone-upstream check")
     parser.add_argument("--force-full", action="store_true",
                         help="run the freshness sweep now even if it already ran today")
@@ -657,7 +752,7 @@ def main() -> int:
     daily: bool = args.force_full or not checked_today(repo)
     harness: dict[str, Any] = check_harness(repo, home, root, args.fix, daily)
     skills: dict[str, Any] = {} if harness["upgrade_started"] else \
-        check_skills(repo, home, args.fix, daily, not args.no_upstream, args.swap)
+        check_skills(repo, home, args.fix, daily, not args.no_upstream, args.swap, args.apply_update)
     # Record the sweep only when it actually completed on disk — not when an upgrade cut it short, and
     # not when npx was missing so nothing could be refreshed.
     if args.fix and daily and not harness["upgrade_started"] and skills.get("npx") == "ok":
