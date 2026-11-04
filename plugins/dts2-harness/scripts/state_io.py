@@ -40,14 +40,16 @@ def fsync_dir(folder: Path) -> None:
         os.close(descriptor)
 
 
-def atomic_write(path: Path | str, text: str) -> Path:
-    """Replace `path` with `text` atomically. Creates the parent folder. Returns the path written."""
+def atomic_write(path: Path | str, text: str, *, newline: str | None = None) -> Path:
+    """Replace `path` with `text` atomically. Creates the parent folder. Returns the path written.
+
+    `newline` goes to the text-mode handle: pass "" to write line endings exactly as given (CRLF stays CRLF)."""
     target: Path = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     mode: int = target_mode(target)
     descriptor, temp_name = tempfile.mkstemp(prefix=TEMP_PREFIX + target.name + ".", dir=str(target.parent))
     try:
-        with os.fdopen(descriptor, "w", encoding=ENCODING) as handle:
+        with os.fdopen(descriptor, "w", encoding=ENCODING, newline=newline) as handle:
             handle.write(text)
             handle.flush()
             os.fsync(handle.fileno())

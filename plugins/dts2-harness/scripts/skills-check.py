@@ -195,7 +195,7 @@ def swap_keep_entry(repo: Path, old: str, new: str, ref: str) -> None:
             out.append("skills:")
         at: int = next(i for i, line in enumerate(out) if skills_key.match(line)) + 1
         out[at:at] = [f"  - name: {new}  {note}", f"    source: npx skills add {ref}", "    serves: harness"]
-    atomic_write(path, newline.join(out) + newline)
+    atomic_write(path, newline.join(out) + newline, newline="")
 
 
 # --- upstream lookups -----------------------------------------------------------------------

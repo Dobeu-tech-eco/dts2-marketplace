@@ -56,6 +56,11 @@ class AtomicWriteTests(unittest.TestCase):
         self.assertEqual(target.read_text(encoding="utf-8"), "new")
         self.assertEqual(leftovers(self.root), [])
 
+    def test_newline_empty_keeps_crlf_bytes(self) -> None:
+        target: Path = self.root / "crlf.yaml"
+        self.state_io.atomic_write(target, "a\r\nb\r\n", newline="")
+        self.assertEqual(target.read_bytes(), b"a\r\nb\r\n")
+
     def test_keeps_existing_file_mode(self) -> None:
         target: Path = self.root / "state.md"
         target.write_text("old", encoding="utf-8")
