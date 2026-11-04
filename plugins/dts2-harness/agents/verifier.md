@@ -43,6 +43,13 @@ When the caller passes `Evidence: <path>`, a scout has already run the commands 
 
 6. **Coverage** — list changed source files (from `git diff --name-only HEAD`, excluding tests, docs and config) that no test imports or exercises (grep the test tree for the module name). One line per file, `Coverage: <file> (no test)`; when none, `Coverage: all changed files tested`. Evidence only; it is not a blocker by itself.
 
+7. **Production readiness** — only when `.harness/end-state.md` has a `## Production readiness` table whose `appType` is not `unset`.
+   - Check only rows whose status is not `n/a`. Never check a row the app type does not use.
+   - Gate rows may FAIL and block only when the caller passes `Mode: readiness`, or when the end-state `## Sections` table has at least one real (non-placeholder) row and every row other than the one being verified is `done` (the last section). In every other case (an ordinary task, bundle checkpoint or pre-merge sign-off) print each applicable gate row as `Readiness <row> | INFO | pending (<status>)`, never FAIL, and it never affects the verdict.
+   - `gate` rows, when blocking is allowed: confirm the named evidence exists (file present and not a bare stub, or the stated fact visible in the repo). One line per row, `Readiness <row> | PASS/FAIL | <what you found>`. A gate row left `todo` with no evidence is then a FAIL and blocks the verdict.
+   - `report` rows: run the tool only when it is already configured in the repo; otherwise write `not run`. Always `INFO`, never a blocker, and never ask for a tool to be added just to fill a row.
+   - Table missing or `appType: unset`: add `Readiness | SKIP | no readiness table` and carry on.
+
 ## Output
 ```
 ## Verification: <scope>
@@ -56,8 +63,9 @@ When the caller passes `Evidence: <path>`, a scout has already run the commands 
 | No stubs | ... | ... |
 | Acceptance | ... | ... |
 | Coverage | INFO | Coverage: <file> (no test) per file, or Coverage: all changed files tested |
+| Readiness <row> | PASS/FAIL/INFO/SKIP | gate rows PASS or FAIL only under `Mode: readiness` or in the last section, otherwise INFO `pending (<status>)`; report rows INFO with the value or `not run` |
 | Walkthrough <n>-<slug> | PASS/FAIL | expected: ... / observed: ... / <screenshot path> |
-### Verdict: VERIFIED | BLOCKED (BLOCKED on any failed check, including a walkthrough FAIL on a screen named in the plan's Done section)
+### Verdict: VERIFIED | BLOCKED (BLOCKED on any failed check, including a walkthrough FAIL on a screen named in the plan's Done section and a failed readiness gate row when gate rows may block under step 7)
 ### Blockers
 - ...
 ```
