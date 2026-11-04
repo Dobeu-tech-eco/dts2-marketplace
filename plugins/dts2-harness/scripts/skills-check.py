@@ -22,6 +22,9 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Final
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from state_io import atomic_write  # noqa: E402
+
 SCRIPTS: Final[Path] = Path(__file__).resolve().parent
 PLUGIN_ROOT: Final[Path] = SCRIPTS.parent
 MATTPOCOCK: Final[str] = "https://github.com/mattpocock/skills --skill"
@@ -78,8 +81,7 @@ def checked_today(repo: Path) -> bool:
 
 def mark_checked(repo: Path) -> None:
     marker: Path = repo / ".harness" / DAILY_MARKER
-    marker.parent.mkdir(parents=True, exist_ok=True)
-    marker.write_text(date.today().isoformat() + "\n", encoding="utf-8")
+    atomic_write(marker, date.today().isoformat() + "\n")
 FIND_LINE: Final[re.Pattern[str]] = re.compile(r"^([\w.-]+/[\w.-]+)@([\w.-]+)\s+([\d.]+)([KkMm]?) installs")
 LIST_LINE: Final[re.Pattern[str]] = re.compile(r"^\S\s{4}([\w.-]+)\s*$")
 ANSI: Final[re.Pattern[str]] = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
@@ -193,10 +195,7 @@ def swap_keep_entry(repo: Path, old: str, new: str, ref: str) -> None:
             out.append("skills:")
         at: int = next(i for i, line in enumerate(out) if skills_key.match(line)) + 1
         out[at:at] = [f"  - name: {new}  {note}", f"    source: npx skills add {ref}", "    serves: harness"]
-    tmp: Path = path.with_suffix(".yaml.tmp")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp.write_text(newline.join(out) + newline, encoding="utf-8", newline="")
-    os.replace(tmp, path)
+    atomic_write(path, newline.join(out) + newline, newline="")
 
 
 # --- upstream lookups -----------------------------------------------------------------------
@@ -627,8 +626,7 @@ def check_harness(repo: Path, home: Path, plugin_root: Path, fix: bool, daily: b
         run([sys.executable, str(SCRIPTS / "handoff-write.py"), str(repo)], repo)
         code, out = run([*claude, "plugin", "update", HARNESS_PLUGIN], repo)
         if code == 0:
-            marker.parent.mkdir(parents=True, exist_ok=True)
-            marker.write_text(installed_v + "\n", encoding="utf-8")
+            atomic_write(marker, installed_v + "\n")
             result["upgrade_started"] = True
         else:
             result["upgrade_failed"] = out[-400:] or f"exit {code}"

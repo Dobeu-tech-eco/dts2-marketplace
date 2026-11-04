@@ -34,6 +34,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Final
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+from state_io import atomic_write  # noqa: E402
+
 PLUGIN_ROOT: Final[Path] = Path(__file__).resolve().parent.parent
 AGENTS_DIR: Final[Path] = PLUGIN_ROOT / "agents"
 KEY_ENV: Final[str] = "ANTHROPIC_API_KEY"
@@ -316,8 +319,9 @@ def collect_lessons(review: str, repo: Path) -> None:
     lines: list[str] = [l for l in (section.group(1).splitlines() if section else []) if l.strip("- ").strip()]
     lines = [l for l in lines if l.strip("- ").strip().lower() != "none"]
     if lines:
-        with (repo / ".harness" / "lessons-inbox.md").open("a", encoding="utf-8") as inbox:
-            inbox.write(f"\n## {datetime.now():%Y-%m-%d %H:%M}\n" + "\n".join(lines) + "\n")
+        inbox: Path = repo / ".harness" / "lessons-inbox.md"
+        existing: str = inbox.read_text(encoding="utf-8") if inbox.exists() else ""
+        atomic_write(inbox, existing + f"\n## {datetime.now():%Y-%m-%d %H:%M}\n" + "\n".join(lines) + "\n")
 
 
 async def review_and_verify(task: str, plan: str, repo: Path) -> tuple[str, str]:
