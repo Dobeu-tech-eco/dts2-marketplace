@@ -35,25 +35,139 @@ FIVE_SPLIT: Final[dict[str, str]] = {
 }
 
 
+PANEL: Final[tuple[str, ...]] = ("claude-opus", "codex-gpt-6-astra", "gemini-pro")
+
+
+class History:
+    """A step's votes folder, written in order the way autopilot saves it."""
+
+    def __init__(self) -> None:
+        self.folder: Path = make_tmp_home() / "votes" / "s3"
+        self.folder.mkdir(parents=True)
+        self.order: int = 0
+
+    def add(self, kind: str, rnd: int, seat: str, text: str) -> None:
+        self.order += 1
+        write(self.folder, f"{self.order:02d}-{kind}-r{rnd}-{seat}.md", text)
+
+    def round(self, kind: str, rnd: int, votes: tuple[str, ...], tiebreak: str | None = None) -> None:
+        for seat, vote in zip(PANEL, votes):
+            self.add(kind, rnd, seat, f"VOTE: {vote}\n- HIGH a.ts:{rnd} — {kind} round {rnd} note from {seat}")
+        if tiebreak is not None:
+            self.add("tiebreak", rnd, "claude-fable", tiebreak)
+        self.add("fix", rnd, "lead", f"fixed what {kind} round {rnd} found")
+
+    def eligible(self) -> dict[str, Any]:
+        return run_script("council.py", "eligible", "--votes-dir", str(self.folder))
+
+
+REJECTED: Final[tuple[str, ...]] = ("REJECT", "REJECT", "APPROVE")
+ONE_DISSENT: Final[tuple[str, ...]] = ("APPROVE", "APPROVE", "REJECT")
+APPROVED: Final[tuple[str, ...]] = ("APPROVE", "APPROVE", "APPROVE")
+
+
+class EligibilityTest(unittest.TestCase):
+    """The council is invoked only after three complete rounds of the normal vote have failed."""
+
+    def test_three_failed_rounds_escalate(self) -> None:
+        h = History()
+        for rnd in (1, 2, 3):
+            h.round("plan", rnd, REJECTED)
+        result = h.eligible()
+        self.assertTrue(result["eligible"], result)
+        self.assertEqual((result["ballot"], result["failedRounds"]), ("plan", 3))
+
+    def test_no_votes_no_council(self) -> None:
+        self.assertFalse(History().eligible()["eligible"])
+
+    def test_one_or_two_failed_rounds_do_not_escalate(self) -> None:
+        h = History()
+        for rnd in (1, 2):
+            h.round("build", rnd, REJECTED)
+            result = h.eligible()
+            self.assertFalse(result["eligible"], result)
+            self.assertEqual(result["failedRounds"], rnd)
+            self.assertIn("fix and vote again", result["reason"])
+
+    def test_unfinished_third_round_does_not_escalate(self) -> None:
+        h = History()
+        h.round("plan", 1, REJECTED)
+        h.round("plan", 2, REJECTED)
+        h.add("plan", 3, "claude-opus", "VOTE: REJECT\nstill wrong")
+        h.add("plan", 3, "codex-gpt-6-astra", "VOTE: REJECT\nstill wrong")
+        result = h.eligible()
+        self.assertFalse(result["eligible"], result)
+        self.assertIn("not finished", result["reason"])
+
+    def test_a_passed_round_means_no_council(self) -> None:
+        h = History()
+        h.round("plan", 1, REJECTED)
+        h.round("plan", 2, REJECTED)
+        h.round("plan", 3, APPROVED)
+        self.assertFalse(h.eligible()["eligible"])
+
+    def test_split_settled_by_tiebreak_is_a_pass(self) -> None:
+        h = History()
+        h.round("build", 1, ONE_DISSENT)
+        h.round("build", 2, ONE_DISSENT, tiebreak="VOTE: APPROVE\nship it")
+        h.round("build", 3, REJECTED)
+        result = h.eligible()
+        self.assertFalse(result["eligible"], result)
+        self.assertIn("already passed", result["reason"])
+
+    def test_failed_tiebreak_is_one_failed_round_not_a_shortcut(self) -> None:
+        h = History()
+        h.round("build", 1, ONE_DISSENT, tiebreak="sorry, I could not reach a verdict")
+        result = h.eligible()
+        self.assertFalse(result["eligible"], result)
+        self.assertEqual(result["failedRounds"], 1)
+        h.round("build", 2, ONE_DISSENT, tiebreak="VOTE: REJECT\nstill racy")
+        h.round("build", 3, ONE_DISSENT, tiebreak="VOTE: REJECT\nstill racy")
+        self.assertTrue(h.eligible()["eligible"])
+
+    def test_rounds_count_per_ballot(self) -> None:
+        """Two failed plan rounds and one failed build round are not three runs of the same vote."""
+        h = History()
+        h.round("plan", 1, REJECTED)
+        h.round("plan", 2, APPROVED)
+        h.round("build", 1, REJECTED)
+        h.round("build", 2, REJECTED)
+        result = h.eligible()
+        self.assertFalse(result["eligible"], result)
+        self.assertEqual((result["ballot"], result["failedRounds"]), ("build", 2))
+        h.round("build", 3, REJECTED)
+        self.assertTrue(h.eligible()["eligible"])
+
+    def test_dossier_refuses_before_three_failed_rounds(self) -> None:
+        h = History()
+        h.round("plan", 1, REJECTED)
+        h.round("plan", 2, REJECTED)
+        out: Path = h.folder.parent / "dossier.md"
+        result = run_script("council.py", "dossier", "--votes-dir", str(h.folder), "--out", str(out))
+        self.assertFalse(result["ok"])
+        self.assertFalse(result["eligible"])
+        self.assertIn("2 of 3", result["eligibility"])
+
+
 class DossierTest(unittest.TestCase):
     def test_every_entry_from_every_round_is_kept_in_order(self) -> None:
-        votes: Path = make_tmp_home() / "votes" / "s3"
-        write(votes, "01-plan-r1-claude-opus.md", "VOTE: REJECT\nplan note one")
-        write(votes, "02-plan-r1-codex-gpt-6-astra.md", "VOTE: APPROVE\nnote two")
-        write(votes, "03-fix-r1-lead.md", "fixed the schema")
-        write(votes, "10-build-r3-gemini.md", "VOTE: REJECT\nlast word")
-        write(votes, "stray.md", "unlabelled observation")
-        out: Path = votes.parent / "dossier.md"
-        result = run_script("council.py", "dossier", "--votes-dir", str(votes), "--out", str(out))
+        h = History()
+        for rnd in (1, 2, 3):
+            h.round("plan", rnd, REJECTED)
+        write(h.folder, "stray.md", "unlabelled observation")
+        out: Path = h.folder.parent / "dossier.md"
+        result = run_script("council.py", "dossier", "--votes-dir", str(h.folder), "--out", str(out))
         text: str = out.read_text(encoding="utf-8")
-        self.assertTrue(result["ok"])
-        self.assertEqual(result["entries"], 5)
-        self.assertEqual(result["byKind"], {"plan": 2, "fix": 1, "build": 1})
+        self.assertTrue(result["ok"], result)
+        self.assertTrue(result["eligible"])
+        self.assertEqual(result["entries"], 13)
+        self.assertEqual(result["byKind"], {"plan": 9, "fix": 3})
         self.assertEqual(result["unrecognized"], ["stray.md"])
-        for needle in ("plan note one", "note two", "fixed the schema", "last word", "unlabelled observation"):
+        for needle in ("plan round 1 note from claude-opus", "fixed what plan round 2 found",
+                       "plan round 3 note from gemini-pro", "unlabelled observation"):
             self.assertIn(needle, text)
-        self.assertLess(text.find("plan note one"), text.find("fixed the schema"))
-        self.assertLess(text.find("fixed the schema"), text.find("last word"))
+        self.assertLess(text.find("plan round 1 note"), text.find("fixed what plan round 1 found"))
+        self.assertLess(text.find("fixed what plan round 1 found"), text.find("plan round 3 note"))
 
     def test_empty_history_is_not_ok(self) -> None:
         folder: Path = make_tmp_home() / "votes" / "s9"
@@ -251,7 +365,7 @@ class SeatsTest(unittest.TestCase):
 class CouncilSkillContract(TextContractMixin):
     def test_autopilot_escalates_to_council(self) -> None:
         self.assert_contains(SKILL, [
-            "## 1b. The council", "council.py\" dossier", "council.py\" tally", "council.py\" check-decision",
+            "## 1b. The council", "council.py\" eligible", "The council is never the first answer", "council.py\" dossier", "council.py\" tally", "council.py\" check-decision",
             "five seats spread across as many different frontier providers", "council.py\" seats",
             "always with a different model", "Claude Opus 5.5 and Claude Fable 5.0", "`council:` block",
             "bench", "head of council", "Claude Fable 5.1", "never holds a council seat",
