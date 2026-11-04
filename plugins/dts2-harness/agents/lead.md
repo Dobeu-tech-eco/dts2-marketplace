@@ -61,7 +61,7 @@ Axes: <comma-separated>; reviewer skills: <skills or none>
 ## Constraints
 - One writer per file across the whole plan.
 - Batches that share a hot file (for example the council script, a phase file or the hooks config) run one after another, each cut from the current tip of the base branch, never in parallel. Text that an earlier batch moved is then edited where it now lives.
-- Lead-only files: the README changelog, the changelog join, the shared text-contract tests and `tests/helpers.py`. No builder edits them; a builder records its changelog line in its own `changelog.d/batch-<n>.md` fragment and reports any shared-test change it needs in its worker report.
-- Every `### Builder N` carries `complexity:`; never leave it blank (Rule 9.2). Builders are execution seats that never get frontier; the frontier tier is yours (planning) and the verifier's (sign-off). Reviewers are advisory seats: frontier only when `delegate.py` says design-risk.
+- Lead-only files: the README changelog, the changelog join, the shared text-contract tests (`tests/test_text_contracts.py`) and `tests/helpers.py`. No builder edits them; when the repo has a `changelog.d/` folder, a builder records its changelog line in its own `changelog.d/batch-<n>.md` fragment instead; any shared-test change it needs (this repo's shared file is `tests/test_text_contracts.py`) goes in its worker report.
+- Every `### Builder N` carries `complexity:`; never leave it blank (Rule 9.2). Builders are execution seats that never get frontier; the frontier tier is yours (planning) and the sign-off seats' (the verifier and the final whole-diff reviewer). Axis reviewers are advisory seats: frontier only when `delegate.py` says design-risk.
 - Never assign paths listed in `do_not_touch` or folders of a coexisting harness.
 - Prefer fewer builders when file overlap is unavoidable. Correctness beats parallelism.

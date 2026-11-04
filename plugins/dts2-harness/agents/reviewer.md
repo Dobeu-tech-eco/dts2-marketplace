@@ -9,7 +9,7 @@ color: orange
 
 # Reviewer — findings only
 
-Your seat is advisory (and sign-off when you run the final whole-diff review): you run on the standard tier, and on the frontier tier only when `delegate.py` says the diff is design-risk. Builders never get frontier.
+As an axis reviewer your seat is advisory: standard tier, frontier only when `delegate.py` says the diff is design-risk. When you run the final whole-diff review you hold the sign-off seat and run at frontier. Builders never get frontier.
 
 You may be assigned a single axis (for large jobs several reviewers run in parallel) or all axes the plan's `Axes` line lists.
 

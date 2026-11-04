@@ -28,7 +28,7 @@ SKILL_KEYS: Final[frozenset[str]] = frozenset({
     "metadata", "license", "compatibility"})
 COLORS: Final[frozenset[str]] = frozenset({"red", "blue", "green", "yellow", "purple", "orange", "pink", "cyan"})
 EFFORTS: Final[frozenset[str]] = frozenset({"low", "medium", "high", "xhigh", "max"})
-USER_ONLY_SKILLS: Final[tuple[str, ...]] = ("dpp-full", "fullauto", "machine-prep", "sdk", "onboard", "setup", "evolve", "model")
+USER_ONLY_SKILLS: Final[tuple[str, ...]] = ("dpp-full", "fullauto", "machine-prep", "sdk", "onboard", "model")
 MAX_TURNS: Final[dict[str, int]] = {"scout": 15, "lead": 25, "reviewer": 30, "verifier": 40, "builder": 60, "auditor": 20}
 LOW_EFFORT: Final[tuple[str, ...]] = ("scout", "auditor")
 READ_ONLY_AGENTS: Final[tuple[str, ...]] = ("lead", "reviewer", "scout", "auditor", "verifier")
@@ -142,11 +142,16 @@ class AgentMetadata(unittest.TestCase):
         self.assertIn("design-risk", lead)
         self.assertNotIn("the reviewers' and verifier's", lead)
         self.assertEqual(frontmatter_map(AGENTS / "reviewer.md")["model"], "sonnet")
+        for text in (reviewer, lead):
+            self.assertIn("sign-off", text)
+            self.assertIn("frontier", text)
+        self.assertIn("final whole-diff review you hold the sign-off seat and run at frontier", reviewer)
+        self.assertIn("the final whole-diff reviewer", lead)
 
 
 class SkillMetadata(unittest.TestCase):
     def test_user_only_skills_disable_model_invocation(self) -> None:
-        """Q-2: exactly the listed skills are user-invoked only."""
+        """Q-2: exactly the listed skills are user-invoked only. setup and evolve stay model-invocable: run, ship and the context guard call them."""
         flagged: set[str] = {p.parent.name for p in skill_files() if frontmatter_map(p).get("disable-model-invocation") == "true"}
         self.assertEqual(flagged, set(USER_ONLY_SKILLS))
 
@@ -192,6 +197,17 @@ class ContextTax(unittest.TestCase):
         agent.write_text("---\nname: a\n---\nbody\n", encoding="utf-8")
         self.assertIn("no description", self.mod.report(root, 6000, 300)["problems"][0])
 
+    def test_user_only_skills_are_reported_apart_from_the_total(self) -> None:
+        root: Path = make_tmp_home()
+        for name, extra in (("a", ""), ("b", "disable-model-invocation: true\n")):
+            skill: Path = root / "skills" / name / "SKILL.md"
+            skill.parent.mkdir(parents=True)
+            skill.write_text(f"---\nname: {name}\ndescription: {'d' * 40}\n{extra}---\nbody\n", encoding="utf-8")
+        result = self.mod.report(root, 6000, 300)
+        self.assertEqual([e["file"] for e in result["entries"]], ["skills/a/SKILL.md"])
+        self.assertEqual([e["file"] for e in result["user_only"]], ["skills/b/SKILL.md"])
+        self.assertEqual(result["tokens"], result["entries"][0]["tokens"])
+
     def test_tokens_are_chars_over_four_rounded_up(self) -> None:
         self.assertEqual(self.mod.tokens_of(9), 3)
         self.assertEqual(self.mod.tokens_of(8), 2)
@@ -220,25 +236,68 @@ class ChangelogJoin(unittest.TestCase):
         self.assertEqual((self.root / "README.md").read_text(encoding="utf-8"), before)
         self.assertTrue((self.root / "changelog.d" / "batch-2.md").exists())
 
-    def test_joins_in_batch_order_not_name_order(self) -> None:
-        self.fragment("batch-10.md", "# heading is ignored\n- ten\nprose is ignored\n")
+    def test_joins_newest_batch_first_right_under_the_heading(self) -> None:
+        self.fragment("batch-10.md", "# heading is ignored\n- ten\n")
         self.fragment("batch-2.md", "- two\n")
         self.fragment("README.md", "- never joined\n")
         out = self.mod.run(self.root, None, True, "2026-11-04")
-        self.assertEqual(out["fragments"], ["batch-2.md", "batch-10.md"])
+        self.assertEqual(out["fragments"], ["batch-10.md", "batch-2.md"])
+        self.assertEqual(out["dropped"], [])
         text: str = (self.root / "README.md").read_text(encoding="utf-8")
-        self.assertLess(text.index("- old line"), text.index("- two"))
-        self.assertLess(text.index("- two"), text.index("- ten"))
-        self.assertLess(text.index("- ten"), text.index("## Notes"))
+        self.assertIn("## Unreleased\n\n- ten\n- two\n- old line\n\n## Notes", text)
         self.assertNotIn("never joined", text)
         self.assertEqual(sorted(p.name for p in (self.root / "changelog.d").iterdir()), ["README.md"])
+
+    def test_indented_continuation_lines_join_their_bullet(self) -> None:
+        self.fragment("batch-1.md", "- one\n  wrapped tail\n")
+        self.mod.run(self.root, None, True, "2026-11-04")
+        self.assertIn("- one wrapped tail\n", (self.root / "README.md").read_text(encoding="utf-8"))
+
+    def test_prose_is_reported_and_apply_refuses(self) -> None:
+        self.fragment("batch-1.md", "- one\nstray prose\n")
+        before: str = (self.root / "README.md").read_text(encoding="utf-8")
+        dry = self.mod.run(self.root, None, False, "2026-11-04")
+        self.assertEqual(dry["dropped"], ["batch-1.md: stray prose"])
+        refused = self.mod.run(self.root, None, True, "2026-11-04")
+        self.assertFalse(refused["applied"])
+        self.assertIn("error", refused)
+        self.assertEqual((self.root / "README.md").read_text(encoding="utf-8"), before)
+        self.assertTrue((self.root / "changelog.d" / "batch-1.md").exists())
+        script: str = str(PLUGIN_ROOT / "scripts" / "changelog-join.py")
+        proc = subprocess.run(["python3", "-I", script, "--root", str(self.root), "--apply"], capture_output=True, text=True, check=False)
+        self.assertEqual(proc.returncode, 1)
+        self.assertEqual(json.loads(proc.stdout)["dropped"], ["batch-1.md: stray prose"])
 
     def test_release_renames_and_reopens_unreleased(self) -> None:
         self.fragment("batch-1.md", "- one\n")
         self.mod.run(self.root, "3.10.0", True, "2026-11-04")
         text: str = (self.root / "README.md").read_text(encoding="utf-8")
-        self.assertIn("## Unreleased\n\n## 3.10.0 (2026-11-04)\n\n- old line\n- one\n", text)
+        self.assertIn("## Unreleased\n\n## 3.10.0 (2026-11-04)\n\n- one\n- old line\n\n## Notes", text)
         self.assertEqual(text.count("## Unreleased"), 1)
+
+    def real_shape_readme(self) -> str:
+        return ("# T\n\n## Changelog\n\n## Unreleased\n\n- newest line\n- older line\n"
+                "- 3.1.0 \u2014 history entry\n- 2.0.0: first release.\n")
+
+    def test_real_readme_shape_inserts_at_top_and_keeps_history(self) -> None:
+        """The real README has no later `## ` heading: history bullets live inside `## Unreleased`."""
+        (self.root / "README.md").write_text(self.real_shape_readme(), encoding="utf-8")
+        self.fragment("batch-5.md", "- five\n")
+        self.mod.run(self.root, None, True, "2026-11-04")
+        text: str = (self.root / "README.md").read_text(encoding="utf-8")
+        self.assertIn("## Unreleased\n\n- five\n- newest line\n- older line\n- 3.1.0", text)
+        self.assertTrue(text.rstrip("\n").endswith("- 2.0.0: first release."))
+
+    def test_real_readme_shape_release_moves_only_lines_above_history(self) -> None:
+        (self.root / "README.md").write_text(self.real_shape_readme(), encoding="utf-8")
+        self.fragment("batch-5.md", "- five\n")
+        self.mod.run(self.root, "3.99.0", True, "2026-11-04")
+        text: str = (self.root / "README.md").read_text(encoding="utf-8")
+        self.assertIn("## Unreleased\n\n## 3.99.0 (2026-11-04)\n\n- five\n- newest line\n- older line\n\n- 3.1.0", text)
+        self.assertLess(text.index("- older line"), text.index("- 3.1.0"))
+        self.assertLess(text.index("## 3.99.0"), text.index("- five"))
+        self.assertTrue(text.rstrip("\n").endswith("- 2.0.0: first release."))
+        self.assertEqual(text.count("## 3.99.0"), 1)
 
     def test_bad_version_and_missing_heading_are_errors(self) -> None:
         with self.assertRaises(ValueError):
@@ -258,6 +317,8 @@ class ChangelogJoin(unittest.TestCase):
         doc: str = (PLUGIN_ROOT / "changelog.d" / "README.md").read_text(encoding="utf-8")
         self.assertIn("changelog-join.py", doc)
         self.assertIn("batch-<n>.md", doc)
+        self.assertIn("newest batch first", doc)
+        self.assertIn("dropped", doc)
 
 
 class ProcessRules(unittest.TestCase):
@@ -302,6 +363,8 @@ class ProcessRules(unittest.TestCase):
         self.assertIn("share a hot file", lead)
         self.assertIn("one after another", lead)
         self.assertIn("Lead-only files", lead)
+        self.assertIn("tests/test_text_contracts.py", lead)
+        self.assertIn("when the repo has a `changelog.d/` folder", lead)
         for name in ("README changelog", "tests/helpers.py", "changelog.d/batch-<n>.md"):
             self.assertIn(name, lead)
 
