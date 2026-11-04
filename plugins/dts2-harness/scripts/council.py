@@ -2,7 +2,9 @@
 """Autopilot council: build the full-history dossier, tally the five council ballots, check the head's decision.
 
 Subcommands print one JSON object each:
+  eligible       --votes-dir DIR                    may the council sit? only after three normal vote rounds failed
   dossier        --votes-dir DIR --out FILE        every note from every round, in order, in one file
+                                                   (ok only when `eligible` is true)
   tally          BALLOT [BALLOT ...]                majority, dissenters, and dissenters missing a brief
   check-decision DECISION --tally FILE --entries N  the head of council answered every dissent and read every entry
   ledger         --ballots-dir DIR --tally FILE --decision FILE --step S --stamp X --out FILE
@@ -20,6 +22,9 @@ from pathlib import Path
 from typing import Any, Final
 
 COUNCIL_SEATS: Final[int] = 5
+PANEL_SEATS: Final[int] = 3
+ROUNDS_BEFORE_COUNCIL: Final[int] = 3
+VOTE_KINDS: Final[tuple[str, ...]] = ("plan", "build")
 KINDS: Final[tuple[str, ...]] = ("plan", "build", "tiebreak", "fix", "ci", "council")
 ENTRY_NAME: Final[re.Pattern[str]] = re.compile(r"^(\d+)-(" + "|".join(KINDS) + r")-r(\d+)-(.+)\.md$")
 VOTE_LINE: Final[re.Pattern[str]] = re.compile(r"^VOTE:\s*(APPROVE|REJECT)\s*$")
@@ -59,6 +64,57 @@ def parse_entry(path: Path) -> dict[str, Any]:
     return {"file": path.name, "recognized": True, "order": int(order), "kind": kind, "round": int(rnd), "seat": seat}
 
 
+def round_outcomes(votes_dir: Path) -> list[dict[str, Any]]:
+    """Every normal vote round (panel of three, plus its tiebreak if any), in the order it was held."""
+    rounds: dict[tuple[str, int], dict[str, Any]] = {}
+    last_kind: str | None = None
+    for path in sorted(p for p in votes_dir.glob("*.md") if p.is_file()):
+        entry: dict[str, Any] = parse_entry(path)
+        if not entry["recognized"] or entry["kind"] not in VOTE_KINDS + ("tiebreak",):
+            continue
+        match = VOTE_LINE.match(first_line(path.read_text(encoding="utf-8")))
+        vote: str | None = match.group(1) if match else None
+        if entry["kind"] == "tiebreak":
+            # A tiebreak belongs to the ballot it broke: the most recent plan or build vote of that round.
+            target = rounds.get((last_kind or "", entry["round"]))
+            if target is not None:
+                target["tiebreak"] = vote or "INVALID"
+            continue
+        last_kind = entry["kind"]
+        key: tuple[str, int] = (entry["kind"], entry["round"])
+        held = rounds.setdefault(key, {"kind": entry["kind"], "round": entry["round"], "votes": [], "tiebreak": None})
+        if vote:
+            held["votes"].append(vote)
+    for held in rounds.values():
+        approve: int = held["votes"].count("APPROVE")
+        held["complete"] = len(held["votes"]) >= PANEL_SEATS
+        held["passed"] = held["complete"] and (approve == len(held["votes"]) or held["tiebreak"] == "APPROVE")
+    return list(rounds.values())
+
+
+def eligibility(votes_dir: Path) -> dict[str, Any]:
+    """The council sits only after three complete rounds of the normal vote on the same ballot have all failed."""
+    rounds: list[dict[str, Any]] = round_outcomes(votes_dir)
+    if not rounds:
+        return {"eligible": False, "ballot": None, "failedRounds": 0, "rounds": [],
+                "reason": "no normal vote rounds on record; run the normal vote first"}
+    ballot: str = rounds[-1]["kind"]
+    held: list[dict[str, Any]] = [r for r in rounds if r["kind"] == ballot]
+    failed: list[int] = [r["round"] for r in held if r["complete"] and not r["passed"]]
+    summary: list[dict[str, Any]] = [{k: r[k] for k in ("kind", "round", "complete", "passed", "tiebreak")} for r in rounds]
+    base: dict[str, Any] = {"ballot": ballot, "failedRounds": len(failed), "rounds": summary}
+    if any(r["passed"] for r in held):
+        return {**base, "eligible": False, "reason": f"the {ballot} vote already passed; no council"}
+    if not held[-1]["complete"]:
+        return {**base, "eligible": False,
+                "reason": f"{ballot} round {held[-1]['round']} is not finished (needs {PANEL_SEATS} panel votes)"}
+    if len(failed) < ROUNDS_BEFORE_COUNCIL:
+        return {**base, "eligible": False,
+                "reason": f"only {len(failed)} of {ROUNDS_BEFORE_COUNCIL} {ballot} vote rounds have failed; fix and vote again"}
+    return {**base, "eligible": True,
+            "reason": f"{len(failed)} complete {ballot} vote rounds failed; escalate to the council"}
+
+
 def build_dossier(votes_dir: Path, out: Path) -> dict[str, Any]:
     paths: list[Path] = sorted(p for p in votes_dir.glob("*.md") if p.is_file())
     entries: list[dict[str, Any]] = [parse_entry(p) for p in paths]
@@ -74,8 +130,9 @@ def build_dossier(votes_dir: Path, out: Path) -> dict[str, Any]:
         if entry["recognized"]:
             kinds[entry["kind"]] = kinds.get(entry["kind"], 0) + 1
     seats: list[str] = sorted({e["seat"] for e in entries if e["recognized"]})
-    return {"ok": bool(paths), "entries": len(paths), "byKind": kinds, "participants": seats,
-            "unrecognized": unrecognized, "out": str(out)}
+    gate: dict[str, Any] = eligibility(votes_dir)
+    return {"ok": bool(paths) and gate["eligible"], "entries": len(paths), "byKind": kinds, "participants": seats,
+            "unrecognized": unrecognized, "eligible": gate["eligible"], "eligibility": gate["reason"], "out": str(out)}
 
 
 def read_ballot(path: Path) -> dict[str, Any]:
@@ -239,6 +296,8 @@ def pick_seats(usable: list[str], config: dict[str, list[str]], failed: set[str]
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="cmd", required=True)
+    e = sub.add_parser("eligible")
+    e.add_argument("--votes-dir", required=True)
     d = sub.add_parser("dossier")
     d.add_argument("--votes-dir", required=True)
     d.add_argument("--out", required=True)
@@ -262,6 +321,9 @@ def main() -> int:
         usable: list[str] = [u.strip() for u in args.usable.split(",") if u.strip()]
         failed: set[str] = {f.strip() for f in args.failed.split(",") if f.strip()}
         print(json.dumps(pick_seats(usable, config, failed)))
+        return 0
+    if args.cmd == "eligible":
+        print(json.dumps(eligibility(Path(args.votes_dir))))
         return 0
     if args.cmd == "dossier":
         result: dict[str, Any] = build_dossier(Path(args.votes_dir), Path(args.out))
