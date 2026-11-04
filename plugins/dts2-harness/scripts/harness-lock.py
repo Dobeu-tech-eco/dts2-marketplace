@@ -11,6 +11,9 @@ import time
 from pathlib import Path
 from typing import Any, Final
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from state_io import atomic_write  # noqa: E402
+
 SHARED_FILES: Final[tuple[str, ...]] = (
     ".harness/state.md", ".harness/action-items.md", ".harness/council.md", ".harness/lessons.md",
     ".harness/end-state.md", ".harness/handoff/latest.md", ".harness/autopilot/latest.md",
@@ -69,8 +72,9 @@ def try_create(path: Path, holder: str) -> bool:
         descriptor: int = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
     except FileExistsError:
         return False
-    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-        json.dump({"holder": holder, "pid": os.getpid(), "created": time.time()}, handle)
+    os.close(descriptor)
+    record: dict[str, Any] = {"holder": holder, "pid": os.getpid(), "created": time.time()}
+    atomic_write(path, json.dumps(record))
     return True
 
 

@@ -18,8 +18,11 @@ import json, os, sys
 print(os.environ.get("FAKE_PRS", "[]"))
 """
 FAKE_GIT: Final[str] = """#!/usr/bin/env python3
-import os
-print(os.environ.get("FAKE_REFS", ""))
+import os, sys
+if "--version" in sys.argv:
+    print("git version 2.40.0")
+else:
+    print(os.environ.get("FAKE_REFS", ""))
 """
 
 
@@ -63,7 +66,7 @@ class LanesTests(unittest.TestCase):
         return [c["kind"] for c in result["conflicts"]]
 
     def test_check_clean_five_lanes(self) -> None:
-        lanes = [lane(l, [f"src/{l}/{l}.py", f"tests/{l}/test_{l}.py"], [f"D{n}"]) for n, l in enumerate("abcde", 10)]
+        lanes = [lane(x, [f"src/{x}/{x}.py", f"tests/{x}/test_{x}.py"], [f"D{n}"]) for n, x in enumerate("abcde", 10)]
         result = self.run_cmd("check", self.write_manifest(manifest(lanes)))
         self.assertTrue(result["ok"], result)
         self.assertEqual(result["lanes"], 5)
@@ -153,13 +156,13 @@ class LanesTests(unittest.TestCase):
     def test_branch_check_detects_prefix_collision(self) -> None:
         result = self.run_cmd("branch-check", "20261104-1", "--lanes", "a,b", refs="main\ndts2/20261104-1\n")
         self.assertFalse(result["ok"])
-        self.assertEqual(result["planned"], ["dts2/20261104-1-dpp", "dts2/20261104-1/a", "dts2/20261104-1/b"])
+        self.assertEqual(result["planned"], ["dts2/20261104-1/main", "dts2/20261104-1/lane-a", "dts2/20261104-1/lane-b"])
         self.assertEqual({c["existing"] for c in result["collisions"]}, {"dts2/20261104-1"})
         clean = self.run_cmd("branch-check", "20261104-1", "--lanes", "a,b", refs="main\norigin/dts2/20261104-0/a\n")
         self.assertTrue(clean["ok"], clean)
 
     def test_more_than_five_lanes_refused(self) -> None:
-        lanes = [lane(l, [f"src/{l}/x.py"]) for l in "abcdef"]
+        lanes = [lane(x, [f"src/{x}/x.py"]) for x in "abcdef"]
         result = self.run_cmd("check", self.write_manifest(manifest(lanes)))
         self.assertEqual(result["_code"], 1)
         self.assertIn("limit is 5", result["error"])
