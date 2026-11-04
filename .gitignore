@@ -6,3 +6,6 @@ dist/
 receipts/
 review-receipts/
 .ruff_cache/
+
+# smoke eval run output (baseline.json stays committed)
+plugins/dts2-harness/evals/results/
