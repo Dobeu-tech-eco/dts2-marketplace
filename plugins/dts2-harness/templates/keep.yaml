@@ -4,7 +4,7 @@ plugins:          # Claude Code plugin ids the user wants on for this project, e
 skills:           # skills installed for this project; source is "npx skills add <ref>", "plugin", or "synced"
   # Optional per skill: `pin: <40-character commit sha>` installs exactly that commit. The daily pre-check never
   # moves a pin: it writes .harness/skill-updates.json (diff summary per skill) and you approve one with
-  # `skills-check.py <repo> --fix --apply-update <name>=<sha>`. Pinned skills are skipped by `npx skills update`.
+  # `skills-check.py <repo> --fix --apply-update <name>=<sha>`. Nothing is updated in bulk.
   # - name: <skill>
   #   source: npx skills add <owner/repo>
   #   serves: <component>

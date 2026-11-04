@@ -19,6 +19,7 @@ IGNORED_PATHS: Final[tuple[str, ...]] = (
     ".harness/handoff/latest.md",
     ".harness/.skills-checked",
     ".harness/upgrade-from.txt",
+    ".harness/skill-updates.json",
 )
 
 

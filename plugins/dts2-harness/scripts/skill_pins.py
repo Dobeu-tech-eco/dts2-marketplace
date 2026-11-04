@@ -59,7 +59,7 @@ def set_pin_text(text: str, name: str, sha: str) -> str:
         if state == "inside":
             if line.strip().startswith("pin:"):
                 continue  # dropped; the fresh pin was written right after the name line
-            if not line.strip() or line.strip().startswith("#") or not line.startswith(indent + " "):
+            if not line.strip() or not line.startswith(indent + " "):
                 state = "done"
         if state == "scan":
             m = head.match(line)
@@ -111,7 +111,7 @@ def build_proposals(entries: list[dict[str, str]], head_of: HeadFn, files_betwee
             "kind": "update" if pin else "pin",
             "compare_url": f"https://github.com/{repo_id}/compare/{pin}...{head}" if pin else None,
             "changed_files": shown, "changed_total": None if files is None else len(files),
-            "instruction_files_changed": any(f.endswith(INSTRUCTION_SUFFIXES) for f in relevant),
+            "instruction_files_changed": None if files is None else any(f.endswith(INSTRUCTION_SUFFIXES) for f in relevant),
             "apply": f"skills-check.py <repo> --fix --apply-update {entry['name']}={head}",
         })
     return proposals

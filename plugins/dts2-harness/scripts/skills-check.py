@@ -486,17 +486,17 @@ def wanted_skills(repo: Path, report: dict[str, Any]) -> list[dict[str, Any]]:
 def attach_pin(entry: dict[str, Any], pin: str, report: dict[str, Any]) -> bool:
     """Record a keep.yaml pin on the skill entry. A value that is not a full commit SHA is rejected and
     the skill is left out entirely (fail closed): False tells the caller not to install or track it."""
-    if pins.valid_pin(pin):
+    if pins.valid_pin(pin) and pins.pinned_ref(entry["ref"], pin) is not None:
         entry["pin"] = pin
         return True
     report["rejected"].append({"name": entry["name"],
-                               "reason": "pin is not a 40-character commit SHA; fix the pin in .harness/keep.yaml"})
+                               "reason": "pin is not a 40-character commit SHA, or cannot be applied to this source; fix the pin in .harness/keep.yaml"})
     return False
 
 
 def install_ref(entry: dict[str, Any]) -> str:
     """The ref to install: the exact pinned commit when keep.yaml pins the skill, else the plain ref."""
-    return pins.pinned_ref(entry["ref"], entry["pin"]) or entry["ref"] if entry.get("pin") else entry["ref"]
+    return (pins.pinned_ref(entry["ref"], entry["pin"]) if entry.get("pin") else None) or entry["ref"]
 
 
 def new_report() -> dict[str, Any]:
@@ -637,7 +637,14 @@ def apply_update(repo: Path, home: Path, spec: str, report: dict[str, Any]) -> N
         report["rejected"].append({"name": name[:60], "reason": "--apply-update does not match a stored proposal"})
         return
     ref: str | None = pins.pinned_ref(entry["ref"], sha)
+    if ref and tracked_files(repo, report) is None:  # git cannot say which files are tracked: fail closed
+        note_skip(report, name, "apply-update", [])
+        return
     code, out = guarded_npx(repo, report, "apply-update", npx("add", *ref_args(ref or ""), *INSTALL_FLAGS)) if ref else (1, "no ref")
+    if any(k.get("step") == "apply-update" and k.get("name") == name and k.get("reverted")
+           for k in report["tracked_skipped"]):  # the install was rolled back: nothing moved, so claim nothing
+        report["rejected"].append({"name": name, "reason": "skill files are git-tracked; update them in a commit, not with --apply-update"})
+        return
     if code != 0 or installed(repo, name, home) != "claude":
         report["failed"].append({"name": name, "output": out[-400:]})
         return
