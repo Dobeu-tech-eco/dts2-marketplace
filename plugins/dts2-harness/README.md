@@ -91,7 +91,7 @@ Restart Claude Code, then run `/dts2-harness:onboard`.
 - A3 — every `.harness` state write from the Python scripts goes through `scripts/state_io.py` `atomic_write` (temp file, fsync, rename, directory fsync, file mode kept). Lane leases gain an epoch: `lanes.py lease` and `release` accept `--epoch`, and a stale epoch is refused. Lease updates are serialised by a per-lane lock file.
 - B9 — `scripts/bump-version.py` sets the version in all four places, refuses to start when any of them is missing, and `--check` reports any that disagree; a test checks the four agree; root `Makefile` adds `package`, `test` and `check-version`.
 - B1 (structure) — `skills/run/SKILL.md` is now a short router (preflight, pre-check, Companion skills, Guardrails) that links one file per phase: `phase-0-size.md`, `phase-1-plan.md`, `phase-2-build.md`, `phase-3-review.md`, `phase-4-ship.md`, `modes.md`, `operations.md`. Text moved verbatim; content cuts wait for the eval batch.
-- B8 (part) — the companion-skill install rule is stated once in the run router and referenced from the phase files.
+- B8 (part) — the run router now defines the companion-skill install rule once (`## Companion skills`) and the shortened ship-phase line points to it; the older inline copies in `operations.md` and `phase-2-build.md` stay word for word until the Batch 7 content cut.
 - A10 (prefilter) — `hooks/pr-receipt.sh` returns at once unless the command contains `gh pr ` or `gh api ` with `/pulls`, so most Bash calls no longer start Python.
 
 - 3.9.1 — dpp end-to-end fixture test (two blocked lanes folded onto one PR, items marked done, resume finds the PR). Fix: task-ledger.py now writes one row per PR, so a PR folded from several lanes resolves only when every lane's items are done.
