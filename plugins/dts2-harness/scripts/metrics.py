@@ -8,6 +8,9 @@ import sys
 from pathlib import Path
 from typing import Any, Final
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from state_io import append_text  # noqa: E402
+
 METRICS_PATH: Final[str] = ".harness/metrics.jsonl"
 DEFAULT_WINDOW: Final[int] = 5
 VERIFIED: Final[str] = "VERIFIED"
@@ -22,9 +25,7 @@ def parse_failures(text: str) -> dict[str, int]:
 
 def append_row(repo: Path, row: dict[str, Any]) -> None:
     path: Path = repo / METRICS_PATH
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(row, separators=(",", ":")) + "\n")
+    append_text(path, json.dumps(row, separators=(",", ":")) + "\n")
 
 
 def parse_line(line: str) -> dict[str, Any] | None:

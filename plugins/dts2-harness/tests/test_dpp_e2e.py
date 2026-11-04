@@ -40,7 +40,7 @@ ITEMS: Final[str] = """# Action items
 
 
 def lane_status(lane: str, task: str, item: str, path: str) -> dict[str, Any]:
-    return {"lane": lane, "status": "blocked", "branch": f"dts2/{STAMP}/{lane}", "files": [path],
+    return {"lane": lane, "status": "blocked", "branch": f"dts2/{STAMP}/lane-{lane}", "files": [path],
             "tasks": [task], "blocked_by": [item]}
 
 

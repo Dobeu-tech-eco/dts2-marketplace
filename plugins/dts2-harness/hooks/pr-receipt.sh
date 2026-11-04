@@ -80,6 +80,7 @@ print(str(value).lower() if isinstance(value, bool) else value)
 
 latest_run_receipt() {
   local dir
+  # shellcheck disable=SC2012 # run dirs are generated names without odd characters
   dir=$(ls -1d .harness/runs/*/ 2>/dev/null | sort | tail -1)
   [[ -n "$dir" && -f "${dir}receipt.md" ]] && echo "${dir}receipt.md"
 }

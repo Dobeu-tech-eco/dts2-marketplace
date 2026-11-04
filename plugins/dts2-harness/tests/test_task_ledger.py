@@ -35,7 +35,7 @@ ITEMS: Final[str] = """# Action items
 
 
 def status(lane: str, pr: int, tasks: list[str], blocked_by: list[str], state: str = "blocked") -> dict[str, Any]:
-    return {"lane": lane, "status": state, "pr": pr, "branch": f"dts2/{STAMP}/{lane}",
+    return {"lane": lane, "status": state, "pr": pr, "branch": f"dts2/{STAMP}/lane-{lane}",
             "tasks": tasks, "blocked_by": blocked_by}
 
 
@@ -67,7 +67,7 @@ class TaskLedgerTests(unittest.TestCase):
     def test_ledger_lists_open_pr_with_blocking_item(self) -> None:
         self.write_items()
         self.write_lane(status("a", 41, ["A1"], ["S1"]))
-        result = self.run_ledger(prs=[{"number": 41, "headRefName": f"dts2/{STAMP}/a"}])
+        result = self.run_ledger(prs=[{"number": 41, "headRefName": f"dts2/{STAMP}/lane-a"}])
         self.assertEqual([pr["pr"] for pr in result["open_prs"]], [41])
         self.assertEqual(result["blocking_items"], ["S1"])
         ledger: str = (self.runs / "task-ledger.md").read_text(encoding="utf-8")
@@ -78,7 +78,7 @@ class TaskLedgerTests(unittest.TestCase):
     def test_ledger_bundles_tasks_under_one_pr(self) -> None:
         self.write_items()
         self.write_lane(status("a", 41, ["A1", "B2"], ["S1", "D1"]))
-        result = self.run_ledger(prs=[{"number": 41, "headRefName": f"dts2/{STAMP}/a"}])
+        result = self.run_ledger(prs=[{"number": 41, "headRefName": f"dts2/{STAMP}/lane-a"}])
         self.assertEqual(len(result["open_prs"]), 1)
         self.assertEqual(result["open_prs"][0]["tasks"], ["A1", "B2"])
         self.assertEqual(result["blocking_items"], ["D1", "S1"])
@@ -89,7 +89,7 @@ class TaskLedgerTests(unittest.TestCase):
         self.write_items(s1="done", d1="open")
         self.write_lane(status("a", 41, ["A1"], ["S1"]))
         self.write_lane(status("b", 42, ["B2"], ["D1"]))
-        prs = [{"number": 41, "headRefName": f"dts2/{STAMP}/a"}, {"number": 42, "headRefName": f"dts2/{STAMP}/b"}]
+        prs = [{"number": 41, "headRefName": f"dts2/{STAMP}/lane-a"}, {"number": 42, "headRefName": f"dts2/{STAMP}/lane-b"}]
         result = self.run_ledger("--resolved", prs=prs)
         self.assertEqual([pr["pr"] for pr in result["resolved"]], [41])
         self.assertEqual([pr["pr"] for pr in result["open_prs"]], [41, 42])

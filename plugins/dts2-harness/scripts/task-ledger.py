@@ -17,6 +17,9 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Final
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from state_io import atomic_write  # noqa: E402
+
 RUNS_DIR: Final[str] = ".harness/runs"
 ITEMS_PATH: Final[str] = ".harness/action-items.md"
 STATUS_NAME: Final[str] = "status.json"
@@ -135,7 +138,7 @@ def build_ledger(cwd: Path, runs_dir: Path, stamp: str, out: Path | None, resolv
     rows: list[dict[str, Any]] = [pr_row(grouped[number], items) for number in sorted(grouped)]
     blocking: list[str] = sorted({i for row in rows for i in row["blocked_by"]})
     path: Path = out if out is not None else runs_dir / stamp / LEDGER_NAME
-    path.write_text(ledger_markdown(stamp, rows, blocking), encoding="utf-8")
+    atomic_write(path, ledger_markdown(stamp, rows, blocking))
     result: dict[str, Any] = {"ok": True, "stamp": stamp, "path": str(path), "open_prs": rows,
                               "blocking_items": blocking, "gh_confirmed": open_numbers is not None}
     if resolved:
