@@ -1,6 +1,7 @@
 ---
 name: machine-prep
-description: Scan this computer's agent tooling (Claude Code marketplace plugins, plugins synced from the claude.ai account, agents, skills, CLAUDE.md, Codex, Cursor, MCP servers), compare it to the agent-startup-blueprint profile, prune by disabling everything outside the keep-set, and set up the slim startup. Works on Windows, WSL, Linux, and macOS. Use when the user wants to clean up, slim down, pare down plugins, stop disabled plugins from coming back, audit context budget, set up a new machine, or apply the blueprint.
+description: Scan this computer's agent tooling (plugins, agents, skills, CLAUDE.md, Codex, Cursor, MCP servers), compare to the blueprint profile, prune by disabling, and set up the slim startup. Use to clean up plugins, audit context budget, or set up a machine.
+disable-model-invocation: true
 ---
 
 # Machine prep — scan, prune, set up

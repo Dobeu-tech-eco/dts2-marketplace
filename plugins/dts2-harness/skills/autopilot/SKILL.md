@@ -1,6 +1,6 @@
 ---
 name: autopilot
-description: Run one or more harness steps end to end without stopping for plan or ship approval. A consensus gate replaces the two human checkpoints, three frontier models from different providers must agree on the plan and again on the build, and Claude Fable 5.1 breaks a split. When three rounds of voting still do not settle a step, a council of five frontier reviewers reads the full voting history, votes, writes a brief for every dissent, and Claude Fable 5.1 as head of council makes the final call (more fixes, strike items, or approve) with a written rationale that answers each dissent. Each step gets its own branch and pull request, which is merged once CI is green before the next step starts, so progress is never lost and check-in shows where it stands. Use when the user says autopilot, run these steps without asking, do sections 3 to 5 unattended, or skip plan review.
+description: Run harness steps end to end without human plan or ship approval: a gate of three frontier models from different providers and a council for deadlocks replace the checkpoints. One branch and PR per step. Use for autopilot or run unattended.
 ---
 
 # Autopilot — the harness pipeline with a consensus gate instead of a human

@@ -1,6 +1,7 @@
 ---
 name: evolve
-description: Change the dts2 harness itself — edit a skill, agent, hook, script, profile, or template in the dts2-marketplace source repo, validate, test, bump both manifest versions, and commit; push only on an explicit yes. Use when the user says evolve, improve the harness, add an agent profile, fix a dts2 skill, or add a lesson-driven change to the plugin itself.
+description: Change the dts2 harness itself in its source repo: edit a skill, agent, hook, script, profile or template, validate, test, bump versions, commit; push only on an explicit yes. Use for evolve, improve the harness, or fix a dts2 skill.
+disable-model-invocation: true
 ---
 
 # Evolve — change the harness at its source

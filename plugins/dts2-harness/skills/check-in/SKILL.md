@@ -1,6 +1,6 @@
 ---
 name: check-in
-description: Show where the project stands, from where it started through the approved end state, as a checklist with every item marked complete or outstanding. Reads the Sections map and acceptance boxes in the end state plus open action items, then prints a header with N of M complete and a percent. Runnable any time, read-only. Use when the user asks for a check-in, progress, status, what is done, what is left, or how far along the project is.
+description: Show project progress against the approved end state as a checklist with N of M complete and a percent, from the Sections map, acceptance boxes and open action items. Read-only. Use when asked for a check-in, progress, status, or what is left.
 ---
 
 # Check-in — complete versus outstanding, against the end state

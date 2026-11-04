@@ -1,6 +1,7 @@
 ---
 name: model
-description: Choose which agent provider acts as the orchestration lead, so the lead, advisory and sign-off seats run on it instead of the default Claude. Detects the installed agents, lists the ones able to give advice, asks the user to pick, and records lead_provider in the project settings. Builders are unaffected and always run the cheapest capable model. Use when the user says switch the lead, change the orchestrator, use Codex or Gemini as lead, or pick the main model provider.
+description: Choose which agent provider fills the lead, advisory and sign-off seats; detects installed agents, asks the user to pick, and records lead_provider. Builders are unaffected. Use for switch the lead, change the orchestrator, or Codex or Gemini as lead.
+disable-model-invocation: true
 ---
 
 # Model — pick the orchestration provider

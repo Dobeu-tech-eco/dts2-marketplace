@@ -1,6 +1,6 @@
 ---
 name: run
-description: Run the dts2 plan-build-review-verify pipeline on a task in one repo or a multi-repo workspace. Sizes the team from the repo and task, checks which agents are available and what they cost, plans against the approved end state, builds with parallel builders on separate file sets, reviews and walks the changed screens, and ends with a receipt. Two human checkpoints (plan, ship). Also `run add secret NAME` to close a deferred secret. Use when the user asks to run the harness, harness a task, or do a multi-file, cross-package, or cross-repo change with rigor.
+description: Run the dts2 plan, build, review, verify pipeline on a task in one repo or workspace: sizes the team, plans against the end state, builds with parallel builders, reviews, ends with a receipt. Use to run the harness or for a multi-file, cross-repo change.
 ---
 
 # Run — plan, build, review, verify, ship

@@ -1,6 +1,7 @@
 ---
 name: onboard
-description: Explain the dts2 harness — its six agents, fifteen skills, agent roster, team tiers, lessons memory, and headless runner — and recommend where to start. Use when the user asks what dts2 does, how to use it, which skill fits a job, or is new to the harness on this machine or repo.
+description: Explain the dts2 harness (six agents, fifteen skills, roster, team tiers, lessons, headless runner) and recommend where to start. Use when the user asks what dts2 does, how to use it, which skill fits a job, or is new to the harness.
+disable-model-invocation: true
 ---
 
 # dts2 harness — orientation

@@ -1,6 +1,6 @@
 ---
 name: feature
-description: Add a feature to the roadmap and update every plan to match. Scores how clear the feature is, runs the setup deep interview scoped to just this feature when it is not clear enough (plus the grill, architecture and agent-friendly passes), then has the lead write it into the approved end state as a component with acceptance criteria, Blueprint lines and Sections, updates the repo's own plan and status docs and the action items, and opens a pull request for the plan change. Use when the user says add a feature, new feature, put this on the roadmap, plan this feature, or we also need X.
+description: Add a feature to the roadmap and update every plan to match: scores clarity, interviews when unclear, has the lead write it into the end state with acceptance criteria, and opens a plan PR. Use for add a feature or put this on the roadmap.
 ---
 
 # Feature — from idea to planned sections, every plan in sync

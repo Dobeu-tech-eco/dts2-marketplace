@@ -1,6 +1,6 @@
 ---
 name: gtm
-description: Take a product through go-to-market in one seamless pass. Auto-installs marketing-skills if it is missing, runs a short GTM deep-dive that reuses the approved end state, lets marketing-skills pick the skills that apply to the repo, runs them back to back, and ends with a readiness scorecard of what is ready and what blocks launch. Use when the user says go to market, launch readiness, gtm, or wants positioning, SEO, page and copy review, and launch planning for a repo.
+description: Take a product through go-to-market in one pass: installs marketing-skills if missing, runs a short GTM deep-dive and the skills that apply, and ends with a launch-readiness scorecard. Use for go to market, launch readiness, gtm, or SEO review.
 ---
 
 # GTM — one seamless pass
