@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Lane manifest tools for parallel autopilot: overlap check, lane leases, branch-name collision check, the son command line,
 and the dpp head's helpers: plan (admission, spend, feasibility, --full selection), status, sendback, release, fold,
-stop-check and report-check."""
+stop-check and report-check. It is the only writer of lane state: leases, status.json fields the head owns (heartbeat,
+session id, park reason), send-backs, the budget counter, the model-call ledger and merge order. Its supervisor commands:
+preflight (pin the CLI version), spawn (start a son under every cap), call (any other model call behind the shared
+limit), heartbeat, budget, loop, merge-order, merge-go and merge-done."""
 from __future__ import annotations
 
 import argparse
@@ -18,6 +21,9 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Final, Iterator
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from model_call import (  # noqa: E402
+    cli_version, fallback_used, invoke, is_terminated, parse_result, read_budget, read_supervisor,
+)
 from state_io import atomic_write  # noqa: E402
 
 RUNS_DIR: Final[str] = ".harness/runs"
@@ -72,6 +78,27 @@ DEFAULT_TIER: Final[str] = "standard"
 DEFAULT_BURN: Final[int] = 1
 KIND_MAX: Final[str] = "max"
 WILDCARD_LANE: Final[str] = "*"
+RUN_NAME: Final[str] = "run.json"
+BUDGET_NAME: Final[str] = "budget.json"
+MODEL_LEDGER_NAME: Final[str] = "model-ledger.jsonl"
+MERGE_ORDER_NAME: Final[str] = "merge-order.json"
+MERGE_GO_NAME: Final[str] = "merge-go.md"
+PREFLIGHT_TIMEOUT_S: Final[int] = 30
+DEFAULT_CALL_TIMEOUT_S: Final[int] = 1800
+PHASE_PR_OPEN: Final[str] = "pr-open"
+PHASE_STARTING: Final[str] = "starting"
+REASON_TIMEOUT: Final[str] = "timeout"
+REASON_MAX_TURNS: Final[str] = "max-turns"
+REASON_BUDGET: Final[str] = "budget"
+REASON_ERROR: Final[str] = "error"
+REASON_NO_STATUS: Final[str] = "no-final-status"
+REASON_SLOT: Final[str] = "slot-busy"
+REASON_PREFLIGHT: Final[str] = "preflight-missing"
+REASON_SKEW: Final[str] = "version-skew"
+REASON_LOOPS: Final[str] = "loops"
+SUBTYPE_MAX_TURNS: Final[str] = "error_max_turns"
+SUBTYPE_MAX_BUDGET: Final[str] = "error_max_budget_usd"
+MAX_DIFF_BYTES: Final[int] = 1_000_000
 LANE_HEADING: Final[re.Pattern[str]] = re.compile(r"^## Lane (\S+)\s*$")
 RUN_HEADING: Final[re.Pattern[str]] = re.compile(r"^## (.+?)\s*$")
 SECTION_HEADING: Final[re.Pattern[str]] = re.compile(r"^### (.+?)\s*$")
@@ -445,13 +472,29 @@ def read_setting(cwd: Path, field: str, default: str) -> str:
     return default
 
 
-def son_command(manifest: dict[str, Any], lane_id: str, worktree: Path, cwd: Path) -> dict[str, Any]:
-    """The headless command the head runs for one son: claude -p inside the lane's worktree."""
+def cap_flags(cwd: Path, remaining_usd: float | None, session: str | None) -> list[str]:
+    """The cap and resilience flags every son gets: turns, JSON usage output, fallback chain, spend left, resume."""
+    caps: dict[str, Any] = read_budget(cwd)
+    chain: list[str] = read_supervisor(cwd)["fallback_models"]
+    flags: list[str] = ["--max-turns", str(caps["max_turns"]), "--output-format", "json"]
+    if chain:
+        flags += ["--fallback-model", ",".join(chain)]
+    if caps["max_usd"] is not None and remaining_usd is not None:
+        flags += ["--max-budget-usd", f"{max(remaining_usd, 0.01):.2f}"]
+    if session:
+        flags += ["--resume", session]
+    return flags
+
+
+def son_command(manifest: dict[str, Any], lane_id: str, worktree: Path, cwd: Path,
+                remaining_usd: float | None = None, session: str | None = None) -> dict[str, Any]:
+    """The headless command for one son: claude -p inside the lane's worktree, with the budget caps and fallback chain."""
     lane: dict[str, Any] = find_lane(manifest, lane_id)
     mode: str = read_setting(cwd, PERMISSION_FIELD, DEFAULT_PERMISSION_MODE)
     argv: list[str] = binary("DTS2_CLAUDE_BIN", "claude") + [
         "-p", f"{SON_SKILL} {manifest['stamp']}/{lane['id']}",
         "--permission-mode", mode, "--model", SON_MODEL, "--plugin-dir", str(PLUGIN_ROOT),
+        *cap_flags(cwd, remaining_usd, session),
     ]
     return {"ok": True, "lane": lane["id"], "cwd": str(worktree), "permission_mode": mode, "argv": argv}
 
@@ -584,20 +627,93 @@ def stale_after(cwd: Path) -> int:
     return minutes * SECONDS_PER_MINUTE
 
 
-def lane_status(path: Path, data: dict[str, Any], threshold: int, now: int) -> dict[str, Any]:
+def valid_beat(value: Any) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else None
+
+
+def lane_status(path: Path, data: dict[str, Any], threshold: int, now: int, stall_s: int) -> dict[str, Any]:
+    """A heartbeat, when the lane has one, is judged against stall_minutes; otherwise the file's age against
+    builder_timeout_min."""
     phase: str = str(data.get("status", ""))
     updated: int = int(path.stat().st_mtime)
-    stale: bool = phase not in TERMINAL_PHASES and now - updated > threshold
-    return {"lane": str(data.get("lane") or path.parent.name), "phase": phase, "updated": updated, "stale": stale,
-            "incomplete_reason": REASON_STALLED if stale else None}
+    beat: int | None = valid_beat(data.get("heartbeat"))
+    last_seen: int = beat if beat is not None else updated
+    limit: int = stall_s if beat is not None else threshold
+    stale: bool = phase not in TERMINAL_PHASES and now - last_seen > limit
+    return {"lane": str(data.get("lane") or path.parent.name), "phase": phase, "updated": updated,
+            "heartbeat": beat, "last_seen": last_seen, "stale": stale,
+            "incomplete_reason": REASON_STALLED if stale else None, "snapshot": None}
+
+
+def merge_json(path: Path, changes: dict[str, Any]) -> dict[str, Any]:
+    """Read-merge-write one JSON object under its lock; the merged object. Raises LaneError when the lock is busy."""
+    with lane_lock(path) as held:
+        if not held:
+            raise LaneError(f"lock busy for {path}")
+        current: dict[str, Any] = read_lease(path) or {}
+        merged: dict[str, Any] = {**current, **changes}
+        atomic_write(path, json.dumps(merged, indent=2) + "\n")
+    return merged
+
+
+def append_ledger(runs_dir: Path, stamp: str, record: dict[str, Any]) -> None:
+    """Add one line to the run's model-call ledger (retries, fallbacks, parks, version checks)."""
+    path: Path = runs_dir / stamp / MODEL_LEDGER_NAME
+    line: str = json.dumps({"t": int(time.time()), **record}, sort_keys=True)
+    with lane_lock(path) as held:
+        if not held:
+            raise LaneError(f"ledger lock busy for {path}")
+        old: str = path.read_text(encoding="utf-8") if path.is_file() else ""
+        atomic_write(path, old + line + "\n")
+
+
+def ledger_emitter(runs_dir: Path, stamp: str, lane_id: str) -> Any:
+    return lambda event: append_ledger(runs_dir, stamp, {"lane": lane_id, **event})
+
+
+def snapshot_stall(folder: Path, path: Path, data: dict[str, Any], now: int) -> str:
+    """Keep the stalled lane's last status.json and `git diff` in its run dir; the diff file's path."""
+    atomic_write(folder / f"stall-{now}-status.json", path.read_text(encoding="utf-8"))
+    worktree: Any = data.get("worktree")
+    code, out = (run([*binary("DTS2_GIT_BIN", "git"), "diff"], Path(worktree))
+                 if isinstance(worktree, str) and Path(worktree).is_dir() else (1, ""))
+    diff: Path = folder / f"stall-{now}.diff"
+    atomic_write(diff, out[:MAX_DIFF_BYTES] if code == 0 else "")
+    return str(diff)
+
+
+def mark_stalled(runs_dir: Path, stamp: str, path: Path, data: dict[str, Any], row: dict[str, Any], now: int) -> None:
+    row["snapshot"] = snapshot_stall(path.parent, path, data, now)
+    merge_json(path, {"status": PHASE_INCOMPLETE, "reason": REASON_STALLED, "stalled_at": now,
+                      "snapshot": row["snapshot"]})
+    append_ledger(runs_dir, stamp, {"lane": row["lane"], "event": "stalled", "last_seen": row["last_seen"],
+                                    "snapshot": row["snapshot"]})
 
 
 def status(runs_dir: Path, stamp: str, cwd: Path) -> dict[str, Any]:
-    """Every son's phase from status.json; a quiet non-terminal son past builder_timeout_min is stalled (autopilot §4)."""
+    """Every son's phase from status.json. A lane with a heartbeat is stalled after stall_minutes without one, any other
+    quiet non-terminal lane after builder_timeout_min (autopilot §4); a stalled lane is snapshotted and marked incomplete."""
     threshold: int = stale_after(cwd)
+    stall_s: int = read_supervisor(cwd)["stall_minutes"] * SECONDS_PER_MINUTE
     now: int = int(time.time())
-    lanes: list[dict[str, Any]] = [lane_status(p, d, threshold, now) for p, d in read_status_files(runs_dir, stamp)]
-    return {"ok": True, "stamp": stamp, "stale_after_s": threshold, "lanes": lanes}
+    rows: list[dict[str, Any]] = []
+    for path, data in read_status_files(runs_dir, stamp):
+        row: dict[str, Any] = lane_status(path, data, threshold, now, stall_s)
+        if row["stale"]:
+            mark_stalled(runs_dir, stamp, path, data, row, now)
+        rows.append(row)
+    return {"ok": True, "stamp": stamp, "stale_after_s": threshold, "stall_after_s": stall_s, "lanes": rows}
+
+
+def heartbeat(runs_dir: Path, stamp: str, lane_id: str, turn: int | None) -> dict[str, Any]:
+    """Stamp the lane's status.json at a turn boundary; creates it when the son has not written one yet."""
+    path: Path = runs_dir / stamp / lane_id / STATUS_NAME
+    now: int = int(time.time())
+    changes: dict[str, Any] = {"lane": lane_id, "heartbeat": now}
+    if turn is not None:
+        changes["turn"] = turn
+    merged: dict[str, Any] = merge_json(path, changes)
+    return {"ok": True, "lane": lane_id, "heartbeat": now, "status": merged.get("status")}
 
 
 def sendback(runs_dir: Path, stamp: str, lane_id: str, reason: str) -> dict[str, Any]:
@@ -713,8 +829,349 @@ def report_check(path: Path, lane_ids: list[str]) -> dict[str, Any]:
     return {"ok": not missing, "report": str(path), "missing": missing}
 
 
+def read_json_object(path: Path) -> dict[str, Any]:
+    return read_lease(path) or {}
+
+
+def new_budget(now: int) -> dict[str, Any]:
+    return {"started": now, "spent_usd": 0.0, "unknown_calls": 0, "loops": 0, "lanes": {}}
+
+
+def charge(budget: dict[str, Any], key: str, session: str | None, reported: float | None) -> tuple[dict[str, Any], float | None]:
+    """Add one call's spend to the counter. `reported` is what the CLI printed for the whole session, which is
+    cumulative on a resumed session: charge only the part above what that session already reported. A missing or zero
+    cost is unknown (counted in unknown_calls), never zero spend."""
+    lanes: dict[str, Any] = {k: dict(v) for k, v in (budget.get("lanes") or {}).items()}
+    entry: dict[str, Any] = lanes.setdefault(key, {"rounds": 0, "sessions": {}})
+    entry["rounds"] = int(entry.get("rounds", 0)) + 1
+    if reported is None:
+        return {**budget, "lanes": lanes, "unknown_calls": int(budget.get("unknown_calls", 0)) + 1}, None
+    sessions: dict[str, float] = dict(entry.get("sessions") or {})
+    previous: float = float(sessions.get(session or "", 0.0))
+    delta: float = round(reported - previous if reported >= previous else reported, 6)
+    sessions[session or ""] = reported
+    entry["sessions"] = sessions
+    entry["charged_usd"] = round(float(entry.get("charged_usd", 0.0)) + delta, 6)
+    return {**budget, "lanes": lanes, "spent_usd": round(float(budget.get("spent_usd", 0.0)) + delta, 6)}, delta
+
+
+def spend_state(runs_dir: Path, stamp: str, cwd: Path) -> dict[str, Any]:
+    caps: dict[str, Any] = read_budget(cwd)
+    budget: dict[str, Any] = read_json_object(runs_dir / stamp / BUDGET_NAME)
+    spent: float = float(budget.get("spent_usd", 0.0))
+    left: float | None = None if caps["max_usd"] is None else round(caps["max_usd"] - spent, 6)
+    return {"caps": caps, "budget": budget, "spent_usd": spent, "remaining_usd": left,
+            "spend_complete": int(budget.get("unknown_calls", 0)) == 0}
+
+
+def budget_report(runs_dir: Path, stamp: str, cwd: Path) -> dict[str, Any]:
+    state: dict[str, Any] = spend_state(runs_dir, stamp, cwd)
+    elapsed: int = int(time.time()) - int(state["budget"].get("started", time.time()))
+    return {"ok": True, "stamp": stamp, "caps": state["caps"], "spent_usd": state["spent_usd"],
+            "remaining_usd": state["remaining_usd"], "spend_complete": state["spend_complete"],
+            "unknown_calls": int(state["budget"].get("unknown_calls", 0)), "loops": int(state["budget"].get("loops", 0)),
+            "elapsed_s": max(elapsed, 0), "lanes": state["budget"].get("lanes", {})}
+
+
+def budget_refusal(state: dict[str, Any], lane_id: str | None, now: int) -> str | None:
+    """Why no further model call may start, or None. Rounds count starts of one lane; wall time counts from the first."""
+    caps: dict[str, Any] = state["caps"]
+    if state["remaining_usd"] is not None and state["remaining_usd"] <= 0:
+        return f"max_usd {caps['max_usd']} reached"
+    started: Any = state["budget"].get("started")
+    if isinstance(started, (int, float)) and now - started >= caps["max_wall_minutes"] * SECONDS_PER_MINUTE:
+        return f"max_wall_minutes {caps['max_wall_minutes']} reached"
+    rounds: int = int(((state["budget"].get("lanes") or {}).get(lane_id or "") or {}).get("rounds", 0))
+    if lane_id and rounds >= caps["max_rounds"]:
+        return f"max_rounds {caps['max_rounds']} reached for lane {lane_id}"
+    return None
+
+
+def record_spend(runs_dir: Path, stamp: str, key: str, parsed: dict[str, Any] | None) -> float | None:
+    """Fold one call's usage into budget.json under its lock; the amount charged, or None when the cost is unknown."""
+    path: Path = runs_dir / stamp / BUDGET_NAME
+    with lane_lock(path) as held:
+        if not held:
+            raise LaneError("budget lock busy")
+        budget: dict[str, Any] = read_json_object(path) or new_budget(int(time.time()))
+        updated, delta = charge(budget, key, (parsed or {}).get("session_id"), (parsed or {}).get("cost_usd"))
+        atomic_write(path, json.dumps(updated, indent=2) + "\n")
+    return delta
+
+
+def start_clock(runs_dir: Path, stamp: str) -> None:
+    path: Path = runs_dir / stamp / BUDGET_NAME
+    with lane_lock(path) as held:
+        if held and not path.is_file():
+            atomic_write(path, json.dumps(new_budget(int(time.time())), indent=2) + "\n")
+
+
+def claude_version(cwd: Path) -> str | None:
+    code, out = run([*binary("DTS2_CLAUDE_BIN", "claude"), "--version"], cwd)
+    return cli_version(out) if code == 0 else None
+
+
+def preflight(runs_dir: Path, stamp: str, cwd: Path) -> dict[str, Any]:
+    """Pin `claude --version` in the run's run.json and prove `claude -p` answers within 30 s. A second preflight that
+    finds another version refuses (the CLI changed mid-run). Fails closed: spawn refuses without a passing preflight."""
+    path: Path = runs_dir / stamp / RUN_NAME
+    pinned: Any = read_json_object(path).get("claude_version")
+    version: str | None = claude_version(cwd)
+    emit = ledger_emitter(runs_dir, stamp, "-")
+    call: dict[str, Any] = invoke(binary("DTS2_CLAUDE_BIN", "claude") + ["-p", "ok", "--output-format", "json"], cwd,
+                                  PREFLIGHT_TIMEOUT_S, "preflight", emit)
+    parsed: dict[str, Any] | None = parse_result(call["stdout"])
+    problems: list[str] = []
+    if version is None:
+        problems.append("cannot read `claude --version`")
+    elif isinstance(pinned, str) and pinned != version:
+        problems.append(f"claude {version} differs from the version {pinned} pinned for this run")
+    if call["code"] != 0 or parsed is None or parsed["is_error"]:
+        problems.append(f"`claude -p ok --output-format json` failed (exit {call['code']})")
+    ok: bool = not problems
+    record: dict[str, Any] = {"claude_version": pinned if isinstance(pinned, str) else version, "preflight_ok": ok,
+                              "checked": int(time.time()), "problems": problems}
+    merge_json(path, record)
+    append_ledger(runs_dir, stamp, {"lane": "-", "event": "preflight", "ok": ok, "version": version,
+                                    "problems": problems})
+    return {"ok": ok, "stamp": stamp, "claude_version": record["claude_version"], "problems": problems}
+
+
+def spawn_refusal(runs_dir: Path, stamp: str, cwd: Path, lane_id: str) -> tuple[str, str] | None:
+    """(reason, detail) when a son must not start: no passing preflight, a different CLI version, or a spent cap."""
+    pinned: dict[str, Any] = read_json_object(runs_dir / stamp / RUN_NAME)
+    if pinned.get("preflight_ok") is not True or not isinstance(pinned.get("claude_version"), str):
+        return REASON_PREFLIGHT, "run `lanes.py preflight` first; no passing preflight is recorded for this run"
+    current: str | None = claude_version(cwd)
+    if current != pinned["claude_version"]:
+        return REASON_SKEW, f"claude is {current}, the run is pinned to {pinned['claude_version']}"
+    why: str | None = budget_refusal(spend_state(runs_dir, stamp, cwd), lane_id, int(time.time()))
+    return (REASON_BUDGET, why) if why else None
+
+
+def park(runs_dir: Path, stamp: str, lane_id: str, reason: str, detail: str, session: str | None = None) -> None:
+    """End a lane as incomplete with the reason on record. A lane that already finished (done or blocked) is left alone."""
+    path: Path = runs_dir / stamp / lane_id / STATUS_NAME
+    if read_json_object(path).get("status") in SETTLED_PHASES:
+        return
+    changes: dict[str, Any] = {"lane": lane_id, "status": PHASE_INCOMPLETE, "reason": reason, "detail": detail,
+                               "parked_at": int(time.time())}
+    sessions: dict[str, Any] = (((read_json_object(runs_dir / stamp / BUDGET_NAME).get("lanes") or {})
+                                 .get(lane_id) or {}).get("sessions") or {})
+    if session and session in sessions:
+        changes["cost_at_park"] = sessions[session]
+    merge_json(path, changes)
+    append_ledger(runs_dir, stamp, {"lane": lane_id, "event": "park", "reason": reason, "detail": detail})
+
+
+def exit_reason(call: dict[str, Any], parsed: dict[str, Any] | None) -> str | None:
+    """Why a finished son call ends the lane incomplete (None when it ended cleanly). Exit 143 is the wall-clock kill."""
+    if call["code"] == 75:
+        return REASON_SLOT
+    if call["timed_out"] or is_terminated(call["code"]):
+        return REASON_TIMEOUT
+    subtype: str | None = (parsed or {}).get("subtype")
+    if subtype == SUBTYPE_MAX_TURNS:
+        return REASON_MAX_TURNS
+    if subtype == SUBTYPE_MAX_BUDGET:
+        return REASON_BUDGET
+    if call["code"] != 0 or (parsed or {}).get("is_error"):
+        return REASON_ERROR
+    return None
+
+
+def spawn(manifest: dict[str, Any], lane_id: str, worktree: Path, runs_dir: Path, cwd: Path, resume: bool) -> dict[str, Any]:
+    """Start (or with resume, continue) one son under every cap, wait for it, then record session id, spend, fallback and
+    exit reason. The only place a son process is started."""
+    stamp: str = str(manifest["stamp"])
+    find_lane(manifest, lane_id)
+    refusal: tuple[str, str] | None = spawn_refusal(runs_dir, stamp, cwd, lane_id)
+    if refusal is not None:
+        park(runs_dir, stamp, lane_id, refusal[0], refusal[1])
+        return {"ok": False, "lane": lane_id, "reason": refusal[0], "detail": refusal[1]}
+    status_path: Path = runs_dir / stamp / lane_id / STATUS_NAME
+    session: Any = read_json_object(status_path).get("session_id") if resume else None
+    if resume and not (isinstance(session, str) and session):
+        park(runs_dir, stamp, lane_id, REASON_ERROR, "no session_id in status.json to resume")
+        return {"ok": False, "lane": lane_id, "reason": REASON_ERROR, "detail": "no session_id to resume"}
+    start_clock(runs_dir, stamp)
+    state: dict[str, Any] = spend_state(runs_dir, stamp, cwd)
+    command: dict[str, Any] = son_command(manifest, lane_id, worktree, cwd, state["remaining_usd"], session)
+    left_s: float = (state["caps"]["max_wall_minutes"] * SECONDS_PER_MINUTE
+                     - (time.time() - float(state["budget"].get("started", time.time()))))
+    merge_json(status_path, {"lane": lane_id, "worktree": str(worktree), "heartbeat": int(time.time()),
+                             **({} if read_json_object(status_path).get("status") else {"status": PHASE_STARTING})})
+    emit = ledger_emitter(runs_dir, stamp, lane_id)
+    call: dict[str, Any] = invoke(command["argv"], worktree, max(left_s, 1.0), f"son:{lane_id}", emit, root=cwd)
+    parsed: dict[str, Any] | None = parse_result(call["stdout"])
+    return finish_son(runs_dir, stamp, lane_id, worktree, call, parsed, emit)
+
+
+def finish_son(runs_dir: Path, stamp: str, lane_id: str, worktree: Path, call: dict[str, Any], parsed: dict[str, Any] | None,
+               emit: Any) -> dict[str, Any]:
+    status_path: Path = runs_dir / stamp / lane_id / STATUS_NAME
+    session: str | None = (parsed or {}).get("session_id")
+    charged: float | None = record_spend(runs_dir, stamp, lane_id, parsed)
+    fallback: str | None = fallback_used(parsed, SON_MODEL)
+    changes: dict[str, Any] = {"lane": lane_id, "worktree": str(worktree), "heartbeat": int(time.time())}
+    if session:
+        changes["session_id"] = session
+    if fallback:
+        changes["fallback_model"] = fallback
+        emit({"event": "fallback", "model": fallback, "primary": SON_MODEL})
+    merge_json(status_path, changes)
+    reason: str | None = exit_reason(call, parsed)
+    phase: str = str(read_json_object(status_path).get("status", ""))
+    if reason is None and phase not in TERMINAL_PHASES | {PHASE_PR_OPEN}:
+        reason = REASON_NO_STATUS
+    detail: str = f"exit {call['code']}, {call['retries']} retries"
+    if reason is not None:
+        park(runs_dir, stamp, lane_id, reason, detail, session)
+    emit({"event": "son-exit", "code": call["code"], "reason": reason, "cost_usd": (parsed or {}).get("cost_usd"),
+          "charged_usd": charged, "cost_known": charged is not None, "retries": call["retries"]})
+    return {"ok": reason is None, "lane": lane_id, "reason": reason, "exit": call["code"],
+            "session_id": session, "cost_usd": (parsed or {}).get("cost_usd"), "charged_usd": charged,
+            "cost_known": charged is not None, "fallback_model": fallback, "retries": call["retries"]}
+
+
+def model_call(runs_dir: Path, stamp: str, cwd: Path, label: str, argv: list[str], timeout_s: int,
+               out: Path | None) -> dict[str, Any]:
+    """Any non-son model call (a panel voter, a council seat) behind the same slot limit, backoff and ledger."""
+    if not argv:
+        raise LaneError("call needs a command after --")
+    why: str | None = budget_refusal(spend_state(runs_dir, stamp, cwd), None, int(time.time()))
+    if why:
+        append_ledger(runs_dir, stamp, {"lane": label, "event": "refused", "reason": why})
+        return {"ok": False, "label": label, "reason": REASON_BUDGET, "detail": why}
+    call: dict[str, Any] = invoke(argv, cwd, timeout_s, label, ledger_emitter(runs_dir, stamp, label))
+    parsed: dict[str, Any] | None = parse_result(call["stdout"])
+    charged: float | None = record_spend(runs_dir, stamp, f"call:{label}", parsed)
+    if out is not None:
+        atomic_write(out, call["stdout"])
+    return {"ok": call["code"] == 0 and not (parsed or {}).get("is_error"), "label": label, "code": call["code"],
+            "timed_out": call["timed_out"], "retries": call["retries"], "charged_usd": charged,
+            "cost_known": charged is not None, "stdout": None if out is not None else call["stdout"],
+            "out": str(out) if out is not None else None, "stderr": call["stderr"][-2000:]}
+
+
+def loop(runs_dir: Path, stamp: str, cwd: Path) -> dict[str, Any]:
+    """Count one more fullauto round. Past max_fullauto_loops the run parks as incomplete with the ledger written."""
+    start_clock(runs_dir, stamp)
+    path: Path = runs_dir / stamp / BUDGET_NAME
+    cap: int = read_budget(cwd)["max_fullauto_loops"]
+    merged: dict[str, Any] = merge_json(path, {"loops": int(read_json_object(path).get("loops", 0)) + 1})
+    count: int = int(merged["loops"])
+    if count > cap:
+        append_ledger(runs_dir, stamp, {"lane": "-", "event": "park", "reason": REASON_LOOPS,
+                                        "detail": f"max_fullauto_loops {cap} reached"})
+        return {"ok": False, "stamp": stamp, "loops": count, "max": cap, "stop": True, "status": PHASE_INCOMPLETE,
+                "reason": REASON_LOOPS}
+    return {"ok": True, "stamp": stamp, "loops": count, "max": cap, "stop": False}
+
+
+def merge_sequence(manifest: dict[str, Any]) -> list[str]:
+    """Dependency order first, then manifest lane order (a stable topological sort). A cycle is a manifest error."""
+    ids: list[str] = [str(lane["id"]) for lane in manifest["lanes"]]
+    needs: dict[str, set[str]] = {str(lane["id"]): {str(d) for d in (lane.get("depends_on") or []) if str(d) in ids}
+                                  for lane in manifest["lanes"]}
+    ordered: list[str] = []
+    while len(ordered) < len(ids):
+        ready: list[str] = [i for i in ids if i not in ordered and needs[i] <= set(ordered)]
+        if not ready:
+            raise LaneError("depends_on has a cycle; no merge order exists")
+        ordered.append(ready[0])
+    return ordered
+
+
+def merge_state(runs_dir: Path, manifest: dict[str, Any]) -> dict[str, Any]:
+    path: Path = runs_dir / str(manifest["stamp"]) / MERGE_ORDER_NAME
+    saved: dict[str, Any] = read_json_object(path)
+    return {"order": merge_sequence(manifest), "merged": list(saved.get("merged") or []),
+            "current": saved.get("current")}
+
+
+def lane_phase(runs_dir: Path, stamp: str, lane_id: str) -> str:
+    return str(read_json_object(runs_dir / stamp / lane_id / STATUS_NAME).get("status", ""))
+
+
+def merge_order(manifest: dict[str, Any], runs_dir: Path) -> dict[str, Any]:
+    """Write merge-order.json (the order, which lanes merged, which one holds the merge) and say who is next."""
+    stamp: str = str(manifest["stamp"])
+    state: dict[str, Any] = merge_state(runs_dir, manifest)
+    atomic_write(runs_dir / stamp / MERGE_ORDER_NAME, json.dumps(state, indent=2) + "\n")
+    return {"ok": True, "stamp": stamp, **state, "next": next_to_merge(runs_dir, stamp, state)}
+
+
+def next_to_merge(runs_dir: Path, stamp: str, state: dict[str, Any]) -> str | None:
+    """The first unmerged lane in order that is waiting at pr-open; None while a merge is in flight or an earlier lane
+    is still building (it keeps its place). Lanes parked incomplete or blocked lose their turn."""
+    if state["current"]:
+        return None
+    for lane_id in state["order"]:
+        phase: str = lane_phase(runs_dir, stamp, lane_id)
+        if lane_id in state["merged"] or phase in (PHASE_INCOMPLETE, PHASE_BLOCKED):
+            continue
+        return lane_id if phase == PHASE_PR_OPEN else None
+    return None
+
+
+def merge_go(manifest: dict[str, Any], runs_dir: Path, lane_id: str, head: str) -> dict[str, Any]:
+    """Write the lane's merge-go.md, only when it is next in order and no other merge is in flight."""
+    stamp: str = str(manifest["stamp"])
+    find_lane(manifest, lane_id)
+    state: dict[str, Any] = merge_state(runs_dir, manifest)
+    if state["current"]:
+        return {"ok": False, "lane": lane_id, "detail": f"lane {state['current']} holds the merge; one merge at a time"}
+    expected: str | None = next_to_merge(runs_dir, stamp, state)
+    if expected != lane_id:
+        return {"ok": False, "lane": lane_id, "next": expected,
+                "detail": f"{lane_id} is not next to merge ({expected or 'none is waiting at pr-open'})"}
+    path: Path = runs_dir / stamp / lane_id / MERGE_GO_NAME
+    atomic_write(path, f"# Merge go for lane {lane_id}\n\nVerified head: {head}\nGranted: {int(time.time())}\n")
+    atomic_write(runs_dir / stamp / MERGE_ORDER_NAME, json.dumps({**state, "current": lane_id}, indent=2) + "\n")
+    return {"ok": True, "lane": lane_id, "path": str(path), "head": head}
+
+
+def merge_done(manifest: dict[str, Any], runs_dir: Path, lane_id: str) -> dict[str, Any]:
+    stamp: str = str(manifest["stamp"])
+    state: dict[str, Any] = merge_state(runs_dir, manifest)
+    if state["current"] != lane_id:
+        return {"ok": False, "lane": lane_id, "detail": f"lane {lane_id} does not hold the merge"}
+    done: dict[str, Any] = {**state, "merged": [*state["merged"], lane_id], "current": None}
+    atomic_write(runs_dir / stamp / MERGE_ORDER_NAME, json.dumps(done, indent=2) + "\n")
+    return {"ok": True, "lane": lane_id, "merged": done["merged"]}
+
+
 def split_ids(raw: str) -> list[str]:
     return [part.strip() for part in raw.split(",") if part.strip()]
+
+
+def add_supervisor_parsers(sub: Any) -> None:
+    """Subcommands that start models and keep the budget, heartbeat and merge order."""
+    for name in ("preflight", "budget", "loop"):
+        sub.add_parser(name).add_argument("stamp")
+    spawn_p = sub.add_parser("spawn")
+    spawn_p.add_argument("manifest")
+    spawn_p.add_argument("--lane", required=True)
+    spawn_p.add_argument("--worktree", required=True)
+    spawn_p.add_argument("--resume", action="store_true", help="continue the lane's saved session with --resume")
+    call_p = sub.add_parser("call")
+    call_p.add_argument("stamp")
+    call_p.add_argument("--label", required=True)
+    call_p.add_argument("--timeout", type=int, default=DEFAULT_CALL_TIMEOUT_S)
+    call_p.add_argument("--out", default=None, help="write stdout here instead of returning it; the command follows --")
+    beat_p = sub.add_parser("heartbeat")
+    beat_p.add_argument("stamp")
+    beat_p.add_argument("--lane", required=True)
+    beat_p.add_argument("--turn", type=int, default=None)
+    sub.add_parser("merge-order").add_argument("manifest")
+    go_p = sub.add_parser("merge-go")
+    go_p.add_argument("manifest")
+    go_p.add_argument("--lane", required=True)
+    go_p.add_argument("--head", required=True, help="the verified HEAD sha the merge is cleared for")
+    done_p = sub.add_parser("merge-done")
+    done_p.add_argument("manifest")
+    done_p.add_argument("--lane", required=True)
 
 
 def add_run_parsers(sub: Any) -> None:
@@ -736,6 +1193,7 @@ def add_run_parsers(sub: Any) -> None:
         else:
             lane_p.add_argument("--epoch", type=int, default=None, help="refuse when older than the stored epoch")
     sub.add_parser("fold").add_argument("stamp")
+    add_supervisor_parsers(sub)
     stop_p = sub.add_parser("stop-check")
     stop_p.add_argument("stamp")
     stop_p.add_argument("--from-checkin", required=True)
@@ -792,6 +1250,21 @@ def dispatch_run(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> dict[st
         return report_check(Path(args.report), split_ids(args.lanes))
     if args.command == "branch-check":
         return branch_check(args.stamp, split_ids(args.lanes), cwd)
+    return dispatch_supervisor(args, runs_dir, cwd)
+
+
+def dispatch_supervisor(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> dict[str, Any] | None:
+    if args.command == "preflight":
+        return preflight(runs_dir, args.stamp, cwd)
+    if args.command == "budget":
+        return budget_report(runs_dir, args.stamp, cwd)
+    if args.command == "loop":
+        return loop(runs_dir, args.stamp, cwd)
+    if args.command == "heartbeat":
+        return heartbeat(runs_dir, args.stamp, args.lane, args.turn)
+    if args.command == "call":
+        return model_call(runs_dir, args.stamp, cwd, args.label, args.command_argv, args.timeout,
+                          Path(args.out) if args.out else None)
     return None
 
 
@@ -805,12 +1278,28 @@ def dispatch(args: argparse.Namespace) -> dict[str, Any]:
     if args.command == "lease":
         return lease(manifest, args.lane, runs_dir, cwd, not args.no_prs, args.epoch)
     if args.command == "son-command":
-        return son_command(manifest, args.lane, Path(args.worktree), cwd)
+        remaining: float | None = spend_state(runs_dir, str(manifest["stamp"]), cwd)["remaining_usd"]
+        return son_command(manifest, args.lane, Path(args.worktree), cwd, remaining)
+    if args.command == "spawn":
+        return spawn(manifest, args.lane, Path(args.worktree), runs_dir, cwd, args.resume)
+    if args.command == "merge-order":
+        return merge_order(manifest, runs_dir)
+    if args.command == "merge-go":
+        return merge_go(manifest, runs_dir, args.lane, args.head)
+    if args.command == "merge-done":
+        return merge_done(manifest, runs_dir, args.lane)
     return check(manifest, runs_dir, cwd, not args.no_prs)
 
 
+def split_command(argv: list[str]) -> tuple[list[str], list[str]]:
+    """Everything after the first `--` is a command for `call`, kept away from argparse."""
+    return (argv[:argv.index("--")], argv[argv.index("--") + 1:]) if "--" in argv else (argv, [])
+
+
 def main() -> int:
-    args = build_parser().parse_args()
+    own, command = split_command(sys.argv[1:])
+    args = build_parser().parse_args(own)
+    args.command_argv = command
     try:
         result: dict[str, Any] = dispatch(args)
     except LaneError as error:
