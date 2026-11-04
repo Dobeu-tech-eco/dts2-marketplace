@@ -44,7 +44,7 @@ Goal: only `main` and `dev` remain, with every other branch either merged, folde
    - **foldable PR**: opened by the same author as the ship branch, same base, touching only files the ship branch also touches, mergeable → offer to fold: cherry-pick its commits onto the ship branch, push, and close it with `Folded into #<n>`.
    - **stale branch**: no open PR, last commit older than 30 days, not merged, not in the never-touched list → delete (tip SHA recorded first).
    - **review**: anything else (an open PR updated in the last 14 days counts as active) → listed, untouched.
-4. Show the table (`branch | PR | class | action`) and ask once: `Apply this cleanup? (yes / edit / skip)`. Nothing is deleted, closed or folded without that yes. Under `autopilot` there is no question, and the sweep is narrower: it deletes only branches autopilot itself created (`dts2/<stamp>-*` whose PR is merged) and closes nothing; every other row is reported for the user.
+4. Show the table (`branch | PR | class | action`) and ask once: `Apply this cleanup? (yes / edit / skip)`. Nothing is deleted, closed or folded without that yes. Under `autopilot` there is no question, and the sweep is narrower: it deletes only branches autopilot itself created (`dts2/<stamp>/step-*` whose PR is merged) and closes nothing; every other row is reported for the user.
 5. Apply: `gh pr close <n> --comment <reason>`, `git push origin --delete <branch>`, `git branch -D <branch>` for local copies, `git worktree prune`. Write every deleted branch's name and tip SHA to `.harness/runs/ship-<stamp>/cleanup.md` before deleting it.
 
 ## 8. After ship
