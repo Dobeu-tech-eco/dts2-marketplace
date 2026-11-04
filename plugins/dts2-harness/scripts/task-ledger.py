@@ -88,14 +88,29 @@ def is_open_pr(lane: dict[str, Any], open_numbers: set[int] | None) -> bool:
     return pr in open_numbers if open_numbers is not None else True
 
 
-def pr_row(lane: dict[str, Any], items: dict[str, dict[str, Any]]) -> dict[str, Any]:
-    blocked_by: list[str] = sorted(str(i) for i in lane.get("blocked_by", []))
-    return {
-        "pr": lane["pr"], "lane": lane.get("lane", ""), "branch": lane.get("branch", ""),
-        "status": lane.get("status", ""), "tasks": list(lane.get("tasks", [])), "blocked_by": blocked_by,
-        "items": [{"id": i, "item": items.get(i, {}).get("item", UNKNOWN_ITEM),
-                   "status": items.get(i, {}).get("status", "")} for i in blocked_by],
-    }
+def merge_lanes(lanes: list[dict[str, Any]]) -> dict[str, Any]:
+    """One PR can carry several folded lanes: take lane-ordered fields from the first, union the rest."""
+    ordered: list[dict[str, Any]] = sorted(lanes, key=lambda lane: str(lane.get("lane", "")))
+    first: dict[str, Any] = ordered[0]
+    tasks: list[str] = list(dict.fromkeys(str(t) for lane in ordered for t in lane.get("tasks", [])))
+    blocked_by: list[str] = sorted({str(i) for lane in ordered for i in lane.get("blocked_by", [])})
+    return {"pr": first["pr"], "lane": first.get("lane", ""), "lanes": [str(lane.get("lane", "")) for lane in ordered],
+            "branch": first.get("branch", ""), "status": first.get("status", ""), "tasks": tasks, "blocked_by": blocked_by}
+
+
+def pr_row(lanes: list[dict[str, Any]], items: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    row: dict[str, Any] = merge_lanes(lanes)
+    row["items"] = [{"id": i, "item": items.get(i, {}).get("item", UNKNOWN_ITEM),
+                     "status": items.get(i, {}).get("status", "")} for i in row["blocked_by"]]
+    return row
+
+
+def group_by_pr(lanes: list[dict[str, Any]], open_numbers: set[int] | None) -> dict[int, list[dict[str, Any]]]:
+    grouped: dict[int, list[dict[str, Any]]] = {}
+    for lane in lanes:
+        if is_open_pr(lane, open_numbers):
+            grouped.setdefault(lane["pr"], []).append(lane)
+    return grouped
 
 
 def is_resolved(row: dict[str, Any]) -> bool:
@@ -116,8 +131,8 @@ def build_ledger(cwd: Path, runs_dir: Path, stamp: str, out: Path | None, resolv
     items: dict[str, dict[str, Any]] = read_items(cwd, today)
     open_numbers: set[int] | None = open_pr_numbers(cwd)
     lanes: list[dict[str, Any]] = read_lanes(runs_dir / stamp)
-    rows: list[dict[str, Any]] = sorted(
-        (pr_row(lane, items) for lane in lanes if is_open_pr(lane, open_numbers)), key=lambda r: r["pr"])
+    grouped: dict[int, list[dict[str, Any]]] = group_by_pr(lanes, open_numbers)
+    rows: list[dict[str, Any]] = [pr_row(grouped[number], items) for number in sorted(grouped)]
     blocking: list[str] = sorted({i for row in rows for i in row["blocked_by"]})
     path: Path = out if out is not None else runs_dir / stamp / LEDGER_NAME
     path.write_text(ledger_markdown(stamp, rows, blocking), encoding="utf-8")
