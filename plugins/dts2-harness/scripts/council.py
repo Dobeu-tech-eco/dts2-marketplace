@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from state_io import atomic_write  # noqa: E402
+from state_io import append_text, atomic_write  # noqa: E402
 
 DECISIONS_HEADER: Final[str] = ("# Council decisions\n\nEvery autopilot step that went to council: the vote, each member's reasons, "
                                 "the decision, and the head of council's brief. Appended, never rewritten.\n")
@@ -232,8 +232,7 @@ def write_ledger(ballots_dir: Path, tally_result: dict[str, Any], decision_path:
         body: str = section(text, heading)
         if body:
             parts += [f"### {heading[3:]}\n", body, ""]
-    existing: str = out.read_text(encoding="utf-8") if out.exists() else DECISIONS_HEADER
-    atomic_write(out, existing + "\n".join(parts) + "\n")
+    append_text(out, "\n".join(parts) + "\n", header=DECISIONS_HEADER)
     return {"ok": bool(seats) and decision != "NONE", "decision": decision, "seats": len(seats), "out": str(out)}
 
 
