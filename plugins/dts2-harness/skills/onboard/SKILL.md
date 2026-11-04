@@ -1,6 +1,6 @@
 ---
 name: onboard
-description: Explain the dts2 harness — its six agents, thirteen skills, agent roster, team tiers, lessons memory, and headless runner — and recommend where to start. Use when the user asks what dts2 does, how to use it, which skill fits a job, or is new to the harness on this machine or repo.
+description: Explain the dts2 harness — its six agents, fifteen skills, agent roster, team tiers, lessons memory, and headless runner — and recommend where to start. Use when the user asks what dts2 does, how to use it, which skill fits a job, or is new to the harness on this machine or repo.
 ---
 
 # dts2 harness — orientation
@@ -26,12 +26,14 @@ Explanation only. Do not invoke agents or change files from this skill.
 | `evolve` | Change the harness itself in its source repo: edit, validate, test, bump both manifests, commit; push only on an explicit yes. |
 | `action-items` | List open secrets, decisions, handoffs, deploy steps and promotions with the command that resolves each; `done`, `add`, `assign`. Pass-off for any agent: `.harness/handoff/latest.md`, resumed with `run resume`. |
 | `gtm` | Go-to-market in one seamless pass: auto-installs `marketing-skills` if missing, runs a deep-dive, picks the applicable skills, and ends in a `readiness.md` scorecard. |
-| `upgrade` | `/dts2-harness:upgrade` is the one-command in-place upgrade: handoff, marketplace update, verify the version advanced, then re-run from the handoff. |
+| `ship` | `/dts2-harness:ship` opens a PR on your own initiative: pre-check, type/lint/test/build, secret and do-not-touch scan, verifier and reviewer, receipt, PR template, push and open; then sweeps PRs and branches so only main and dev remain. Never merges. |
+| `feature` | `/dts2-harness:feature <idea>` adds a feature to the roadmap: clarity score, a scoped deep interview when it is unclear, the lead writes it into the end state and every plan doc, then a PR. |
+| `autopilot` | `/dts2-harness:autopilot <steps>` runs steps unattended: three frontier providers must agree on the plan and the build (Claude Fable 5.1 breaks a split), one PR per step merged on green CI before the next. Progress shows in check-in. |
 | `model` | `/dts2-harness:model` picks which agent provider leads (the lead, advisory and sign-off seats); default Claude. Builders are unaffected. |
 | `find-skills` | `/dts2-harness:find-skills` is available any time: rescan the repo, answer one to three questions, get suggested skills, and wire the ones you pick into the project. |
 | `check-in` | `/dts2-harness:check-in` is available any time: a read-only checklist from where the project started through the approved end state, each item marked complete or outstanding, with an `N of M complete` percent. |
 
-Setup and run pull in companion skills from mattpocock/skills at the moment they are needed (grill-me, improve-codebase-architecture, writing-for-agents, pr, resolving-merge-conflicts, plus ask-matt and research for your questions, improve-codebase-architecture again before tests, diagnosing-bugs again at the hard 3-round fix cap, loop-me when a run starts, setup-pre-commit before every commit, and code-review on first contact with a new repo), recorded in keep.yaml.
+Setup and run pull in companion skills from mattpocock/skills at the moment they are needed (grill-me, improve-codebase-architecture, writing-for-agents, pr, resolve-merge-conflicts (from warpdotdev/common-skills, since mattpocock retired its version), plus ask-matt and research for your questions, improve-codebase-architecture again before tests, diagnosing-bugs again at the hard 3-round fix cap, loop-me when a run starts, setup-pre-commit before every commit, and code-review on first contact with a new repo), recorded in keep.yaml. A pre-check before every run command installs any that are missing, updates them all, swaps one that is gone upstream, refreshes plugin marketplaces, and when a newer harness is published saves your spot and upgrades; the next run finishes the upgrade itself (there is no separate upgrade command). After every ship, open harness lessons are offered through evolve automatically.
 
 Setup maps the whole project into sections; `run` keeps builders busy on ready sections and parks stuck ones instead of stopping. The `run` skill pivots to the workspace root when started inside a member repo, and a context guard stops it and re-runs setup on a context spike.
 
