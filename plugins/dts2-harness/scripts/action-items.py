@@ -31,6 +31,9 @@ LESSON_ID: Final[re.Pattern[str]] = re.compile(r"L-\d+")
 ROW_ID: Final[re.Pattern[str]] = re.compile(r"^([A-Z])(\d+)$")
 SECRET_ASSIGNMENT: Final[re.Pattern[str]] = re.compile(r"\b([A-Z][A-Z0-9_]{2,})=\S+")
 FALLBACK_HANDOFF: Final[str] = "open .harness/handoff/"
+# User-input items that came out of an onboard task carry its id: TASK_<task id>_<item id>-<title>.
+TASK_PREFIX: Final[str] = "TASK_"
+TASK_TITLE: Final[re.Pattern[str]] = re.compile(r"^TASK_([^_\s]+)_([A-Z]\d+)-")
 
 
 class ActionItemsError(Exception):
@@ -288,10 +291,34 @@ def write_lines(path: Path, lines: list[str]) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def first_cell(lines: list[str], row_id: str) -> str:
+    table, position = locate(lines, row_id)
+    return split_row(lines[table.row_at[position]])[0]
+
+
+def task_title(task: str, row_id: str, text: str) -> str:
+    return f"{TASK_PREFIX}{clean_text(task)}_{row_id}-{clean_text(text)}"
+
+
+def linked_task(lines: list[str], row_id: str) -> str | None:
+    match: re.Match[str] | None = TASK_TITLE.match(first_cell(lines, row_id))
+    return match.group(1) if match and match.group(2) == row_id else None
+
+
+def link_task(lines: list[str], result: dict[str, Any], task: str | None, text: str) -> dict[str, Any]:
+    if task:
+        set_first_cell(lines, result["id"], task_title(task, result["id"], text))
+        result["task"] = task
+    return result
+
+
 def mutate(path: Path, args: argparse.Namespace, today: date) -> dict[str, Any]:
     lines: list[str] = read_lines(path)
     if args.command == "done":
         result: dict[str, Any] = set_cell(lines, args.row, "status", STATUS_DONE)
+        task: str | None = linked_task(lines, args.row)
+        if task:
+            result["task"] = task
     elif args.command == "assign":
         result = set_cell(lines, args.row, "owner", clean_text(args.agent))
     elif args.command == "reserve":
@@ -301,9 +328,9 @@ def mutate(path: Path, args: argparse.Namespace, today: date) -> dict[str, Any]:
     elif args.command == "fold":
         result = fold_rows(lines, read_lines(Path(args.lane_file)), args.holder, today)
     elif args.id:
-        result = fill_reserved(lines, args.id, " ".join(args.text), args.holder)
+        result = link_task(lines, fill_reserved(lines, args.id, " ".join(args.text), args.holder), args.task, " ".join(args.text))
     else:
-        result = add_row(lines, args.group, " ".join(args.text), today)
+        result = link_task(lines, add_row(lines, args.group, " ".join(args.text), today), args.task, " ".join(args.text))
     write_lines(path, lines)
     return result
 
@@ -319,6 +346,7 @@ def build_parser() -> argparse.ArgumentParser:
     add.add_argument("text", nargs="+")
     add.add_argument("--id", default=None, help="fill a reserved id instead of appending")
     add.add_argument("--holder", default=None, help="lane that reserved --id")
+    add.add_argument("--task", default=None, help="onboard task id this item blocks; titles the row TASK_<task>_<id>-<text>")
     assign: argparse.ArgumentParser = sub.add_parser("assign")
     assign.add_argument("row")
     assign.add_argument("agent")

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Lane manifest tools for parallel autopilot: overlap check, lane leases, and branch-name collision check."""
+"""Lane manifest tools for parallel autopilot: overlap check, lane leases, branch-name collision check, and the son command line."""
 from __future__ import annotations
 
 import argparse
 import fnmatch
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -34,6 +35,13 @@ HEAD_SUFFIX: Final[str] = "-dpp"
 TIMEOUT_S: Final[int] = 30
 GH_PR_FIELDS: Final[str] = "number,files"
 MAX_LANES: Final[int] = 5
+PLUGIN_ROOT: Final[Path] = Path(__file__).resolve().parent.parent
+SETTINGS_FILE: Final[str] = ".claude/dts2-harness.local.md"
+PERMISSION_FIELD: Final[str] = "son_permission_mode"
+DEFAULT_PERMISSION_MODE: Final[str] = "bypassPermissions"
+SON_MODEL: Final[str] = "opus"
+SON_SKILL: Final[str] = "/dts2-harness:autopilot --son"
+FRONTMATTER_FENCE: Final[str] = "---"
 
 
 class LaneError(Exception):
@@ -269,6 +277,35 @@ def branch_check(stamp: str, lanes: list[str], cwd: Path) -> dict[str, Any]:
     return {"ok": not collisions, "planned": planned, "collisions": collisions}
 
 
+def read_setting(cwd: Path, field: str, default: str) -> str:
+    """Read one scalar from the frontmatter of .claude/dts2-harness.local.md, the way hooks/lib-settings.sh does."""
+    path: Path = cwd / SETTINGS_FILE
+    if not path.is_file():
+        return default
+    inside: bool = False
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip() == FRONTMATTER_FENCE:
+            if inside:
+                break
+            inside = True
+            continue
+        match = re.match(rf"^{re.escape(field)}: *(.*?)\s*(#.*)?$", line) if inside else None
+        if match:
+            return match.group(1).strip().strip("\"'") or default
+    return default
+
+
+def son_command(manifest: dict[str, Any], lane_id: str, worktree: Path, cwd: Path) -> dict[str, Any]:
+    """The headless command the head runs for one son: claude -p inside the lane's worktree."""
+    lane: dict[str, Any] = find_lane(manifest, lane_id)
+    mode: str = read_setting(cwd, PERMISSION_FIELD, DEFAULT_PERMISSION_MODE)
+    argv: list[str] = binary("DTS2_CLAUDE_BIN", "claude") + [
+        "-p", f"{SON_SKILL} {manifest['stamp']}/{lane['id']}",
+        "--permission-mode", mode, "--model", SON_MODEL, "--plugin-dir", str(PLUGIN_ROOT),
+    ]
+    return {"ok": True, "lane": lane["id"], "cwd": str(worktree), "permission_mode": mode, "argv": argv}
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runs-dir", default=RUNS_DIR)
@@ -282,6 +319,10 @@ def build_parser() -> argparse.ArgumentParser:
     branch_p = sub.add_parser("branch-check")
     branch_p.add_argument("stamp")
     branch_p.add_argument("--lanes", required=True, help="comma-separated lane ids")
+    son_p = sub.add_parser("son-command")
+    son_p.add_argument("manifest")
+    son_p.add_argument("--lane", required=True)
+    son_p.add_argument("--worktree", required=True)
     return parser
 
 
@@ -293,6 +334,8 @@ def dispatch(args: argparse.Namespace) -> dict[str, Any]:
     manifest: dict[str, Any] = load_manifest(Path(args.manifest))
     if args.command == "lease":
         return lease(manifest, args.lane, runs_dir, cwd, not args.no_prs)
+    if args.command == "son-command":
+        return son_command(manifest, args.lane, Path(args.worktree), cwd)
     return check(manifest, runs_dir, cwd, not args.no_prs)
 
 
