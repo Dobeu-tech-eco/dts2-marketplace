@@ -157,6 +157,8 @@ class ScopeTextContracts(unittest.TestCase):
             self.assertIn(needle, text)
         self.assertIn("## Context guard and pivot", read("skills/run/operations.md"))
         self.assertIn("## Guardrails", read("skills/run/SKILL.md"))
+        self.assertNotIn("## Context guard and pivot", read("skills/run/SKILL.md"))
+        self.assertNotIn("## Guardrails", read("skills/run/operations.md"))
 
     def test_setup_skill(self) -> None:
         self.assertIn("Run setup at the workspace root instead?", read("skills/setup/SKILL.md"))

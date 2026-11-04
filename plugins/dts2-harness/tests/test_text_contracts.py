@@ -226,10 +226,11 @@ class RunSkillContracts(TextContractMixin):
         ])
 
     def test_single_mode_text_has_no_worktree_or_lane(self) -> None:
-        text: str = _read(self.PATH)
-        cut: int = text.find(self.ISOLATION_HEADING)
+        ops: str = _read(self.PATH / "operations.md")
+        cut: int = ops.find(self.ISOLATION_HEADING)
         self.assertNotEqual(cut, -1, "run is missing the isolation heading")
-        head: str = text[:cut].lower()
+        others: list[str] = [_read(p) for p in sorted(self.PATH.glob("*.md")) if p.name != "operations.md"]
+        head: str = ("\n".join(others) + ops[:cut]).lower()
         self.assertNotIn("worktree", head)
         self.assertNotIn("lane", head)
 
