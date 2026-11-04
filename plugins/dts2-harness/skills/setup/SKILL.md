@@ -213,6 +213,7 @@ Gate: `.harness/end-state.md` has `status: approved`, or the user passed `--scaf
    - Mark a readiness row `done` in the end state only when its evidence exists and is no longer a placeholder.
    - `ci.yml` is written from the commands at scaffold time; after `config.yaml` commands change, ask before regenerating, and do not overwrite a hand-edited file.
 9. Create `AGENTS.md` if absent and append this line once if it is not already there: `Harness state for any agent: .harness/handoff/latest.md (resume with /dts2-harness:run resume).` Change nothing else in the file.
+9b. Offer two optional project-settings additions, each as its own yes/no, and write nothing without a yes. Both go in the project's `.claude/settings.json` (merge, never overwrite). (a) Belt and braces for the merge guard hook: `permissions.deny` rules `Bash(gh pr merge *)`, `Bash(git push --force *)` and `Bash(git push -f *)`; say that the first one also stops the head's own approved merges, so the user would merge by hand or drop it before a run. (b) When lanes or autopilot are on: `"subagentPromptCacheTtl": "1h"`, which keeps the prompt cache warm across long subagent turns.
 10. Show the detected commands once and let the user correct them. Tell the user `config.yaml`, `review-checklist.md`, `lessons.md`, `discipline.md`, `state.md` and `end-state.md` are meant to be committed.
 
 ### Batch (parallel, scaffold-only)
