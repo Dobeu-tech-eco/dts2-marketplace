@@ -4,7 +4,7 @@ and the dpp head's helpers: plan (admission, spend, feasibility, --full selectio
 stop-check and report-check. It is the only writer of lane state: leases, status.json fields the head owns (heartbeat,
 session id, park reason), send-backs, the budget counter, the model-call ledger and merge order. Its supervisor commands:
 preflight (pin the CLI version), spawn (start a son under every cap), call (any other model call behind the shared
-limit), heartbeat, budget, loop, merge-order, merge-go and merge-done."""
+limit), heartbeat, budget, loop, merge-order, merge-go, merge-go-step and merge-done."""
 from __future__ import annotations
 
 import argparse
@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from model_call import (  # noqa: E402
     cli_version, fallback_used, invoke, is_overload, is_terminated, parse_result, read_budget, read_supervisor,
 )
-from son_launch import SON_MARKER, cli_too_old, launch_flags, merge_config, sandbox_config, son_env  # noqa: E402
+from son_launch import SON_MARKER, cli_too_old, launch_flags, merge_config, prepare_lane, sandbox_config, son_env  # noqa: E402
 from state_io import atomic_write  # noqa: E402
 
 RUNS_DIR: Final[str] = ".harness/runs"
@@ -83,6 +83,7 @@ RUN_NAME: Final[str] = "run.json"
 BUDGET_NAME: Final[str] = "budget.json"
 MODEL_LEDGER_NAME: Final[str] = "model-ledger.jsonl"
 MERGE_ORDER_NAME: Final[str] = "merge-order.json"
+MERGE_PENDING_NAME: Final[str] = "merge-pending.txt"  # unmerged lane ids, one per line; the merge guard reads this, never run state
 MERGE_GO_NAME: Final[str] = "merge-go.md"
 PROTECTED_DEFAULTS: Final[tuple[str, ...]] = ("main", "master")
 PREFLIGHT_TIMEOUT_S: Final[int] = 30
@@ -1098,7 +1099,7 @@ def preflight(runs_dir: Path, stamp: str, cwd: Path) -> dict[str, Any]:
     mode: str = read_setting(cwd, PERMISSION_FIELD, DEFAULT_PERMISSION_MODE)
     env: dict[str, str] = son_env(probe, "preflight", cwd)
     argv: list[str] = [*binary("DTS2_CLAUDE_BIN", "claude"), "-p", "ok", *launch_flags(cwd, mode, probe, "preflight", cwd),
-                       "--output-format", "json"]
+                       "--plugin-dir", str(PLUGIN_ROOT), "--output-format", "json"]
     call: dict[str, Any] = invoke(argv, cwd, PREFLIGHT_TIMEOUT_S, "preflight", emit, env=env)
     parsed: dict[str, Any] | None = parse_result(call["stdout"])
     problems: list[str] = []
@@ -1260,6 +1261,7 @@ def start_son(manifest: dict[str, Any], lane_id: str, worktree: Path, runs_dir: 
         return {"ok": False, "lane": lane_id, "reason": REASON_ERROR, "detail": "no session_id to resume"}
     start_clock(runs_dir, stamp)
     gc_pause(runs_dir, stamp, cwd)
+    prepare_lane(cwd, stamp, lane_id)
     share, no_share = reserve_share(runs_dir, stamp, cwd, manifest, lane_id)
     if no_share is not None:
         park(runs_dir, stamp, lane_id, REASON_BUDGET, no_share)
@@ -1415,13 +1417,21 @@ def merge_lock(path: Path) -> Iterator[None]:
         yield
 
 
+def save_merge_state(path: Path, state: dict[str, Any]) -> None:
+    """Write merge-order.json and, beside it, the list of lanes still to merge that the merge guard reads to tell an active run
+    from a finished one."""
+    atomic_write(path, json.dumps(state, indent=2) + "\n")
+    pending: list[str] = [str(lane) for lane in state["order"] if lane not in state["merged"]]
+    atomic_write(path.parent / MERGE_PENDING_NAME, "".join(f"{lane}\n" for lane in pending))
+
+
 def merge_order(manifest: dict[str, Any], runs_dir: Path) -> dict[str, Any]:
     """Write merge-order.json (the order, which lanes merged, which one holds the merge) and say who is next."""
     stamp: str = str(manifest["stamp"])
     path: Path = runs_dir / stamp / MERGE_ORDER_NAME
     with merge_lock(path):
         state: dict[str, Any] = merge_state(runs_dir, manifest)
-        atomic_write(path, json.dumps(state, indent=2) + "\n")
+        save_merge_state(path, state)
     return {"ok": True, "stamp": stamp, **state, "next": next_to_merge(runs_dir, stamp, state, manifest)}
 
 
@@ -1500,6 +1510,29 @@ def merge_go(manifest: dict[str, Any], runs_dir: Path, lane_id: str, head: str, 
         return grant_merge(manifest, runs_dir, lane_id, head, state["target"], sha)
 
 
+def merge_go_step(runs_dir: Path, stamp: str, step: str, head: str, cwd: Path, base: str | None = None) -> dict[str, Any]:
+    """Head-only grant for one autopilot step: the same `Verified head:` and `Base:` lines as a lane's merge-go.md, written to
+    `<stamp>/<step>/merge-go.md`, with no lane order to follow. Refused inside a son, for a head that is not a commit sha, and for
+    the default branch unless this run recorded the yes (`merge-target --yes-default-branch`)."""
+    if inside_son():
+        return {**son_refusal("merge-go-step"), "step": step}
+    if not re.match(r"^[A-Za-z0-9][A-Za-z0-9._-]*$", step):
+        raise LaneError(f"unsafe step name {step!r}")
+    if not re.match(r"^[0-9a-f]{7,40}$", head):
+        return {"ok": False, "step": step, "detail": "--head must be a commit sha"}
+    state: dict[str, Any] = merge_target_state(runs_dir, stamp, cwd)
+    if state["is_default"] and not state["default_ok"]:
+        return {"ok": False, "step": step, "detail": f"{state['target']} is the default branch; a run may merge there only "
+                "after `lanes.py merge-target --yes-default-branch` records an explicit yes"}
+    sha: str | None = base or base_tip(cwd, state["target"])
+    if sha is None or not re.match(r"^[0-9a-f]{7,40}$", sha):
+        return {"ok": False, "step": step, "detail": f"cannot read origin/{state['target']}; fetch it or pass a sha with --base"}
+    path: Path = runs_dir / stamp / step / MERGE_GO_NAME
+    atomic_write(path, f"# Merge go for step {step}\n\nVerified head: {head}\nBase: {state['target']} {sha}\n"
+                       f"Granted: {int(time.time())}\n")
+    return {"ok": True, "step": step, "path": str(path), "head": head, "target": state["target"], "base": sha}
+
+
 def grant_merge(manifest: dict[str, Any], runs_dir: Path, lane_id: str, head: str, target: str,
                 base: str) -> dict[str, Any]:
     stamp: str = str(manifest["stamp"])
@@ -1518,7 +1551,7 @@ def grant_merge(manifest: dict[str, Any], runs_dir: Path, lane_id: str, head: st
     path: Path = runs_dir / stamp / lane_id / MERGE_GO_NAME
     atomic_write(path, f"# Merge go for lane {lane_id}\n\nVerified head: {head}\nBase: {target} {base}\n"
                        f"Granted: {int(time.time())}\n")
-    atomic_write(runs_dir / stamp / MERGE_ORDER_NAME, json.dumps({**state, "current": lane_id}, indent=2) + "\n")
+    save_merge_state(runs_dir / stamp / MERGE_ORDER_NAME, {**state, "current": lane_id})
     return {"ok": True, "lane": lane_id, "path": str(path), "head": head, "target": target, "base": base}
 
 
@@ -1533,7 +1566,7 @@ def finish_merge(manifest: dict[str, Any], runs_dir: Path, lane_id: str) -> dict
     if state["current"] != lane_id:
         return {"ok": False, "lane": lane_id, "detail": f"lane {lane_id} does not hold the merge"}
     done: dict[str, Any] = {**state, "merged": [*state["merged"], lane_id], "current": None}
-    atomic_write(runs_dir / stamp / MERGE_ORDER_NAME, json.dumps(done, indent=2) + "\n")
+    save_merge_state(runs_dir / stamp / MERGE_ORDER_NAME, done)
     return {"ok": True, "lane": lane_id, "merged": done["merged"], "all_merged": len(done["merged"]) >= len(done["order"])}
 
 
@@ -1577,6 +1610,11 @@ def add_supervisor_parsers(sub: Any) -> None:
     target_p.add_argument("stamp")
     target_p.add_argument("--set", default=None, help="record the branch this run merges into (default: dev)")
     target_p.add_argument("--yes-default-branch", action="store_true", help="record an explicit yes to merging into the default branch")
+    step_p = sub.add_parser("merge-go-step")
+    step_p.add_argument("stamp")
+    step_p.add_argument("--step", required=True, help="the autopilot step the merge belongs to")
+    step_p.add_argument("--head", required=True, help="the verified HEAD sha of the step's PR")
+    step_p.add_argument("--base", default=None, help="the base commit approved against; default origin/<target> now")
     gc_p = sub.add_parser("gc-restore")
     gc_p.add_argument("stamp")
     done_p = sub.add_parser("merge-done")
@@ -1672,6 +1710,8 @@ def dispatch_supervisor(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> 
         return loop(runs_dir, args.stamp, cwd)
     if args.command == "merge-target":
         return set_merge_target(runs_dir, args.stamp, cwd, args.set, args.yes_default_branch)
+    if args.command == "merge-go-step":
+        return merge_go_step(runs_dir, args.stamp, args.step, args.head, cwd, args.base)
     if args.command == "gc-restore":
         return gc_restore(runs_dir, args.stamp, cwd)
     if args.command == "heartbeat":

@@ -47,6 +47,9 @@ DISALLOWED: Final[tuple[str, ...]] = (
     "Read(~/.config/gcloud/**)", "Edit(.claude/**)", "Write(.claude/**)", "Edit(.mcp.json)", "Write(.mcp.json)",
     "Edit(.git/hooks/**)", "Write(.git/hooks/**)",
 )
+MERGE_GO_NAME: Final[str] = "merge-go.md"
+PROBE_LANE: Final[str] = "preflight"  # the preflight probe is not a lane: it has no builders and no grant file
+BUILDERS_VAR: Final[str] = "DTS2_BUILDERS_DIR"
 SON_MARKER: Final[str] = "DTS2_SON"  # set in every son's env; lanes.py refuses the merge-granting commands when present
 SETTING_SOURCES: Final[str] = "local"  # `--setting-sources` takes user, project, local; local-only drops shared hooks and allow rules
 GIT_TIMEOUT_S: Final[int] = 20
@@ -85,6 +88,7 @@ def lane_env(manifest: dict[str, Any], lane_id: str, cwd: Path) -> dict[str, str
         "COMPOSE_PROJECT_NAME": f"dts2-{key}",
         "DTS2_DB_NAME": f"dts2_{key.replace('-', '_')}",
         SON_MARKER: "1", "DTS2_SON_BRANCH_PREFIX": f"dts2/{stamp}/lane-{lane_id}",
+        BUILDERS_VAR: str(builders_dir(cwd, lane_id)),
         "npm_config_cache": f"{cache}/npm", "PIP_CACHE_DIR": f"{cache}/pip", "UV_CACHE_DIR": f"{cache}/uv",
         "YARN_CACHE_FOLDER": f"{cache}/yarn", "PNPM_HOME": f"{cache}/pnpm",
         CACHE_TTL_VAR: CACHE_TTL,
@@ -124,15 +128,47 @@ def git_common_dir(cwd: Path) -> Path:
     return (path if path.is_absolute() else cwd / path).resolve()
 
 
+def builders_dir(cwd: Path, lane_id: str) -> Path:
+    """The one directory a lane's builder worktrees live in: `<repo parent>/<repo>-dts2-<lane>-builders`. Sandbox write paths take
+    no mid-path wildcard on Linux, so the son gets this exact path and `lanes.py spawn` creates it."""
+    root: Path = cwd.resolve()
+    return root.parent / f"{root.name}-dts2-{slug(lane_id)}-builders"
+
+
+def lane_grant_file(cwd: Path, stamp: str, lane_id: str) -> Path:
+    return cwd.resolve() / RUNS_DIR / stamp / lane_id / MERGE_GO_NAME
+
+
+def prepare_lane(cwd: Path, stamp: str, lane_id: str) -> None:
+    """What the sandbox paths need to exist: the builders directory, and a placeholder merge-go.md (denied for writing, so a
+    son cannot create it; the head replaces it when it grants). A real grant is never overwritten."""
+    builders_dir(cwd, lane_id).mkdir(parents=True, exist_ok=True)
+    grant: Path = lane_grant_file(cwd, stamp, lane_id)
+    if not grant.exists():
+        grant.parent.mkdir(parents=True, exist_ok=True)
+        grant.write_text("# No merge grant for this lane yet.\n", encoding="utf-8")
+
+
+def existing(paths: list[Path]) -> list[str]:
+    return [str(p) for p in paths if p.exists()]
+
+
 def write_scope(manifest: dict[str, Any], lane_id: str, cwd: Path, worktree: Path) -> tuple[list[str], list[str]]:
     """(allowWrite, denyWrite) for one son. Sandbox protected paths cover `.git/hooks` and `.git/config` only inside the
-    working directory, and a linked worktree commits into the main repo's git dir, so the deny entries are explicit."""
+    working directory, and a linked worktree commits into the main repo's git dir, so the deny entries are explicit (a
+    trailing `/**` is the only wildcard these lists honour on Linux). The lane's run dir is writable except its merge-go.md,
+    and builder worktrees go under the lane's builders directory."""
     root: Path = cwd.resolve()
     common: Path = git_common_dir(root)
-    lane_dir: Path = root / RUNS_DIR / str(manifest["stamp"]) / lane_id
-    builders: Path = root.parent / f"{root.name}-dts2-{lane_id}-*"
-    allow: list[str] = [str(root / CACHE_DIR), str(common), str(lane_dir), str(worktree.resolve()), str(builders)]
-    return allow, [str(common / "hooks"), str(common / "config")]
+    stamp: str = str(manifest["stamp"])
+    lane_dir: Path = root / RUNS_DIR / stamp / lane_id
+    allow: list[str] = [str(root / CACHE_DIR), str(common), str(lane_dir), str(worktree.resolve())]
+    deny: list[str] = [str(common / "hooks"), str(common / "config"),
+                       *existing([common / "modules", *sorted((common / "worktrees").glob("*/config.worktree"))])]
+    if lane_id != PROBE_LANE:
+        allow.append(str(builders_dir(root, lane_id)))
+        deny.append(str(lane_grant_file(root, stamp, lane_id)))
+    return allow, deny
 
 
 def son_settings(cwd: Path, manifest: dict[str, Any], lane_id: str, worktree: Path) -> dict[str, Any]:

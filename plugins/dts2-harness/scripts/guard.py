@@ -15,7 +15,6 @@ import argparse
 import json
 import os
 import re
-import shlex
 import subprocess
 import sys
 from pathlib import Path, PurePosixPath
@@ -45,9 +44,16 @@ GH_GLOBAL_VALUE: Final[frozenset[str]] = frozenset({"-R", "--repo", "--hostname"
 MERGE_VALUE_FLAGS: Final[frozenset[str]] = frozenset({"-b", "--body", "-F", "--body-file", "-t", "--subject", "-A", "--author-email",
                                                       "--match-head-commit", "-R", "--repo"})
 PR_URL: Final[re.Pattern[str]] = re.compile(r"^https://[^\s]+/pull/\d+$")
-API_MERGE_PATH: Final[re.Pattern[str]] = re.compile(r"/pulls/(\d+)/merge/?$")
+API_MERGE_PATH: Final[re.Pattern[str]] = re.compile(r"/pulls/(\d+)/merge/?(?:[?#].*)?$")
+API_REPO_PATH: Final[re.Pattern[str]] = re.compile(r"(?:^|/)repos/([A-Za-z0-9._-]+)/([A-Za-z0-9._-]+)/pulls/")
+API_FILE_FIELD: Final[re.Pattern[str]] = re.compile(r"^[^=\s]+=@")
+GRANT_COMMANDS: Final[frozenset[str]] = frozenset({"merge-go", "merge-go-step", "merge-target", "gc-restore"})
+BODY_VALUE_FLAGS: Final[frozenset[str]] = frozenset({"-b", "--body", "-F", "--body-file", "-t", "--subject", "-A", "--author-email"})
+STATUS_NAME: Final[str] = "status.json"
+PENDING_NAME: Final[str] = "merge-pending.txt"
+DONE_PHASE: Final[str] = "done"
 SAFE_SRC: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9_./@~^][A-Za-z0-9._/@~^-]*$")
-GIT_TIMEOUT_S: Final[int] = 20
+GIT_TIMEOUT_S: Final[int] = 10
 FORCE_FLAGS: Final[frozenset[str]] = frozenset({"-f", "--force", "--force-with-lease", "--force-if-includes", "--mirror",
                                                 "--delete", "-d", "--prune", "--all"})
 SECRET_DIRS: Final[frozenset[str]] = frozenset({".ssh", ".aws", ".azure", ".kube", ".gnupg", ".docker"})
@@ -111,33 +117,99 @@ def strip_wrappers(words: list[str]) -> list[str]:
     return words
 
 
-def segments(command: str, _depth: int = 0) -> list[list[str]]:
-    """Each simple command of a shell line as its words: split on `;`, `&&`, `||`, `|`, `&` and newlines, with leading
-    `(` / `{` and wrappers stripped, and the text of `bash -c`, `sh -c`, `eval`, `$(...)` and backticks checked too. A
-    segment that does not parse becomes its raw words, so it is still checked. See `parse_failed` for the fail-closed case."""
-    found: list[list[str]] = []
-    if _depth > MAX_DEPTH:
+def read_word(text: str, start: int) -> tuple[str, int]:
+    """One shell word from `start`, honouring quotes and backslashes; stops at unquoted whitespace, `<` or `>`.
+    Raises ValueError on an unbalanced quote."""
+    chars: list[str] = []
+    quote: str = ""
+    i: int = start
+    while i < len(text):
+        c: str = text[i]
+        if quote:
+            if c == quote:
+                quote = ""
+            elif quote == '"' and c == "\\" and i + 1 < len(text) and text[i + 1] in '"\\$`':
+                i += 1
+                chars.append(text[i])
+            else:
+                chars.append(c)
+        elif c in "'\"":
+            quote = c
+        elif c == "\\" and i + 1 < len(text):
+            i += 1
+            chars.append(text[i])
+        elif c.isspace() or c in "<>":
+            break
+        else:
+            chars.append(c)
+        i += 1
+    if quote:
+        raise ValueError("unbalanced quote")
+    return "".join(chars), i
+
+
+def tokenize(part: str) -> tuple[list[str], list[tuple[str, str]]]:
+    """(words, redirects) of one simple command. A redirect operator (`>`, `>>`, `2>`, `&>`, `>&`, `<`, `<<`) and its target
+    are not words, even when glued to the neighbouring word (`git push origin main>/dev/null`); they come back as
+    (operator, target) so a caller can still check what is written or read. Raises ValueError on an unbalanced quote."""
+    words: list[str] = []
+    redirects: list[tuple[str, str]] = []
+    i: int = 0
+    while i < len(part):
+        if part[i].isspace():
+            i += 1
+        elif part[i] in "<>":
+            j: int = i
+            while j < len(part) and part[j] in "<>&":
+                j += 1
+            op: str = part[i:j]
+            while j < len(part) and part[j].isspace():
+                j += 1
+            target, i = read_word(part, j)
+            redirects.append((op, target))
+        else:
+            word, i = read_word(part, i)
+            if i < len(part) and part[i] in "<>" and (word.isdigit() or word == "&"):
+                continue  # an fd number or `&` glued to its operator (`2>`, `&>`) belongs to the redirect
+            words.append(word)
+    return words, redirects
+
+
+def cleaned(part: str) -> str:
+    return part.strip().lstrip("({ \t").rstrip(")} \t")
+
+
+def parts_of(command: str, depth: int) -> list[tuple[list[str], list[tuple[str, str]]]]:
+    """Each simple command of a shell line as (words, redirects), with wrappers stripped and the text of `bash -c`, `sh -c`,
+    `eval`, `$(...)` and backticks checked too. A part that does not tokenize falls back to a plain whitespace split."""
+    found: list[tuple[list[str], list[tuple[str, str]]]] = []
+    if depth > MAX_DEPTH:
         return found
     for inner in substitutions(command):
-        found += segments(inner, _depth + 1)
+        found += parts_of(inner, depth + 1)
     for part in SEGMENT_SPLIT.split(command):
-        part = part.strip().lstrip("({ \t").rstrip(")} \t")
         try:
-            words: list[str] = shlex.split(part)
+            words, redirects = tokenize(cleaned(part))
         except ValueError:
-            words = part.split()
+            words, redirects = cleaned(part).split(), []
         words = strip_wrappers(words)
         if not words:
             continue
-        found.append(words)
+        found.append((words, redirects))
         head: str = Path(words[0]).name
         if head == "eval":
-            found += segments(" ".join(words[1:]), _depth + 1)
+            found += parts_of(" ".join(words[1:]), depth + 1)
         elif head in SHELLS:
             flags = [i for i, w in enumerate(words[1:], 1) if SHELL_C.match(w)]
             if flags and flags[0] + 1 < len(words):
-                found += segments(words[flags[0] + 1], _depth + 1)
+                found += parts_of(words[flags[0] + 1], depth + 1)
     return found
+
+
+def segments(command: str) -> list[list[str]]:
+    """The words of each simple command of a shell line (redirects removed): split on `;`, `&&`, `||`, `|`, `&` and
+    newlines, with leading `(` / `{` and wrappers stripped. See `parse_failed` for the fail-closed case."""
+    return [words for words, _ in parts_of(command, 0)]
 
 
 def parse_failed(command: str) -> bool:
@@ -154,9 +226,8 @@ def unparsable(command: str, depth: int) -> bool:
         if unparsable(inner, depth + 1):
             return True
     for part in SEGMENT_SPLIT.split(command):
-        part = part.strip().lstrip("({ \t").rstrip(")} \t")
         try:
-            shlex.split(part)
+            tokenize(cleaned(part))
         except ValueError:
             return True
     return False
@@ -278,10 +349,9 @@ def son_bash_denial(words: list[str], prefix: str) -> str | None:
             return "gh repo delete is denied"
         if rest[:1] == ["api"]:
             return gh_api_denial(rest[1:])
-    if head == "python3" or head == "python":
-        lanes_cmd = " ".join(words[1:])
-        if re.search(r"lanes\.py.*\b(merge-go|merge-target)\b", lanes_cmd):
-            return "merge-go and merge-target are the head's alone"
+    for i, word in enumerate(words):
+        if Path(word).name == "lanes.py" and any(w in GRANT_COMMANDS for w in words[i + 1:]):
+            return "merge-go, merge-target and gc-restore are the head's alone"
     return None
 
 
@@ -299,12 +369,13 @@ def son_path_denial(tool: str, tool_input: dict[str, Any], command: str, prefix:
         return "reading credentials (ssh keys, .env files, cloud credential paths) is denied for a son"
     if tool in WRITE_TOOLS and any(is_protected_write(p) for p in paths):
         return "writing .claude/, .mcp.json, merge-go.md or .git/hooks is denied for a son"
-    for words in segments(command) if tool == "Bash" else []:
-        flat: list[str] = path_words(words)
+    for words, redirects in parts_of(command, 0) if tool == "Bash" else []:
+        flat: list[str] = [*path_words(words), *(t for _op, t in redirects if t)]
         if any(is_secret_path(w) for w in flat if looks_like_path(w)):
             return "reading credentials (ssh keys, .env files, cloud credential paths) is denied for a son"
-        writes: bool = Path(words[0]).name in WRITE_COMMANDS or any(">" in w for w in words)
-        if writes and any(is_protected_write(w) for w in flat if looks_like_path(w)):
+        writes: bool = Path(words[0]).name in WRITE_COMMANDS
+        written: list[str] = [*(flat if writes else []), *(t for op, t in redirects if ">" in op and t)]
+        if any(is_protected_write(w) for w in written if looks_like_path(w)):
             return "writing .claude/, .mcp.json, merge-go.md or .git/hooks is denied for a son"
     return None
 
@@ -327,10 +398,10 @@ def son_denial(payload: dict[str, Any], prefix: str) -> str | None:
     return None
 
 
-def grants(cwd: Path) -> list[dict[str, str]]:
-    """Every merge-go.md under the runs dir as {head, base_ref, base_sha}."""
+def grants(cwd: Path, stamp: str = "*") -> list[dict[str, str]]:
+    """Every merge-go.md under the runs dir (one stamp when given) as {head, base_ref, base_sha}."""
     found: list[dict[str, str]] = []
-    for path in sorted((cwd / RUNS_DIR).glob(f"*/*/{MERGE_GO_NAME}")):
+    for path in sorted((cwd / RUNS_DIR).glob(f"{stamp}/*/{MERGE_GO_NAME}")):
         try:
             text: str = path.read_text(encoding="utf-8")
         except OSError:
@@ -392,17 +463,42 @@ def merge_selector(args: list[str]) -> str | None:
     return plain[0] if SAFE_REF.match(plain[0]) or PR_URL.match(plain[0]) else None
 
 
-def protected_branches(cwd: Path) -> set[str]:
-    """main, master, the configured default branch, every `Base:` branch in a grant, and (once a lanes run exists) the
-    configured and recorded merge target, so the base check also covers the default `dev` target of a run."""
-    config: dict[str, str] = merge_config(cwd)
-    found: set[str] = {*PROTECTED_BRANCHES, config["default_branch"], *(g["base_ref"] for g in grants(cwd))}
-    runs: Path = cwd / RUNS_DIR
-    if any(runs.glob("*/*/status.json")) or any(runs.glob("*/*/merge-go.md")):
-        found.add(config["target"])
-    for path in runs.glob("*/merge-target.txt"):
+def run_state(stamp_dir: Path) -> str:
+    """`active` while a lanes run in this stamp still has work to merge, `finished` once it has none, `unknown` when the
+    stamp holds no run state at all. merge-pending.txt (the lanes not yet merged, written by lanes.py) decides when it exists;
+    otherwise any lane status.json that is not `done` keeps the run active."""
+    try:
+        return "active" if (stamp_dir / PENDING_NAME).read_text(encoding="utf-8").strip() else "finished"
+    except OSError:
+        pass
+    phases: list[str] = []
+    for path in stamp_dir.glob(f"*/{STATUS_NAME}"):
         try:
-            target: str = path.read_text(encoding="utf-8").strip()
+            data: Any = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            data = {}
+        phases.append(str(data.get("status", "")) if isinstance(data, dict) else "")
+    if not phases:
+        return "unknown"
+    return "finished" if all(p == DONE_PHASE for p in phases) else "active"
+
+
+def protected_branches(cwd: Path) -> set[str]:
+    """main, master and the configured default branch always. The configured `merge.target` (default `dev`) and every
+    `Base:` branch of a grant only while a lanes run is active; a target recorded by `lanes.py merge-target` until its run
+    is finished. A run that merged everything, and the files it left behind, protect nothing."""
+    config: dict[str, str] = merge_config(cwd)
+    found: set[str] = {*PROTECTED_BRANCHES, config["default_branch"]}
+    runs: Path = cwd / RUNS_DIR
+    states: dict[Path, str] = {d: run_state(d) for d in sorted(runs.glob("*")) if d.is_dir()}
+    if "active" in states.values():
+        found.add(config["target"])
+    for stamp_dir, state in states.items():
+        if state == "active":
+            found |= {g["base_ref"] for g in grants(cwd, stamp_dir.name)}
+        target_file: Path = stamp_dir / "merge-target.txt"
+        try:
+            target: str = target_file.read_text(encoding="utf-8").strip() if state != "finished" else ""
         except OSError:
             continue
         if SAFE_REF.match(target):
@@ -420,15 +516,22 @@ def gate_pr(selector: str, repo: str, cwd: Path) -> str | None:
 
 
 def api_merge_denial(rest: list[str], cwd: Path) -> str | None:
-    """`gh api` calls that merge: a non-GET on .../pulls/<n>/merge is gated like `gh pr merge <n>`; a graphql
-    mergePullRequest cannot be matched to a PR and is denied."""
+    """`gh api` calls that merge: a non-GET on .../pulls/<n>/merge is gated like `gh pr merge <n>` (in the repo the path
+    names); a graphql mergePullRequest cannot be matched to a PR and is denied, and so is any graphql call whose query
+    text sits in a file or stdin (`-F query=@file`, `--input`), which the guard cannot read."""
     text: str = " ".join(rest)
     if "mergePullRequest" in text or "enablePullRequestAutoMerge" in text:
         return "a graphql merge cannot be matched to a merge-go; use `gh pr merge` so the guard can check it"
-    method: str = gh_api_denial(rest[1:]) or ""
-    found = API_MERGE_PATH.search(next((w for w in rest[1:] if "/pulls/" in w), ""))
+    args: list[str] = rest[1:]
+    if "graphql" in args and any(
+            API_FILE_FIELD.match(a) or a == "--input" or a.startswith("--input=") for a in args):
+        return "a graphql query read from a file or stdin cannot be inspected, so the merge gate denies it"
+    method: str = gh_api_denial(args) or ""
+    endpoint: str = next((w for w in args if "/pulls/" in w), "")
+    found = API_MERGE_PATH.search(endpoint)
     if found and method:
-        return gate_pr(found.group(1), "", cwd)
+        owner = API_REPO_PATH.search(endpoint)
+        return gate_pr(found.group(1), f"{owner.group(1)}/{owner.group(2)}" if owner else "", cwd)
     return None
 
 
@@ -468,21 +571,55 @@ def push_denial(args: list[str], cwd: Path) -> str | None:
     return None
 
 
+def repo_flag(args: list[str]) -> str:
+    """The `-R` / `--repo` / `--repo=` value among a subcommand's own arguments."""
+    for i, arg in enumerate(args):
+        if arg in ("-R", "--repo") and i + 1 < len(args):
+            return args[i + 1]
+        if arg.startswith("--repo="):
+            return arg.split("=", 1)[1]
+    return ""
+
+
+def has_expansion(args: list[str], skip_values: frozenset[str] = frozenset()) -> bool:
+    """True when an argument holds a `$`, so the real value (a branch, a PR number, an endpoint) is not what the guard sees.
+    The values of the flags in `skip_values` (free text such as a merge body) are not looked at."""
+    skip: bool = False
+    for arg in args:
+        if skip:
+            skip = False
+        elif arg in skip_values:
+            skip = True
+        elif arg.split("=", 1)[0] in skip_values and "=" in arg:
+            continue
+        elif "$" in arg:
+            return True
+    return False
+
+
 def merge_bash_denial(words: list[str], cwd: Path) -> str | None:
     head: str = Path(words[0]).name
     if head == "gh":
         rest, repo = gh_words(words)
         if rest[:2] == ["pr", "merge"]:
+            if has_expansion(rest[2:], BODY_VALUE_FLAGS):
+                return "a shell expansion in a merge command hides the PR; write the number out, the merge gate fails closed"
             selector: str | None = merge_selector(rest[2:])
             if selector is None:
                 return "the PR argument of this merge is not a number, branch or PR URL; the merge gate fails closed"
-            return gate_pr(selector, repo, cwd)
+            return gate_pr(selector, repo_flag(rest[2:]) or repo, cwd)
         if rest[:1] == ["api"]:
+            if has_expansion(rest[1:]):
+                return "a shell expansion in a gh api call hides the endpoint; the merge gate fails closed"
             return api_merge_denial(rest, cwd)
         return None
     if head == "git":
         sub, args, _ = git_subcommand(words)
-        return push_denial(args, cwd) if sub == "push" else None
+        if sub != "push":
+            return None
+        if has_expansion(args):
+            return "a shell expansion in a push hides the destination branch; the merge gate fails closed"
+        return push_denial(args, cwd)
     return None
 
 
@@ -494,6 +631,8 @@ def merge_denial(payload: dict[str, Any], cwd: Path) -> str | None:
     if parse_failed(command):
         return "a command naming push or merge could not be parsed, so the merge gate denies it"
     for words in segments(command):
+        if "$" in words[0] and WATCHED.search(command):
+            return "the command name comes from a shell expansion on a line naming push or merge; the merge gate denies it"
         reason: str | None = merge_bash_denial(words, cwd)
         if reason is not None:
             return reason
@@ -505,20 +644,27 @@ def deny_output(reason: str) -> str:
                                               "permissionDecisionReason": f"dts2-harness guard: {reason}"}})
 
 
+def decide(payload: dict[str, Any], mode: str, cwd: Path) -> str | None:
+    return son_denial(payload, os.environ.get("DTS2_SON_BRANCH_PREFIX", "")) if mode == "son" else merge_denial(payload, cwd)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mode", choices=("son", "merge"), required=True)
     parser.add_argument("--cwd", default=".")
     args = parser.parse_args()
+    raw: str = sys.stdin.read()
     try:
-        payload: Any = json.load(sys.stdin)
+        payload: Any = json.loads(raw)
     except ValueError:
         return 0
     if not isinstance(payload, dict):
         return 0
     cwd: Path = Path(args.cwd)
-    reason: str | None = (son_denial(payload, os.environ.get("DTS2_SON_BRANCH_PREFIX", "")) if args.mode == "son"
-                          else merge_denial(payload, cwd))
+    try:
+        reason: str | None = decide(payload, args.mode, cwd)
+    except Exception as exc:  # noqa: BLE001 - an uncaught error exits non-zero, which lets the call through
+        reason = f"the guard failed ({type(exc).__name__}) on a command naming push or merge" if WATCHED.search(raw) else None
     if reason is not None:
         print(deny_output(reason))
         if args.mode == "merge":

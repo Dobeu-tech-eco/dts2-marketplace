@@ -327,10 +327,13 @@ class HooksJsonTests(unittest.TestCase):
         entry = next(e for e in self.hooks["PostToolUse"] if "pr-receipt" in json.dumps(e))
         self.assertEqual({h["if"] for h in entry["hooks"]}, {"Bash(gh pr create *)", "Bash(gh pr edit *)"})
 
-    def test_merge_guard_is_a_pretooluse_bash_hook_with_if_rules(self) -> None:
+    def test_merge_guard_is_a_pretooluse_bash_hook_without_if_rules(self) -> None:
+        # The `if` filter is best-effort and never matches `bash -c "git push ..."`, `env git push`, `/usr/bin/git` and the like, so the
+        # hook runs for every Bash call and merge-guard.sh exits early unless the payload names push or merge.
         entry = self.hooks["PreToolUse"][0]
         self.assertEqual(entry["matcher"], "Bash")
-        self.assertEqual({h["if"] for h in entry["hooks"]}, {"Bash(gh *)", "Bash(git *)"})
+        self.assertTrue(entry["hooks"])
+        self.assertTrue(all("if" not in h for h in entry["hooks"]))
 
 
 class PrPayloadTests(unittest.TestCase):

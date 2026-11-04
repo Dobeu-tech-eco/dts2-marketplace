@@ -57,15 +57,8 @@
         "hooks": [
           {
             "type": "command",
-            "if": "Bash(gh *)",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/merge-guard.sh\"",
-            "timeout": 30
-          },
-          {
-            "type": "command",
-            "if": "Bash(git *)",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/merge-guard.sh\"",
-            "timeout": 30
+            "timeout": 60
           }
         ]
       }
