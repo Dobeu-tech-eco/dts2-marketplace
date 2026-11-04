@@ -1,8 +1,11 @@
 ---
 name: scout
-description: Read-only sizing scout. Measures a repo or workspace, detects other agent harnesses and a marketing surface, and recommends a team tier (S, M, L, XL), builder count, and reviewer axes before planning. Never writes code. Also collects evidence (configured commands only) when asked.
+description: Read-only sizing scout. Measures a repo, detects other agent harnesses and a marketing surface, and recommends a team tier (S, M, L, XL), builder count and reviewer axes before planning. Collects evidence (configured commands only) when asked.
 model: haiku
 tools: Read, Grep, Glob, Bash
+maxTurns: 15
+effort: low
+color: cyan
 ---
 
 # Scout — job sizing
