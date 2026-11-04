@@ -60,6 +60,25 @@ SAFE_REF: Final[tuple[re.Pattern[str], ...]] = (
 SAFE_PLUGIN: Final[re.Pattern[str]] = re.compile(r"[A-Za-z0-9][\w.-]*@[A-Za-z0-9][\w.-]*", re.ASCII)
 SAFE_TREE_PATH: Final[re.Pattern[str]] = re.compile(r"[\w.-]+(?:/[\w.-]+)*/SKILL\.md", re.ASCII)
 FIND_HITS_EXAMINED: Final[int] = 8
+# The freshness sweep (npx update, gone-upstream checks, marketplace + harness-version refresh) makes
+# serial network calls, so it runs at most once a day; this marker holds the date it last ran. The
+# cheap work (are the skills on disk, install any that are missing, act on a detected upgrade) runs
+# every call regardless.
+DAILY_MARKER: Final[str] = ".skills-checked"
+
+
+def checked_today(repo: Path) -> bool:
+    marker: Path = repo / ".harness" / DAILY_MARKER
+    try:
+        return marker.read_text(encoding="utf-8").strip() == date.today().isoformat()
+    except OSError:
+        return False
+
+
+def mark_checked(repo: Path) -> None:
+    marker: Path = repo / ".harness" / DAILY_MARKER
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(date.today().isoformat() + "\n", encoding="utf-8")
 FIND_LINE: Final[re.Pattern[str]] = re.compile(r"^([\w.-]+/[\w.-]+)@([\w.-]+)\s+([\d.]+)([KkMm]?) installs")
 LIST_LINE: Final[re.Pattern[str]] = re.compile(r"^\S\s{4}([\w.-]+)\s*$")
 ANSI: Final[re.Pattern[str]] = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
@@ -349,8 +368,9 @@ def wanted_skills(repo: Path, report: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def new_report() -> dict[str, Any]:
-    return {"installed": [], "missing": [], "retired_removed": [], "retired_kept": [], "swapped": [],
-            "gone": [], "failed": [], "rejected": [], "updated": None, "npx": "ok", "lesson_candidates": []}
+    return {"freshness": "fast", "installed": [], "missing": [], "retired_removed": [], "retired_kept": [],
+            "swapped": [], "gone": [], "failed": [], "rejected": [], "updated": None, "npx": "ok",
+            "lesson_candidates": []}
 
 
 def do_swap(repo: Path, home: Path, old: str, ref: str, report: dict[str, Any]) -> None:
@@ -376,26 +396,31 @@ def do_swap(repo: Path, home: Path, old: str, ref: str, report: dict[str, Any]) 
             "Update discipline.md, the run skill and COMPANIONS in skills-check.py to the new name.")
 
 
-def check_skills(repo: Path, home: Path, fix: bool, verify_upstream: bool, swaps: list[str]) -> dict[str, Any]:
+def check_skills(repo: Path, home: Path, fix: bool, daily: bool, verify_upstream: bool,
+                 swaps: list[str]) -> dict[str, Any]:
+    """Every call: presence check, install the missing, apply explicit swaps. Daily only: remove
+    retired skills, detect gone-upstream ones, and `npx skills update` the rest."""
     report: dict[str, Any] = new_report()
+    report["freshness"] = "full" if daily else "fast"
     for spec in swaps:
         old, _, ref = spec.partition("=")
         do_swap(repo, home, old.strip(), ref.strip(), report)
-    for name, origin in RETIRED.items():
-        if installed(repo, name, home) == "missing":
-            continue
-        source = lock_source(repo, name)
-        if source != origin:
-            report["retired_kept"].append({"name": name, "source": source or "unknown"})
-        elif fix:
-            code, _ = run(npx("remove", name, "-y"), repo)
-            (report["retired_removed"] if code == 0 else report["failed"]).append(name)
-        else:
-            report["missing"].append({"name": name, "action": "remove (retired)"})
+    if daily:
+        for name, origin in RETIRED.items():
+            if installed(repo, name, home) == "missing":
+                continue
+            source = lock_source(repo, name)
+            if source != origin:
+                report["retired_kept"].append({"name": name, "source": source or "unknown"})
+            elif fix:
+                code, _ = run(npx("remove", name, "-y"), repo)
+                (report["retired_removed"] if code == 0 else report["failed"]).append(name)
+            else:
+                report["missing"].append({"name": name, "action": "remove (retired)"})
     for entry in wanted_skills(repo, report):
         name, ref = entry["name"], entry["ref"]
         state: str = installed(repo, name, home)
-        if verify_upstream and exists_upstream(ref, repo) is False:
+        if daily and verify_upstream and state != "claude" and exists_upstream(ref, repo) is False:
             report["gone"].append({"name": name, "ref": ref, "installed": state,
                                    "candidates": swap_candidates(name, ref, repo) if fix else []})
             continue
@@ -418,7 +443,7 @@ def check_skills(repo: Path, home: Path, fix: bool, verify_upstream: bool, swaps
             report["installed"].append(name)
         else:
             report["failed"].append({"name": name, "output": out[-400:]})
-    if fix and report["npx"] == "ok":
+    if daily and fix and report["npx"] == "ok":
         _, out = run(npx("update", "-p", "-y"), repo)
         lower: str = out.lower()
         # The Windows CLI can end on a libuv assertion after a clean update, and an upstream skill with
@@ -437,13 +462,15 @@ def marketplaces(plugins: list[str]) -> list[str]:
     return list(dict.fromkeys(names))
 
 
-def published_version(home: Path, cwd: Path) -> str | None:
+def published_version(home: Path, cwd: Path, allow_remote: bool) -> str | None:
     local: Path = home / ".claude" / "plugins" / "marketplaces" / "dts2" / "plugins" / "dts2-harness" / ".claude-plugin" / "plugin.json"
     if local.is_file():
         try:
             return str(json.loads(local.read_text(encoding="utf-8"))["version"])
         except (ValueError, KeyError):
             pass
+    if not allow_remote:
+        return None  # the local marketplace clone is the cheap, every-call source
     code, out = run([*binary("DTS2_GH_BIN", "gh"), "api",
                      "repos/Dobeu-tech-eco/dts2-marketplace/contents/plugins/dts2-harness/.claude-plugin/plugin.json",
                      "-H", "Accept: application/vnd.github.raw"], cwd)
@@ -455,7 +482,7 @@ def published_version(home: Path, cwd: Path) -> str | None:
         return None
 
 
-def check_harness(repo: Path, home: Path, plugin_root: Path, fix: bool) -> dict[str, Any]:
+def check_harness(repo: Path, home: Path, plugin_root: Path, fix: bool, daily: bool) -> dict[str, Any]:
     upgrade = load_upgrade_check()
     plugin_json: Path = plugin_root / ".claude-plugin" / "plugin.json"
     installed_v: str = upgrade.read_version(plugin_json)
@@ -468,11 +495,13 @@ def check_harness(repo: Path, home: Path, plugin_root: Path, fix: bool) -> dict[
         return result
     plugins: list[str] = [p for p in read_keep(repo)["plugins"] if SAFE_PLUGIN.fullmatch(p)]
     claude = binary("DTS2_CLAUDE_BIN", "claude")
-    if fix:
+    # Daily: refresh the marketplace clones so the version read below sees a newly-published harness.
+    if fix and daily:
         for name in marketplaces(plugins):
             code, _ = run([*claude, "plugin", "marketplace", "update", name], repo)
             result["marketplaces"][name] = "updated" if code == 0 else "failed"
-    published = published_version(home, repo)
+    # The local clone is read every call (cheap); the gh fallback is a daily-only network call.
+    published = published_version(home, repo, allow_remote=daily)
     result["published"] = published
     result["upgrade_available"] = published is not None and upgrade.ordering(installed_v, published) < 0
     if not fix:
@@ -486,10 +515,11 @@ def check_harness(repo: Path, home: Path, plugin_root: Path, fix: bool) -> dict[
             result["upgrade_started"] = True
         else:
             result["upgrade_failed"] = out[-400:] or f"exit {code}"
-    for plugin in (p for p in plugins if p != HARNESS_PLUGIN):
-        code, out = run([*claude, "plugin", "update", plugin], repo)
-        if code == 0 and "already" not in out.lower():
-            result["plugins_updated"].append(plugin)
+    if daily and not result["upgrade_started"]:
+        for plugin in (p for p in plugins if p != HARNESS_PLUGIN):
+            code, out = run([*claude, "plugin", "update", plugin], repo)
+            if code == 0 and "already" not in out.lower():
+                result["plugins_updated"].append(plugin)
     result["restart_required"] = result["upgrade_started"] or bool(result["plugins_updated"])
     return result
 
@@ -501,13 +531,22 @@ def main() -> int:
     parser.add_argument("--swap", action="append", default=[], metavar="OLD=REF",
                         help="replace a gone skill with REF; only after the user said yes")
     parser.add_argument("--no-upstream", action="store_true", help="skip the gone-upstream check")
+    parser.add_argument("--force-full", action="store_true",
+                        help="run the freshness sweep now even if it already ran today")
     parser.add_argument("--home", default=str(Path.home()))
     parser.add_argument("--plugin-root", default=os.environ.get("CLAUDE_PLUGIN_ROOT", str(PLUGIN_ROOT)))
     args = parser.parse_args()
     repo, home, root = Path(args.repo).resolve(), Path(args.home), Path(args.plugin_root)
-    harness: dict[str, Any] = check_harness(repo, home, root, args.fix)
+    # The expensive freshness sweep runs the first time each day (or on demand); the rest of the day is
+    # a cheap presence check that still installs anything missing and acts on a detected upgrade.
+    daily: bool = args.force_full or not checked_today(repo)
+    harness: dict[str, Any] = check_harness(repo, home, root, args.fix, daily)
     skills: dict[str, Any] = {} if harness["upgrade_started"] else \
-        check_skills(repo, home, args.fix, not args.no_upstream, args.swap)
+        check_skills(repo, home, args.fix, daily, not args.no_upstream, args.swap)
+    # Record the sweep only when it actually completed on disk — not when an upgrade cut it short, and
+    # not when npx was missing so nothing could be refreshed.
+    if args.fix and daily and not harness["upgrade_started"] and skills.get("npx") == "ok":
+        mark_checked(repo)
     print(json.dumps({"harness": harness, "skills": skills}, indent=2))
     return 0
 

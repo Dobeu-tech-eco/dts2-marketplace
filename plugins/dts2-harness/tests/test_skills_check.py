@@ -18,6 +18,8 @@ from pathlib import Path
 args = sys.argv[1:]
 log = Path(os.environ["FAKE_DIR"]) / "npx.log"
 log.open("a", encoding="utf-8").write(" ".join(args) + "\n")
+if os.environ.get("FAKE_NO_NPX"):
+    sys.exit(127)
 args = [a for a in args if a != "-y"][1:]  # drop -y and "skills"
 cmd = args[0]
 if cmd == "add" and "--list" in args:
@@ -106,12 +108,13 @@ class Fixture:
         self.claude_fail: str = ""
         self.no_contents: str = ""
         self.truncated: str = ""
+        self.no_npx: str = ""
 
     def run(self, *flags: str) -> dict[str, Any]:
         (self.fake / "trees.json").write_text(json.dumps(self.trees))
         (self.fake / "listed.json").write_text(json.dumps(self.listed))
         (self.fake / "find.txt").write_text(self.find, encoding="utf-8")
-        env = {**os.environ, "PYTHONIOENCODING": "utf-8", "FAKE_DIR": str(self.fake), "FAKE_PUBLISHED": self.published, "FAKE_FAIL": self.fail, "FAKE_CLAUDE_FAIL": self.claude_fail, "FAKE_NO_CONTENTS": self.no_contents, "FAKE_TRUNCATED": self.truncated,
+        env = {**os.environ, "PYTHONIOENCODING": "utf-8", "FAKE_DIR": str(self.fake), "FAKE_PUBLISHED": self.published, "FAKE_FAIL": self.fail, "FAKE_CLAUDE_FAIL": self.claude_fail, "FAKE_NO_CONTENTS": self.no_contents, "FAKE_TRUNCATED": self.truncated, "FAKE_NO_NPX": self.no_npx,
                "DTS2_NPX_BIN": str(self.fake / "npx.py"), "DTS2_GH_BIN": str(self.fake / "gh.py"),
                "DTS2_CLAUDE_BIN": str(self.fake / "claude.py")}
         done = subprocess.run([sys.executable, str(SCRIPT), str(self.repo), "--home", str(self.home),
@@ -126,6 +129,66 @@ class Fixture:
 
     def skill(self, name: str) -> Path:
         return self.repo / ".claude" / "skills" / name / "SKILL.md"
+
+    def mark_today(self) -> None:
+        import datetime
+        (self.repo / ".harness" / ".skills-checked").write_text(
+            datetime.date.today().isoformat() + "\n", encoding="utf-8")
+
+
+class DailyGateTests(unittest.TestCase):
+    def test_first_run_of_day_is_full_and_writes_marker(self) -> None:
+        fx = Fixture()
+        out = fx.run("--fix")
+        self.assertEqual(out["skills"]["freshness"], "full")
+        self.assertTrue((fx.repo / ".harness" / ".skills-checked").is_file())
+        self.assertIn("update -p -y", fx.log("npx"))
+
+    def test_second_run_same_day_is_fast_and_touches_no_network(self) -> None:
+        fx = Fixture()
+        fx.run("--fix")
+        (fx.fake / "npx.log").unlink()
+        (fx.fake / "gh.log").unlink()
+        (fx.fake / "claude.log").unlink()
+        out = fx.run("--fix")
+        self.assertEqual(out["skills"]["freshness"], "fast")
+        self.assertEqual(len(out["skills"]["installed"]), 11)
+        self.assertNotIn("update -p -y", fx.log("npx"))
+        self.assertEqual(fx.log("claude"), "")  # no marketplace refresh, no plugin update
+        self.assertEqual(out["harness"]["marketplaces"], {})
+
+    def test_fast_run_still_installs_a_missing_skill(self) -> None:
+        fx = Fixture()
+        fx.mark_today()
+        out = fx.run("--fix")
+        self.assertEqual(out["skills"]["freshness"], "fast")
+        self.assertEqual(len(out["skills"]["installed"]), 11)
+        self.assertIn("add", fx.log("npx"))  # the missing ones were installed
+        self.assertNotIn("update -p -y", fx.log("npx"))  # but no freshness sweep
+
+    def test_fast_run_skips_gone_upstream_detection(self) -> None:
+        fx = Fixture("skills:\n  - name: pr\n    source: npx skills add https://github.com/mattpocock/skills --skill pr\n    serves: harness\n")
+        fx.trees["mattpocock/skills"] = [p for p in MATT if "/pr/" not in p]
+        fx.listed["mattpocock/skills"] = [p.split("/")[-2] for p in fx.trees["mattpocock/skills"]]
+        fx.mark_today()
+        out = fx.run("--fix")
+        self.assertEqual(out["skills"]["freshness"], "fast")
+        self.assertEqual(out["skills"]["gone"], [])  # no gh tree call on the fast path
+
+    def test_force_full_overrides_todays_marker(self) -> None:
+        fx = Fixture()
+        fx.mark_today()
+        out = fx.run("--fix", "--force-full")
+        self.assertEqual(out["skills"]["freshness"], "full")
+        self.assertIn("update -p -y", fx.log("npx"))
+
+    def test_failed_full_run_does_not_write_marker(self) -> None:
+        fx = Fixture()
+        fx.fail = "loop-me"  # one install fails, npx flips unavailable only on 127; here just a failure
+        fx.no_npx = "1"
+        out = fx.run("--fix")
+        # npx unavailable -> nothing refreshed -> marker not written so the next run retries
+        self.assertFalse((fx.repo / ".harness" / ".skills-checked").is_file())
 
 
 class SkillsCheckTests(unittest.TestCase):
@@ -175,7 +238,7 @@ class SkillsCheckTests(unittest.TestCase):
         self.assertTrue(fx.skill("resolving-merge-conflicts").exists())
         (fx.repo / "skills-lock.json").write_text(json.dumps(
             {"skills": {"resolving-merge-conflicts": {"source": "mattpocock/skills"}}}))
-        out = fx.run("--fix")
+        out = fx.run("--fix", "--force-full")  # retired removal is a full-sweep action
         self.assertIn("resolving-merge-conflicts", out["skills"]["retired_removed"])
         self.assertFalse(fx.skill("resolving-merge-conflicts").exists())
 
