@@ -2,7 +2,9 @@
 restating it, and only lanes.py writes the supervisor's state files."""
 from __future__ import annotations
 
+import json
 import re
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -100,6 +102,57 @@ class SingleWriterTests(unittest.TestCase):
     def test_model_call_never_writes_state(self) -> None:
         text = (PLUGIN_ROOT / "scripts" / "model_call.py").read_text(encoding="utf-8")
         self.assertIsNone(re.search(r"atomic_write|write_text|open\([^)]*[\"']w", text))
+
+
+class HeartbeatPhaseTests(unittest.TestCase):
+    """A4: a son sets its phase through `lanes.py heartbeat --status`, never by writing status.json."""
+
+    def setUp(self) -> None:
+        self.repo = Path(tempfile.mkdtemp(prefix="dts2-phase-"))
+        (self.repo / ".harness" / "runs" / "s1" / "a").mkdir(parents=True)
+
+    def beat(self, *args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run([sys.executable, "-I", str(PLUGIN_ROOT / "scripts" / "lanes.py"), "--cwd", str(self.repo),
+                               "heartbeat", "s1", "--lane", "a", *args], capture_output=True, text=True, check=False)
+
+    def saved(self) -> dict[str, object]:
+        data: dict[str, object] = json.loads((self.repo / ".harness" / "runs" / "s1" / "a" / "status.json").read_text())
+        return data
+
+    def test_status_reason_and_blockers_are_merged_under_the_lock(self) -> None:
+        self.assertEqual(self.beat("--turn", "2").returncode, 0)
+        done = self.beat("--status", "blocked", "--reason", "awaiting-items", "--blocked-by", "S1, D2")
+        self.assertEqual(done.returncode, 0, done.stdout)
+        saved = self.saved()
+        self.assertEqual((saved["status"], saved["reason"], saved["blocked_by"], saved["turn"]),
+                         ("blocked", "awaiting-items", ["S1", "D2"], 2))
+
+    def test_unknown_phase_is_refused_and_writes_nothing(self) -> None:
+        self.assertNotEqual(self.beat("--status", "building").returncode, 0)
+        self.assertFalse((self.repo / ".harness" / "runs" / "s1" / "a" / "status.json").exists())
+
+    def test_son_section_uses_the_script_for_every_phase(self) -> None:
+        text = skill("autopilot")
+        for phase in ("pr-open", "done", "blocked", "incomplete"):
+            self.assertIn(f"--status {phase}", text)
+        self.assertNotIn('"status": "blocked"', text)
+
+
+class CostSourceDocTests(unittest.TestCase):
+    def test_non_claude_seats_are_dispatched_with_cost_source_none(self) -> None:
+        text = skill("autopilot")
+        self.assertGreaterEqual(text.count("--cost-source none"), 2)
+        for line in text.splitlines():
+            if "roster.py command" in line and "lanes.py call" in line:
+                self.assertIn("--cost-source none", line)
+
+    def test_readme_says_max_usd_covers_claude_spend_only(self) -> None:
+        readme = (PLUGIN_ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("covers Claude spend only", readme)
+        self.assertIn("unreported_calls", readme)
+
+    def test_fallback_template_names_one_model(self) -> None:
+        self.assertIn("one model name", TEMPLATE.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

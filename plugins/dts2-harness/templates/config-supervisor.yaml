@@ -14,4 +14,4 @@ supervisor:
   retry_max: 4             # retries after a 429 or overload error, with exponential backoff and jitter
   backoff_base_s: 2        # first backoff step in seconds; doubles each retry up to backoff_cap_s
   backoff_cap_s: 60
-  fallback_models: sonnet  # --fallback-model chain for sons, comma separated; empty turns it off
+  fallback_models: sonnet  # --fallback-model for sons: one model name (only the first entry is used); empty turns it off

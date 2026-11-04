@@ -24,6 +24,7 @@ except ImportError:  # pragma: no cover - non-POSIX: the limit is skipped and th
     fcntl = None  # type: ignore[assignment]
 
 CONFIG_FILE: Final[str] = ".harness/config.yaml"
+RESULT_STDERR_CHARS: Final[int] = 4000
 SLOTS_DIR: Final[str] = ".harness/cache/model-slots"
 BLOCK_BUDGET: Final[str] = "budget"
 BLOCK_SUPERVISOR: Final[str] = "supervisor"
@@ -162,9 +163,9 @@ def terminate(proc: subprocess.Popen[str]) -> tuple[str, str]:
 
 
 def run_once(argv: list[str], cwd: Path, timeout_s: float, env: dict[str, str] | None,
-             stdin_text: str | None = None) -> dict[str, Any]:
+             stdin_text: str | None = None, on_start: Callable[[int], None] | None = None) -> dict[str, Any]:
     """Run one command to completion or to the wall-clock limit. A timeout reports exit 143 and `timed_out`.
-    `stdin_text` is piped to the child (a prompt); without it stdin is closed."""
+    `stdin_text` is piped to the child (a prompt); without it stdin is closed. `on_start` gets the child's pid."""
     try:
         proc: subprocess.Popen[str] = subprocess.Popen(
             argv, cwd=str(cwd), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -172,6 +173,8 @@ def run_once(argv: list[str], cwd: Path, timeout_s: float, env: dict[str, str] |
             encoding="utf-8", errors="replace", env=env, start_new_session=True)
     except OSError as exc:
         return {"code": 127, "stdout": "", "stderr": str(exc), "timed_out": False}
+    if on_start is not None:
+        on_start(proc.pid)
     try:
         out, err = proc.communicate(input=stdin_text, timeout=max(1.0, timeout_s))
     except subprocess.TimeoutExpired:
@@ -188,12 +191,14 @@ def timeout_result(code: int, detail: str) -> dict[str, Any]:
 def invoke(argv: list[str], cwd: Path, timeout_s: float, label: str, on_event: Event | None = None,
            env: dict[str, str] | None = None, sleep: Callable[[float], None] = time.sleep,
            rng: random.Random | None = None, root: Path | None = None, stdin_text: str | None = None,
-           halt_on_session: bool = False, clock: Callable[[], float] = time.monotonic) -> dict[str, Any]:
+           halt_on_session: bool = False, clock: Callable[[], float] = time.monotonic,
+           on_start: Callable[[int], None] | None = None) -> dict[str, Any]:
     """The only way harness scripts start a model: slot, run, retry overloads with backoff, report each retry.
     `cwd` is where the process runs (a lane worktree); `root` is the repo whose config and slot files apply.
     One deadline covers the wait for a slot and every attempt. The result lists every attempt's code and stdout under
     `results`. With `halt_on_session`, a failed attempt that reports a session id ends the retries (`halted_overload`):
-    rerunning the whole command would start over, so the caller resumes that session instead."""
+    rerunning the whole command would start over, so the caller resumes that session instead. `on_start` is called with the
+    pid of every process started (a retry starts a new one)."""
     base: Path = root or cwd
     settings: dict[str, Any] = read_supervisor(base)
     emit: Event = on_event or (lambda _event: None)
@@ -207,7 +212,8 @@ def invoke(argv: list[str], cwd: Path, timeout_s: float, label: str, on_event: E
         if left <= 0:
             emit({"event": "slot-timeout", "label": label, "limit": settings["max_model_calls"], "late": True})
             return timeout_result(EXIT_TERMINATED, "wall-clock time ran out waiting for a model-call slot")
-        return retry_loop(argv, cwd, left, label, settings, emit, env, sleep, rng, stdin_text, halt_on_session, clock)
+        return retry_loop(argv, cwd, left, label, settings, emit, env, sleep, rng, stdin_text, halt_on_session, clock,
+                          on_start)
     finally:
         release_slot(handle)
 
@@ -215,13 +221,16 @@ def invoke(argv: list[str], cwd: Path, timeout_s: float, label: str, on_event: E
 def retry_loop(argv: list[str], cwd: Path, timeout_s: float, label: str, settings: dict[str, Any], emit: Event,
                env: dict[str, str] | None, sleep: Callable[[float], None], rng: random.Random | None,
                stdin_text: str | None = None, halt_on_session: bool = False,
-               clock: Callable[[], float] = time.monotonic) -> dict[str, Any]:
+               clock: Callable[[], float] = time.monotonic,
+               on_start: Callable[[int], None] | None = None) -> dict[str, Any]:
     deadline: float = clock() + timeout_s
     attempt: int = 0
     results: list[dict[str, Any]] = []
     while True:
-        result: dict[str, Any] = run_once(argv, cwd, deadline - clock(), env, stdin_text)
-        results.append({"code": result["code"], "stdout": result["stdout"]})
+        result: dict[str, Any] = run_once(argv, cwd, deadline - clock(), env, stdin_text,
+                                       **({"on_start": on_start} if on_start else {}))
+        results.append({"code": result["code"], "stdout": result["stdout"],
+                        "stderr": result["stderr"][-RESULT_STDERR_CHARS:]})
         retriable: bool = not result["timed_out"] and is_overload(result["code"], result["stdout"], result["stderr"])
         done: dict[str, Any] = {**result, "attempts": attempt + 1, "retries": attempt, "results": results,
                                 "halted_overload": False}

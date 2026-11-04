@@ -287,5 +287,44 @@ class PromptFileTests(FixBase):
         self.assertFalse((self.state / "calls.log").exists())
 
 
+class CostSourceTests(FixBase):
+    """A non-Claude CLI never prints a cost: it is counted as unreported and never locks a max_usd run."""
+
+    def vote(self, *extra: str) -> dict[str, Any]:
+        return self.lanes("call", STAMP, "--label", "seat", *extra, "--", "sh", "-c", "echo 'VOTE: APPROVE'")
+
+    def test_non_claude_seat_does_not_lock_out_max_usd(self) -> None:
+        self.config("budget:\n  max_usd: 10\n")
+        self.preflight()
+        out = self.vote()
+        self.assertTrue(out["ok"], out)
+        self.assertIn("VOTE: APPROVE", out["stdout"])
+        budget = self.budget()
+        self.assertEqual((budget["unreported_calls"], budget["unknown_calls"]), (1, 0))
+        self.lane_dir.joinpath("status.json").write_text(json.dumps({"lane": "a", "status": "done"}))
+        spawned = self.spawn(**self.say({"stdout": result(1.0, "S1")}))
+        self.assertNotEqual(spawned.get("reason"), "budget", spawned)
+        self.assertTrue(spawned["ok"], spawned)
+        report = self.lanes("budget", STAMP)
+        self.assertEqual(report["unreported_calls"], 1)
+        self.assertFalse(report["spend_complete"])
+
+    def test_explicit_none_on_a_claude_command_is_unreported_too(self) -> None:
+        self.config("budget:\n  max_usd: 10\n")
+        out = self.call("seat", "--cost-source", "none", **self.say({"stdout": result(None, "S1")}))
+        self.assertTrue(out["ok"], out)
+        self.assertEqual((self.budget()["unreported_calls"], self.budget()["unknown_calls"]), (1, 0))
+        self.assertTrue(self.call("next", **self.say({"stdout": result(1.0, "S2")}))["ok"])
+
+    def test_explicit_claude_on_another_command_stays_unknown(self) -> None:
+        self.config("budget:\n  max_usd: 10\n")
+        self.vote("--cost-source", "claude")
+        self.assertEqual((self.budget()["unreported_calls"], self.budget()["unknown_calls"]), (0, 1))
+
+    def test_unreported_calls_alone_keep_spend_incomplete_without_a_cap(self) -> None:
+        self.vote()
+        self.assertFalse(self.lanes("budget", STAMP)["spend_complete"])
+
+
 if __name__ == "__main__":
     unittest.main()
