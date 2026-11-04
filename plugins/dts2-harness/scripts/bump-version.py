@@ -9,22 +9,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-try:
-    from state_io import atomic_write  # noqa: E402
-except ImportError:  # pragma: no cover - state_io is not present on every base
-    def atomic_write(path: Path, text: str) -> None:
-        fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".bump-")
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(text)
-        os.replace(tmp, path)
+from state_io import atomic_write  # noqa: E402
 
 SEMVER: Final[re.Pattern[str]] = re.compile(r"^\d+\.\d+\.\d+$")
 PLUGIN_NAME: Final[str] = "dts2-harness"
@@ -86,7 +77,7 @@ def write_json(path: Path, rel: str, version: str) -> None:
     data = json.loads(path.read_text(encoding="utf-8"))
     for slot in json_slots(data, rel):
         slot["version"] = version
-    atomic_write(path, json.dumps(data, indent=JSON_INDENT) + "\n")
+    atomic_write(path, json.dumps(data, indent=JSON_INDENT, ensure_ascii=False) + "\n")
 
 
 def write_py(path: Path, name: str, version: str) -> None:
@@ -103,6 +94,14 @@ def mismatches(root: Path, version: str) -> list[str]:
         rel
         for rel, versions in current_versions(root).items()
         if any(v != version for v in versions)
+    ]
+
+
+def missing_locations(root: Path) -> list[str]:
+    return [
+        rel
+        for rel, versions in current_versions(root).items()
+        if any(v is None for v in versions)
     ]
 
 
@@ -134,6 +133,9 @@ def main(argv: list[str]) -> int:
     if args.check:
         bad = mismatches(root, args.version)
         return emit({"ok": not bad, "version": args.version, "files": bad}, EXIT_FAIL if bad else 0)
+    missing = missing_locations(root)
+    if missing:
+        return emit({"ok": False, "version": args.version, "files": missing}, EXIT_FAIL)
     apply(root, args.version)
     bad = mismatches(root, args.version)
     files = [MARKETPLACE, PLUGIN_JSON, *PY_CONSTANTS]

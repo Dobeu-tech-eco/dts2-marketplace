@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -49,6 +50,7 @@ class BumpVersionTests(unittest.TestCase):
 
     def test_bump_updates_all_four(self) -> None:
         root = temp_copy()
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
         code, out = run("9.9.9", "--root", str(root))
         self.assertEqual(code, 0, out)
         self.assertEqual(sorted(out["files"]), sorted(LOCATIONS))
@@ -62,6 +64,7 @@ class BumpVersionTests(unittest.TestCase):
 
     def test_invalid_version_refused(self) -> None:
         root = temp_copy()
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
         before = snapshot(root)
         for bad in ("1.2", "v1.2.3", "1.2.x", "1.2.3.4"):
             code, out = run(bad, "--root", str(root))
@@ -71,6 +74,7 @@ class BumpVersionTests(unittest.TestCase):
 
     def test_check_reports_mismatch(self) -> None:
         root = temp_copy()
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
         target = root / LOCATIONS[2]
         current = json.loads((root / LOCATIONS[1]).read_text(encoding="utf-8"))["version"]
         text = target.read_text(encoding="utf-8")
@@ -79,6 +83,35 @@ class BumpVersionTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertFalse(out["ok"])
         self.assertEqual(out["files"], [LOCATIONS[2]])
+
+    def test_default_root_is_repo_root(self) -> None:
+        version = json.loads(PLUGIN_JSON.read_text(encoding="utf-8"))["version"]
+        code, out = run(version, "--check")
+        self.assertEqual(code, 0, out)
+        self.assertTrue(out["ok"])
+
+    def test_missing_location_writes_nothing(self) -> None:
+        root = temp_copy()
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        target = root / LOCATIONS[3]
+        lines = target.read_text(encoding="utf-8").splitlines(keepends=True)
+        target.write_text("".join(x for x in lines if "RELEASE" not in x), encoding="utf-8")
+        before = snapshot(root)
+        code, out = run("9.9.9", "--root", str(root))
+        self.assertEqual(code, 1, out)
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["files"], [LOCATIONS[3]])
+        self.assertEqual(snapshot(root), before)
+
+    def test_bump_keeps_file_mode(self) -> None:
+        root = temp_copy()
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        for rel in LOCATIONS:
+            os.chmod(root / rel, 0o644)
+        code, out = run("9.9.9", "--root", str(root))
+        self.assertEqual(code, 0, out)
+        for rel in LOCATIONS:
+            self.assertEqual((root / rel).stat().st_mode & 0o777, 0o644, rel)
 
 
 if __name__ == "__main__":
