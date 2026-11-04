@@ -316,8 +316,8 @@ def save(run_dir: Path, name: str, text: str) -> None:
 
 def collect_lessons(review: str, repo: Path) -> None:
     section = re.search(r"### Lesson candidates\n(.*?)(\n### |\Z)", review, re.S)
-    lines: list[str] = [l for l in (section.group(1).splitlines() if section else []) if l.strip("- ").strip()]
-    lines = [l for l in lines if l.strip("- ").strip().lower() != "none"]
+    lines: list[str] = [line for line in (section.group(1).splitlines() if section else []) if line.strip("- ").strip()]
+    lines = [line for line in lines if line.strip("- ").strip().lower() != "none"]
     if lines:
         inbox: Path = repo / ".harness" / "lessons-inbox.md"
         existing: str = inbox.read_text(encoding="utf-8") if inbox.exists() else ""

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Stop: refresh .harness/handoff/latest.md, then quick typecheck and lint on changed files. Non-blocking, warnings go to stderr.
 set -uo pipefail
+# shellcheck source-path=SCRIPTDIR source=lib-settings.sh
 source "$(dirname "$0")/lib-settings.sh"
 CHECK_TIMEOUT_S=30
 HANDOFF_TIMEOUT_S=10

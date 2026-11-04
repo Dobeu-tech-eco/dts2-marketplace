@@ -208,7 +208,7 @@ class DailyGateTests(unittest.TestCase):
         fx = Fixture()
         fx.fail = "loop-me"  # one install fails, npx flips unavailable only on 127; here just a failure
         fx.no_npx = "1"
-        out = fx.run("--fix")
+        fx.run("--fix")
         # npx unavailable -> nothing refreshed -> marker not written so the next run retries
         self.assertFalse((fx.repo / ".harness" / ".skills-checked").is_file())
 
