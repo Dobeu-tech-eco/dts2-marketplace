@@ -11,9 +11,9 @@ import sys
 import tempfile
 import time
 import unittest
+import unittest.mock as mock
 from pathlib import Path
 from typing import Any, Final
-from unittest import mock
 
 import test_supervisor as base
 from helpers import PLUGIN_ROOT
@@ -227,8 +227,12 @@ class DeadlineTests(unittest.TestCase):
             seen.append(timeout_s)
             return {"code": 0, "stdout": "", "stderr": "", "timed_out": False}
 
-        with mock.patch.object(model_call, "run_once", fake_run):
-            out = model_call.invoke(["x"], self.repo, 10.0, "t", sleep=nap, clock=lambda: now[0])
+        try:
+            with mock.patch.object(model_call, "run_once", fake_run):
+                out = model_call.invoke(["x"], self.repo, 10.0, "t", sleep=nap, clock=lambda: now[0])
+        finally:
+            if held is not None and not held.closed:
+                held.close()
         self.assertEqual(out["code"], 0)
         self.assertLess(seen[0], 10.0 - 2.0, "the wait for the slot was spent from the same deadline")
 

@@ -153,7 +153,7 @@ def terminate(proc: subprocess.Popen[str]) -> tuple[str, str]:
         try:
             os.killpg(proc.pid, sig)
         except (ProcessLookupError, PermissionError):
-            pass
+            pass  # the group already exited or is not ours to signal; communicate() below still reaps the child
         try:
             out, err = proc.communicate(timeout=KILL_GRACE_S)
             return out or "", err or ""

@@ -427,14 +427,22 @@ class ModelCallUnitTests(unittest.TestCase):
         cwd = Path(tempfile.mkdtemp(prefix="dts2-slots-"))
         first = model_call.acquire_slot(cwd, 2, 0)
         second = model_call.acquire_slot(cwd, 2, 0)
-        self.assertIsNotNone(first)
-        self.assertIsNotNone(second)
-        self.assertIsNone(model_call.acquire_slot(cwd, 2, 0), "a third call has to wait")
-        model_call.release_slot(first)
-        third = model_call.acquire_slot(cwd, 2, 0)
-        self.assertIsNotNone(third)
-        model_call.release_slot(second)
-        model_call.release_slot(third)
+        third = None
+        try:
+            self.assertIsNotNone(first)
+            self.assertIsNotNone(second)
+            extra = model_call.acquire_slot(cwd, 2, 0)
+            if extra is not None:
+                model_call.release_slot(extra)
+            self.assertIsNone(extra, "a third call has to wait")
+            model_call.release_slot(first)
+            first = None
+            third = model_call.acquire_slot(cwd, 2, 0)
+            self.assertIsNotNone(third)
+        finally:
+            for handle in (first, second, third):
+                if handle is not None:
+                    model_call.release_slot(handle)
 
     def test_concurrency_default_and_config(self) -> None:
         cwd = Path(tempfile.mkdtemp(prefix="dts2-cfg-"))

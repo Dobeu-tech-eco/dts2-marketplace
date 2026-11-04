@@ -34,10 +34,10 @@ class RunningSonTests(FixBase):
                 if self.status_file().get("son_pid"):
                     return proc
             except (OSError, ValueError):
-                pass
+                pass  # status.json is still being written by the son; poll again
             time.sleep(0.1)
         proc.kill()
-        self.fail("the son never recorded its pid")
+        raise AssertionError("the son never recorded its pid")
 
     def age_status(self) -> None:
         path = self.lane_dir / "status.json"
