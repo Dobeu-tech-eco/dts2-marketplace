@@ -14,11 +14,12 @@ from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import miniyaml  # noqa: E402
+import state_io  # noqa: E402
 from state_io import atomic_write  # noqa: E402
 
-CONFIG_FILE: Final[str] = ".harness/config.yaml"
+CONFIG_FILE: Final[str] = state_io.CONFIG_REL
 LOCAL_FILE: Final[str] = ".claude/dts2-harness.local.md"
-CACHE_FILE: Final[str] = ".harness/settings.cache.json"
+CACHE_FILE: Final[str] = state_io.SETTINGS_CACHE_REL
 CACHE_MODE: Final[int] = 0o600
 SCHEMA_VERSION: Final[int] = 1
 # section -> key -> (type, default). The defaults are the ones model_call.py and lanes.py already used.
@@ -98,7 +99,7 @@ def read_cache(repo: Path, key: dict[str, list[int]]) -> dict[str, dict[str, Any
 
 
 def write_cache(repo: Path, key: dict[str, list[int]], settings: dict[str, dict[str, Any]]) -> None:
-    if not (repo / ".harness").is_dir():
+    if not state_io.harness_path(repo).is_dir():
         return  # no harness here: nothing to cache into
     target: Path = repo / CACHE_FILE
     try:

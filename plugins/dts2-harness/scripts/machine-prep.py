@@ -26,6 +26,7 @@ from typing import Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _load  # noqa: E402
+import state_io  # noqa: E402
 
 SCRIPT_DIR: Final[Path] = Path(__file__).resolve().parent
 DEFAULT_DAYS: Final[int] = 30
@@ -172,7 +173,7 @@ def inventory(home: Path, claude_home: Path, project: Path, usage: dict[str, int
     }
 
 
-KEEP_FILE: Final[Path] = Path(".harness") / "keep.yaml"
+KEEP_FILE: Final[Path] = Path(state_io.KEEP_REL)
 
 
 def keep_list_plugins(project: Path) -> list[str]:

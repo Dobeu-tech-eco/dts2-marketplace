@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from state_io import atomic_write  # noqa: E402
 import skill_pins as pins  # noqa: E402
 import _load  # noqa: E402
+import state_io  # noqa: E402
 
 SCRIPTS: Final[Path] = Path(__file__).resolve().parent
 PLUGIN_ROOT: Final[Path] = SCRIPTS.parent
@@ -73,7 +74,7 @@ DAILY_MARKER: Final[str] = ".skills-checked"
 
 
 def checked_today(repo: Path) -> bool:
-    marker: Path = repo / ".harness" / DAILY_MARKER
+    marker: Path = state_io.harness_path(repo, DAILY_MARKER)
     try:
         return marker.read_text(encoding="utf-8").strip() == date.today().isoformat()
     except OSError:
@@ -81,7 +82,7 @@ def checked_today(repo: Path) -> bool:
 
 
 def mark_checked(repo: Path) -> None:
-    marker: Path = repo / ".harness" / DAILY_MARKER
+    marker: Path = state_io.harness_path(repo, DAILY_MARKER)
     atomic_write(marker, date.today().isoformat() + "\n")
 FIND_LINE: Final[re.Pattern[str]] = re.compile(r"^([\w.-]+/[\w.-]+)@([\w.-]+)\s+([\d.]+)([KkMm]?) installs")
 LIST_LINE: Final[re.Pattern[str]] = re.compile(r"^\S\s{4}([\w.-]+)\s*$")
@@ -137,7 +138,7 @@ def strip_comment(value: str) -> str:
 
 
 def read_keep(repo: Path) -> dict[str, Any]:
-    path: Path = repo / ".harness" / "keep.yaml"
+    path: Path = state_io.harness_path(repo, "keep.yaml")
     return parse_keep(path.read_text(encoding="utf-8") if path.is_file() else "")
 
 
@@ -170,7 +171,7 @@ def parse_keep(text: str) -> dict[str, Any]:
 
 def swap_keep_entry(repo: Path, old: str, new: str, ref: str) -> None:
     """Replace the `old` entry (or append one) so a setup re-run keeps the replacement."""
-    path: Path = repo / ".harness" / "keep.yaml"
+    path: Path = state_io.harness_path(repo, "keep.yaml")
     text: str = path.read_bytes().decode("utf-8") if path.is_file() else "skills:\n"
     newline: str = "\r\n" if "\r\n" in text else "\n"
     lines: list[str] = text.splitlines()
@@ -614,7 +615,7 @@ def propose_updates(repo: Path, wanted: list[dict[str, Any]], write: bool = True
     stores them in the proposals file; check-only mode returns them and writes nothing. Nothing is
     installed and keep.yaml is untouched until an explicit --apply-update."""
     found = pins.build_proposals(wanted, lambda r: upstream_head(r, repo), lambda r, b, h: files_between(r, b, h, repo))
-    target: Path = repo / ".harness" / pins.PROPOSALS_FILE
+    target: Path = state_io.harness_path(repo, pins.PROPOSALS_FILE)
     if write and (found or target.is_file()):
         atomic_write(target, json.dumps(found, indent=2) + "\n")
     return found
@@ -624,7 +625,7 @@ def apply_update(repo: Path, home: Path, spec: str, report: dict[str, Any]) -> N
     """Apply one approved proposal: NAME=SHA must match the stored proposal exactly."""
     name, _, sha = spec.partition("=")
     name, sha = name.strip(), sha.strip()
-    target: Path = repo / ".harness" / pins.PROPOSALS_FILE
+    target: Path = state_io.harness_path(repo, pins.PROPOSALS_FILE)
     try:
         stored: list[dict[str, Any]] = json.loads(target.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -646,7 +647,7 @@ def apply_update(repo: Path, home: Path, spec: str, report: dict[str, Any]) -> N
     if code != 0 or installed(repo, name, home) != "claude":
         report["failed"].append({"name": name, "output": out[-400:]})
         return
-    keep: Path = repo / ".harness" / "keep.yaml"
+    keep: Path = state_io.harness_path(repo, "keep.yaml")
     text: str = keep.read_bytes().decode("utf-8") if keep.is_file() else ""
     updated: str = pins.set_pin_text(text, name, sha)
     if updated == text:  # a default companion with no keep entry yet: add one carrying the pin
@@ -691,7 +692,7 @@ def check_harness(repo: Path, home: Path, plugin_root: Path, fix: bool, daily: b
     upgrade = load_upgrade_check()
     plugin_json: Path = plugin_root / ".claude-plugin" / "plugin.json"
     installed_v: str = upgrade.read_version(plugin_json)
-    marker: Path = repo / ".harness" / "upgrade-from.txt"
+    marker: Path = state_io.harness_path(repo, "upgrade-from.txt")
     result: dict[str, Any] = {"installed": installed_v, "published": None, "upgrade_available": False,
                               "upgrade_started": False, "upgrade_failed": None, "resume_upgrade": None,
                               "marketplaces": {}, "plugins_updated": [], "restart_required": False}

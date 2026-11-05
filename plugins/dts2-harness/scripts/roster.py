@@ -15,6 +15,7 @@ from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import miniyaml  # noqa: E402
+import state_io  # noqa: E402
 from profiles import PROFILE_DIR, Profiles  # noqa: E402
 
 DEFAULT_ROSTER: Final[list[dict[str, Any]]] = [{"name": "claude"}]
@@ -631,9 +632,9 @@ def main() -> int:
     det = sub.add_parser("detect")
     det.add_argument("--project", default=".")
     res = sub.add_parser("resolve")
-    res.add_argument("--config", default=".harness/config.yaml")
+    res.add_argument("--config", default=state_io.CONFIG_REL)
     prb = sub.add_parser("probe")
-    prb.add_argument("--config", default=".harness/config.yaml")
+    prb.add_argument("--config", default=state_io.CONFIG_REL)
     mdl = sub.add_parser("model")
     mdl.add_argument("--agent", required=True)
     mdl.add_argument("--tier", required=True, choices=MODEL_TIERS)

@@ -27,12 +27,13 @@ from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import miniyaml  # noqa: E402
+import state_io  # noqa: E402
 from state_io import append_text, atomic_write  # noqa: E402
 
-RUNS_DIR: Final[str] = ".harness/runs"
+RUNS_DIR: Final[str] = state_io.RUNS_REL
 LEDGER_NAME: Final[str] = "ledger.jsonl"
 CHECKS_DIR: Final[str] = "checks"
-CONFIG_PATH: Final[str] = ".harness/config.yaml"
+CONFIG_PATH: Final[str] = state_io.CONFIG_REL
 COMMAND_CHECKS: Final[tuple[str, ...]] = ("test", "typecheck", "lint")
 EXPECTED_CHECKS: Final[tuple[str, ...]] = (*COMMAND_CHECKS, "secret-scan", "scope-check")
 BASE_NAME: Final[str] = "base"

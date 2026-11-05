@@ -9,6 +9,7 @@ from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import miniyaml  # noqa: E402
+import state_io  # noqa: E402
 from profiles import PROFILE_DIR, Profiles  # noqa: E402
 
 START_MARKER: Final[str] = "<!-- dts2-harness:start -->"
@@ -60,7 +61,7 @@ def sync_file(path: Path, project_name: str) -> str:
 
 
 def project_name_for(directory: Path) -> str:
-    config: Path = directory / ".harness" / "config.yaml"
+    config: Path = state_io.harness_path(directory, "config.yaml")
     if config.is_file():
         name: str = miniyaml.get_str(miniyaml.parse(config.read_text(encoding="utf-8")), "project")
         if name:

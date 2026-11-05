@@ -26,10 +26,11 @@ except ImportError:  # pragma: no cover - non-POSIX: the limit is skipped and th
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import miniyaml  # noqa: E402
+import state_io  # noqa: E402
 
-CONFIG_FILE: Final[str] = ".harness/config.yaml"
+CONFIG_FILE: Final[str] = state_io.CONFIG_REL
 RESULT_STDERR_CHARS: Final[int] = 4000
-SLOTS_DIR: Final[str] = ".harness/cache/model-slots"
+SLOTS_DIR: Final[str] = state_io.MODEL_SLOTS_REL
 BLOCK_BUDGET: Final[str] = "budget"
 BLOCK_SUPERVISOR: Final[str] = "supervisor"
 DEFAULT_BUDGET: Final[dict[str, int]] = {"max_turns": 80, "max_rounds": 4, "max_fullauto_loops": 3}

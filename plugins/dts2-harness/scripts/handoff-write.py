@@ -13,11 +13,12 @@ from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from state_io import atomic_write  # noqa: E402
+import state_io  # noqa: E402
 import _load  # noqa: E402
 from profiles import Profiles  # noqa: E402
 
-HARNESS: Final[str] = ".harness"
-OUTPUT: Final[str] = ".harness/handoff/latest.md"
+HARNESS: Final[str] = state_io.HARNESS
+OUTPUT: Final[str] = state_io.HANDOFF_LATEST_REL
 TEMPLATE: Final[Path] = Path(__file__).resolve().parent.parent / "templates" / "handoff-latest.md"
 RECEIPT_PLACEHOLDER: Final[str] = "(filled at the ship checkpoint)"
 RESUME_COMMAND: Final[str] = "/dts2-harness:run resume"

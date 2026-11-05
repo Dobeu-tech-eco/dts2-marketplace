@@ -14,6 +14,7 @@ from typing import Any, Final
 SCRIPT_DIR: Final[Path] = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 from state_io import atomic_write  # noqa: E402
+import state_io  # noqa: E402
 import _load  # noqa: E402
 
 BYTES_PER_MB: Final[int] = 1048576
@@ -53,7 +54,7 @@ def fire(marker_dir: Path, session: str, trigger: str, details: str) -> None:
 
 
 def has_plan(effective: Path) -> bool:
-    return next(effective.glob(".harness/runs/*/plan.md"), None) is not None
+    return next(effective.glob(f"{state_io.RUNS_REL}/*/plan.md"), None) is not None
 
 
 def int_field(state: dict[str, Any], key: str) -> int:

@@ -10,8 +10,9 @@ from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from state_io import append_text  # noqa: E402
+import state_io  # noqa: E402
 
-METRICS_PATH: Final[str] = ".harness/metrics.jsonl"
+METRICS_PATH: Final[str] = state_io.METRICS_REL
 DEFAULT_WINDOW: Final[int] = 5
 VERIFIED: Final[str] = "VERIFIED"
 NO_RUNS: Final[str] = "Trend: no runs yet"

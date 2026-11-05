@@ -18,10 +18,11 @@ from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from state_io import atomic_write  # noqa: E402
+import state_io  # noqa: E402
 import _load  # noqa: E402
 
-RUNS_DIR: Final[str] = ".harness/runs"
-ITEMS_PATH: Final[str] = ".harness/action-items.md"
+RUNS_DIR: Final[str] = state_io.RUNS_REL
+ITEMS_PATH: Final[str] = state_io.ACTION_ITEMS_REL
 STATUS_NAME: Final[str] = "status.json"
 LEDGER_NAME: Final[str] = "task-ledger.md"
 GH_PR_FIELDS: Final[str] = "number,headRefName"

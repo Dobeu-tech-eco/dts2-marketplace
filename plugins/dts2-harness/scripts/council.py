@@ -31,6 +31,7 @@ from typing import Any, Final
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from checks import append_ledger, gate as checks_gate, read_ledger  # noqa: E402
 from profiles import PROFILE_DIR, Profiles  # noqa: E402
+import state_io  # noqa: E402
 from state_io import append_text, atomic_write  # noqa: E402
 
 DECISIONS_HEADER: Final[str] = ("# Council decisions\n\nEvery autopilot step that went to council: the vote, each member's reasons, "
@@ -463,7 +464,7 @@ def main() -> int:
         led.add_argument(flag, required=True)
     st = sub.add_parser("seats")
     st.add_argument("--usable", required=True, help="comma-separated usable providers from the roster probe")
-    st.add_argument("--config", default=".harness/config.yaml")
+    st.add_argument("--config", default=state_io.CONFIG_REL)
     st.add_argument("--failed", default="", help="provider:model seats that failed and must not be reseated")
     args = parser.parse_args()
     if args.cmd == "seats":
