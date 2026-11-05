@@ -76,4 +76,4 @@ Hooks read settings from `.claude/dts2-harness.local.md` through `hooks/lib-sett
 
 `checks.py` (deterministic gate), `council.py` (dossier, tally, blind ballots, seats), `lanes.py` (lane leases and supervision), `roster.py` and `delegate.py` (which agent and model for which seat), `prod-scaffold.py` (CI and ops files for a target app), `doctor.py` (preflight table, `make doctor`), `repo-size.py` (tier, per-module lines, heavy files and suggested sections).
 
-`ownership_audit.py` (the shared `audit(diff, owned, claimed_sha)` core) and `builder-audit.py` (its CLI: empty diff with DONE, file outside the owned set, claimed commit not HEAD).
+`ownership_audit.py` (the shared `audit(diff, owned, claimed_sha)` core) and `builder-audit.py` (its CLI: empty diff with DONE, file outside the owned set, claimed commit not HEAD). `plan-gate.py` is the plan checkpoint gate: PASS or FAIL on Foundation, exclusive ownership, model and effort per builder, with an estimated token count.

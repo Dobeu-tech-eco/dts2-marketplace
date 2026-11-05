@@ -9,8 +9,11 @@ Dispatch `dts2-harness:lead` (seat: sign-off, tier `frontier`) with `model` = cl
 
 **Plan checkpoint.** It will not open without the lead's `## Done` section with at least one line. If the section is missing or empty, send the plan back to the lead once with "Add the Done section: one outcome per line with its check method." Still missing → stop and say why.
 
+**Plan gate.** Save the plan to `.harness/runs/<stamp>/plan.md`, then run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/plan-gate.py" .harness/runs/<stamp>/plan.md`. It checks the `## Foundation` section, exclusive file ownership (no file or dir/ prefix owned twice), a `complexity:` per builder with its model and effort (never frontier), and prints estimated tokens. `PLAN GATE: FAIL` blocks the checkpoint: send the plan back to the lead once with the `FAIL:` lines. Still failing → stop and say why.
+
 Show, in this order:
 - The plan as the lead wrote it, including `## Done` and `Axes:`.
+- The `plan-gate.py` output verbatim: one model and effort line per builder, `Estimated tokens: ~N`, and `PLAN GATE: PASS`.
 - `Team: N builders on separate file sets`, reviewer axes, and one line per seat: `<role> — <agent> (<tier>, effort <e>, <auth>)`, where auth is `subscription`, `api-key`, `installed (unverified)`, or `handoff` for IDE agents, for example `builder 2 — codex (standard, effort medium, api-key)`.
 - One line per dropped agent: `Dropped: <agent> — <reason>`.
 - The output of `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/metrics.py" <repo> trend` as one line (`Trend: no runs yet` on a first run).
