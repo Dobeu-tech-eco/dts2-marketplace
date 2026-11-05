@@ -30,6 +30,7 @@ from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from checks import append_ledger, gate as checks_gate, read_ledger  # noqa: E402
+from profiles import PROFILE_DIR, Profiles  # noqa: E402
 from state_io import append_text, atomic_write  # noqa: E402
 
 DECISIONS_HEADER: Final[str] = ("# Council decisions\n\nEvery autopilot step that went to council: the vote, each member's reasons, "
@@ -47,7 +48,6 @@ ENTRIES_LINE: Final[re.Pattern[str]] = re.compile(r"^Entries reviewed:\s*(\d+)\s
 BRIEF_HEADING: Final[str] = "## Dissent brief"
 HEAD_BRIEF: Final[str] = "## Head of council brief"
 REQUIRED_LIST: Final[dict[str, str]] = {"FIX": "## Fixes", "STRIKE": "## Struck"}
-PROFILE_DIR: Final[Path] = Path(__file__).resolve().parent.parent / "profiles" / "agents"
 DEFAULT_ORDER: Final[tuple[str, ...]] = ("claude", "codex", "gemini", "grok", "cursor", "muse")
 CLAUDE_AGENT_ALIASES: Final[frozenset[str]] = frozenset({"opus", "sonnet", "haiku", "fable"})
 # Council model ids live in profiles/agents/<provider>.json under `councilModels`:
@@ -360,14 +360,7 @@ def parse_council_config(text: str) -> dict[str, list[str]]:
 
 
 def read_profile(provider: str) -> dict[str, Any]:
-    path: Path = PROFILE_DIR / f"{provider}.json"
-    if not path.is_file():
-        return {}
-    try:
-        data: Any = json.loads(path.read_text(encoding="utf-8"))
-    except ValueError:
-        return {}
-    return data if isinstance(data, dict) else {}
+    return Profiles.load(PROFILE_DIR).get(provider) or {}
 
 
 def council_models(provider: str) -> dict[str, Any]:

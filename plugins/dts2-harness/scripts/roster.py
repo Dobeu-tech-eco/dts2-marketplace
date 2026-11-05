@@ -15,8 +15,8 @@ from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import miniyaml  # noqa: E402
+from profiles import PROFILE_DIR, Profiles  # noqa: E402
 
-PROFILE_DIR: Final[Path] = Path(__file__).resolve().parent.parent / "profiles" / "agents"
 DEFAULT_ROSTER: Final[list[dict[str, Any]]] = [{"name": "claude"}]
 COPILOT_TIMEOUT_SECONDS: Final[int] = 10
 IDE_MARKERS: Final[dict[str, str]] = {
@@ -88,11 +88,7 @@ class RosterError(Exception):
 
 
 def load_profiles() -> dict[str, dict[str, Any]]:
-    profiles: dict[str, dict[str, Any]] = {}
-    for path in sorted(PROFILE_DIR.glob("*.json")):
-        data: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
-        profiles[data["name"]] = data
-    return profiles
+    return Profiles.load(PROFILE_DIR).as_dict()
 
 
 def parse_roles(value: str) -> list[str]:

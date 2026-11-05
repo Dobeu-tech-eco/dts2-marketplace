@@ -9,7 +9,7 @@ from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import miniyaml  # noqa: E402
-from delegate import PROFILE_DIR, load_profiles  # noqa: E402
+from profiles import PROFILE_DIR, Profiles  # noqa: E402
 
 START_MARKER: Final[str] = "<!-- dts2-harness:start -->"
 END_MARKER: Final[str] = "<!-- dts2-harness:end -->"
@@ -69,7 +69,7 @@ def project_name_for(directory: Path) -> str:
 
 
 def write_all(directory: Path, agents: list[str], project_name: str) -> list[str]:
-    profiles: dict[str, dict[str, Any]] = load_profiles(PROFILE_DIR)
+    profiles: dict[str, dict[str, Any]] = Profiles.load(PROFILE_DIR).as_dict()
     lines: list[str] = []
     for name in rules_files(profiles, agents):
         lines.append(f"{sync_file(directory / name, project_name)} {name}")

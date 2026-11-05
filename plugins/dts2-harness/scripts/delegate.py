@@ -8,7 +8,9 @@ import sys
 from pathlib import Path
 from typing import Any, Final
 
-PROFILE_DIR: Final[Path] = Path(__file__).resolve().parent.parent / "profiles" / "agents"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from profiles import PROFILE_DIR, Profiles  # noqa: E402
+
 EFFORT_LEVELS: Final[tuple[str, ...]] = ("low", "medium", "high", "xhigh", "max", "ultra")
 HIGH: Final[str] = "high"
 SEATS: Final[tuple[str, ...]] = ("execution", "advisory", "signoff")
@@ -68,10 +70,7 @@ def clamp_effort(desired: str, available: list[str]) -> str:
 
 def lead_eligible(profiles: dict[str, dict[str, Any]]) -> list[str]:
     """Names of profiles that can fill advisory and sign-off seats, sorted by name."""
-    return sorted(
-        name for name, profile in profiles.items()
-        if any(role in profile.get("roles", []) for role in ADVISORY_ROLES)
-    )
+    return Profiles(profiles).lead_eligible()
 
 
 def signoff_agent(profiles: dict[str, dict[str, Any]], lead_provider: str) -> str:
@@ -199,11 +198,7 @@ def receipt_line(profile: dict[str, Any], seat: str, effort: str, model: str | N
 
 
 def load_profiles(profile_dir: Path) -> dict[str, dict[str, Any]]:
-    profiles: dict[str, dict[str, Any]] = {}
-    for path in sorted(profile_dir.glob("*.json")):
-        data: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
-        profiles[data["name"]] = data
-    return profiles
+    return Profiles.load(profile_dir).as_dict()
 
 
 def build_parser() -> argparse.ArgumentParser:
