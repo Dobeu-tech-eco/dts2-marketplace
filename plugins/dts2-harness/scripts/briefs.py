@@ -2,14 +2,18 @@
 """Briefs and the cached prompt prefix for sons and the lead (B1, N5, Q-11). Nothing here starts a process.
 
   son-brief  <manifest> --lane L --epoch N [--max-bundle K] [--out FILE]   the ~4 KB son brief (templates/son-brief.md)
+  prefix     --stamp S [--cwd D]                                            the stable cached prefix (discipline, roster, probe)
+  dry-run    <manifest> --lane L --worktree W [--cwd D]                     the exact son command, env names, byte counts
   lead-brief --stamp S [--cwd D] [--task-file F] [--roster-json F] [--probe-json F]
                                                                            one page for the lead instead of raw JSON dumps
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
+import shlex
 import sys
 from pathlib import Path
 from typing import Any, Final
@@ -21,6 +25,11 @@ DEFAULT_MAX_BUNDLE: Final[int] = 5
 PLACEHOLDER: Final[re.Pattern[str]] = re.compile(r"\{\{(\w+)\}\}")
 NONE_TEXT: Final[str] = "none"
 PROBE_NAME: Final[str] = "probe.json"
+PREFIX_HEADINGS: Final[tuple[str, str, str]] = ("## 1. Discipline", "## 2. Roster", "## 3. Probe")
+PREFIX_TITLE: Final[str] = "# dts2-harness shared prefix (identical for every dispatch of this run)"
+NO_PROBE: Final[str] = "no probe recorded for this run\n"
+PROMPT_FLAG: Final[str] = "-p"
+PREFIX_FLAG: Final[str] = "--append-system-prompt"
 
 
 def canonical(value: Any) -> str:
@@ -121,6 +130,60 @@ def lead_brief(task: str, roster: dict[str, Any], probe: dict[str, Any], ledger:
     return "\n".join(lines) + "\n"
 
 
+def discipline_text(cwd: Path) -> str:
+    """The repo's `.harness/discipline.md`, else the plugin's template. Never the run's mutable state."""
+    for path in (cwd / ".harness" / "discipline.md", DISCIPLINE_TEMPLATE):
+        try:
+            return path.read_text(encoding="utf-8").rstrip("\n") + "\n"
+        except OSError:
+            continue
+    return "(no discipline file found)\n"
+
+
+def roster_text(cwd: Path) -> str:
+    """The configured roster resolved to role assignments, as canonical JSON. Falls back to the raw entries."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import roster
+    entries: list[dict[str, Any]] = roster.read_roster(cwd / ".harness" / "config.yaml")
+    try:
+        return canonical({"entries": entries, **roster.resolve(entries, roster.load_profiles())})
+    except (roster.RosterError, OSError, ValueError, KeyError):
+        return canonical({"entries": entries})
+
+
+def probe_text(cwd: Path, stamp: str) -> str:
+    """The probe the lead recorded for this run (`runs/<stamp>/probe.json`), re-serialised canonically."""
+    try:
+        return canonical(json.loads((cwd / ".harness" / "runs" / stamp / PROBE_NAME).read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        return NO_PROBE
+
+
+def cached_prefix(cwd: Path, stamp: str) -> str:
+    """The stable part of every son's prompt, in one fixed order: discipline, roster, probe. It holds nothing that differs
+    between lanes, dispatches or callers (no lane, epoch, time or environment), so the bytes repeat and the provider's
+    prompt cache can serve them. Lane facts come after it, in the brief."""
+    parts: list[str] = [PREFIX_TITLE, "", PREFIX_HEADINGS[0], discipline_text(cwd), PREFIX_HEADINGS[1], roster_text(cwd),
+                        PREFIX_HEADINGS[2], probe_text(cwd, stamp)]
+    return "\n".join(parts)
+
+
+def dry_run(manifest: dict[str, Any], lane_id: str, worktree: Path, cwd: Path) -> dict[str, Any]:
+    """Build the exact son command and report it. Starts nothing and writes nothing: no preflight, no lease, no spawn."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import lanes
+    try:
+        command: dict[str, Any] = lanes.son_command(manifest, lane_id, worktree, cwd)
+    except lanes.LaneError as exc:
+        raise BriefError(str(exc)) from exc
+    argv: list[str] = list(command["argv"])
+    prompt: str = argv[argv.index(PROMPT_FLAG) + 1]
+    prefix: bytes = argv[argv.index(PREFIX_FLAG) + 1].encode("utf-8") if PREFIX_FLAG in argv else b""
+    return {"ok": True, "started": False, "lane": lane_id, "cwd": command["cwd"], "command": shlex.join(argv), "argv": argv,
+            "env_allowlist": sorted(command["env"]), "prompt": prompt, "prompt_bytes": len(prompt.encode("utf-8")),
+            "prefix_bytes": len(prefix), "prefix_sha256": hashlib.sha256(prefix).hexdigest() if prefix else None}
+
+
 def load_json(path: Path) -> Any:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -164,6 +227,11 @@ def run_main(args: argparse.Namespace) -> dict[str, Any]:
         return {"ok": True, "bytes": len(text.encode("utf-8")), "out": args.out}
     if args.command == "lead-brief":
         return run_lead(args)
+    if args.command == "prefix":
+        sys.stdout.write(cached_prefix(Path(args.cwd).resolve(), args.stamp))
+        return {"ok": True}
+    if args.command == "dry-run":
+        return dry_run(load_json(Path(args.manifest)), args.lane, Path(args.worktree), Path(args.cwd).resolve())
     raise BriefError(f"unknown command {args.command}")
 
 
@@ -176,6 +244,14 @@ def build_parser() -> argparse.ArgumentParser:
     son_p.add_argument("--epoch", type=int, required=True)
     son_p.add_argument("--max-bundle", type=int, default=DEFAULT_MAX_BUNDLE)
     son_p.add_argument("--out", default=None)
+    prefix_p = sub.add_parser("prefix")
+    prefix_p.add_argument("--cwd", default=".")
+    prefix_p.add_argument("--stamp", required=True)
+    dry_p = sub.add_parser("dry-run")
+    dry_p.add_argument("manifest")
+    dry_p.add_argument("--lane", required=True)
+    dry_p.add_argument("--worktree", required=True)
+    dry_p.add_argument("--cwd", default=".")
     lead_p = sub.add_parser("lead-brief")
     lead_p.add_argument("--cwd", default=".")
     lead_p.add_argument("--stamp", required=True)
@@ -192,7 +268,7 @@ def main() -> int:
     except BriefError as exc:
         print(json.dumps({"ok": False, "error": str(exc)}))
         return 1
-    if args.command == "son-brief" and args.out:
+    if args.command == "dry-run" or (args.command == "son-brief" and args.out):
         print(json.dumps(result))
     return 0
 
