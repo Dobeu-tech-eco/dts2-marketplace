@@ -204,6 +204,32 @@ class VersionSkewTests(unittest.TestCase):
             self.assertEqual((skew["ok"], skew["reason"]), (False, "version-skew"))
 
 
+class SupervisorSkewTests(unittest.TestCase):
+    """spawn_refusal refuses a son whose plugin.json version differs from the head's (G-76); fake sons are tmp dirs."""
+
+    def refusal(self, son_version: str | None) -> tuple[str, str] | None:
+        from lanes import supervisor
+        with tempfile.TemporaryDirectory() as tmp:
+            head = write_plugin(Path(tmp) / "head", "3.10.0")
+            son = write_plugin(Path(tmp) / "son", son_version) if son_version else Path(tmp) / "missing"
+            pinned = unittest.mock.Mock(preflight_ok=True, claude_version="2.1.200")
+            with unittest.mock.patch.object(supervisor, "PLUGIN_ROOT", head), \
+                    unittest.mock.patch.object(supervisor, "read_run", return_value=pinned):
+                return supervisor.spawn_refusal(Path(tmp), "s1", Path(tmp), "a", son)
+
+    def test_mismatched_son_is_refused_with_the_skew_reason(self) -> None:
+        got = self.refusal("3.9.0")
+        self.assertIsNotNone(got)
+        reason, detail = got or ("", "")
+        self.assertEqual(reason, "version-skew")
+        self.assertIn("3.9.0", detail)
+
+    def test_unreadable_son_version_is_refused(self) -> None:
+        got = self.refusal(None)
+        self.assertEqual((got or ("", ""))[0], "version-skew")
+        self.assertIn("unreadable", (got or ("", ""))[1])
+
+
 class OrgStringTests(unittest.TestCase):
     def test_marketplace_repo_from_plugin_json(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, unittest.mock.patch.dict(os.environ, {}, clear=False):

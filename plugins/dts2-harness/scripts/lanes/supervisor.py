@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 from typing import Any, Final
 
+import harness_skew
 from model_call import (
     fallback_used, invoke, is_terminated, parse_result, read_budget,
 )
@@ -81,11 +82,19 @@ def preflight(runs_dir: Path, stamp: str, cwd: Path) -> dict[str, Any]:
     return {"ok": ok, "stamp": stamp, "claude_version": record["claude_version"], "problems": problems}
 
 
-def spawn_refusal(runs_dir: Path, stamp: str, cwd: Path, lane_id: str) -> tuple[str, str] | None:
-    """(reason, detail) when a son must not start: no passing preflight, a different CLI version, or a spent cap."""
+SON_ROOT_ENV: Final[str] = "DTS2_SON_PLUGIN_ROOT"  # the plugin dir a son loads, when it is not the head's own (G-76)
+
+
+def spawn_refusal(runs_dir: Path, stamp: str, cwd: Path, lane_id: str, son_root: Path | None = None) -> tuple[str, str] | None:
+    """(reason, detail) when a son must not start: no passing preflight, a son harness of another version than the head's,
+    a different CLI version, or a spent cap."""
     pinned = read_run(runs_dir, stamp)
     if pinned.preflight_ok is not True or pinned.claude_version is None:
         return REASON_PREFLIGHT, "run `lanes.py preflight` first; no passing preflight is recorded for this run"
+    given: str = os.environ.get(SON_ROOT_ENV, "")
+    skew: str | None = harness_skew.skew_problem(PLUGIN_ROOT, son_root or (Path(given) if given else PLUGIN_ROOT))
+    if skew is not None:
+        return REASON_SKEW, skew
     current: str | None = claude_version(cwd)
     if cli_too_old(current) is not None:
         return REASON_SKEW, str(cli_too_old(current))
