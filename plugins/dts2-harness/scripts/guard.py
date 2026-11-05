@@ -144,6 +144,18 @@ def substitutions(text: str) -> list[str]:
     return found
 
 
+ENV_VALUE_LETTERS: Final[str] = "uCS"  # env's short flags that take a value (`-u NAME`, `-C DIR`, `-S STR`)
+
+
+def env_flag_width(flag: str) -> int:
+    """Words an `env` flag consumes: 2 when its value is the next word (`-u`, `-iu`, `--unset`), else 1 (`-i`, `-uNAME`, `--unset=X`)."""
+    if flag.startswith("--"):
+        return 2 if flag in ENV_VALUE_FLAGS else 1
+    letters: str = flag[1:]
+    hit: list[int] = [i for i, ch in enumerate(letters) if ch in ENV_VALUE_LETTERS]
+    return 2 if hit and hit[0] == len(letters) - 1 else 1
+
+
 def strip_wrappers(words: list[str], seen: list[str] | None = None) -> list[str]:
     """Drop env assignments and the wrappers Claude Code strips (`timeout N`, `time`, `nice`, `nohup`, `stdbuf`, `builtin`,
     bare `xargs`) and their flags, leaving the command that actually runs. The wrapper names dropped are appended to `seen`."""
@@ -157,8 +169,8 @@ def strip_wrappers(words: list[str], seen: list[str] | None = None) -> list[str]
             words = words[1:]
             while words and (words[0].startswith("-") or (head in ("timeout", "nice") and DURATION.match(words[0]))
                              or (head == "env" and "=" in words[0])):
-                value_flags: frozenset[str] = ENV_VALUE_FLAGS if head == "env" else FLAG_WITH_VALUE
-                words = words[2:] if words[0] in value_flags else words[1:]
+                width: int = env_flag_width(words[0]) if head == "env" else (2 if words[0] in FLAG_WITH_VALUE else 1)
+                words = words[width:]
         else:
             break
     return words
