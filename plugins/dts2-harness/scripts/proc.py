@@ -20,7 +20,7 @@ from typing import Any, Callable, Final
 
 EXIT_TERMINATED: Final[int] = 143
 EXIT_NOT_FOUND: Final[int] = 127
-SIGNALS_TERMINATED: Final[frozenset[int]] = frozenset({143, 124, -signal.SIGTERM, -signal.SIGKILL})
+SIGNALS_TERMINATED: Final[frozenset[int]] = frozenset({143, 124, -signal.SIGTERM, -getattr(signal, "SIGKILL", signal.SIGTERM)})
 KILL_GRACE_S: Final[int] = 5
 DEFAULT_TIMEOUT_S: Final[int] = 30
 MAX_FALLBACK_MODELS: Final[int] = 3

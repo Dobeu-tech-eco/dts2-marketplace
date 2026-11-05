@@ -6,6 +6,7 @@ accessors (`get_int`, `get_float`, `get_bool`, `get_str`, `get_list`) convert wi
 raises. One comment rule: `#` starts a comment at the start of a line or after whitespace, outside quotes."""
 from __future__ import annotations
 
+import math
 import re
 from typing import Any, Final
 
@@ -156,7 +157,7 @@ def get_float(data: Any, path: str, default: float) -> float:
         number: float = float(value)
     except ValueError:
         return default
-    return number if number == number and abs(number) != float("inf") else default
+    return number if math.isfinite(number) else default
 
 
 def get_bool(data: Any, path: str, default: bool) -> bool:

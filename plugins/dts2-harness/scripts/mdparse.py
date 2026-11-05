@@ -14,7 +14,6 @@ HEADING: Final[re.Pattern[str]] = re.compile(r"^(#{1,6})[ \t]+(.*?)[ \t]*#*[ \t]
 BULLET: Final[re.Pattern[str]] = re.compile(r"^\s*[-*+][ \t]+(.*?)\s*$")
 CHECKBOX: Final[re.Pattern[str]] = re.compile(r"^\[([ xX])\][ \t]+(.*)$")
 SEPARATOR_CELL: Final[re.Pattern[str]] = re.compile(r"^:?-{1,}:?$")
-KEY_VALUE: Final[re.Pattern[str]] = re.compile(r"^\s*-?\s*([A-Za-z][\w -]*?):[ \t]*(.*?)\s*$")
 
 
 @dataclass(frozen=True)
