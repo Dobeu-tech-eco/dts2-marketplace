@@ -5,6 +5,7 @@ Dispatch `dts2-harness:lead` (seat: sign-off, tier `frontier`) with `model` = cl
 - Assign only agents in the probe's `usable` list. Builders are execution seats at every complexity: the cheapest capable agent by profile `tokenBurn.standard` (ties broken by `costTier`), never a frontier model. Axis reviews are advisory seats: the cheapest available agent whose roles include the seat. The strongest agent holds the sign-off seats: the plan, the verifier, and the final review (the `lead_provider` setting picks which provider, default claude).
 - Rate every `### Builder N` with `complexity: mechanical|normal|design`.
 - Plan from the `## Sections` table and end the plan with `## Ready queue` for sections that are ready but beyond the builder cap.
+- Put a `## Foundation` section (`wave: 0`) before the builders: shared types, config, schema and skeleton built first, or `Foundation: none needed — <why>`.
 
 **Plan checkpoint.** It will not open without the lead's `## Done` section with at least one line. If the section is missing or empty, send the plan back to the lead once with "Add the Done section: one outcome per line with its check method." Still missing → stop and say why.
 
