@@ -12,9 +12,11 @@ import sys
 from pathlib import Path
 from typing import Any, Final
 
+from approvals import deny_rules as approval_deny_rules
 from briefs import PREFIX_FLAG, cached_prefix
 from model_call import read_block
-from state_io import CACHE_REL, RUNS_REL
+from proc import binary
+from state_io import CACHE_REL, CHECKS_SH_REL, RUNS_REL
 
 PLUGIN_ROOT: Final[Path] = Path(__file__).resolve().parent.parent
 GUARD: Final[Path] = PLUGIN_ROOT / "scripts" / "guard.py"
@@ -42,8 +44,21 @@ ALLOWED_DOMAINS: Final[tuple[str, ...]] = (
     "registry.npmjs.org", "pypi.org", "files.pythonhosted.org", "github.com", "api.github.com",
     "codeload.github.com", "objects.githubusercontent.com", "api.anthropic.com",
 )
-TOOLS: Final[str] = "Bash,Read,Edit,Write,Glob,Grep,Skill,Agent"
+TOOLS: Final[str] = "Bash,Read,Edit,Write,Glob,Grep,Skill,Agent"  # `--tools`: what exists; `--allowedTools` says what runs unasked
+PERMISSION_MODES: Final[tuple[str, ...]] = ("dontAsk", "acceptEdits", "plan", "default")  # never bypassPermissions (G-61)
+DEFAULT_MODE: Final[str] = "dontAsk"
+BASE_ALLOWED: Final[tuple[str, ...]] = ("Read", "Edit", "Write", "Glob", "Grep", "Skill", "Agent")
+GIT_ALLOWED: Final[tuple[str, ...]] = (  # G-64: add and commit, never push; the head publishes
+    "Bash(git add *)", "Bash(git commit *)", "Bash(git status*)", "Bash(git diff*)", "Bash(git log*)", "Bash(git show*)",
+    "Bash(git rev-parse*)", "Bash(git branch*)", "Bash(git checkout*)", "Bash(git switch*)", "Bash(git merge*)",
+    "Bash(git worktree*)", "Bash(git ls-files*)", "Bash(git stash*)",
+)
+HARNESS_ALLOWED: Final[tuple[str, ...]] = ("Bash(python3 -I *scripts/*)", f"Bash(bash {CHECKS_SH_REL}*)")
+CHECK_BLOCK: Final[str] = "commands"  # `commands:` in .harness/config.yaml: test, typecheck, lint
+RULE_UNSAFE: Final[re.Pattern[str]] = re.compile(r"[()\n]")
+HANDOVER_DENY: Final[tuple[str, ...]] = ("Bash(git push*)", "Bash(gh pr*)", "Bash(gh api*)")  # G-64: a son hands over a branch
 DISALLOWED: Final[tuple[str, ...]] = (
+    *HANDOVER_DENY,
     "Bash(gh pr merge *)", "Bash(*lanes.py merge-go*)", "Bash(*lanes.py merge-target*)", "Bash(gh repo delete *)", "Bash(git -c *)", "Bash(git push --force *)",
     "Bash(git push -f *)", "Read(~/.ssh/**)", "Read(**/.env)", "Read(**/.env.*)", "Read(~/.aws/**)",
     "Read(~/.config/gcloud/**)", "Edit(.claude/**)", "Write(.claude/**)", "Edit(.mcp.json)", "Write(.mcp.json)",
@@ -64,6 +79,48 @@ def allowed_env(source: dict[str, str]) -> dict[str, str]:
     return {k: v for k, v in source.items()
             if (k in ENV_ALLOW or k.startswith(ENV_ALLOW_PREFIXES) or any(fnmatch.fnmatchcase(k, p) for p in extra))
             and not k.startswith(ENV_DENY_PREFIXES)}
+
+
+def safe_permission_mode(mode: str | None) -> str:
+    """`mode` when it is on the allowlist, else `dontAsk`. `bypassPermissions` is never accepted (G-61)."""
+    return mode if mode in PERMISSION_MODES else DEFAULT_MODE
+
+
+def mode_problem(mode: str | None) -> str | None:
+    """Why `son_permission_mode` is refused, or None."""
+    if mode in PERMISSION_MODES:
+        return None
+    return f"son_permission_mode {mode!r} is not allowed (use one of {', '.join(PERMISSION_MODES)}); dontAsk is used instead"
+
+
+def check_rules(cwd: Path) -> list[str]:
+    """`Bash(<command>)` rules for the repo's own test, typecheck and lint commands from `commands:` in config.yaml."""
+    rules: list[str] = []
+    for command in read_block(cwd, CHECK_BLOCK).values():
+        text: str = command.strip()
+        if text and not RULE_UNSAFE.search(text):
+            rules += [f"Bash({text})", f"Bash({text} *)"]
+    return rules
+
+
+def allowed_tools(cwd: Path) -> list[str]:
+    """The explicit `--allowedTools` set: file tools, git add and commit (no push), the repo's check commands and the
+    harness scripts. Everything else is denied under dontAsk."""
+    return [*BASE_ALLOWED, *GIT_ALLOWED, *HARNESS_ALLOWED, *check_rules(cwd)]
+
+
+CLAUDE_CREDENTIALS: Final[frozenset[str]] = frozenset({"ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN"})
+
+
+def provider_env(source: dict[str, str], key_env: str | None = None, claude: bool = False) -> dict[str, str]:
+    """The environment for a non-Claude agent CLI (codex, gemini, muse, agy, grok): the son allowlist, minus the Anthropic
+    credentials unless the agent is Claude, plus the one API-key variable that agent's own profile names (G-67)."""
+    env: dict[str, str] = allowed_env(source)
+    if not claude:
+        env = {k: v for k, v in env.items() if k not in CLAUDE_CREDENTIALS and not k.startswith("CLAUDE_CODE_")}
+    if key_env and source.get(key_env):
+        env[key_env] = source[key_env]
+    return env
 
 
 def slug(text: str) -> str:
@@ -177,7 +234,8 @@ def son_settings(cwd: Path, manifest: dict[str, Any], lane_id: str, worktree: Pa
     """The settings a son runs with: the deny hook, and the sandbox with default-deny egress when it is on."""
     hook: dict[str, Any] = {"type": "command", "timeout": 10,
                             "command": f'python3 -I "{GUARD}" --mode son'}
-    settings: dict[str, Any] = {"hooks": {"PreToolUse": [{"matcher": GUARDED_TOOLS, "hooks": [hook]}]}}
+    settings: dict[str, Any] = {"hooks": {"PreToolUse": [{"matcher": GUARDED_TOOLS, "hooks": [hook]}]},
+                                "permissions": {"deny": deny_list()}}
     box: dict[str, Any] = sandbox_config(cwd)
     if box["enabled"]:
         allow, deny = write_scope(manifest, lane_id, cwd, worktree)
@@ -189,13 +247,19 @@ def son_settings(cwd: Path, manifest: dict[str, Any], lane_id: str, worktree: Pa
     return settings
 
 
+def deny_list() -> list[str]:
+    """`permissions.deny` of the son settings, the primary control: the deny list plus the human-approval file (G-63)."""
+    return [*DISALLOWED, *approval_deny_rules()]
+
+
 def launch_flags(cwd: Path, mode: str, manifest: dict[str, Any], lane_id: str, worktree: Path) -> list[str]:
     """Permission mode, tool allowlist, deny list and explicit settings for one son. No `--bare`: bare mode ignores hooks
     passed with `--settings` and in a loaded plugin, and drops OAuth and keychain auth. `--setting-sources local` isolates
     the son from user and project settings instead. `--append-system-prompt` carries the shared prefix (discipline, roster,
     probe) so its bytes are the same for every dispatch of the run and can be served from the prompt cache."""
-    return [PREFIX_FLAG, cached_prefix(cwd, str(manifest["stamp"])), "--setting-sources", SETTING_SOURCES, "--permission-mode", mode, "--tools", TOOLS, "--allowedTools", TOOLS,
-            "--disallowedTools", ",".join(DISALLOWED),
+    return [PREFIX_FLAG, cached_prefix(cwd, str(manifest["stamp"])), "--setting-sources", SETTING_SOURCES,
+            "--permission-mode", safe_permission_mode(mode), "--tools", TOOLS, "--allowedTools", ",".join(allowed_tools(cwd)),
+            "--disallowedTools", ",".join(deny_list()),
             "--settings", json.dumps(son_settings(cwd, manifest, lane_id, worktree), separators=(",", ":")),
             "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}']
 
@@ -212,3 +276,39 @@ def cli_too_old(version: str | None) -> str | None:
     if parsed is None:
         return f"cannot read `claude --version`; the son launch needs {need} or newer"
     return None if parsed >= MIN_CLI else f"claude {version} is older than {need}, which the son launch needs"
+
+
+AUTH_TIMEOUT_S: Final[int] = 20
+INIT_SUBTYPE: Final[str] = "init"
+
+
+def auth_problem(cwd: Path, env: dict[str, str] | None = None) -> str | None:
+    """Why `claude auth status` says no son can run (not logged in, or the CLI cannot say), or None (G-60). Fails closed."""
+    try:
+        done = subprocess.run([*binary("DTS2_CLAUDE_BIN", "claude"), "auth", "status"], cwd=cwd, env=env, capture_output=True, text=True,
+                              timeout=AUTH_TIMEOUT_S, stdin=subprocess.DEVNULL, check=False)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return f"`claude auth status` could not run: {exc}"
+    return None if done.returncode == 0 else "`claude auth status` reports no login; run `claude auth login` as the owner"
+
+
+def init_plugin_errors(stream: str) -> list[str]:
+    """`plugin_errors` of every `system`/`init` event in a stream-json transcript. A plugin that failed to load means the
+    guard hook may not run, so a non-empty answer fails the preflight (G-60)."""
+    found: list[str] = []
+    for line in stream.splitlines():
+        try:
+            event: Any = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(event, dict) or event.get("type") != "system" or event.get("subtype") != INIT_SUBTYPE:
+            continue
+        errors: Any = event.get("plugin_errors")
+        if isinstance(errors, list):
+            found += [str(e if isinstance(e, str) else json.dumps(e, sort_keys=True)) for e in errors]
+    return found
+
+
+def hooks_enabled(settings: dict[str, Any], flags: list[str]) -> bool:
+    """True when the son keeps its hooks: not bare, hooks not disabled, and a PreToolUse guard is present."""
+    return ("--bare" not in flags and not settings.get("disableAllHooks") and bool(settings.get("hooks", {}).get("PreToolUse")))

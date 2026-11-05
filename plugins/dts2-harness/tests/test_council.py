@@ -1,6 +1,7 @@
 """council.py: full-history dossier, five-seat tally with dissent briefs, and head-of-council decision checks."""
 from __future__ import annotations
 
+import hashlib
 import json
 import unittest
 from pathlib import Path
@@ -20,9 +21,16 @@ def write(folder: Path, name: str, text: str) -> Path:
     return path
 
 
+def proven(path: Path) -> Path:
+    """Give a ballot the dispatch record a script-run seat leaves behind (G-68)."""
+    record = {"argv": ["fake-seat"], "model": "m", "session_id": None, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+    path.with_name(path.name + ".dispatch.json").write_text(json.dumps(record), encoding="utf-8")
+    return path
+
+
 def ballots(votes: dict[str, str], briefs: set[str]) -> list[Path]:
     folder: Path = make_tmp_home()
-    return [write(folder, f"{seat}.md", f"VOTE: {vote}\n- HIGH a.ts:1 — x — y\n" + (BRIEF if seat in briefs else ""))
+    return [proven(write(folder, f"{seat}.md", f"VOTE: {vote}\n- HIGH a.ts:1 — x — y\n" + (BRIEF if seat in briefs else "")))
             for seat, vote in votes.items()]
 
 

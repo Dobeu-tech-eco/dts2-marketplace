@@ -81,9 +81,22 @@ if [[ "$HOOK_INPUT" =~ \"source\"[[:space:]]*:[[:space:]]*\"compact\" ]]; then
   print_compact_pointer
   exit 0
 fi
-[[ -f "$LESSONS" ]] && print_lessons
-[[ -f "$STATE" ]] && print_open_items
-[[ -f "$ACTION_ITEMS" ]] && print_action_items
+# Lessons, state items and action items are text a person, a son or a past session wrote: they go to the model inside the
+# untrusted-content fence council.py defines (A9, G-69), cut at UNTRUSTED_MAX_CHARS. No python3 means nothing is printed.
+UNTRUSTED_MAX_CHARS=4000
+wrap_untrusted() {
+  local plugin_dir="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+  command -v python3 >/dev/null 2>&1 || return 0
+  timeout 4 python3 -I "$plugin_dir/scripts/council.py" wrap - --source "dts2-harness session state" --max-chars "$UNTRUSTED_MAX_CHARS" 2>/dev/null
+}
+print_state_blocks() {
+  [[ -f "$LESSONS" ]] && print_lessons
+  [[ -f "$STATE" ]] && print_open_items
+  [[ -f "$ACTION_ITEMS" ]] && print_action_items
+  return 0
+}
+state_text="$(print_state_blocks)"
+[[ -n "$state_text" ]] && printf '%s\n' "$state_text" | wrap_untrusted
 print_scope() {
   local plugin_dir="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}" info scope root
   command -v python3 >/dev/null 2>&1 || return 0

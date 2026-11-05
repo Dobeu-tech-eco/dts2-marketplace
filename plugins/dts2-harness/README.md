@@ -51,6 +51,8 @@ The provider that fills the lead, advisory and sign-off seats is selectable with
 ## Settings
 Copy `templates/dts2-harness.local.md` to `<repo>/.claude/dts2-harness.local.md`. Keys: `enabled`, `stop_checks`, `stop_checks_block`, `lessons_inject`, `lessons_max`, `pr_receipt_template_push`, `auto_scale`, `max_builders`, `max_reviewers`, `continuous_dispatch`, `builder_timeout_min`, `son_permission_mode`, `use_worktrees`, `second_opinion`, `profile`, `end_state_threshold`, `auto_learn`, `context_guard`, `context_guard_tool_calls`, `context_guard_mb`, `context_guard_stop`, `max_execution_effort`, `delegation_strict`, `lead_provider`, `mailbox_wait_min` (minutes a son waits on the head before it parks), `dpp_full_ask_each_lane` (dpp-full outside autopilot asks before each new lane), `fullauto_freeze_scope` (fullauto freezes the approved item set), `son_model` (the model every dpp son runs on; default `opus`). Restart Claude Code after editing.
 
+Approvals are not a harness setting: they are a top-level `dts2_approvals` key in `.claude/settings.local.json` (`{"dts2_approvals": {"merge": ["42"]}}`; kinds `recorded_yes`, `unsafe_no_sandbox`, `blocked_pr_done`, `lane_override`, `merge`), a file only the person edits. Sons are denied writes to it, and `scripts/approvals.py` reads nothing else. A merge that deploys production (`merge: deploys_production: true` in `.harness/config.yaml`) needs its PR number there.
+
 ## Known limits
 - Login state for gemini, grok, muse, and opencode is self-reported by you; the harness cannot verify it.
 - Impeccable and marketing-skills are external plugins. The harness uses them when installed and does not bundle them.

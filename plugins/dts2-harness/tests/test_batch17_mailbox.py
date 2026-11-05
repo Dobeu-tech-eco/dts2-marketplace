@@ -335,7 +335,7 @@ class PolicyTests(MailboxCase):
             self.assertFalse(policy.override("a", "needed", self.repo)["ok"])
         with mock.patch.object(policy, "human_approved", return_value=True) as approved:
             done = policy.override("a", "needed for the hotfix", self.repo)
-        approved.assert_called_once_with("override", "a")
+        approved.assert_called_once_with("lane_override", "a")
         self.assertTrue(done["ok"], done)
         log = (self.repo / ".harness" / "state.md").read_text(encoding="utf-8")
         self.assertIn("override lane a by Owner Name: needed for the hotfix", log)
@@ -349,7 +349,7 @@ class PolicyTests(MailboxCase):
 
     def test_without_the_approvals_module_nothing_is_approved(self) -> None:
         with mock.patch.dict(sys.modules, {"approvals": None}):
-            self.assertFalse(policy.human_approved("override", "a"))
+            self.assertFalse(policy.human_approved("lane_override", "a"))
 
 
 class LeaseHoldTests(MailboxCase):
