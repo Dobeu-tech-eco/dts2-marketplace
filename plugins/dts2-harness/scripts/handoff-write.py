@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import re
 import sys
@@ -14,42 +13,30 @@ from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from state_io import atomic_write  # noqa: E402
+import state_io  # noqa: E402
+import _load  # noqa: E402
+import contracts  # noqa: E402
+import mdparse  # noqa: E402
+from profiles import Profiles  # noqa: E402
 
-HARNESS: Final[str] = ".harness"
-OUTPUT: Final[str] = ".harness/handoff/latest.md"
+HARNESS: Final[str] = state_io.HARNESS
+OUTPUT: Final[str] = state_io.HANDOFF_LATEST_REL
 TEMPLATE: Final[Path] = Path(__file__).resolve().parent.parent / "templates" / "handoff-latest.md"
-ACTION_ITEMS_SCRIPT: Final[Path] = Path(__file__).resolve().parent / "action-items.py"
 RECEIPT_PLACEHOLDER: Final[str] = "(filled at the ship checkpoint)"
 RESUME_COMMAND: Final[str] = "/dts2-harness:run resume"
 NEW_TASK: Final[str] = "No open items. Start a new task with `/dts2-harness:run <task>`."
 MAX_STATE_ITEMS: Final[int] = 5
 LEAD_LINE: Final[str] = "lead: claude (frontier)"
-DEFAULT_COMPLEXITY: Final[str] = "normal"
-COMPLEXITY_ORDER: Final[tuple[str, ...]] = ("mechanical", "normal", "design")
-# Builders are execution seats: they never run a frontier model, harder work raises effort instead.
-COMPLEXITY_TIER: Final[dict[str, str]] = {"mechanical": "economy", "normal": "standard", "design": "standard"}
-COMPLEXITY_EFFORT: Final[dict[str, str]] = {"mechanical": "low", "normal": "medium", "design": "high"}
 COMPLEXITY: Final[re.Pattern[str]] = re.compile(r"complexity:\s*(mechanical|normal|design)")
 SECRET_ASSIGNMENT: Final[re.Pattern[str]] = re.compile(r"\b([A-Z][A-Z0-9_]{2,})=\S+")
 DEPLOY_FIELD: Final[str] = r"^\s*{name}:\s*(\S+)"
-SECTION_END: Final[re.Pattern[str]] = re.compile(r"^#{2,3} ", re.MULTILINE)
-SECTIONS_HEADING: Final[str] = "## Sections"
 BLOCKED_STATUS: Final[str] = "blocked"
-ACTION_ID_SUFFIX: Final[re.Pattern[str]] = re.compile(r"^(.*?)\s*\(([A-Z]\d+)\)\s*$")
 NO_ACTION_ID: Final[str] = "no action item"
-SECTION_NUMBER_COL: Final[int] = 0
-SECTION_NAME_COL: Final[int] = 1
-SECTION_STATUS_COL: Final[int] = -1
 RUN_STAMP: Final[re.Pattern[str]] = re.compile(r"^\d{8}-\d{6}$")
 
 
 def load_action_items() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("action_items", ACTION_ITEMS_SCRIPT)
-    assert spec is not None and spec.loader is not None
-    module: ModuleType = importlib.util.module_from_spec(spec)
-    sys.modules["action_items"] = module
-    spec.loader.exec_module(module)
-    return module
+    return _load.load("action-items")
 
 
 def redact(text: str) -> str:
@@ -61,13 +48,9 @@ def read(path: Path) -> str:
 
 
 def section_bullets(text: str, heading: str) -> list[str]:
-    start: int = text.find(f"## {heading}")
-    if start < 0:
-        return []
-    body: str = text[start + len(heading) + 3:]
-    end: re.Match[str] | None = SECTION_END.search(body)
-    block: str = body[: end.start()] if end else body
-    return [line for line in block.splitlines() if line.startswith("- ")]
+    """The `- ` lines under `## <heading>`, up to the next `##` or `###` heading (fenced code is skipped)."""
+    lines: list[str] | None = mdparse.section_lines(text, f"## {heading}", stop_at=3, prefix=True)
+    return [line for line in lines or [] if line.startswith("- ")]
 
 
 def latest_run(repo: Path) -> Path | None:
@@ -115,25 +98,14 @@ def state_summary(repo: Path, run: Path | None) -> str:
     return redact("\n".join(lines))
 
 
-def table_cells(line: str) -> list[str]:
-    return [cell.strip() for cell in line.strip().strip("|").split("|")]
-
-
 def blocked_sections(end_state: str) -> list[str]:
-    start: int = end_state.find(SECTIONS_HEADING)
-    if start < 0:
+    rows = contracts.parse_sections(end_state)
+    if isinstance(rows, contracts.Invalid):
         return []
-    body: str = end_state[start + len(SECTIONS_HEADING):]
-    end: re.Match[str] | None = SECTION_END.search(body)
-    rows: list[list[str]] = [table_cells(line) for line in (body[: end.start()] if end else body).splitlines() if line.startswith("|")]
-    return [section_line(row) for row in rows if len(row) > 1 and row[SECTION_STATUS_COL] == BLOCKED_STATUS]
-
-
-def section_line(row: list[str]) -> str:
-    match: re.Match[str] | None = ACTION_ID_SUFFIX.match(row[SECTION_NAME_COL])
-    name: str = match.group(1) if match else row[SECTION_NAME_COL]
-    item_id: str = match.group(2) if match else NO_ACTION_ID
-    return f"section {row[SECTION_NUMBER_COL]} {name} — blocked ({item_id})"
+    return [
+        f"section {row.number} {row.name} — blocked ({row.action_id or NO_ACTION_ID})"
+        for row in rows if row.status == BLOCKED_STATUS
+    ]
 
 
 def format_item(item: dict[str, Any]) -> str:
@@ -164,16 +136,19 @@ def highest_complexity(run: Path | None) -> str:
     found: list[str] = []
     for path in sorted(run.glob("*plan*.md")) if run else []:
         found += COMPLEXITY.findall(read(path))
-    return max(found, key=COMPLEXITY_ORDER.index) if found else DEFAULT_COMPLEXITY
+    return _load.load("delegate").highest_complexity(found)
+
+
+def recommended_agent_for(complexity: str) -> str:
+    """The Recommended agent text. The tier and effort come from delegate.py, which owns the complexity policy."""
+    delegate: ModuleType = _load.load("delegate")
+    claude: dict[str, Any] = Profiles.load().get("claude") or {}
+    tier, effort = delegate.builder_recommendation(complexity, claude)
+    return f"{LEAD_LINE}\nbuilder: claude ({tier}), effort {effort}, by the last plan's top complexity ({complexity})"
 
 
 def recommended_agent(run: Path | None) -> str:
-    complexity: str = highest_complexity(run)
-    tier: str = COMPLEXITY_TIER[complexity]
-    return (
-        f"{LEAD_LINE}\nbuilder: claude ({tier}), effort {COMPLEXITY_EFFORT[complexity]}, "
-        f"by the last plan's top complexity ({complexity})"
-    )
+    return recommended_agent_for(highest_complexity(run))
 
 
 def render(repo: Path, items: list[dict[str, Any]]) -> str:

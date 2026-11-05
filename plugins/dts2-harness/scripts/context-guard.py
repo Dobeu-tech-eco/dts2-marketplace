@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import os
 import re
@@ -15,12 +14,13 @@ from typing import Any, Final
 SCRIPT_DIR: Final[Path] = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 from state_io import atomic_write  # noqa: E402
+import state_io  # noqa: E402
+import _load  # noqa: E402
 
 BYTES_PER_MB: Final[int] = 1048576
 SESSION_UNSAFE: Final[re.Pattern[str]] = re.compile(r"[^A-Za-z0-9_-]")
 TOOL_USE: Final[re.Pattern[bytes]] = re.compile(rb'"type": ?"tool_use"')
 NEWLINE: Final[bytes] = b"\n"
-SCOPE_SCRIPT: Final[str] = "scope-check.py"
 MISPLACED: Final[str] = "workspace-member"
 MESSAGE: Final[str] = (
     "dts2-harness CONTEXT GUARD (%s): %s. STOP: do not dispatch or continue any agent. "
@@ -29,12 +29,7 @@ MESSAGE: Final[str] = (
 
 
 def load_scope_module() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("scope_check", SCRIPT_DIR / SCOPE_SCRIPT)
-    if spec is None or spec.loader is None:
-        raise ImportError(SCOPE_SCRIPT)
-    module: ModuleType = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return _load.load("scope-check")
 
 
 def read_json(path: Path) -> dict[str, Any]:
@@ -59,7 +54,7 @@ def fire(marker_dir: Path, session: str, trigger: str, details: str) -> None:
 
 
 def has_plan(effective: Path) -> bool:
-    return next(effective.glob(".harness/runs/*/plan.md"), None) is not None
+    return next(effective.glob(f"{state_io.RUNS_REL}/*/plan.md"), None) is not None
 
 
 def int_field(state: dict[str, Any], key: str) -> int:

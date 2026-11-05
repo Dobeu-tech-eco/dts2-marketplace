@@ -10,9 +10,9 @@ from pathlib import Path
 from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from state_io import append_text  # noqa: E402
+from state_io import METRICS_REL, append_text  # noqa: E402
 
-METRICS_PATH: Final[str] = ".harness/metrics.jsonl"
+METRICS_PATH: Final[str] = METRICS_REL
 MIN_DISJOINT_LANES: Final[int] = 2
 OVERRUN_FACTOR: Final[int] = 3
 MIN_HISTORY: Final[int] = 3  # prior runs of the same size class needed before a median means anything

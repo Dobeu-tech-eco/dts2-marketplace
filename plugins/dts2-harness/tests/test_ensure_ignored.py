@@ -2,17 +2,26 @@ from __future__ import annotations
 
 import unittest
 
-from helpers import make_tmp_home, run_script
+import importlib.util
+
+from helpers import PLUGIN_ROOT, make_tmp_home, run_script
+
+
+def default_count() -> int:
+    spec = importlib.util.spec_from_file_location("ensure_ignored_count", PLUGIN_ROOT / "scripts" / "ensure-ignored.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return len(module.IGNORED_PATHS)
 
 
 class EnsureIgnoredTest(unittest.TestCase):
     def test_adds_all_defaults_once(self) -> None:
         repo = make_tmp_home()
         first = run_script("ensure-ignored.py", str(repo))
-        self.assertEqual(len(first["added"]), 11)
+        self.assertEqual(len(first["added"]), default_count())
         second = run_script("ensure-ignored.py", str(repo))
         self.assertEqual(second["added"], [])
-        self.assertEqual(len(second["present"]), 11)
+        self.assertEqual(len(second["present"]), default_count())
 
     def test_preserves_missing_trailing_newline(self) -> None:
         repo = make_tmp_home()

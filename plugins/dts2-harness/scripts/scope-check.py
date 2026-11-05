@@ -9,11 +9,12 @@ from pathlib import Path
 from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import state_io  # noqa: E402
 from lessons import matching_lessons  # noqa: E402
 
 MANIFEST_NAME: Final[str] = ".harness-workspace.yaml"
-REPO_CONFIG: Final[str] = ".harness/config.yaml"
-END_STATE: Final[str] = ".harness/end-state.md"
+REPO_CONFIG: Final[str] = state_io.CONFIG_REL
+END_STATE: Final[str] = state_io.END_STATE_REL
 MAX_LEVELS: Final[int] = 8
 ADVICE_MEMBER: Final[str] = "Run from {root}; this folder is a member repo of that workspace."
 ADVICE_SINGLE: Final[str] = "Single-repo harness."

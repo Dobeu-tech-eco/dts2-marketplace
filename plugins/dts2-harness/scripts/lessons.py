@@ -15,15 +15,15 @@ from pathlib import Path
 from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from state_io import atomic_write  # noqa: E402
+from state_io import HARNESS, LEASE_NAME, RUNS_REL, atomic_write, rel  # noqa: E402
 
-LESSONS_PATH: Final[str] = ".harness/lessons.md"
+LESSONS_PATH: Final[str] = rel("lessons.md")
 MAX_LESSONS: Final[int] = 5
 GIT_TIMEOUT_S: Final[int] = 5
-HARNESS_PREFIX: Final[str] = ".harness/"
+HARNESS_PREFIX: Final[str] = f"{HARNESS}/"
 LESSON_LINE: Final[re.Pattern[str]] = re.compile(r"^- \[(?P<id>[A-Z]-\d+)\]\s")
 PATHS_FIELD: Final[re.Pattern[str]] = re.compile(r"\{paths:\s*(?P<globs>[^}]*)\}")
-LEASE_GLOB: Final[str] = ".harness/runs/*/*/lease.json"
+LEASE_GLOB: Final[str] = f"{RUNS_REL}/*/*/{LEASE_NAME}"
 ACTIVE: Final[str] = "active"
 DEFAULT_STALE_DAYS: Final[int] = 90
 META: Final[re.Pattern[str]] = re.compile(r"\((?P<meta>(?:seen|last|source|promoted_at|regressed|lives)[^)]*)\)")
