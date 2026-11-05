@@ -129,6 +129,36 @@ def watched(command: str) -> bool:
     return WATCHED.search(joined) is not None or WATCHED.search(re.sub(r"[\\'\"]", "", joined)) is not None
 
 
+LITERAL_DOLLAR: Final[str] = "\ue000"  # stands for a `$` or backtick the shell leaves alone inside single quotes
+LITERAL_TICK: Final[str] = "\ue001"
+
+
+def mask_literals(text: str) -> str:
+    """Swap each `$` and backtick inside single quotes for an inert stand-in, so `git commit -m '$(env)'` holds no expansion.
+    Double quotes and bare text are left alone (the shell expands there); `unmask_literals` undoes it."""
+    out: list[str] = []
+    quote: str = ""
+    i: int = 0
+    while i < len(text):
+        c: str = text[i]
+        if quote == "'":
+            quote = "" if c == "'" else quote
+            c = LITERAL_DOLLAR if c == "$" else LITERAL_TICK if c == "`" else c
+        elif c == "\\" and i + 1 < len(text):
+            out.append(c)
+            i += 1
+            c = text[i]
+        elif c in "'\"":
+            quote = "" if quote == c else c if not quote else quote
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
+def unmask_literals(text: str) -> str:
+    return text.replace(LITERAL_DOLLAR, "$").replace(LITERAL_TICK, "`")
+
+
 def substitutions(text: str) -> list[str]:
     """Inner texts of `$(...)` (balanced) and backtick pairs, so commands hidden in them are checked too."""
     found: list[str] = []

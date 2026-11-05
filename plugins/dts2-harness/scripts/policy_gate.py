@@ -170,7 +170,7 @@ def expand(command: str, depth: int = 0) -> list[list[str]]:
     found: list[list[str]] = []
     if depth > MAX_DEPTH:
         return found
-    command = guard.join_continuations(command)
+    command = guard.mask_literals(guard.join_continuations(command))  # '$(x)' in single quotes is text, not an expansion
     for inner in guard.substitutions(command):
         found += expand(inner, depth + 1)
     for part in split_segments(command):
@@ -182,12 +182,12 @@ def expand(command: str, depth: int = 0) -> list[list[str]]:
         if not words:
             continue
         found.append(words)
-        found += nested(words, depth)
+        found += nested([guard.unmask_literals(w) for w in words], depth)
         for valued in (True, False):
             inner_words: list[str] = unwrap_runner(peel(words, valued))
             if inner_words and inner_words != words:
                 found.append(inner_words)
-                found += nested(inner_words, depth)
+                found += nested([guard.unmask_literals(w) for w in inner_words], depth)
     return found
 
 
