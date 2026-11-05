@@ -21,6 +21,11 @@ Subcommands print one JSON object each:
                  a seat timed out or failed: substitute the next bench provider (seat_swap.swap_seat) and note it in the ledger
   identical      --votes-dir DIR --ledger FILE --step S --prev N --curr M
                  two rounds with identical findings: note it in the ledger (seat_swap); the council trigger is unchanged
+  next-round     --votes-dir DIR --step S --kind plan|build [--retry REASON] [--revote]
+                 allocate the next ballot instance `<step>+<attempt>` (G-72). A dispatch error, a malformed ballot or an
+                 HTTP 429 is retryable: same round, attempt + 1, no vote round opened. The post-merge re-vote (--revote) gets
+                 its own instance `<step>@postmerge+<attempt>` and its own `postmerge/` folder, so it never counts toward
+                 the three failed rounds that open the council
 """
 from __future__ import annotations
 
@@ -65,6 +70,13 @@ CLAUDE_AGENT_ALIASES: Final[frozenset[str]] = frozenset({"opus", "sonnet", "haik
 #   alternates: frontier ids a provider may field as a further seat when there are not five providers
 #   checked / maxAgeDays: when a person last confirmed the ids, and how old that may get before a warning
 DEFAULT_MAX_AGE_DAYS: Final[int] = 90
+INSTANCES_NAME: Final[str] = "instances.json"
+POSTMERGE_DIR: Final[str] = "postmerge"
+POSTMERGE_TAG: Final[str] = "@postmerge"
+# A failure that says nothing about the proposal: retry the dispatch, do not open a vote round (G-72).
+RETRYABLE: Final[re.Pattern[str]] = re.compile(
+    r"dispatch (exited|error|failed)|malformed|no valid ballot|http[ _-]?429|\b429\b|rate[ _-]?limit|too many requests|timed? ?out",
+    re.IGNORECASE)
 
 
 def first_line(text: str) -> str:
@@ -450,6 +462,41 @@ def pick_seats(usable: list[str], config: dict[str, list[str]], failed: set[str]
             "stale": [f["provider"] for f in fresh if f["stale"]]}
 
 
+def is_retryable(reason: str) -> bool:
+    """True for a dispatch error, a malformed ballot, an HTTP 429 or a timeout: none of them is a vote."""
+    return bool(RETRYABLE.search(reason or ""))
+
+
+def read_instances(votes_dir: Path) -> dict[str, int]:
+    path: Path = votes_dir / INSTANCES_NAME
+    if not path.is_file():
+        return {}
+    try:
+        data: Any = json.loads(path.read_text(encoding="utf-8"))
+    except ValueError:
+        return {}
+    return {str(k): int(v) for k, v in data.items() if isinstance(v, int)} if isinstance(data, dict) else {}
+
+
+def next_round(votes_dir: Path, step: str, kind: str, retry: str | None = None, revote: bool = False) -> dict[str, Any]:
+    """Allocate the next ballot instance `<step>+<attempt>`. Only a complete panel opens a round; a retryable failure
+    (`retry` names it) keeps the round and raises the attempt. A post-merge re-vote counts in its own folder."""
+    base: Path = votes_dir / POSTMERGE_DIR if revote else votes_dir
+    tag: str = step + (POSTMERGE_TAG if revote else "")
+    held: list[dict[str, Any]] = [r for r in round_outcomes(base) if r["kind"] == kind] if base.is_dir() else []
+    complete: int = sum(1 for r in held if r["complete"])
+    attempts: dict[str, int] = read_instances(votes_dir)
+    retrying: bool = retry is not None and is_retryable(retry)
+    round_no: int = complete + 1
+    key: str = f"{tag}:{kind}:r{round_no}"
+    attempt: int = attempts.get(key, 0) + 1
+    attempts[key] = attempt
+    base.mkdir(parents=True, exist_ok=True)
+    atomic_write(votes_dir / INSTANCES_NAME, json.dumps(attempts, indent=2, sort_keys=True) + "\n")
+    return {"instance": f"{tag}+{attempt}", "step": tag, "kind": kind, "round": round_no, "attempt": attempt,
+            "retried": retrying, "opensRound": not retrying, "votesDir": str(base)}
+
+
 def substitute_seat(seats_doc: dict[str, Any], failed: str, ledger: Path | None, step: str,
                     reason: str = REASON_TIMEOUT) -> dict[str, Any]:
     """Replace a timed-out or failed council seat with the next bench entry; the swap goes to the ledger when one is given.
@@ -511,7 +558,16 @@ def main() -> int:
     idn.add_argument("--step", required=True)
     idn.add_argument("--prev", required=True, type=int)
     idn.add_argument("--curr", required=True, type=int)
+    nr = sub.add_parser("next-round")
+    nr.add_argument("--votes-dir", required=True)
+    nr.add_argument("--step", required=True)
+    nr.add_argument("--kind", required=True, choices=list(VOTE_KINDS))
+    nr.add_argument("--retry", default=None, help="why the last attempt produced no vote (dispatch error, malformed ballot, 429)")
+    nr.add_argument("--revote", action="store_true", help="the post-merge re-vote: its own instance, not a failed round")
     args = parser.parse_args()
+    if args.cmd == "next-round":
+        print(json.dumps(next_round(Path(args.votes_dir), args.step, args.kind, args.retry, args.revote)))
+        return 0
     if args.cmd == "swap":
         swapped: dict[str, Any] = substitute_seat(json.loads(Path(args.seats).read_text(encoding="utf-8")), args.failed,
                                                   Path(args.ledger) if args.ledger else None, args.step, args.reason)
