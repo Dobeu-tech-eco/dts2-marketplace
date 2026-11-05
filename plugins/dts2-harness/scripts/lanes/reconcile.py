@@ -7,7 +7,10 @@ For each lane it reads the PRs whose head is the lane's branch and decides one a
   create-pr    the lane reported (or reached pr-open) and GitHub has no PR: it is safe to create one
   resume       the lane is orphaned (quiet, no running process, a dirty worktree, no report.md, no PR): resume it, once
   park         it was already resumed once and is orphaned again: end it incomplete
-  stalled      quiet and clean without a report: the usual stalled handling applies (send-back, resume or re-plan)
+  stalled      quiet and clean without a report: the lane is now incomplete (reason `stalled`); send-back, resume or
+               re-plan is the head's call
+  incomplete   the son's process ended (exit.json) and the lane never finished: it is now incomplete with the reason
+               the exit gives (G-53); no model judgement is needed to record that
   none         nothing to do
 `reconcile_step` does the same for one standalone autopilot step (branch `dts2/<stamp>/step-<step>`, no status.json): it
 answers merged, adopt-pr or create-pr from GitHub alone and writes nothing.
@@ -15,16 +18,18 @@ It fails closed: if GitHub cannot be asked, nothing is decided. There is no per-
 `status` already computes."""
 from __future__ import annotations
 
+import json
 import re
 import time
 from pathlib import Path
 from typing import Any, Callable, Final
 
 from model_call import read_supervisor
+from proc import EXIT_FILE
 
 from .common import (
-    LaneError, PHASE_DONE, PHASE_INCOMPLETE, PHASE_ORPHANED, PHASE_PR_OPEN, REASON_ORPHANED, REASON_STALLED, REPORT_NAME,
-    SECONDS_PER_MINUTE, STATUS_NAME, binary, run,
+    LaneError, PHASE_DONE, PHASE_INCOMPLETE, PHASE_ORPHANED, PHASE_PR_OPEN, REASON_ERROR, REASON_NO_STATUS, REASON_ORPHANED,
+    REASON_STALLED, REASON_TIMEOUT, REPORT_NAME, SECONDS_PER_MINUTE, STATUS_NAME, binary, run,
 )
 from .gitrefs import PR_STATE_MERGED, PR_STATE_OPEN, branch_prs, gh_down, lane_ref, step_ref
 from .merge import inside_son, record_merged, son_refusal
@@ -39,7 +44,10 @@ ACTION_CREATE: Final[str] = "create-pr"
 ACTION_RESUME: Final[str] = "resume"
 ACTION_PARK: Final[str] = "park"
 ACTION_STALLED: Final[str] = "stalled"
+ACTION_INCOMPLETE: Final[str] = "incomplete"
 ACTION_NONE: Final[str] = "none"
+# A lane that has not reported a final phase: the son's exit.json decides its reason, with no model call.
+UNFINISHED: Final[frozenset[str]] = frozenset({"", "starting", PHASE_ORPHANED})
 # A lane can be orphaned only while it is not in a finished or waiting state.
 # The empty phase (no status yet) is left out: LEGAL has no move from it to orphaned, so there is nothing to flag.
 ORPHANABLE: Final[frozenset[str]] = frozenset({"starting", PHASE_INCOMPLETE, PHASE_ORPHANED})
@@ -71,6 +79,46 @@ def is_quiet(info: dict[str, Any], data: dict[str, Any]) -> bool:
     """Not heard from for the stall window: stale now, or already parked as stalled by `status`, or flagged orphaned."""
     phase: str = info["phase"]
     return bool(info["stale"]) or phase == PHASE_ORPHANED or (phase == PHASE_INCOMPLETE and data.get("reason") == REASON_STALLED)
+
+
+def exit_reason_of(record: dict[str, Any]) -> str:
+    """The park reason an exit.json maps to: the reason the supervisor recorded, else timeout for a killed or timed-out
+    process, no-final-status for a clean exit, error for anything else."""
+    reason: Any = record.get("reason")
+    if isinstance(reason, str) and reason:
+        return reason
+    if record.get("timed_out") or record.get("signal"):
+        return REASON_TIMEOUT
+    return REASON_NO_STATUS if record.get("code") == 0 else REASON_ERROR
+
+
+def read_exit(folder: Path) -> dict[str, Any] | None:
+    try:
+        data: Any = json.loads((folder / EXIT_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def apply_exit(runs_dir: Path, stamp: str, path: Path, info: dict[str, Any]) -> tuple[str, str] | None:
+    """(action, detail) when the lane's son has exited without a final phase: park it incomplete with the exit's reason."""
+    record: dict[str, Any] | None = read_exit(path.parent)
+    if record is None or info["alive"] or info["phase"] not in UNFINISHED:
+        return None
+    reason: str = exit_reason_of(record)
+    moved: dict[str, Any] = transition(runs_dir, stamp, info["lane"], PHASE_INCOMPLETE, reason=reason, actor="head",
+                                       extra={"detail": f"son exited with code {record.get('code')}", "parked_at": int(time.time())})
+    if not moved["ok"]:
+        return None
+    return ACTION_INCOMPLETE, f"the son exited ({reason}); the lane is now incomplete"
+
+
+def mark_stalled(runs_dir: Path, stamp: str, info: dict[str, Any], data: dict[str, Any], now: int) -> None:
+    """A quiet, clean, report-less lane becomes incomplete (stalled), the way `status` records it. Already stalled: untouched."""
+    if info["phase"] == PHASE_INCOMPLETE and data.get("reason") == REASON_STALLED:
+        return
+    transition(runs_dir, stamp, info["lane"], PHASE_INCOMPLETE, reason=REASON_STALLED, actor="head",
+               extra={"stalled_at": now, "detail": "quiet with a clean worktree and no report"})
 
 
 def orphan_action(runs_dir: Path, stamp: str, lane: str, phase: str, data: dict[str, Any]) -> tuple[str, str]:
@@ -105,6 +153,9 @@ def decide(runs_dir: Path, stamp: str, path: Path, data: dict[str, Any], info: d
     if opened is not None:
         merge_json(path, {"pr": opened.get("number"), "pr_url": opened.get("url")})
         return ACTION_ADOPT, f"PR #{opened.get('number')} is already open for this branch; do not create another", False, report
+    exited: tuple[str, str] | None = apply_exit(runs_dir, stamp, path, info)
+    if exited is not None:
+        return exited[0], exited[1], False, report
     quiet: bool = is_quiet(info, data) and not info["alive"] and phase in ORPHANABLE
     is_dirty: bool = dirty(data.get("worktree")) if quiet else False
     if quiet and is_dirty and not report:
@@ -113,6 +164,7 @@ def decide(runs_dir: Path, stamp: str, path: Path, data: dict[str, Any], info: d
     if (quiet and report) or phase == PHASE_PR_OPEN:
         return ACTION_CREATE, "GitHub has no PR for this branch; creating one is safe", is_dirty, report
     if quiet:
+        mark_stalled(runs_dir, stamp, info, data, int(time.time()))
         return ACTION_STALLED, "quiet with a clean worktree and no report; send back, resume or re-plan", is_dirty, report
     return ACTION_NONE, "", False, report
 

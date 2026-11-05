@@ -39,7 +39,9 @@ PLUGIN_ROOT: Final[Path] = Path(__file__).resolve().parents[2]
 SETTINGS_FILE: Final[str] = ".claude/dts2-harness.local.md"
 PERMISSION_FIELD: Final[str] = "son_permission_mode"
 DEFAULT_PERMISSION_MODE: Final[str] = "dontAsk"
-SON_MODEL: Final[str] = "opus"
+SON_MODEL: Final[str] = "opus"  # the default of the `son_model` setting; read the setting with son_model(cwd)
+SON_MODEL_FIELD: Final[str] = "son_model"
+SON_MODEL_NAME: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9._:/\[\]-]{1,100}$")
 SON_SKILL: Final[str] = "/dts2-harness:autopilot --son"
 FRONTMATTER_FENCE: Final[str] = "---"
 LEDGER_NAME: Final[str] = "task-ledger.md"
@@ -117,6 +119,14 @@ REPORT_SECTIONS: Final[tuple[str, ...]] = LANE_SECTIONS + RUN_SECTIONS
 
 class LaneError(Exception):
     """Raised on a malformed manifest or an unknown lane."""
+
+
+def son_model(cwd: Path) -> str:
+    """G-59: the model every son runs on, from the `son_model` setting (frontmatter of .claude/dts2-harness.local.md),
+    default SON_MODEL. A value that is not a plain model name falls back to the default."""
+    import settings_cache  # noqa: PLC0415 - settings_cache imports state_io; keep it out of module load
+    value: Any = settings_cache.load(cwd)["local"].get(SON_MODEL_FIELD)
+    return value if isinstance(value, str) and SON_MODEL_NAME.match(value) else SON_MODEL
 
 
 def run(cmd: list[str], cwd: Path) -> tuple[int, str]:
