@@ -14,6 +14,7 @@ from typing import Any, Final
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from state_io import atomic_write  # noqa: E402
 import _load  # noqa: E402
+from profiles import Profiles  # noqa: E402
 
 HARNESS: Final[str] = ".harness"
 OUTPUT: Final[str] = ".harness/handoff/latest.md"
@@ -23,11 +24,6 @@ RESUME_COMMAND: Final[str] = "/dts2-harness:run resume"
 NEW_TASK: Final[str] = "No open items. Start a new task with `/dts2-harness:run <task>`."
 MAX_STATE_ITEMS: Final[int] = 5
 LEAD_LINE: Final[str] = "lead: claude (frontier)"
-DEFAULT_COMPLEXITY: Final[str] = "normal"
-COMPLEXITY_ORDER: Final[tuple[str, ...]] = ("mechanical", "normal", "design")
-# Builders are execution seats: they never run a frontier model, harder work raises effort instead.
-COMPLEXITY_TIER: Final[dict[str, str]] = {"mechanical": "economy", "normal": "standard", "design": "standard"}
-COMPLEXITY_EFFORT: Final[dict[str, str]] = {"mechanical": "low", "normal": "medium", "design": "high"}
 COMPLEXITY: Final[re.Pattern[str]] = re.compile(r"complexity:\s*(mechanical|normal|design)")
 SECRET_ASSIGNMENT: Final[re.Pattern[str]] = re.compile(r"\b([A-Z][A-Z0-9_]{2,})=\S+")
 DEPLOY_FIELD: Final[str] = r"^\s*{name}:\s*(\S+)"
@@ -158,16 +154,19 @@ def highest_complexity(run: Path | None) -> str:
     found: list[str] = []
     for path in sorted(run.glob("*plan*.md")) if run else []:
         found += COMPLEXITY.findall(read(path))
-    return max(found, key=COMPLEXITY_ORDER.index) if found else DEFAULT_COMPLEXITY
+    return _load.load("delegate").highest_complexity(found)
+
+
+def recommended_agent_for(complexity: str) -> str:
+    """The Recommended agent text. The tier and effort come from delegate.py, which owns the complexity policy."""
+    delegate: ModuleType = _load.load("delegate")
+    claude: dict[str, Any] = Profiles.load().get("claude") or {}
+    tier, effort = delegate.builder_recommendation(complexity, claude)
+    return f"{LEAD_LINE}\nbuilder: claude ({tier}), effort {effort}, by the last plan's top complexity ({complexity})"
 
 
 def recommended_agent(run: Path | None) -> str:
-    complexity: str = highest_complexity(run)
-    tier: str = COMPLEXITY_TIER[complexity]
-    return (
-        f"{LEAD_LINE}\nbuilder: claude ({tier}), effort {COMPLEXITY_EFFORT[complexity]}, "
-        f"by the last plan's top complexity ({complexity})"
-    )
+    return recommended_agent_for(highest_complexity(run))
 
 
 def render(repo: Path, items: list[dict[str, Any]]) -> str:

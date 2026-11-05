@@ -13,6 +13,8 @@ from profiles import PROFILE_DIR, Profiles  # noqa: E402
 
 EFFORT_LEVELS: Final[tuple[str, ...]] = ("low", "medium", "high", "xhigh", "max", "ultra")
 HIGH: Final[str] = "high"
+COMPLEXITY_ORDER: Final[tuple[str, ...]] = ("mechanical", "normal", "design")
+DEFAULT_COMPLEXITY: Final[str] = "normal"
 SEATS: Final[tuple[str, ...]] = ("execution", "advisory", "signoff")
 BUDGETS: Final[tuple[str, ...]] = ("ok", "low", "exhausted")
 EXECUTION_EFFORT: Final[dict[str, str]] = {"mechanical": "low", "normal": "medium", "design": "high"}
@@ -132,6 +134,18 @@ def execution_plan(profile: dict[str, Any], complexity: str, budget: str) -> tup
             desired = LOW_BUDGET_EFFORT_CAP
         assert_execution_not_frontier(tier)
     return tier, clamp_effort(desired, automatic_efforts(profile, model_for(profile, tier), "execution"))
+
+
+def highest_complexity(found: list[str]) -> str:
+    """The hardest known complexity in `found`; unknown words are ignored and an empty list means normal."""
+    known: list[str] = [c for c in found if c in COMPLEXITY_ORDER]
+    return max(known, key=COMPLEXITY_ORDER.index) if known else DEFAULT_COMPLEXITY
+
+
+def builder_recommendation(complexity: str, profile: dict[str, Any], budget: str = "ok") -> tuple[str, str]:
+    """(tier, effort) a builder gets for this complexity: the same call `delegate` makes for an execution seat."""
+    check_inputs("execution", complexity, budget)
+    return execution_plan(profile, complexity, budget)
 
 
 def seat_plan(profile: dict[str, Any], seat: str, complexity: str, budget: str) -> tuple[str, str]:
