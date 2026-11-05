@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # dts2 harness — orientation
 
-Explanation only. Do not invoke agents or change files from this skill.
+This skill explains only, except the optional hooks step at the end, which changes files only after the user picks hooks. Do not invoke agents.
 
 ## Agents (all prefixed `dts2:`)
 - `lead` plans a DAG of tasks and gives each builder a separate file set.
@@ -68,6 +68,7 @@ Only agents detected on this machine join the roster; handoff agents get a writt
 4. After a few runs → `learn`.
 5. CI, cron, or a second machine without the desktop app → `sdk`.
 6. Changing the harness itself → `evolve`. Launching a product → `gtm`.
+7. Optional Claude Code hooks (command guard, auto-format, tests on stop, notifications) → the Hooks step below.
 
 ## Tiers the run skill picks automatically
 | Tier | Typical size | Builders | Reviewers |
@@ -80,5 +81,16 @@ Only agents detected on this machine join the roster; handoff agents get a writt
 Worktrees are used only in workspace mode or when `use_worktrees: always` is set; single mode shares the tree on separate file sets.
 
 Builders never exceed the number of builder sections the lead planned, and never exceed `max_builders` in `.claude/dts2-harness.local.md`.
+
+## Hooks (optional last step)
+The plugin's own hooks are already active: the policy gate, the merge guard, the stop checks and the context guard. Toggles are in `.claude/dts2-harness.local.md`. This step offers extra hooks for the user's project.
+
+1. Run `python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/hooks-setup.py" recommend`.
+2. Show the recommended hooks as a short table: hook, when it runs, why, already present.
+3. Ask once with AskUserQuestion (multi-select) which to add, and the scope: project (shared, the default), local, or user.
+4. On picks, run `hooks-setup.py apply --ids ... --scope ... --dry-run`, show the result, then run `apply` for real.
+5. Report what was added, what was skipped and the backup path.
+
+Existing hooks are never overwritten or removed. Nothing is written without a pick. `/hooks` in Claude Code shows the result.
 
 Keep the reply under 200 words unless the user asks for detail. Single-file fixes do not need the harness.
