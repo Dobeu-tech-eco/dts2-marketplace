@@ -6,7 +6,7 @@ In examples, `$P` stands for `${CLAUDE_PLUGIN_ROOT}`, `<repo>` for a repo root, 
 
 For a shorter orientation (how to talk to the harness, which command when, the head, son and council flow) read `GUIDE.md` first.
 
-Contents: 1 Skills, 2 Agents, 3 Hooks, 4 CLI scripts (4.1 state and progress, 4.2 detection and scaffolding, 4.3 roster, council and orchestration, 4.4 review and build gates, 4.5 parallel lanes, 4.6 maintenance, 4.7 hook entry points, 4.8 other entry points), 5 Library modules, 6 Makefile targets and CI, 7 Changed in 3.10.0.
+Contents: 1 Skills, 2 Agents, 3 Hooks, 4 CLI scripts (4.1 state and progress, 4.2 detection and scaffolding, 4.3 roster, council and orchestration, 4.4 review and build gates, 4.5 parallel lanes, 4.6 maintenance, 4.7 hook entry points, 4.8 other entry points), 5 Library modules (5.1 lanes package, 5.2 templates), 6 Makefile targets and CI, 7 Changed in 3.10.0, 8 Settings keys, 9 Changed in 3.11.0.
 
 ## 1. Skills (slash commands)
 
@@ -244,6 +244,63 @@ Imported by the scripts above; none is a CLI. Responsibilities are in `ARCHITECT
 
 `_load.py`, `contracts.py`, `eval_stats.py` (A/B run statistics for `evals/run.py`: median, range, pass^k, verdict), `harness_skew.py` (live-lease read, son-versus-head plugin version skew (also checked by `supervisor.spawn_refusal` before every son start; `DTS2_SON_PLUGIN_ROOT` points it at another son plugin dir), marketplace repo from `plugin.json`), `mdparse.py`, `miniyaml.py`, `model_call.py`, `ownership_audit.py`, `prep-tiers.py` (helper for `machine-prep.py`), `proc.py` (also the son lifecycle: `wrap_son`, `son.json`, `exit.json`, SIGINT-then-SIGKILL), `profiles.py`, `skill_pins.py`, `son_launch.py` (also `provider_env`, `allowed_tools`, `auth_problem`, `init_plugin_errors`), `son_stream.py` (stream-json heartbeat, `detect_stuck`, `api_retry` exhaustion), `state_ids.py`, and the modules of `scripts/lanes/` (`amend`, `common`, `conflicts`, `gitrefs`, `integration`, `journal`, `leases`, `merge`, `mergecomp`, `mergeplan`, `mergeresume`, `phases`, `planner`, `reconcile`, `records`, `runend`, `runrecord`, `runstate`, `shutdown`, `supervisor`, `waiter`).
 
+### 5.1 `scripts/lanes/` modules
+
+The package behind `lanes.py` (dependency order and flows are in `ARCHITECTURE.md`). Library only: none has a command line.
+
+| Module | Holds | Since |
+|---|---|---|
+| `lanes/__init__.py` | Package marker; re-exports the public names `lanes.py` imports. | 3.10.0 |
+| `lanes/amend.py` | `amend`: change one lane of a running manifest, re-check, bump the epoch, rewrite `brief.md`. | 3.10.0 |
+| `lanes/audit.py` | `lane_audit`: did the lane's branch change only files its manifest entry owns (`git diff --name-only` between base and head). | 3.11.0 |
+| `lanes/common.py` | Constants (phase names, `HEARTBEAT_PHASES`, `COST_SOURCES`, `LANE_SECTIONS`), `LaneError`, `load_manifest`. | 3.10.0 |
+| `lanes/conflicts.py` | Overlap detection between lanes (file, schema, id, dependency, area, scope) and the open-PR and active-run sources. | 3.10.0 |
+| `lanes/gitrefs.py` | Lane branch names (`dts2/<stamp>/lane-<id>`) and the collision check against existing refs. | 3.10.0 |
+| `lanes/integration.py` | Routes lockfiles, migrations, route tables, barrels and `lanes.shared_files` globs to a final integration lane; caps a PR at 5 tasks. | 3.10.0 |
+| `lanes/journal.py` | `merge-journal.jsonl`: grants, merges, fold plans, shipped fold groups, failed walkthroughs, the revert action item, the post-merge fix cap and revert PR (`fix-attempt`), the supersede close (`fold-close`). | changed |
+| `lanes/leases.py` | Lane leases: epoch fence, expiry, `renew_lease`, the item hold, and the overlap check plus lease write under one admission lock. | changed |
+| `lanes/mailbox.py` | The head/son mailbox: versioned question, answer, need-human and out-of-lane request files, send-backs, `merge-go.json`, deadlines with a defined park transition, rule-file digests (`lanes.py mailbox`). | 3.11.0 |
+| `lanes/mergecomp.py` | Base-health record and merge gate, the repo-wide merge mutex, integration routing records shown by `status` and `report`. | 3.11.0 |
+| `lanes/merge.py` | Merge order, merge target, `merge-go` grants and `merge-done`; `merge-go-step` applies the same base-health and mutex refusal as `merge-go`. | changed |
+| `lanes/mergeplan.py` | Merge queue or serial rebase-test-merge plan with the `git merge-tree --write-tree` probe. | 3.10.0 |
+| `lanes/mergeresume.py` | Settle a merge a dead head left half done, by asking GitHub. | 3.10.0 |
+| `lanes/phases.py` | `transition`, the one writer of a lane's phase, with its `LEGAL` table. | 3.10.0 |
+| `lanes/planner.py` | The son command line, admission, spend estimates and the `plan` command (frozen-scope filter before the cap). | changed |
+| `lanes/policy.py` | Scope and approval policy around `plan`: the owner override, ask-before-each-lane, frozen fullauto scope, end state from `origin/<base>`. | 3.11.0 |
+| `lanes/reconcile.py` | Ask GitHub before creating, merging or resuming; orphan handling; deterministic mappings. | 3.10.0 |
+| `lanes/records.py` | Locked reads and writes of one JSON object through the state port, the model-call ledger. | 3.10.0 |
+| `lanes/runend.py` | Run metrics at the end of a run and the run report view (refusals, overrides, merge order, spend, per-son lines). | changed |
+| `lanes/runrecord.py` | The typed `run.json` (`RunRecord`) and `builders.jsonl` rows. | 3.10.0 |
+| `lanes/runstate.py` | Status and stall marks, send-backs, `fold` groups, `stop-check`, `report-check`, the budget counter and spend ledger. | changed |
+| `lanes/shutdown.py` | Graceful end of a run: park running lanes, stop son process groups, close leases. | 3.10.0 |
+| `lanes/supervisor.py` | `preflight`, `spawn` and the son lifecycle, `model_call`, `loop`, `gc_restore`; `spawn_refusal` checks plugin version skew. | changed |
+| `lanes/waiter.py` | `lanes.py wait`: return on a phase change or a son's `exit.json` (inotify, else sleep-backoff). | 3.11.0 |
+
+### 5.2 Templates
+
+Files under `templates/`, copied or filled by setup and the scripts named here.
+
+| Template | What it is | Since |
+|---|---|---|
+| `templates/RUNBOOK.md` | Production runbook skeleton written by `prod-scaffold.py`. | 3.10.0 |
+| `templates/action-items.md` | Empty `.harness/action-items.md`. | 3.10.0 |
+| `templates/ci.yml` | CI workflow the setup skill offers a repo. | 3.10.0 |
+| `templates/config-supervisor.yaml` | Run caps and supervisor settings (`budget`, `supervisor`, `sandbox`, `merge`, `lanes`, `walkthrough`) to merge into `.harness/config.yaml`. | changed |
+| `templates/dependabot.yml` | Dependency-update config the setup skill offers. | 3.10.0 |
+| `templates/discipline.md` | The rules copy a repo gets at setup. | 3.10.0 |
+| `templates/dts2-harness.local.md` | Per-repo hook and run settings (see section 8). | changed |
+| `templates/end-state.md` | Empty `.harness/end-state.md`. | 3.10.0 |
+| `templates/handoff-latest.md` | Layout of `handoff/latest.md` written by `handoff-write.py`. | 3.10.0 |
+| `templates/harness-lessons.md` | Empty `.harness/lessons.md`. | 3.10.0 |
+| `templates/keep.yaml` | Keep list for `machine-prep` and `skills-check.py`. | 3.10.0 |
+| `templates/ops/` | Production runbooks (`backups.md`, `credential-handoff.md`, `monitoring.md`, `release.md`, `rollback.md`) copied by `prod-scaffold.py`. | 3.10.0 |
+| `templates/policy.json` | Declarative deny and require-approval rules read by `policy_gate.py` (`hooks/policy-gate.sh`). | 3.11.0 |
+| `templates/pr-template.md` | PR body with the change receipt and the "Decisions and declined findings" section. | changed |
+| `templates/receipt.md` | Change receipt skeleton filled by the ship step. | 3.10.0 |
+| `templates/renovate.json` | Renovate config the setup skill offers. | 3.10.0 |
+| `templates/son-brief.md` | The ~4 KB `brief.md` a son reads first, filled by `briefs.py son-brief`. | 3.10.0 |
+| `templates/state.md` | Empty `.harness/state.md`. | 3.10.0 |
+
 ## 6. Makefile targets and CI
 
 Defined in the repository root `Makefile` (one level above the plugin directory).
@@ -297,3 +354,74 @@ Sources: `changelog.d/*.md`, the `## Unreleased` lines in `README.md`, and `git 
 | `harness-lock.py` | Lock file is created complete (temp file plus `os.link`) | nits |
 | Skills `autopilot`, `setup`, `run` | Router `SKILL.md` plus phase files read on demand; the run plan needs a `## Foundation` section (wave 0); mechanical sections go to a haiku builder; fix round 2 goes to the `fixer` | Q-10, B1, AA-3, AA-8, AA-4 |
 | Hooks `session-lessons.sh`, `stop-checks.sh`, `pr-receipt.sh`, `context-guard.sh` | Path-scoped lessons and compact resume pointer; unchanged-diff skip; `if` filters on `gh pr create\|edit`, payload parsing in `pr_payload.py`; one Python process per call | Q-5, Q-7, Q-13, AC-5, A10 |
+
+## 8. Settings keys
+
+Keys of `templates/dts2-harness.local.md`, copied to `<repo>/.claude/dts2-harness.local.md` (restart Claude Code after editing). Hooks read them through `hooks/lib-settings.sh`, scripts through `lanes.read_setting`. Run caps (`budget`, `supervisor`, `sandbox`, `merge`, `lanes`, `walkthrough`) live in `.harness/config.yaml` (`templates/config-supervisor.yaml`). Human approvals are not a setting: they are the `dts2_approvals` key in `.claude/settings.local.json`, read by `approvals.py`.
+
+| Key | Default | Effect |
+|---|---|---|
+| `enabled` | `true` | Master switch for every hook. |
+| `stop_checks` | `true` | Stop hook runs quick typecheck and lint. |
+| `stop_checks_block` | `false` | A red check blocks the stop once. |
+| `lessons_inject` | `true` | SessionStart loads lessons. |
+| `lessons_max` | `5` | Most lessons loaded. |
+| `pr_receipt_template_push` | `false` | Receipt hook commits and pushes the PR template (never in a son). |
+| `auto_scale` | `true` | `run` picks tier S/M/L/XL itself. |
+| `max_builders` | `4` | Builders in parallel. |
+| `max_reviewers` | `4` | Reviewers in parallel. |
+| `continuous_dispatch` | `true` | Keep `max_builders` in flight; park stalled builders. |
+| `builder_timeout_min` | `20` | Minutes without a builder report before it is parked. |
+| `son_permission_mode` | `dontAsk` | `claude -p` permission mode for sons (`bypassPermissions` is refused). |
+| `mailbox_wait_min` | `30` | Minutes a son waits for the head before it parks `mailbox-timeout`. |
+| `dpp_full_ask_each_lane` | `true` | `dpp-full` outside autopilot asks before each new lane (`approve-lane`). |
+| `fullauto_freeze_scope` | `true` | `fullauto` freezes the approved item set at its first plan. |
+| `post_merge_fix_attempts` | `2` | Post-merge fixes per lane before a revert PR opens. |
+| `son_model` | `opus` | Model every dpp son runs on. |
+| `use_worktrees` | `auto` | `auto`, `always` or `never` for builder worktrees. |
+| `second_opinion` | `none` | `none`, `codex` or `gemini` for the sdk runner. |
+| `profile` | `blueprint` | `machine-prep` profile name or path. |
+| `end_state_threshold` | `80` | End-state clarity score needed. |
+| `auto_learn` | `true` | Run `learn` after the ship checkpoint. |
+| `context_guard` | `true` | Context guard hook on or off. |
+| `context_guard_tool_calls` | `250` | Tool calls before the guard fires. |
+| `context_guard_mb` | `12` | Transcript MB before the guard fires. |
+| `context_guard_stop` | `false` | The guard also ends the turn (`continue:false`). |
+| `policy_gate` | `true` | Declarative policy hook (`templates/policy.json`) on or off. |
+| `max_execution_effort` | `high` | Cap on builder effort. |
+| `delegation_strict` | `true` | Block ship if a builder ran a frontier model. |
+| `lead_provider` | `claude` | Agent for the lead, advisory and sign-off seats. |
+
+## 9. Changed in 3.11.0
+
+Sources: `CHANGELOG.md` (3.11.0) and `git log --oneline 6a74faa..HEAD -- plugins/dts2-harness` (the 3.10.0 release is the base). Ids such as G-70 are the batch ids used in the changelog.
+
+### 9.1 New commands and files
+
+| What | Commands and files | Source |
+|---|---|---|
+| Head policy gate | `hooks/policy-gate.sh`, `policy_gate.py`, `templates/policy.json`, setting `policy_gate` | G-70 |
+| Son containment | `protected.py`, `approvals.py`, `head_publish.py` (`publish`, `merge`, `bootstrap`), `provider_report.py`, `ballot_dispatch.py`; `lanes.py publish` | G-60 to G-69 |
+| Son lifecycle | `son_stream.py`, `lanes/waiter.py`; `lanes.py wait`, `gc`, `reconcile` mappings | G-52 to G-58 |
+| Mailbox and scope policy | `lanes/mailbox.py`, `lanes/policy.py`; `lanes.py mailbox`, `override`, `approve-lane`; settings `mailbox_wait_min`, `dpp_full_ask_each_lane`, `fullauto_freeze_scope` | G-43 to G-51 |
+| Merge safety | `lanes/mergecomp.py`; `lanes.py base-health`, `merge-mutex`, `fix-attempt`, `fold-close`; setting `post_merge_fix_attempts` | G-78 to G-80 |
+| Agent gates | `hooks/subagent-stop.sh`, `hooks/stop-failure.sh`, `hooks/permission-denied.sh`, `agent_events.py` | G-72 to G-74 |
+| Eval and skills | `eval_stats.py` (A/B mode of `evals/run.py`), `harness_skew.py`, pinned `skills` CLI | G-75 to G-77 |
+| Reports and receipts | `lanes.py report` run-wide sections, `receipts_sign.py`, `plugin_options.py`, `OTEL_` env allowlist entry | G-82 to G-87 |
+| Hooks | `python3 -I` in every hook, `lib-settings.sh` parity with `lanes.read_setting` | G-30 to G-40 |
+
+### 9.2 Changed commands
+
+| Command | What changed | Source |
+|---|---|---|
+| `lanes.py merge-go-step` | Same base-health and merge-mutex refusal as `merge-go`; a `revert-<lane>` step acts for the mutex holder | review fixes |
+| `lanes.py plan`, `lease` | Frozen-scope filter before the cap; a lease records its check-in item and refuses one another live lease holds | G-47, G-50 |
+| `lanes.py heartbeat` | The no-phase heartbeat checks the epoch under the status lock and renews nothing when stale | review G |
+| `lanes.py status`, `report` | Routing records, CI result, merge commit, out-of-lane requests, run-wide sections | G-80, G-82 |
+| `lanes.py spawn`, `preflight` | Non-bare spawn checks `auth_problem`, `init_plugin_errors`, a push dry-run under the head env and plugin version skew | G-60, G-76 |
+| `council.py next-round`, `tally` | Instance ids `<step>+<attempt>` count up across rounds; a ballot needs a valid `.dispatch.json` | G-68, G-72 |
+| `receipts_sign.py` | Fails closed when `DTS2_PR_RECEIPT_KEY_FILE` is set but unreadable or empty | G-87 |
+| `evals/run.py` | `--runs` and `--arm-b-env` A/B mode with median, range, pass^k and a verdict | G-75 |
+| `skills-check.py` | Pinned `skills` CLI; no self-upgrade while a lease is live; `--son-root` skew report; no org string | G-76, G-77 |
+| `doctor.py` | Reports bwrap, socat, auth method and platform; native Windows warns | G-85 |
+| Hooks `stop-checks.sh`, `pr-receipt.sh`, `context-guard.sh`, `session-lessons.sh` | `python3 -I`, one shared deadline, branch-to-stamp receipt, current-run plan check, lessons inside the untrusted fence | G-30 to G-37, G-69 |
