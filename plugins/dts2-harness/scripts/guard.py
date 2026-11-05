@@ -135,21 +135,31 @@ LITERAL_TICK: Final[str] = "\ue001"
 
 def mask_literals(text: str) -> str:
     """Swap each `$` and backtick inside single quotes for an inert stand-in, so `git commit -m '$(env)'` holds no expansion.
-    Double quotes and bare text are left alone (the shell expands there); `unmask_literals` undoes it."""
+    Double quotes and bare text are left alone (the shell expands there); `unmask_literals` undoes it. The scan keeps a stack,
+    so a quote inside a nested `$(...)` belongs to that substitution and a `'` inside double quotes stays literal."""
     out: list[str] = []
-    quote: str = ""
+    stack: list[str] = []  # open contexts, innermost last: `'`, `"` or `(` (command text of a substitution or subshell)
     i: int = 0
     while i < len(text):
         c: str = text[i]
-        if quote == "'":
-            quote = "" if c == "'" else quote
+        top: str = stack[-1] if stack else "("
+        if top == "'":
+            stack = stack[:-1] if c == "'" else stack
             c = LITERAL_DOLLAR if c == "$" else LITERAL_TICK if c == "`" else c
         elif c == "\\" and i + 1 < len(text):
             out.append(c)
             i += 1
             c = text[i]
-        elif c in "'\"":
-            quote = "" if quote == c else c if not quote else quote
+        elif top == '"' and c == '"':
+            stack = stack[:-1]
+        elif top == '"' and c == "(" and text[i - 1:i] == "$":
+            stack.append("(")
+        elif top == "(" and c in "'\"":
+            stack.append(c)
+        elif top == "(" and c == "(":
+            stack.append("(")
+        elif top == "(" and c == ")" and stack:
+            stack = stack[:-1]
         out.append(c)
         i += 1
     return "".join(out)
