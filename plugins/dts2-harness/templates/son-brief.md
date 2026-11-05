@@ -28,11 +28,11 @@ Tasks:
 1. Plan the lane, build it with builders on disjoint file sets, review, verify. Run the normal pipeline for one step at a time. A builder `<n>` gets `git worktree add "$DTS2_BUILDERS_DIR/<n>" -b {{branch}}-b<n> {{branch}}`; merge builder branches into `{{branch}}`, never into the run's main branch.
 2. Run `checks.py run` before any vote. A red or missing check is a fix round with no votes.
 3. Bundle at most MAX_BUNDLE queued tasks of the same section on one branch and one PR, only when they share no file. Each task ends in its own checkpoint commit `dts2({{lane}}): checkpoint <k>/<n> <task>` after its own verifier pass, and `status.json` lists them under `"checkpoints"`.
-4. Push only `{{branch}}` or its builder branches. Open one PR for the step and stop at `pr-open`.
+4. Commit on `{{branch}}` (builder branches merge into it) and stop; the head publishes: it pushes the branch and opens the PR. You never push or open a PR.
 
 ## Heartbeat and phase
 - At every turn boundary: `python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/lanes.py" heartbeat {{stamp}} --lane {{lane}}`.
-- Set the phase only through that script, never by writing `status.json`: `--status pr-open` while you wait for `merge-go.md`, then `--status done`, `--status blocked` or `--status incomplete` (with `--reason "..."`) at the end.
+- Set the phase only through that script, never by writing `status.json`: `--status pr-open` once your last commit is in and you wait for `merge-go.md`, then `--status done`, `--status blocked` or `--status incomplete` (with `--reason "..."`) at the end.
 
 ## Questions
 Write the question to `questions/<n>.md` in the run dir and wait for the head's answer file. The head answers alone. Do not ask the user.
@@ -47,4 +47,4 @@ Write the question to `questions/<n>.md` in the run dir and wait for the head's 
 A denial from the sandbox or the deny hook is a park, not something to route around: set `--status incomplete --reason "denied: <what>"` and stop.
 
 ## Done
-You are done when the step is at `pr-open` with green checks and a passed verifier on HEAD, `report.md` lists what changed, the checkpoints, open items and lessons, and the phase is `done` (after the head merges) or `blocked` with its items named.
+You are done when your last commit is on the branch with green checks and a passed verifier on HEAD, `report.md` lists what changed, the checkpoints, open items and lessons, and the phase is `done` (after the head merges) or `blocked` with its items named.

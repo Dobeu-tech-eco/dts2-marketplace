@@ -52,6 +52,7 @@ PROTECTED_API: Final[tuple[str, ...]] = ("/merges", "/git/refs", "/branches/", "
 SHELL_C: Final[re.Pattern[str]] = re.compile(r"^-[A-Za-z]*c[A-Za-z]*$")
 FLAG_WITH_VALUE: Final[frozenset[str]] = frozenset({"-s", "-k", "-n", "-o", "-e", "-i", "-u", "-g", "-C", "-I", "-L", "-P",
                                                     "--signal", "--kill-after", "--adjustment", "--unset", "--chdir"})
+ENV_VALUE_FLAGS: Final[frozenset[str]] = frozenset({"-u", "-C", "-S", "--unset", "--chdir", "--split-string"})  # env's own; `-i` takes none
 DURATION: Final[re.Pattern[str]] = re.compile(r"^\d+(\.\d+)?[smhd]?$")
 MAX_DEPTH: Final[int] = 4
 GH_GLOBAL_VALUE: Final[frozenset[str]] = frozenset({"-R", "--repo", "--hostname"})
@@ -156,7 +157,8 @@ def strip_wrappers(words: list[str], seen: list[str] | None = None) -> list[str]
             words = words[1:]
             while words and (words[0].startswith("-") or (head in ("timeout", "nice") and DURATION.match(words[0]))
                              or (head == "env" and "=" in words[0])):
-                words = words[2:] if words[0] in FLAG_WITH_VALUE else words[1:]
+                value_flags: frozenset[str] = ENV_VALUE_FLAGS if head == "env" else FLAG_WITH_VALUE
+                words = words[2:] if words[0] in value_flags else words[1:]
         else:
             break
     return words

@@ -22,7 +22,10 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from lanes.common import COST_SOURCES, DEFAULT_CALL_TIMEOUT_S, HEARTBEAT_PHASES, LaneError, RUNS_DIR, load_manifest  # noqa: E402
-from lanes.gitrefs import branch_check  # noqa: E402
+from head_publish import publish_lane  # noqa: E402
+from son_launch import merge_config  # noqa: E402
+from lanes.gitrefs import branch_check, lane_ref  # noqa: E402
+from lanes.records import inside_son, son_refusal  # noqa: E402
 from lanes.amend import amend_lane, split_list  # noqa: E402
 from lanes.journal import close_superseded, fix_attempt, fold_done, walkthrough_failed  # noqa: E402
 from lanes.mergecomp import MUTEX_OPS, base_health, merge_mutex, read_routing, record_routing, routing_markdown  # noqa: E402
@@ -68,6 +71,13 @@ def add_supervisor_parsers(sub: Any) -> None:
                         help="claude: the CLI prints a cost (default for claude or DTS2_CLAUDE_BIN); none: it never does")
     call_p.add_argument("--prompt-file", default=None, help="piped to the command's stdin (the ballot or prompt)")
     call_p.add_argument("--out", default=None, help="write stdout here instead of returning it; the command follows --")
+    pub_p = sub.add_parser("publish", help="the head pushes a finished lane branch and opens (or adopts) its PR; protected files park the lane")
+    pub_p.add_argument("stamp")
+    pub_p.add_argument("--lane", required=True)
+    pub_p.add_argument("--branch", default=None, help="the lane branch (default dts2/<stamp>/lane-<lane>)")
+    pub_p.add_argument("--base", default=None, help="the base branch (default: the merge target, dev)")
+    pub_p.add_argument("--title", default=None)
+    pub_p.add_argument("--body", default="")
     beat_p = sub.add_parser("heartbeat")
     beat_p.add_argument("stamp")
     beat_p.add_argument("--lane", required=True)
@@ -251,6 +261,7 @@ def build_parser() -> argparse.ArgumentParser:
     son_p.add_argument("manifest")
     son_p.add_argument("--lane", required=True)
     son_p.add_argument("--worktree", required=True)
+    son_p.add_argument("--wrap", action="store_true", help="wrap the argv with proc.wrap_son: a session id, stream-json and son.json in the lane folder")
     add_run_parsers(sub)
     return parser
 
@@ -349,11 +360,22 @@ def dispatch_supervisor(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> 
         return {"ok": True, "closed": closed}
     if args.command == "heartbeat":
         return heartbeat(runs_dir, args.stamp, args.lane, args.turn, args.status, args.reason, split_ids(args.blocked_by), args.epoch)
+    if args.command == "publish":
+        return publish_command(args, cwd)
     if args.command == "call":
         return model_call(runs_dir, args.stamp, cwd, args.label, args.command_argv, args.timeout,
                           Path(args.out) if args.out else None, Path(args.prompt_file) if args.prompt_file else None,
                           args.cost_source)
     return dispatch_lifecycle(args, runs_dir, cwd)
+
+
+def publish_command(args: argparse.Namespace, cwd: Path) -> dict[str, Any]:
+    """G-64: the head, not the son, pushes the lane branch and opens its PR (ruling Q1). Refused inside a son."""
+    if inside_son():
+        return {**son_refusal("publish"), "lane": args.lane}
+    branch: str = args.branch or lane_ref(args.stamp, args.lane)
+    base: str = args.base or merge_config(cwd)["target"]
+    return publish_lane(cwd, args.lane, branch, base, args.title or f"dts2: lane {args.lane} ({args.stamp})", args.body)
 
 
 def dispatch_lifecycle(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> dict[str, Any] | None:
@@ -409,7 +431,8 @@ def dispatch(args: argparse.Namespace) -> dict[str, Any]:
         return amend_lane(Path(args.manifest), args.lane, runs_dir, cwd, not args.no_prs, amend_changes(args))
     if args.command == "son-command":
         remaining: float | None = spend_state(runs_dir, str(manifest["stamp"]), cwd)["remaining_usd"]
-        return son_command(manifest, args.lane, Path(args.worktree), cwd, remaining)
+        lane_dir: Path | None = runs_dir / str(manifest["stamp"]) / args.lane if args.wrap else None
+        return son_command(manifest, args.lane, Path(args.worktree), cwd, remaining, lane_dir=lane_dir)
     if args.command == "spawn":
         return spawn(manifest, args.lane, Path(args.worktree), runs_dir, cwd, args.resume, args.unsafe_no_sandbox)
     if args.command == "merge-order":
