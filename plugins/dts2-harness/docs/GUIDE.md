@@ -8,7 +8,7 @@ Contents: 1 Talking to the harness, 2 Which command when, 3 The head, son and co
 
 ## 1. Talking to the harness
 
-The harness is a Claude Code plugin. Every entry point is a slash command `/dts2:<skill>`; there is no other interface. Eighteen skills exist (section 2). Seven agents (`lead`, `builder`, `fixer`, `reviewer`, `verifier`, `scout`, `auditor`) are dispatched by the skills, never typed by the user; an agent that needs one calls the Agent tool with `subagent_type: dts2:<name>`.
+The harness is a Claude Code plugin. Every entry point is a slash command `/dts2:<skill>`; there is no other interface. Twenty skills exist (section 2). Seven agents (`lead`, `builder`, `fixer`, `reviewer`, `verifier`, `scout`, `auditor`) are dispatched by the skills, never typed by the user; an agent that needs one calls the Agent tool with `subagent_type: dts2:<name>`.
 
 Six skills run only when the user types them (`disable-model-invocation: true`): `dpp-full`, `fullauto`, `machine-prep`, `model`, `onboard`, `sdk`. The others may be invoked by the model when the conversation calls for them.
 
@@ -46,6 +46,16 @@ The harness answers in a fixed shape:
 - A checkpoint is a question with the plan or the ship summary and the words `approve`, `edit` or `stop`. Under `run` the user answers; under `autopilot` three frontier providers vote and Fable 5.1 breaks a tie.
 - Anything that needs a person is an action item (`/dts2:action-items`): a missing secret, a decision, a handoff, a deploy step. The item names the command that resolves it.
 - Progress is always readable without side effects: `/dts2:check-in`.
+
+### Talking while it works
+
+A prompt typed while a run is going is not lost. The `UserPromptSubmit` hook appends it to the intake queue (`.harness/intake.jsonl`, shown in `.harness/intake.md`) and classes it:
+
+- **fold**: an addition ("also add a CSV export"). It goes into the ledger and the agent keeps working.
+- **clarify**: words that may conflict with the plan ("stop", "cancel", "instead", "revert", "don't", "change direction"). The agent asks at the next safe point, before it acts. Clarity below 60 of 100 allows at most two short questions; then the item is set on the best reading, with the assumption stated, and work continues.
+- **steer**: `/dts2:steer <new direction>` (or a `steer:` prefix). The only thing that stops running work: the current atomic step finishes, nothing new is dispatched, a handoff is checkpointed, open intake items are reviewed, the plan is redone for the new direction, and the run resumes after one short confirmation.
+
+Other slash commands are ignored by intake, and a prompt is never blocked. Turn intake off with `intake: false` in `.claude/dts2-harness.local.md`. See the queue with `intake.py list`.
 
 ## 2. Which command when
 
@@ -93,6 +103,15 @@ Decision shortcuts:
 - Only a PR, no build: `ship`. Only a plan, no PR of code: `feature`.
 - Something is stuck: `check-in` first, then `action-items`, then `run resume` or `autopilot resume`.
 - Never run `dpp`, `setup` or `onboard` inside a son (section 3).
+
+### When a model runs out of usage
+
+Usage limits belong to the account, so the harness keeps one shared list of paused agents (`~/.dts2/agent-status.json`).
+
+- The first agent that hits a limit is recorded automatically. If the message carries no reset date, the harness asks you once and uses a five-hour pause until you answer.
+- A paused agent is skipped by the roster probe and by lead failover, and is never re-probed; it comes back by itself when the time passes.
+- Each new session starts with a one-line note of who is paused and until when.
+- Set or lift a pause by hand with `/dts2:cooldown set <agent> <date or duration>`, `clear <agent>` and `list`.
 
 ## 3. The head, son and council flow
 

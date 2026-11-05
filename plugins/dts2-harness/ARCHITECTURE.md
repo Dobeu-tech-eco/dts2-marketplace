@@ -68,6 +68,8 @@ State reads and writes from the scripts go through `scripts/state_io.py`; see "S
 | Event | Script | What it does |
 | --- | --- | --- |
 | SessionStart | `hooks/session-lessons.sh` | puts recent lessons, open state items and open action items into context; after a compact (`source` is `compact`) prints only a short resume pointer |
+| SessionStart | `hooks/session-cooldowns.sh` | prints which agents are cooling down after a usage limit and which just came back (`scripts/cooldowns.py session-note`); silent when none |
+| UserPromptSubmit | `hooks/prompt-intake.sh` | appends each prompt typed while the harness works to the intake queue (`scripts/intake.py`), classifies it fold, clarify or steer, and prints a one-line instruction so work continues (the prompt itself is never echoed); never blocks; off with `intake: false` |
 | PreCompact (auto, manual) | `hooks/pre-compact.sh` | runs `handoff-write.py` so the post-compact session resumes from the handoff |
 | Stop | `hooks/stop-checks.sh` | refreshes `handoff/latest.md`, runs quick typecheck and lint on changed files from `node_modules/.bin` (never npx) under one deadline; warns, and blocks once only with `stop_checks_block: true` |
 | PreToolUse (Bash) | `hooks/merge-guard.sh` | refuses a force-push, and a merge or push to a protected branch unless a lane's `merge-go.md` allows it |

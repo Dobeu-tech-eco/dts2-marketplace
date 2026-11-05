@@ -71,7 +71,7 @@ Contents: 1 How to run a command, 2 `lanes.py` subcommands, 3 Standalone scripts
 | `mailbox` | either | The head/son mailbox. Son ops: ask, need-human, check, wait, park, merge-go-check, rules, request. Head ops: answer, decide (refused in a son). A wait that runs out parks the lane (`mailbox_wait_min`). | `lanes.py mailbox ask <stamp> --lane a --text "<question>"  \|  mailbox answer <stamp> --lane a --id q1 --text "<answer>"  \|  mailbox park <stamp> --lane a --reason context-guard [--session-id S]  \|  mailbox rules <stamp> --lane a --point start\|vote\|ship\|merge  \|  mailbox request <stamp> --lane a --files f1,f2 --text "<why>"  \|  mailbox decide <stamp> --lane a --id r1 --outcome escalate\|granted\|denied  \|  mailbox merge-go-check <stamp> --lane a [--worktree D]` | `questions/`, `merge-go.json`, status |
 | `report-check` | head | Check the final report against lane ids; with `--stamp` also cross-check the son run records. | `lanes.py report-check dpp-report.md --lanes a,b [--stamp <stamp>]` | none (read-only) |
 
-## 3. Standalone scripts (61 with a command line)
+## 3. Standalone scripts (62 with a command line)
 
 Invocation shown without the prefix `python3 -I "$CLAUDE_PLUGIN_ROOT/scripts/`; add it and the closing `"`. Scripts marked `hook` read the hook JSON on stdin and are called by `hooks/*.sh`.
 
@@ -88,6 +88,7 @@ Invocation shown without the prefix `python3 -I "$CLAUDE_PLUGIN_ROOT/scripts/`; 
 | `changelog-join.py` | maintainer | Join `changelog.d/` fragments into the README `## Unreleased` section; dry run unless `--apply`. | `changelog-join.py [--root R] [--version V] [--apply] [--date D]` | README, deletes joined fragments (with `--apply`) |
 | `check-in.py` | either | Complete/outstanding checklist against the end state. | `check-in.py (--items <ids> \| --from <file>) [--json]` | none (read-only) |
 | `checks.py` | either | Deterministic checks (tests, types, lint, secret scan, scope) before any model vote, and the run ledger. | `checks.py run --stamp S [--cwd D --base B] \| gate --stamp S [--head H] \| summary --stamp S \| env-missing --stamp S <names...> \| scout-check --stamp S <file>` | `ledger.jsonl` |
+| `intake.py` | either | Prompt intake queue: records prompts typed while the harness works, scores and classifies them (fold, clarify, steer) and renders the queue. | `intake.py add [--text T] [--source hook\|cli] \| list [--status S] [--json] \| resolve <id> --as fold\|clarify\|steer\|done [--note N] \| answer <id> --text T \| status \| hook`; `--root DIR`, `--threshold N` (60), `--budget N` (2) | `.harness/intake.jsonl`, `.harness/intake.md` |
 | `clarity-score.py` | either | Requirement clarity score; the weakest component bounds it. | `clarity-score.py <ratings>` | none |
 | `companion-gate.py` | either | Run-count gates for two costly companion skills. | `companion-gate.py check\|record --repo R --skill NAME [--base B]` | gate record |
 | `context-guard.py` | hook | PostToolUse context guard (hook JSON on stdin). | `context-guard.py --tool-calls N --mb M [--stop]` | none |
@@ -145,7 +146,7 @@ Also outside `scripts/`: `sdk/dts2-run.py <task> [--repo R] [--yes] [--api-key-e
 
 Library modules, not invoked directly (15): `_load.py`, `contracts.py`, `eval_stats.py`, `harness_skew.py`, `mdparse.py`, `miniyaml.py`, `model_call.py`, `ownership_audit.py`, `prep-tiers.py`, `proc.py`, `profiles.py`, `skill_pins.py`, `son_launch.py`, `son_stream.py`, `state_ids.py`. The modules of `scripts/lanes/` are libraries behind `lanes.py` and have no command line either.
 
-## 4. Skills (18 slash commands)
+## 4. Skills (20 slash commands)
 
 Typed as `/dts2:<name>`. `user only` means `disable-model-invocation: true`: the model never starts it, a person must type it.
 
@@ -168,7 +169,9 @@ Typed as `/dts2:<name>`. `user only` means `disable-model-invocation: true`: the
 | `/dts2:fullauto` | user only | `dpp-full` with autopilot forced on, looping check-in until nothing is outstanding. | `/dts2:fullauto` | as `dpp` |
 | `/dts2:check-in` | user or model | Read-only progress against the approved end state: `N of M complete`. | `/dts2:check-in` | none |
 | `/dts2:model` | user only | Choose which agent provider fills the lead, advisory and sign-off seats; records `lead_provider`. | `/dts2:model` | settings file |
+| `/dts2:cooldown` | user only | Pause an agent that hit a usage limit until its reset date, resume it, or list what is paused. | `/dts2:cooldown set <agent> <date or duration> [reason] \| clear <agent> \| list` | agent status file |
 | `/dts2:find-skills` | user or model | Rescan the repo, audit every improvement option (skills, hooks, MCP servers, plugins, commands, subagents, permissions, CI), ask, and wire in the picks on a yes. | `/dts2:find-skills` | keep list, settings (on a yes) |
+| `/dts2:steer` | user or model | Stop running work and redirect it. Finishes the current atomic step, dispatches nothing new, checkpoints a handoff, reviews open intake items, re-plans to the new direction, confirms in one short message and resumes. | `/dts2:steer <new direction>` | handoff file, intake queue, plan |
 
 ## 5. Agents (7)
 
@@ -184,13 +187,14 @@ Dispatched by the skills with the Agent tool; nobody types them.
 | `dts2:scout` | read-only (Bash for configured commands) | Measures a repo, detects other harnesses and a marketing surface, recommends team tier, builder count and reviewer axes. | First, before planning. | `Agent(subagent_type: dts2:scout)` |
 | `dts2:auditor` | read-only (Bash) | Inventories installed agent tooling against a blueprint profile and proposes keep, disable and setup. Never changes anything. | From `machine-prep`. | `Agent(subagent_type: dts2:auditor)` |
 
-## 6. Hooks (13 rows, 18 registrations in `hooks/hooks.json`)
+## 6. Hooks (15 rows, 20 registrations in `hooks/hooks.json`)
 
 Registered in `hooks/hooks.json` and run by Claude Code. Agents do not call hooks; they only meet their effect (a denial, a blocked stop, a context note). Every hook honours the `enabled` setting in `.claude/dts2-harness.local.md`.
 
 | Event (matcher) | Script | Blocks or allows |
 |---|---|---|
 | SessionStart | `hooks/session-lessons.sh` | Allows. Puts recent lessons, open state and action items into context (inside the untrusted-content fence, capped at 4000 characters). |
+| SessionStart | `hooks/session-cooldowns.sh` | Allows. Prints which agents are cooling down after a usage limit and which just came back (`cooldowns.py session-note`); silent when none. |
 | Stop | `hooks/stop-checks.sh` | Allows by default; with `stop_checks_block: true` a red check blocks the stop once. Quick typecheck and lint on changed files; skipped in a son. |
 | PostToolUse (`Bash`: `gh pr create`, `gh pr edit`, `gh api`) | `hooks/pr-receipt.sh` | Never blocks. Makes sure a PR body has a `## Change receipt`; does nothing in a son. |
 | PostToolUse (`Bash\|Edit\|Write\|Agent`) and PostToolBatch | `hooks/context-guard.sh` | Advises, or with `context_guard_stop: true` ends the turn, on a context spike before the plan checkpoint; parks a son. |
@@ -203,6 +207,7 @@ Registered in `hooks/hooks.json` and run by Claude Code. Agents do not call hook
 | StopFailure | `hooks/stop-failure.sh` | Allows. Files a Handoff action item naming the API error. |
 | PermissionDenied | `hooks/permission-denied.sh` | Allows. Files a Handoff action item naming the denied tool. |
 | SessionEnd | `hooks/session-end.sh` | Allows. Releases only the lane leases this session took, then refreshes the handoff. |
+| UserPromptSubmit | `hooks/prompt-intake.sh` | Never blocks. Appends each prompt typed while the harness works to the intake queue, classifies it and injects a one-line instruction for the agent. Off with `intake: false` in `.claude/dts2-harness.local.md`. |
 
 `hooks/lib-settings.sh` is a shared helper, not a registered hook.
 
@@ -281,6 +286,15 @@ lanes report-check dpp-report.md --lanes a,b --stamp <stamp>
 python3 -I "$CLAUDE_PLUGIN_ROOT/scripts/task-ledger.py" <stamp>
 lanes shutdown <stamp>
 ```
+
+2. Adding instructions while a run is going.
+
+```
+/dts2:steer use the Postgres schema instead    # stop and redirect: finishes the current step first
+python3 -I "$CLAUDE_PLUGIN_ROOT/scripts/intake.py" list    # the queue: fold, clarify and set items
+```
+
+Plain typing needs no command. A prompt is recorded as a fold (added to the ledger, the run goes on) or a clarify (may conflict; the agent asks at the next safe point before acting on it).
 
 ## 8. Changelogs
 

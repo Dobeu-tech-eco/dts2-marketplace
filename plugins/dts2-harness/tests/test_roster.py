@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from typing import Any, Final
 
-from helpers import PLUGIN_ROOT, run_script
+from helpers import PLUGIN_ROOT, isolate_agent_status, run_script
 
 PROFILE_DIR: Final[Path] = PLUGIN_ROOT / "profiles" / "agents"
 PROFILE_NAMES: Final[tuple[str, ...]] = (
@@ -489,6 +489,9 @@ ALL_LIVE_ROSTER: Final[str] = (
 
 
 class ProbeTests(unittest.TestCase):
+    def setUp(self) -> None:
+        isolate_agent_status(self)
+
     def test_empty_path_drops_everything(self) -> None:
         data: dict[str, Any] = probe(ALL_LIVE_ROSTER, tempfile.mkdtemp(prefix="dts2-path-"))
         self.assertEqual(data["usable"], [])
@@ -569,6 +572,9 @@ def classify(agent: str, role: str, output: str, *extra: str, exit_code: int = 1
 class ClassifyTests(unittest.TestCase):
     """Every error fixture is recorded output (fixtures/classify/README.txt). Negative cases quote
     those recorded lines; they never invent new error text."""
+
+    def setUp(self) -> None:
+        isolate_agent_status(self)
 
     def test_recorded_402_is_unavailable_for_run(self) -> None:
         data: dict[str, Any] = classify("muse", "builder", BILLING_402)
@@ -653,6 +659,9 @@ COPILOT_QUOTA: Final[str] = recorded("copilot-quota.txt")
 
 
 class CopilotFallbackTests(unittest.TestCase):
+    def setUp(self) -> None:
+        isolate_agent_status(self)
+
     def test_profile_names_grok_for_security_seat(self) -> None:
         data: dict[str, Any] = json.loads((PROFILE_DIR / "copilot.json").read_text())
         self.assertEqual(data["fallback"], {"reviewer:security": "grok"})
