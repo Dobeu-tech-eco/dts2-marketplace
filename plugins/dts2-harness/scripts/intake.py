@@ -290,7 +290,7 @@ def open_clarify(items: list[dict[str, Any]], budget: int) -> dict[str, Any] | N
 
 
 def is_reply(text: str, threshold: int) -> bool:
-    return len(words_of(text)) <= SHORT_WORDS * 2 or clarity_score(text) < threshold
+    return len(words_of(text)) <= SHORT_WORDS or clarity_score(text) < threshold
 
 
 def record_hook_prompt(root: Path, prompt: str, threshold: int, budget: int) -> dict[str, Any] | None:

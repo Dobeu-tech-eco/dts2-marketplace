@@ -246,6 +246,12 @@ class HookReplyTests(unittest.TestCase):
         self.assertEqual([i["id"] for i in items], ["in-1", "in-2"])
         self.assertEqual(items[0]["answers"], [])
 
+    def test_clear_twelve_word_prompt_is_a_new_item(self) -> None:
+        self.hook(CLEAR)
+        items: list[dict[str, Any]] = intake.load_items(self.root)
+        self.assertEqual([i["id"] for i in items], ["in-1", "in-2"])
+        self.assertEqual(items[0]["answers"], [])
+
     def test_steer_is_always_a_new_item(self) -> None:
         self.hook("/dts2:steer yes")
         items: list[dict[str, Any]] = intake.load_items(self.root)
