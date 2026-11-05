@@ -51,6 +51,8 @@ from state_io import append_text, atomic_write  # noqa: E402
 DECISIONS_HEADER: Final[str] = ("# Council decisions\n\nEvery autopilot step that went to council: the vote, each member's reasons, "
                                 "the decision, and the head of council's brief. Appended, never rewritten.\n")
 
+EVENT_KIND: Final[str] = "council-ledger"
+EVENTS_SUFFIX: Final[str] = ".events.jsonl"
 COUNCIL_SEATS: Final[int] = 5
 PANEL_SEATS: Final[int] = 3
 ROUNDS_BEFORE_COUNCIL: Final[int] = 3
@@ -353,8 +355,16 @@ def seat_block(path: Path) -> str:
     return "\n".join(lines) + "\n"
 
 
+def first_write(out: Path, stamp: str, step: str, attempt: int) -> bool:
+    """G-54: False when the council ledger already took this (stamp, step, attempt), so a retried append writes nothing twice."""
+    event = state_io.make_event(EVENT_KIND, id=state_io.event_id(stamp, step, EVENT_KIND, attempt), step=step, attempt=attempt)
+    return state_io.append_event_at(out.with_name(out.name + EVENTS_SUFFIX), event)
+
+
 def write_ledger(ballots_dir: Path, tally_result: dict[str, Any], decision_path: Path,
-                 step: str, stamp: str, out: Path) -> dict[str, Any]:
+                 step: str, stamp: str, out: Path, attempt: int = 1) -> dict[str, Any]:
+    if not first_write(out, stamp, step, attempt):
+        return {"ok": True, "duplicate": True, "out": str(out)}
     text: str = decision_path.read_text(encoding="utf-8")
     match = DECISION_LINE.match(first_line(text))
     decision: str = match.group(1) if match else "NONE"
@@ -546,6 +556,7 @@ def main() -> int:
     led = sub.add_parser("ledger")
     for flag in ("--ballots-dir", "--tally", "--decision", "--step", "--stamp", "--out"):
         led.add_argument(flag, required=True)
+    led.add_argument("--attempt", type=int, default=1, help="the round; the same (stamp, step, attempt) is written once")
     st = sub.add_parser("seats")
     st.add_argument("--usable", required=True, help="comma-separated usable providers from the roster probe")
     st.add_argument("--config", default=state_io.CONFIG_REL)
@@ -600,7 +611,7 @@ def main() -> int:
         result = tally([Path(p) for p in args.ballots])
     elif args.cmd == "ledger":
         tally_json: dict[str, Any] = json.loads(Path(args.tally).read_text(encoding="utf-8"))
-        result = write_ledger(Path(args.ballots_dir), tally_json, Path(args.decision), args.step, args.stamp, Path(args.out))
+        result = write_ledger(Path(args.ballots_dir), tally_json, Path(args.decision), args.step, args.stamp, Path(args.out), args.attempt)
     elif args.cmd == "route":
         result = route(read_ledger(Path(args.ledger)), [v.strip() for v in args.votes.split(",") if v.strip()], args.decision, args.head)
     elif args.cmd == "blind":

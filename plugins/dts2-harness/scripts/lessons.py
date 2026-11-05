@@ -15,9 +15,12 @@ from pathlib import Path
 from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import state_io  # noqa: E402
 from state_io import HARNESS, LEASE_NAME, RUNS_REL, atomic_write, rel  # noqa: E402
 
 LESSONS_PATH: Final[str] = rel("lessons.md")
+EVENT_KIND: Final[str] = "lesson-regress"
+EVENTS_NAME: Final[str] = "lessons.events.jsonl"
 MAX_LESSONS: Final[int] = 5
 GIT_TIMEOUT_S: Final[int] = 5
 HARNESS_PREFIX: Final[str] = f"{HARNESS}/"
@@ -176,6 +179,13 @@ def promote(repo: Path, lesson: str, lives_at: str | None, today: date) -> dict[
     return rewrite(repo, edit_line)
 
 
+def first_regress(repo: Path, lesson: str, stamp: str, step: str, attempt: int) -> bool:
+    """G-54: False when this (stamp, step, attempt) already counted a regression for the lesson, so a retry never counts twice."""
+    event = state_io.make_event(EVENT_KIND, id=state_io.event_id(stamp, step, f"{EVENT_KIND}:{lesson}", attempt),
+                                step=step, attempt=attempt, lesson=lesson)
+    return state_io.append_event_at(repo / rel(EVENTS_NAME), event)
+
+
 def regress(repo: Path, lesson: str) -> dict[str, Any]:
     def edit_line(line: str) -> tuple[str | None, dict[str, Any]]:
         if line_id(line) != lesson:
@@ -227,6 +237,10 @@ def main() -> int:
     for name in ("promote", "regress"):
         cmd: argparse.ArgumentParser = sub.add_parser(name)
         cmd.add_argument("lesson", help="lesson id such as L-014")
+        if name == "regress":
+            cmd.add_argument("--stamp", default=None, help="with --step: the same (stamp, step, attempt) counts once")
+            cmd.add_argument("--step", default=None)
+            cmd.add_argument("--attempt", type=int, default=1)
         cmd.add_argument("--today", default=None, help="ISO date (default: today)")
         if name == "promote":
             cmd.add_argument("--lives-at", default=None, help="where the check lives")
@@ -242,7 +256,8 @@ def main() -> int:
         if not result.get("ok"):
             result = {"ok": False, "id": args.lesson, "detail": "no such lesson"}
     elif args.command == "regress":
-        result = regress(repo, args.lesson)
+        fresh: bool = not args.stamp or first_regress(repo, args.lesson, args.stamp, args.step or "", args.attempt)
+        result = regress(repo, args.lesson) if fresh else {"ok": True, "id": args.lesson, "duplicate": True}
     elif args.command == "prune":
         result = prune(repo, today, args.stale_days)
     else:

@@ -49,6 +49,8 @@ FAKE_CLAUDE: Final[str] = '''#!/usr/bin/env python3
 import os, sys
 if "--version" in sys.argv:
     print("2.1.250"); sys.exit(0)
+if sys.argv[1:2] == ["auth"]:
+    sys.exit(0)
 open(os.environ["DTS2_FAKE_ARGV_LOG"], "w").write("\\n".join(sys.argv[1:]) + "\\n" + os.environ.get("DTS2_SON", "") + "\\n")
 sys.exit(int(os.environ.get("FAKE_CLAUDE_EXIT", "0")))
 '''

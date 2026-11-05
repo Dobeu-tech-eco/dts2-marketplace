@@ -71,6 +71,7 @@ State reads and writes from the scripts go through `scripts/state_io.py`; see "S
 | PreCompact (auto, manual) | `hooks/pre-compact.sh` | runs `handoff-write.py` so the post-compact session resumes from the handoff |
 | Stop | `hooks/stop-checks.sh` | refreshes `handoff/latest.md`, runs quick typecheck and lint on changed files from `node_modules/.bin` (never npx) under one deadline; warns, and blocks once only with `stop_checks_block: true` |
 | PreToolUse (Bash) | `hooks/merge-guard.sh` | refuses a force-push, and a merge or push to a protected branch unless a lane's `merge-go.md` allows it |
+| PreToolUse (Bash) | `hooks/policy-gate.sh` | declarative policy (`templates/policy.json`): refuses force-push, `--admin`, deploy CLIs, `gh secret`, a bare `env`; merges need a human approval |
 | PostToolUse (Bash, `gh pr create *` and `gh pr edit *`) | `hooks/pr-receipt.sh` | on `gh pr create` or `edit`, makes sure the PR body carries the change receipt |
 | PostToolUse (Bash, Edit, Write, Agent) | `hooks/context-guard.sh` | stops a run on a context spike before the plan checkpoint |
 | PostToolBatch | `hooks/context-guard.sh` | the same guard, once per batch of parallel tool calls |

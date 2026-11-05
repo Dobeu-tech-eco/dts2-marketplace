@@ -35,7 +35,7 @@ from pathlib import Path
 from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from state_io import atomic_write  # noqa: E402
+from state_io import RUNS_REL, atomic_write  # noqa: E402
 
 PLUGIN_ROOT: Final[Path] = Path(__file__).resolve().parent.parent
 AGENTS_DIR: Final[Path] = PLUGIN_ROOT / "agents"
@@ -51,6 +51,19 @@ HANDOFF_MODE: Final[str] = "handoff"
 EXIT_NEEDS_PERSON: Final[int] = 2
 PROTECTED_BRANCHES: Final[tuple[str, ...]] = ("main", "master")
 ENV_EXAMPLE: Final[str] = ".env.example"
+# G-71 hardening. Per-role tool sets (`tools=` limits what exists, `allowed_tools=` what runs unasked): only the verifier gets Bash.
+READ_ONLY_TOOLS: Final[tuple[str, ...]] = ("Read", "Grep", "Glob")
+ROLE_TOOLS: Final[dict[str, tuple[str, ...]]] = {
+    "lead": READ_ONLY_TOOLS,
+    "builder": (*READ_ONLY_TOOLS, "Write", "Edit"),
+    "reviewer": READ_ONLY_TOOLS,
+    "verifier": (*READ_ONLY_TOOLS, "Bash"),
+}
+SETTING_SOURCES: Final[list[str]] = ["user"]
+DEFAULT_MAX_TURNS: Final[int] = 80
+DEFAULT_MAX_BUDGET_USD: Final[float] = 5.0
+SECRET_SCAN_PASS: Final[str] = "pass"
+ANTHROPIC_CREDENTIALS: Final[frozenset[str]] = frozenset({"ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN"})
 ENSURE_IGNORED: Final[Path] = PLUGIN_ROOT / "scripts" / "ensure-ignored.py"
 VERDICT_LINE: Final[re.Pattern[str]] = re.compile(r"^###\s*Verdict:\s*([A-Z_]+)", re.M)
 BUILDER_HEADING: Final[re.Pattern[str]] = re.compile(r"^### Builder \d+ \(([a-z0-9-]+)\)", re.M)
@@ -144,7 +157,25 @@ def is_secret_path(path: str) -> bool:
     return name == ".env" or name.startswith(".env.")
 
 
+def secret_scan_gate(repo: Path) -> str | None:
+    """None when a secret scan (gitleaks or trufflehog, via checks.py) passed; otherwise why nothing may be staged. A missing
+    scanner is red in this unattended runner (G-71)."""
+    sys.path.insert(0, str(PLUGIN_ROOT / "scripts"))
+    import checks
+    log: Path = repo / RUNS_REL / "secret-scan-before-add.log"
+    result: dict[str, Any] = checks.secret_scan(repo, log)
+    if result["status"] == SECRET_SCAN_PASS:
+        return None
+    if result["status"] == checks.SKIP:
+        return "no secret scanner (gitleaks or trufflehog) is installed; an unattended run may not stage everything"
+    return f"the secret scan failed; see {result['log_path']}"
+
+
 def commit_changes(repo: Path, task: str) -> bool:
+    problem: str | None = secret_scan_gate(repo)
+    if problem is not None:
+        print(f"Refusing to commit: {problem}")
+        return False
     subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
     staged: list[str] = git_out(repo, "diff", "--cached", "--name-only").splitlines()
     secrets: list[str] = [p for p in staged if is_secret_path(p)]
@@ -183,17 +214,38 @@ def load_agent(name: str) -> dict[str, object]:
     if match is None:
         raise SystemExit(f"Agent file {name}.md has no frontmatter.")
     meta: dict[str, str] = dict(line.split(":", 1) for line in match.group(1).splitlines() if ":" in line)
-    tools: list[str] = [t.strip() for t in meta.get("tools", "").split(",") if t.strip()]
-    return {"prompt": match.group(2), "tools": tools, "model": meta.get("model", "").strip() or None}
+    return {"prompt": match.group(2), "tools": role_tools(name), "model": meta.get("model", "").strip() or None}
+
+
+def role_tools(name: str) -> list[str]:
+    """The tool set of a role (G-71): verifier gets Bash, every other role does not; an unknown role is read-only."""
+    return list(ROLE_TOOLS.get(name, READ_ONLY_TOOLS))
+
+
+def budget_caps(repo: Path) -> tuple[int, float]:
+    """(max turns, max USD) for one agent call: `budget.max_turns` / `budget.max_usd` from the settings cache, else constants."""
+    sys.path.insert(0, str(PLUGIN_ROOT / "scripts"))
+    import settings_cache
+    budget: dict[str, Any] = settings_cache.load(repo).get("budget", {})
+    turns: int = int(budget.get("max_turns") or DEFAULT_MAX_TURNS)
+    usd: float = float(budget.get("max_usd") or DEFAULT_MAX_BUDGET_USD)
+    return turns, usd
+
+
+def agent_options_kwargs(agent: dict[str, object], repo: Path, write: bool) -> dict[str, Any]:
+    """Every ClaudeAgentOptions field this runner sets: explicit tools, user settings only, and turn and budget caps."""
+    turns, usd = budget_caps(repo)
+    tools: list[str] = list(agent["tools"])  # type: ignore[call-overload]
+    return {"system_prompt": str(agent["prompt"]), "tools": tools, "allowed_tools": tools, "cwd": str(repo),
+            "model": agent["model"], "permission_mode": "acceptEdits" if write else "default",
+            "setting_sources": list(SETTING_SOURCES), "max_turns": turns, "max_budget_usd": usd}
 
 
 async def run_agent(name: str, task: str, repo: Path, write: bool) -> str:
     from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock, query
 
     agent: dict[str, object] = load_agent(name)
-    options = ClaudeAgentOptions(system_prompt=str(agent["prompt"]), allowed_tools=list(agent["tools"]),
-                                 cwd=str(repo), model=agent["model"],
-                                 permission_mode="acceptEdits" if write else "default")
+    options = ClaudeAgentOptions(**agent_options_kwargs(agent, repo, write))
     parts: list[str] = []
     async for message in query(prompt=task, options=options):
         if isinstance(message, AssistantMessage):
@@ -265,7 +317,8 @@ def second_opinion_env(profile_env: dict[str, str] | None) -> dict[str, str]:
     keys: list[str] = [k for k in ("OPENAI_API_KEY", "GEMINI_API_KEY", "XAI_API_KEY") if source.get(k)]
     env: dict[str, str] = provider_env(source)
     env.update({k: source[k] for k in keys})
-    return {**env, **(profile_env or {})}
+    merged: dict[str, str] = {**env, **(profile_env or {})}
+    return {k: v for k, v in merged.items() if k not in ANTHROPIC_CREDENTIALS}
 
 
 def run_second_opinion(argv: list[str], repo: Path, env: dict[str, str] | None = None) -> str:
