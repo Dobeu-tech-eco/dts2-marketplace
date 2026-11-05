@@ -1,6 +1,6 @@
 ---
 name: feature
-description: Add a feature to the roadmap and update every plan to match: scores clarity, interviews when unclear, has the lead write it into the end state with acceptance criteria, and opens a plan PR. Use for add a feature or put this on the roadmap.
+description: "Add a feature to the roadmap and update every plan to match: scores clarity, interviews when unclear, has the lead write it into the end state with acceptance criteria, and opens a plan PR. Use for add a feature or put this on the roadmap."
 ---
 
 # Feature — from idea to planned sections, every plan in sync

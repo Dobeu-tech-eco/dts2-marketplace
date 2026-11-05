@@ -34,7 +34,6 @@ LOW_EFFORT: Final[tuple[str, ...]] = ("scout", "auditor")
 READ_ONLY_AGENTS: Final[tuple[str, ...]] = ("lead", "reviewer", "scout", "auditor", "verifier")
 WRITE_TOOLS: Final[frozenset[str]] = frozenset({"Write", "Edit", "NotebookEdit"})
 DESCRIPTION_HARD_CAP: Final[int] = 300
-KEY_LINE: Final[re.Pattern[str]] = re.compile(r"^([A-Za-z][A-Za-z0-9_-]*):")
 
 
 def load_script(name: str) -> ModuleType:

@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 import unittest
-from pathlib import Path
 from typing import Final
 
-from helpers import PLUGIN_ROOT, read_run_skill
+from helpers import read_run_skill
+from skill_text import read_rel
 
 LAYERS: Final[tuple[str, ...]] = (
     "data model", "api surface", "screens/routes", "auth",
@@ -14,8 +14,7 @@ LAYERS: Final[tuple[str, ...]] = (
 
 
 def read(rel: str) -> str:
-    path: Path = PLUGIN_ROOT / rel
-    return path.read_text(encoding="utf-8")
+    return read_rel(rel)
 
 
 class FinishPassTests(unittest.TestCase):
