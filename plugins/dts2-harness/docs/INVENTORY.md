@@ -210,7 +210,7 @@ Stamp-keyed commands:
 | `subagent_report.py` | `--event stop\|handback` (required); hook JSON on stdin | Report-section check. | subagent-report hook | new |
 | `spawn_dry_run.py` | `--agent-dry-run`; hook JSON on stdin | Print the composed brief and command, start nothing. | spawn-dry-run hook | new |
 | `session_end.py` | hook JSON on stdin (no flags) | Release the lane leases this session took. | session-end hook | new |
-| `pr_payload.py` | `parse`, `view --body-out`, `body --body-file --receipt-file`, `payload [pairs...]` | Payload helpers for the PR-receipt hook. | pr-receipt hook | new |
+| `pr_payload.py` | `parse`, `view --body-out`, `body --body-file --receipt-file`, `decisions --ledger`, `payload [pairs...]` | Payload helpers for the PR-receipt hook; `decisions` prints the "Decisions and declined findings" PR section from the ledger. | pr-receipt hook, ship | changed |
 
 ### 4.8 Other entry points
 
