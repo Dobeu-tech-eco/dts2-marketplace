@@ -5,6 +5,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import shutil
 import sys
 import tempfile
 import unittest
@@ -49,7 +50,9 @@ class EvalRunnerTests(unittest.TestCase):
 
     def test_fixtures_pass_and_results_are_written(self) -> None:
         results = self.tmp / "results"
-        code, text = self.main("--baseline", str(self.tmp / "none.json"), "--results-dir", str(results))
+        empty = self.tmp / "empty.json"
+        empty.write_text("{}", encoding="utf-8")
+        code, text = self.main("--baseline", str(empty), "--results-dir", str(results))
         self.assertEqual(code, 0, text)
         files = list(results.glob("*.json"))
         self.assertEqual(len(files), 1)
@@ -68,16 +71,64 @@ class EvalRunnerTests(unittest.TestCase):
         self.assertTrue(all(r["pass"] for r in baseline["fixtures"].values()))
 
     def test_unexpected_outcome_fails_the_fixture(self) -> None:
-        fixture = PLUGIN_ROOT / "evals" / "fixtures" / "clean-fix"
-        original = (fixture / "expected.json").read_text(encoding="utf-8")
-        wrong = json.loads(original) | {"route": "escalate"}
-        with mock.patch.object(Path, "read_text", autospec=True) as reader:
-            def fake(path: Path, *a: Any, **k: Any) -> str:
-                return json.dumps(wrong) if path == fixture / "expected.json" else Path.read_bytes(path).decode("utf-8")
-            reader.side_effect = fake
-            result = self.run_mod.run_fixture(fixture, self.run_mod.fake_env())
+        source = PLUGIN_ROOT / "evals" / "fixtures" / "clean-fix"
+        copy = self.tmp / "clean-fix"
+        shutil.copytree(source, copy)
+        wrong = json.loads((source / "expected.json").read_text(encoding="utf-8")) | {"route": "escalate"}
+        (copy / "expected.json").write_text(json.dumps(wrong), encoding="utf-8")
+        result = self.run_mod.run_fixture(copy, self.run_mod.fake_env())
         self.assertFalse(result["pass"])
         self.assertEqual(result["mismatch"]["route"]["got"], "pass")
+
+    def two_row_baseline(self) -> Path:
+        path = self.tmp / "two.json"
+        rows = {"clean-fix": row(True, 1000, 1000), "one-fix-round": row(True, 2000, 3000)}
+        path.write_text(json.dumps({"fixtures": rows, "totals": self.run_mod.totals(rows)}), encoding="utf-8")
+        return path
+
+    def test_update_baseline_with_fixture_keeps_other_rows(self) -> None:
+        path = self.two_row_baseline()
+        code, text = self.main("--fixture", "clean-fix", "--update-baseline", "--baseline", str(path), "--results-dir", str(self.tmp / "r"))
+        self.assertEqual(code, 0, text)
+        data = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(sorted(data["fixtures"]), ["clean-fix", "one-fix-round"])
+        self.assertEqual(data["fixtures"]["one-fix-round"]["tokens"], 2000)
+        self.assertEqual(data["totals"]["fixtures"], 2)
+
+    def test_subset_total_delta_covers_only_that_fixture(self) -> None:
+        path = self.two_row_baseline()
+        with mock.patch.object(self.run_mod, "run_fixture", return_value=row(True, 1500, 1000)):
+            code, text = self.main("--fixture", "clean-fix", "--baseline", str(path), "--results-dir", str(self.tmp / "r"))
+        self.assertEqual(code, 0, text)
+        self.assertIn("TOTAL: 1/1 pass tokens 1500 (+500) wall_ms 1000 (+0)", text)
+
+    def test_corrupt_or_missing_explicit_baseline_exits_two(self) -> None:
+        bad = self.tmp / "bad.json"
+        bad.write_text("{bad", encoding="utf-8")
+        code, text = self.main("--fixture", "clean-fix", "--baseline", str(bad), "--results-dir", str(self.tmp / "r"))
+        self.assertEqual(code, 2)
+        self.assertIn("unreadable baseline", text)
+        listy = self.tmp / "list.json"
+        listy.write_text("[]", encoding="utf-8")
+        self.assertEqual(self.main("--fixture", "clean-fix", "--baseline", str(listy), "--results-dir", str(self.tmp / "r"))[0], 2)
+        code, text = self.main("--fixture", "clean-fix", "--baseline", str(self.tmp / "absent.json"), "--results-dir", str(self.tmp / "r"))
+        self.assertEqual(code, 2)
+        self.assertIn("unreadable baseline", text)
+
+    def test_update_baseline_refuses_failing_fixtures(self) -> None:
+        path = self.two_row_baseline()
+        before = path.read_text(encoding="utf-8")
+        with mock.patch.object(self.run_mod, "run_fixture", return_value=row(False, 1, 1)):
+            code, text = self.main("--fixture", "clean-fix", "--update-baseline", "--baseline", str(path), "--results-dir", str(self.tmp / "r"))
+        self.assertEqual(code, 2)
+        self.assertIn("refusing to record a baseline with failing fixtures: clean-fix", text)
+        self.assertEqual(path.read_text(encoding="utf-8"), before)
+
+    def test_stale_lease_fixture_checks_stored_epoch(self) -> None:
+        expected = json.loads((PLUGIN_ROOT / "evals" / "fixtures" / "stale-lease" / "expected.json").read_text(encoding="utf-8"))
+        self.assertEqual(expected["stored_epoch"], 2)
+        result = self.run_mod.run_fixture(PLUGIN_ROOT / "evals" / "fixtures" / "stale-lease", self.run_mod.fake_env())
+        self.assertTrue(result["pass"], result)
 
     def test_pass_fail_regression_exits_one(self) -> None:
         baseline = self.tmp / "b.json"

@@ -15,7 +15,9 @@ Not covered (need the lanes.py spawn path or a live model): son and lead briefs,
 
 It writes <results-dir>/<stamp>.json (pass/fail, tokens, wall-clock, fix rounds per fixture), prints the delta against the
 baseline (token and wall-clock totals, per fixture and in total) and exits 1 only when a fixture that passed in the baseline
-now fails. Cost deltas never change the exit code. Exit 2 means the runner itself could not run."""
+now fails. Cost deltas never change the exit code. Exit 2 means the runner itself could not run: an unknown fixture, an unreadable
+baseline (corrupt, not an object, or missing at a path passed with --baseline), or --update-baseline with failing fixtures.
+A missing default baseline is a warned "no baseline" run. --update-baseline with --fixture replaces only those rows."""
 from __future__ import annotations
 
 import argparse
@@ -114,6 +116,14 @@ def council_phase(repo: Path, env: dict[str, str], ledger: Path, scenario: dict[
     return {"tally_majority": tally.get("majority"), "tally_ok": tally.get("ok"), "dissenters": tally.get("dissenters")}
 
 
+def stored_epoch(lease_path: Any) -> Any:
+    try:
+        data: Any = json.loads(Path(str(lease_path)).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return data.get("epoch") if isinstance(data, dict) else None
+
+
 def drive(fixture: Path, work: Path, env: dict[str, str]) -> dict[str, Any]:
     """Run one fixture and return what was observed plus tokens, fix rounds and the steps it covered."""
     scenario: dict[str, Any] = json.loads((fixture / "scenario.json").read_text(encoding="utf-8"))
@@ -135,6 +145,7 @@ def drive(fixture: Path, work: Path, env: dict[str, str]) -> dict[str, Any]:
         if "stale_epoch" in scenario:
             stale: dict[str, Any] = lanes(repo, env, "lease", str(manifest), "--lane", lane_id, "--epoch", str(scenario["stale_epoch"]))
             observed["stale_epoch_refused"] = stale.get("ok") is False
+            observed["stored_epoch"] = stored_epoch(second.get("lease"))
     else:
         observed["lease_blocked"] = True
     built: dict[str, Any] = build_phase(repo, env, stamp, scenario["rounds"])
@@ -184,13 +195,20 @@ def delta_lines(rows: dict[str, dict[str, Any]], total: dict[str, int], baseline
             continue
         lines.append(f"{name}: {status} tokens {row['tokens']} ({signed(row['tokens'], int(old['tokens']))}) "
                      f"wall_ms {row['wall_ms']} ({signed(row['wall_ms'], int(old['wall_ms']))})")
-    old_total: dict[str, Any] = baseline.get("totals", {})
-    if old_total:
-        lines.append(f"TOTAL: {total['passed']}/{total['fixtures']} pass tokens {total['tokens']} "
-                     f"({signed(total['tokens'], int(old_total['tokens']))}) wall_ms {total['wall_ms']} "
-                     f"({signed(total['wall_ms'], int(old_total['wall_ms']))})")
+    shared: list[str] = [n for n in sorted(rows) if n in base_rows]
+    missing: list[str] = [n for n in sorted(rows) if n not in base_rows]
+    now_tokens: int = sum(int(rows[n]["tokens"]) for n in shared)
+    now_wall: int = sum(int(rows[n]["wall_ms"]) for n in shared)
+    if shared:
+        old_tokens: int = sum(int(base_rows[n]["tokens"]) for n in shared)
+        old_wall: int = sum(int(base_rows[n]["wall_ms"]) for n in shared)
+        note: str = f" (compared over {len(shared)} fixture(s) in the baseline)" if missing else ""
+        lines.append(f"TOTAL: {total['passed']}/{total['fixtures']} pass tokens {now_tokens} ({signed(now_tokens, old_tokens)}) "
+                     f"wall_ms {now_wall} ({signed(now_wall, old_wall)}){note}")
     else:
         lines.append(f"TOTAL: {total['passed']}/{total['fixtures']} pass tokens {total['tokens']} wall_ms {total['wall_ms']} (no baseline)")
+    if missing and shared:
+        lines.append(f"not in baseline: {', '.join(missing)}")
     return lines
 
 
@@ -201,11 +219,16 @@ def regressions(rows: dict[str, dict[str, Any]], baseline: dict[str, Any]) -> li
 
 
 def load_baseline(path: Path) -> dict[str, Any]:
+    """Return the baseline object, {} when the file is missing; raise ValueError when it exists but is unusable."""
+    if not path.exists():
+        return {}
     try:
         data: Any = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    return data if isinstance(data, dict) else {}
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"{path}: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ValueError(f"{path}: not a JSON object")
+    return data
 
 
 def fake_env() -> dict[str, str]:
@@ -228,21 +251,37 @@ def main() -> int:
     if unknown:
         print(json.dumps({"ok": False, "error": f"unknown fixture: {', '.join(unknown)}"}))
         return 2
+    base_path: Path = Path(args.baseline)
+    if not base_path.exists() and args.baseline != str(DEFAULT_BASELINE) and not args.update_baseline:
+        print(json.dumps({"ok": False, "error": f"unreadable baseline: {base_path} does not exist"}))
+        return 2
+    try:
+        baseline: dict[str, Any] = load_baseline(base_path)
+    except ValueError as exc:
+        print(json.dumps({"ok": False, "error": f"unreadable baseline: {exc}"}))
+        return 2
     env: dict[str, str] = fake_env()
     rows: dict[str, dict[str, Any]] = {n: run_fixture(FIXTURES / n, env) for n in chosen}
+    failing: list[str] = sorted(n for n, r in rows.items() if not r["pass"])
+    if args.update_baseline and failing:
+        print(json.dumps({"ok": False, "error": f"refusing to record a baseline with failing fixtures: {', '.join(failing)}"}))
+        return 2
     total: dict[str, int] = totals(rows)
-    stamp: str = time.strftime("%Y%m%d-%H%M%S")
+    stamp: str = time.strftime("%Y%m%d-%H%M%S") + f"-{os.getpid()}"
     record: dict[str, Any] = {"stamp": stamp, "fake_binaries": True, "fixtures": rows, "totals": total}
     out: Path = Path(args.results_dir) / f"{stamp}.json"
     atomic_write(out, json.dumps(record, indent=2, sort_keys=True) + "\n")
-    baseline: dict[str, Any] = load_baseline(Path(args.baseline))
+    if not baseline:
+        print(f"warning: no baseline at {base_path}; deltas not available")
     print("\n".join(delta_lines(rows, total, baseline)))
     failed: list[str] = regressions(rows, baseline)
     for name, row in rows.items():
         if not row["pass"]:
             print(f"  {name} mismatch: {json.dumps(row.get('mismatch') or row.get('error'))}")
     if args.update_baseline:
-        atomic_write(Path(args.baseline), json.dumps({k: v for k, v in record.items() if k != "stamp"}, indent=2, sort_keys=True) + "\n")
+        merged: dict[str, dict[str, Any]] = {**baseline.get("fixtures", {}), **rows} if args.fixture else rows
+        new_base: dict[str, Any] = {"fake_binaries": True, "fixtures": merged, "totals": totals(merged)}
+        atomic_write(base_path, json.dumps(new_base, indent=2, sort_keys=True) + "\n")
         print(f"baseline written: {args.baseline}")
     print(f"results: {out}")
     if failed:

@@ -29,4 +29,4 @@ fake binaries, so its token numbers are scripted and its wall-clock numbers are 
 real sessions is a manual step for the owner.
 
 The runner prints the delta of tokens and wall-clock against the baseline, per fixture and in total. The exit code is 1
-only when a fixture that passed in the baseline now fails; cost deltas never fail the run. Exit 2 means a bad argument.
+only when a fixture that passed in the baseline now fails; cost deltas never fail the run. Exit 2 means the runner could not run: a bad argument, an unreadable baseline (corrupt, not an object, or missing at a path given with `--baseline`), or `--update-baseline` while a chosen fixture fails. With `--fixture`, `--update-baseline` replaces only those fixtures' rows.
