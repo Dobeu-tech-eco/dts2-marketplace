@@ -27,7 +27,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from lanes.common import KIND_AREA, KIND_DEPENDS, LEASE_NAME, LaneError, find_lane, lane_files, load_manifest  # noqa: E402
 from lanes.conflicts import check, conflict  # noqa: E402
 from lanes.integration import is_integration_file, route, shared_patterns  # noqa: E402
-from lanes.leases import busy, lane_lock, write_lease  # noqa: E402
+from lanes.gitrefs import gh_down  # noqa: E402
+from lanes.leases import admission_lock, busy, lane_lock, lease_ttl_s, write_lease  # noqa: E402
 
 PROVIDES: Final[str] = "provides"
 CONSUMES: Final[str] = "consumes"
@@ -395,7 +396,8 @@ def annotate_plan(result: dict[str, Any], cwd: Path) -> dict[str, Any]:
     shared: tuple[str, ...] = shared_patterns(cwd)
     graph: dict[str, Any] = analyse(manifest, cwd, shared) if manifest["lanes"] else {"ok": True, "errors": [], "warnings": []}
     feasibility: dict[str, Any] = settle(result["feasibility"], manifest, cwd, shared)
-    ok: bool = bool(manifest["lanes"]) and not result["refused"] and feasibility["ok"] and graph["ok"]
+    gh_ok: bool = bool(feasibility.get("prs_checked", True)) or "detail" not in result  # keep plan's gh fail-closed refusal
+    ok: bool = bool(manifest["lanes"]) and not result["refused"] and feasibility["ok"] and graph["ok"] and gh_ok
     return {**result, "ok": ok, "feasibility": feasibility, "graph": graph}
 
 
@@ -414,14 +416,21 @@ def blocking_for(result: dict[str, Any], lane_id: str) -> list[dict[str, Any]]:
 
 def graph_lease(manifest: dict[str, Any], lane_id: str, runs_dir: Path, cwd: Path, with_prs: bool,
                 epoch: int | None = None) -> dict[str, Any]:
-    """lanes.py lease with the graph gate: the same lock, epoch fence and record, but the conflicts come from graph_check."""
+    """lanes.py lease with the graph gate: the same admission lock, gh fail-closed, epoch fence, TTL and record, but the
+    conflicts come from graph_check."""
     lane: dict[str, Any] = find_lane(manifest, lane_id)
-    blocking: list[dict[str, Any]] = blocking_for(graph_check(manifest, runs_dir, cwd, with_prs), lane_id)
-    if blocking:
-        return {"ok": False, "lane": lane_id, "lease": None, "conflicts": blocking}
     path: Path = runs_dir / str(manifest.get("stamp")) / lane_id / LEASE_NAME
-    with lane_lock(path) as held:
-        return write_lease(manifest, lane, path, epoch) if held else busy(lane_id)
+    with admission_lock(runs_dir) as admitted:
+        if not admitted:
+            return busy(lane_id)
+        result: dict[str, Any] = graph_check(manifest, runs_dir, cwd, with_prs)
+        if with_prs and not result.get("prs_checked"):
+            return {"ok": False, "lane": lane_id, "lease": None, "conflicts": [], "detail": gh_down("lease")}
+        blocking: list[dict[str, Any]] = blocking_for(result, lane_id)
+        if blocking:
+            return {"ok": False, "lane": lane_id, "lease": None, "conflicts": blocking}
+        with lane_lock(path) as held:
+            return write_lease(manifest, lane, path, epoch, lease_ttl_s(cwd)) if held else busy(lane_id)
 
 
 def record_merge_order(manifest: dict[str, Any], runs_dir: Path, cwd: Path) -> dict[str, Any]:

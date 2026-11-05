@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import fnmatch
 import json
+import time
 from pathlib import Path, PurePosixPath
 from typing import Any
 
 from .integration import INTEGRATION_LANE, KIND_BUNDLE, MAX_TASKS_PER_PR, is_integration_file, oversized_bundle, route, shared_patterns, split_tasks
-from .common import AREA_DEPTH, GH_PR_FIELDS, KIND_AREA, KIND_DEPENDS, KIND_FILES, KIND_IDS, KIND_SCHEMA, KIND_SCOPE, MANIFEST_NAME, SCHEMA_PATTERNS, STATUS_CLOSED, binary, lane_files, lane_ids, norm, run
+from .common import AREA_DEPTH, DEFAULT_LEASE_TTL_S, GH_PR_FIELDS, KIND_AREA, KIND_DEPENDS, KIND_FILES, KIND_IDS, KIND_SCHEMA, KIND_SCOPE, LEASE_NAME, MANIFEST_NAME, SCHEMA_PATTERNS, STATUS_CLOSED, lane_files, lane_ids, lease_live, norm
+from .gitrefs import gh_json
 
 
 def is_schema_file(path: str) -> bool:
@@ -113,21 +115,31 @@ def area_conflicts(a: dict[str, Any], b: dict[str, Any], shared_globs: tuple[str
 
 
 def open_pr_files(cwd: Path) -> list[tuple[str, set[str]]] | None:
-    """[(\"pr#12\", files)] for open PRs, or None when gh is unavailable."""
-    code, out = run([*binary("DTS2_GH_BIN", "gh"), "pr", "list", "--state", "open", "--json", GH_PR_FIELDS], cwd)
-    if code != 0:
-        return None
-    try:
-        prs: Any = json.loads(out or "[]")
-    except ValueError:
+    """[(\"pr#12\", files)] for open PRs, or None when gh is unavailable (after bounded retries)."""
+    prs, why = gh_json(["pr", "list", "--state", "open", "--json", GH_PR_FIELDS], cwd)
+    if why is not None or not isinstance(prs, list):
         return None
     return [(f"pr#{pr.get('number')}", {norm(str(f.get("path", f))) for f in (pr.get("files") or [])})
             for pr in prs if isinstance(pr, dict)]
 
 
-def active_run_files(runs_dir: Path, stamp: str) -> list[tuple[str, set[str]]]:
-    """Files owned by lanes of other runs whose manifest is not closed."""
+def lane_abandoned(manifest: Path, lane_id: str, now: int) -> bool:
+    """A lane whose lease is closed or past `expires_at` no longer holds its files (a crashed run stops blocking others).
+    A lane with no lease yet counts until its manifest is older than the default lease ttl."""
+    try:
+        record: Any = json.loads((manifest.parent / lane_id / LEASE_NAME).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        try:
+            return now - manifest.stat().st_mtime > DEFAULT_LEASE_TTL_S
+        except OSError:
+            return False
+    return isinstance(record, dict) and not lease_live(record, now)
+
+
+def active_run_files(runs_dir: Path, stamp: str, now: int | None = None) -> list[tuple[str, set[str]]]:
+    """Files owned by lanes of other runs whose manifest is not closed, leaving out lanes whose lease expired or closed."""
     found: list[tuple[str, set[str]]] = []
+    clock: int = int(time.time()) if now is None else now
     for manifest in sorted(runs_dir.glob(f"*/{MANIFEST_NAME}")):
         try:
             data: Any = json.loads(manifest.read_text(encoding="utf-8"))
@@ -135,7 +147,9 @@ def active_run_files(runs_dir: Path, stamp: str) -> list[tuple[str, set[str]]]:
             continue
         if not isinstance(data, dict) or data.get("stamp") == stamp or data.get("status") == STATUS_CLOSED:
             continue
-        files: set[str] = set().union(*(lane_files(lane) for lane in data.get("lanes", []))) if data.get("lanes") else set()
+        held: list[dict[str, Any]] = [lane for lane in data.get("lanes", []) if isinstance(lane, dict)
+                                      and not lane_abandoned(manifest, str(lane.get("id")), clock)]
+        files: set[str] = set().union(*(lane_files(lane) for lane in held)) if held else set()
         found.append((f"run:{data.get('stamp')}", files))
     return found
 

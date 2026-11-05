@@ -98,7 +98,7 @@ def append_text(path: Path | str, text: str, *, header: str = "") -> Path:
             try:
                 os.link(scratch, target)
             except FileExistsError:
-                pass
+                pass  # another writer created the file (with its header) first; our header is redundant
         finally:
             os.unlink(scratch)
     descriptor: int = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_APPEND, DEFAULT_MODE)
@@ -173,6 +173,7 @@ LOCK_WAIT_SEC: Final[float] = 0.1
 LOCK_STALE_SEC: Final[float] = 60.0  # a lock guards one read-compare-write; older than this and its holder is gone
 LOCK_SUFFIX: Final[str] = ".lock"
 RECLAIM_SUFFIX: Final[str] = ".reclaim"
+LOCK_READ_BYTES: Final[int] = 4096
 MAX_SEND_BACKS: Final[int] = 2
 SEND_BACK_FILE: Final[str] = "send-back-{n}.md"
 
@@ -234,8 +235,9 @@ class Store:
         for _ in range(max(1, tries)):
             if self.lock_create(path, token):
                 break
-            if not self.lock_reclaim(path, stale_s):
-                self.sleep(wait)
+            if self.lock_reclaim(path, stale_s) and self.lock_create(path, token):
+                break  # reclaimed on the last try still gets one acquire attempt before giving up
+            self.sleep(wait)
         else:
             raise LockBusy(f"lock busy for {path}")
         try:
@@ -373,19 +375,49 @@ class FileStore(Store):
                 guard.rmdir()
 
     def lock_touch(self, path: str, token: str) -> bool:
+        """Refresh the lock's age if `token` owns it. Owner check and refresh share one open file, so a successor's
+        lock (a different file) is never refreshed."""
         target: Path = self.lock_file(path)
-        if self.lock_owner(target) != token:
-            return False
         try:
-            os.utime(target, None)
+            descriptor: int = os.open(target, os.O_RDONLY)
         except OSError:
             return False
+        try:
+            if self.lock_owner_fd(descriptor) != token:
+                return False
+            if os.utime in os.supports_fd:
+                os.utime(descriptor, None)
+            else:  # pragma: no cover - platforms without fd utime
+                os.utime(target, None)
+        except OSError:
+            return False
+        finally:
+            os.close(descriptor)
         return True
 
+    @staticmethod
+    def lock_owner_fd(descriptor: int) -> str | None:
+        try:
+            data: Any = json.loads(os.read(descriptor, LOCK_READ_BYTES).decode(ENCODING))
+        except (OSError, ValueError):
+            return None
+        return data.get("token") if isinstance(data, dict) else None
+
     def lock_drop(self, path: str, token: str) -> None:
+        """Move the lock aside first (atomic), then check the token on what was moved: ours is deleted, a
+        successor's is put back, so a stale holder can never free a lock it does not own."""
         target: Path = self.lock_file(path)
-        if self.lock_owner(target) == token:
-            target.unlink(missing_ok=True)
+        grave: Path = target.with_name(f"{target.name}.drop-{uuid.uuid4().hex}")
+        try:
+            os.rename(target, grave)
+        except OSError:
+            return  # already gone
+        try:
+            if self.lock_owner(grave) != token:
+                with contextlib.suppress(OSError):
+                    os.link(grave, target)  # not ours: restore (no-op if a newer lock already took the name)
+        finally:
+            grave.unlink(missing_ok=True)
 
 
 class MemoryStore(Store):

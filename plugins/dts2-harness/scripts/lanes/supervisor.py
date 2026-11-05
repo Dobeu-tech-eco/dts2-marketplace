@@ -10,16 +10,20 @@ from pathlib import Path
 from typing import Any
 
 from model_call import (
-    cli_version, fallback_used, invoke, is_terminated, parse_result, read_budget,
+    fallback_used, invoke, is_terminated, parse_result, read_budget,
 )
+from proc import cli_version, version_problem
 from son_launch import cli_too_old, launch_flags, prepare_lane, sandbox_config, son_env
 from state_io import atomic_write
 
-from .common import BUDGET_NAME, COST_CLAUDE, COST_NONE, DEFAULT_PERMISSION_MODE, LaneError, PERMISSION_FIELD, PHASE_INCOMPLETE, PHASE_PR_OPEN, PHASE_STARTING, PID_KEYS, PLUGIN_ROOT, PREFLIGHT_TIMEOUT_S, REASON_BUDGET, REASON_ERROR, REASON_LOOPS, REASON_MAX_TURNS, REASON_NO_STATUS, REASON_OVERLOAD, REASON_PREFLIGHT, REASON_RUNNING, REASON_SANDBOX, REASON_SKEW, REASON_SLOT, REASON_TIMEOUT, RUN_NAME, SECONDS_PER_MINUTE, SETTLED_PHASES, SON_MODEL, STATUS_NAME, SUBTYPE_MAX_BUDGET, SUBTYPE_MAX_TURNS, TERMINAL_PHASES, TIMEOUT_S, binary, find_lane, run
-from .leases import lane_lock, read_lease
+from .common import BUDGET_NAME, COST_CLAUDE, COST_NONE, DEFAULT_PERMISSION_MODE, LaneError, PERMISSION_FIELD, PHASE_INCOMPLETE, PHASE_PR_OPEN, PHASE_STARTING, PID_KEYS, PLUGIN_ROOT, PREFLIGHT_TIMEOUT_S, REASON_BUDGET, REASON_ERROR, REASON_LOOPS, REASON_MAX_TURNS, REASON_NO_STATUS, REASON_OVERLOAD, REASON_PREFLIGHT, REASON_RUNNING, REASON_SANDBOX, REASON_SHUTDOWN, REASON_SKEW, REASON_SLOT, REASON_TIMEOUT, RUN_NAME, SECONDS_PER_MINUTE, SETTLED_PHASES, SON_MODEL, STATUS_NAME, SUBTYPE_MAX_BUDGET, SUBTYPE_MAX_TURNS, TERMINAL_PHASES, TIMEOUT_S, binary, find_lane, run
+from .leases import read_lease
 from .merge import inside_son, son_refusal
+from .phases import transition
 from .planner import read_setting, son_command
-from .runstate import append_ledger, attempt_usages, budget_refusal, lane_alive, ledger_emitter, merge_json, pid_alive, read_json_object, read_status_files, record_attempts, record_unreported, release_share, reserve_share, spend_state, start_clock
+from .records import append_ledger, lane_lock, ledger_emitter, merge_json, read_json_object
+from .runrecord import read_run, update_run
+from .runstate import attempt_usages, budget_refusal, lane_alive, pid_alive, read_status_files, record_attempts, record_unreported, release_share, reserve_share, spend_state, start_clock
 
 
 def claude_version(cwd: Path) -> str | None:
@@ -45,8 +49,7 @@ def preflight(runs_dir: Path, stamp: str, cwd: Path) -> dict[str, Any]:
     the son's flags, settings and env, so auth, the sandbox (bwrap with failIfUnavailable) and the flags fail once here and
     not in every son. Also proves the son env can reach the remote. A second preflight that finds another version refuses.
     Fails closed: spawn refuses without a passing preflight."""
-    path: Path = runs_dir / stamp / RUN_NAME
-    pinned: Any = read_json_object(path).get("claude_version")
+    pinned: Any = read_run(runs_dir, stamp).claude_version
     version: str | None = claude_version(cwd)
     emit = ledger_emitter(runs_dir, stamp, "-")
     probe: dict[str, Any] = {"stamp": stamp, "lanes": [{"id": "preflight"}]}
@@ -57,13 +60,9 @@ def preflight(runs_dir: Path, stamp: str, cwd: Path) -> dict[str, Any]:
     call: dict[str, Any] = invoke(argv, cwd, PREFLIGHT_TIMEOUT_S, "preflight", emit, env=env)
     parsed: dict[str, Any] | None = parse_result(call["stdout"])
     problems: list[str] = []
-    too_old: str | None = cli_too_old(version)
-    if version is None:
-        problems.append("cannot read `claude --version`")
-    elif too_old is not None:
-        problems.append(too_old)
-    elif isinstance(pinned, str) and pinned != version:
-        problems.append(f"claude {version} differs from the version {pinned} pinned for this run")
+    version_issue: str | None = (cli_too_old(version) if version is not None else None) or version_problem(pinned, version)
+    if version_issue is not None:
+        problems.append(version_issue)
     if call["code"] != 0 or parsed is None or parsed["is_error"]:
         problems.append(f"`claude -p ok` with the son launch flags failed (exit {call['code']}); check auth, the sandbox "
                         "(bwrap) and the flags")
@@ -73,7 +72,7 @@ def preflight(runs_dir: Path, stamp: str, cwd: Path) -> dict[str, Any]:
     ok: bool = not problems
     record: dict[str, Any] = {"claude_version": pinned if isinstance(pinned, str) else version, "preflight_ok": ok,
                               "checked": int(time.time()), "problems": problems}
-    merge_json(path, record)
+    update_run(runs_dir, stamp, record)
     append_ledger(runs_dir, stamp, {"lane": "-", "event": "preflight", "ok": ok, "version": version,
                                     "problems": problems})
     return {"ok": ok, "stamp": stamp, "claude_version": record["claude_version"], "problems": problems}
@@ -81,14 +80,14 @@ def preflight(runs_dir: Path, stamp: str, cwd: Path) -> dict[str, Any]:
 
 def spawn_refusal(runs_dir: Path, stamp: str, cwd: Path, lane_id: str) -> tuple[str, str] | None:
     """(reason, detail) when a son must not start: no passing preflight, a different CLI version, or a spent cap."""
-    pinned: dict[str, Any] = read_json_object(runs_dir / stamp / RUN_NAME)
-    if pinned.get("preflight_ok") is not True or not isinstance(pinned.get("claude_version"), str):
+    pinned = read_run(runs_dir, stamp)
+    if pinned.preflight_ok is not True or pinned.claude_version is None:
         return REASON_PREFLIGHT, "run `lanes.py preflight` first; no passing preflight is recorded for this run"
     current: str | None = claude_version(cwd)
     if cli_too_old(current) is not None:
         return REASON_SKEW, str(cli_too_old(current))
-    if current != pinned["claude_version"]:
-        return REASON_SKEW, f"claude is {current}, the run is pinned to {pinned['claude_version']}"
+    if current != pinned.claude_version:
+        return REASON_SKEW, f"claude is {current}, the run is pinned to {pinned.claude_version}"
     why: str | None = budget_refusal(spend_state(runs_dir, stamp, cwd), lane_id, int(time.time()))
     return (REASON_BUDGET, why) if why else None
 
@@ -96,15 +95,15 @@ def spawn_refusal(runs_dir: Path, stamp: str, cwd: Path, lane_id: str) -> tuple[
 def park(runs_dir: Path, stamp: str, lane_id: str, reason: str, detail: str, session: str | None = None) -> None:
     """End a lane as incomplete with the reason on record. A lane that already finished (done or blocked) is left alone."""
     path: Path = runs_dir / stamp / lane_id / STATUS_NAME
-    if read_json_object(path).get("status") in SETTLED_PHASES:
-        return
-    changes: dict[str, Any] = {"lane": lane_id, "status": PHASE_INCOMPLETE, "reason": reason, "detail": detail,
-                               "parked_at": int(time.time())}
+    held: dict[str, Any] = read_json_object(path)
+    if held.get("status") in SETTLED_PHASES or held.get("reason") == REASON_SHUTDOWN:
+        return  # finished lanes stay as they are, and a shutdown's reason is not overwritten by the kill it caused
+    changes: dict[str, Any] = {"detail": detail, "parked_at": int(time.time())}
     sessions: dict[str, Any] = (((read_json_object(runs_dir / stamp / BUDGET_NAME).get("lanes") or {})
                                  .get(lane_id) or {}).get("sessions") or {})
     if session and session in sessions:
         changes["cost_at_park"] = sessions[session]
-    merge_json(path, changes)
+    transition(runs_dir, stamp, lane_id, PHASE_INCOMPLETE, reason=reason, extra=changes)
     append_ledger(runs_dir, stamp, {"lane": lane_id, "event": "park", "reason": reason, "detail": detail})
 
 
@@ -176,11 +175,10 @@ def sandbox_refusal(runs_dir: Path, stamp: str, cwd: Path, lane_id: str, unsafe:
 
 def gc_pause(runs_dir: Path, stamp: str, cwd: Path) -> None:
     """`git config gc.auto 0` for the run; the previous local value is kept in run.json for gc_restore."""
-    path: Path = runs_dir / stamp / RUN_NAME
-    if "gc_auto_prior" in read_json_object(path):
+    if "gc_auto_prior" in read_json_object(runs_dir / stamp / RUN_NAME):
         return
     code, out = run([*binary("DTS2_GIT_BIN", "git"), "config", "--local", "--get", "gc.auto"], cwd)
-    merge_json(path, {"gc_auto_prior": out.strip() if code == 0 else None, "gc_auto_paused": True})
+    update_run(runs_dir, stamp, {"gc_auto_prior": out.strip() if code == 0 else None, "gc_auto_paused": True})
     run([*binary("DTS2_GIT_BIN", "git"), "config", "--local", "gc.auto", "0"], cwd)
 
 
@@ -188,15 +186,14 @@ def gc_restore(runs_dir: Path, stamp: str, cwd: Path) -> dict[str, Any]:
     """Put gc.auto back to what it was before gc_pause (unset when it was unset). Safe to call twice. A son is refused."""
     if inside_son():
         return son_refusal("gc-restore")
-    path: Path = runs_dir / stamp / RUN_NAME
-    data: dict[str, Any] = read_json_object(path)
-    if not data.get("gc_auto_paused"):
+    data = read_run(runs_dir, stamp)
+    if not data.gc_auto_paused:
         return {"ok": True, "stamp": stamp, "restored": False}
-    prior: Any = data.get("gc_auto_prior")
+    prior: Any = data.gc_auto_prior
     git: list[str] = binary("DTS2_GIT_BIN", "git")
     run([*git, "config", "--local", "gc.auto", str(prior)] if isinstance(prior, str) else
         [*git, "config", "--local", "--unset", "gc.auto"], cwd)
-    merge_json(path, {"gc_auto_paused": False})
+    update_run(runs_dir, stamp, {"gc_auto_paused": False})
     return {"ok": True, "stamp": stamp, "restored": True, "gc_auto": prior}
 
 
@@ -224,9 +221,9 @@ def start_son(manifest: dict[str, Any], lane_id: str, worktree: Path, runs_dir: 
     command: dict[str, Any] = son_command(manifest, lane_id, worktree, cwd, share, session)
     left_s: float = (state["caps"]["max_wall_minutes"] * SECONDS_PER_MINUTE
                      - (time.time() - float(state["budget"].get("started", time.time()))))
-    fresh: dict[str, Any] = ({} if read_json_object(status_path).get("status") in SETTLED_PHASES else
-                             {"status": PHASE_STARTING, "reason": None, "detail": None, "parked_at": None, "stalled_at": None})
-    merge_json(status_path, {"lane": lane_id, "worktree": str(worktree), "heartbeat": int(time.time()), **fresh})
+    merge_json(status_path, {"lane": lane_id, "worktree": str(worktree), "heartbeat": int(time.time())})
+    if read_json_object(status_path).get("status") not in SETTLED_PHASES:
+        transition(runs_dir, stamp, lane_id, PHASE_STARTING)
     emit = ledger_emitter(runs_dir, stamp, lane_id)
     try:
         call: dict[str, Any] = invoke(command["argv"], worktree, max(left_s, 1.0), f"son:{lane_id}", emit, root=cwd,

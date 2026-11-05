@@ -184,7 +184,7 @@ class EpochTests(unittest.TestCase):
             try:
                 results.append(self.state.acquire_lease(STAMP, "a", epoch=0)["epoch"])
             except state_io.StateError:
-                pass
+                pass  # losers of the race are expected to be refused; only winners' epochs are compared
 
         threads = [threading.Thread(target=grab) for _ in range(6)]
         [t.start() for t in threads]
