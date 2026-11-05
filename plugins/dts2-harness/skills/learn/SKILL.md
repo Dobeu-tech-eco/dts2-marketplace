@@ -21,7 +21,7 @@ Lessons live in the repo, so they travel with the code and every agent and machi
    Rules start with a verb, name the specific thing, and avoid "be careful".
    A lesson tied to part of the repo ends with `{paths: src/api/**, *.ts}` (comma-separated globs; `**` crosses directories, `*` stays in one). Session start and `scope-check.py --lessons` print it only when a changed file or an active lane file matches, newest 5. A lesson with no `{paths: ...}` always prints.
    A lesson seen twice (same normalized text, or same file and rule) is offered for promotion: a line in `.harness/checks.sh` (sourced by the Stop hook), a test skeleton in the repo's test directory, or a `review-checklist.md` entry. Record `lives at <path>` on the lesson.
-4. Keep the list short: at most 40 lessons. Past that, drop the oldest single-occurrence lessons first and tell the user which ones.
+4. Keep the list short: at most 40 lessons. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lessons.py" <repo> prune` first: it drops unpromoted lessons last seen more than 90 days ago (`--stale-days N` changes the limit) and prints the dropped ids; tell the user which. Past 40, drop the oldest single-occurrence lessons too.
 5. Show the diff of `lessons.md` and wait for approval before writing (interactive use). In auto mode, skip the wait; see Auto mode.
 6. After writing, clear the processed entries from the inbox.
 
@@ -37,7 +37,10 @@ Take rounds, agents, and failure categories from the run's reviewer and verifier
 When `run` invokes this skill after a ship (it does so unless `auto_learn` is `false` in `.claude/dts2-harness.local.md`), skip the approval wait in step 5, write `lessons.md`; do **not** write promotions. List each promotion offer in the returned summary and run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/action-items.py" <repo> add Promotions "promote L-NNN to <target>"` for each. Append the run's metrics (see Run metrics). Clear the processed inbox entries, and return the `lessons.md` diff for the ship summary. Interactive use keeps the approval wait.
 
 ## `learn promote <id>`
-Promote one lesson (`L-NNN`) that is already offered: show the exact line or test skeleton and its target (`.harness/checks.sh`, the test directory, or `review-checklist.md`), write it only on an explicit yes, record `lives at <path>` on the lesson, then run `action-items.py <repo> done <row>` for its Promotions row.
+Promote one lesson (`L-NNN`) that is already offered: show the exact line or test skeleton and its target (`.harness/checks.sh`, the test directory, or `review-checklist.md`), write it only on an explicit yes, record it with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lessons.py" <repo> promote L-NNN --lives-at <path>` (writes `promoted_at: <date>` and `lives at <path>` on the lesson), then run `action-items.py <repo> done <row>` for its Promotions row.
+
+## Regressions
+A promoted lesson is held by its check, so session start no longer prints it. When a reviewer or verifier finds the same mistake again after `promoted_at`, run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lessons.py" <repo> regress L-NNN`. That raises `regressed: N` on the lesson, which puts it back into the session digest, and the check it lives at needs a fix. `lessons.py <repo> stats` prints `lessons`, `promoted` and `regressed` counts; include the `regressed` count in the ship summary.
 
 ## Optional: promote across repos
 If the same lesson appears in two or more repos of a workspace, offer to add it to the workspace manifest under `shared_lessons:` so `run` applies it everywhere.
