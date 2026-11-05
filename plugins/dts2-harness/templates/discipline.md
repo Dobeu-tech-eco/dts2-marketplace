@@ -36,6 +36,7 @@ Applies to every agent provider the roster can dispatch; the lead is the session
 10. **Never idle, never collide.** While any ready section with a non-overlapping file set exists, a builder is working on it. A stalled builder is parked with an action item and the next ready section is dispatched in the same step; the run ends only when nothing is ready or at a checkpoint. Two writers never share a file, even to stay busy.
 11. **Effort before escalation.** To do more without spending more, raise a cheaper model's effort before reaching for a pricier model or tier.
 12. **The lead provider is selectable.** The provider that fills the lead, advisory and sign-off seats is chosen with `/dts2-harness:model` (default Claude, stored as `lead_provider`), but the frontier-only-for-advice-and-sign-off rule holds whichever provider leads; execution seats are never affected.
+13. **Partial output is not done.** An agent that hits its turn cap returns a first report line `PARTIAL: hit turn cap at <step>`. The head or lead treats any report carrying it as unfinished: never mark the section done or count a verdict as passed, then re-dispatch with a narrower scope (the remaining steps only) or a fresh agent, inside the Rule 9.6 fix-loop cap.
 
 ## Rule 10 — Branches, worktrees and pull requests
 
