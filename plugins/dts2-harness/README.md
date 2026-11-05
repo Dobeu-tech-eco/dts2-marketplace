@@ -53,6 +53,13 @@ Copy `templates/dts2-harness.local.md` to `<repo>/.claude/dts2-harness.local.md`
 
 Approvals are not a harness setting: they are a top-level `dts2_approvals` key in `.claude/settings.local.json` (`{"dts2_approvals": {"merge": ["42"]}}`; kinds `recorded_yes`, `unsafe_no_sandbox`, `blocked_pr_done`, `lane_override`, `merge`), a file only the person edits. Sons are denied writes to it, and `scripts/approvals.py` reads nothing else. A merge that deploys production (`merge: deploys_production: true` in `.harness/config.yaml`) needs its PR number there.
 
+## What's new in 3.11.0
+- Head policy gate: `hooks/policy-gate.sh` and `templates/policy.json` deny force-push, `--admin`, deploy CLIs, `gh secret` and `vercel env` for the head and every son; merges and default-branch pushes need a human approval kept in `.claude/settings.local.json`.
+- Son containment and lifecycle: sons commit a branch and the head publishes, opens and merges the PR (`lanes.py publish`); protected paths, a head/son mailbox with deadlines, stuck-loop detection, `lanes.py wait`, and a plugin version-skew check before every son start.
+- Merge safety and scope: base health and a merge mutex gate `merge-go` and `merge-go-step`; a capped post-merge fix then one revert PR; `override`, `dpp_full_ask_each_lane` and `fullauto_freeze_scope`.
+- Agent gates, A/B eval runner (`--runs`, `--arm-b-env`), run-wide report sections, signed receipts, and a docs refresh (`docs/INVENTORY.md` now lists the lanes modules, templates and settings keys).
+- Full notes: [CHANGELOG.md](CHANGELOG.md).
+
 ## Known limits
 - Login state for gemini, grok, muse, and opencode is self-reported by you; the harness cannot verify it.
 - Impeccable and marketing-skills are external plugins. The harness uses them when installed and does not bundle them.
@@ -91,6 +98,7 @@ Run the suite from the plugin folder: `cd plugins/dts2-harness && python3 -m uni
 
 ## Docs
 - [docs/GUIDE.md](docs/GUIDE.md): how to talk to the harness, which command when, the head, son and council flow, and the 3.10.0 digest. Start here.
+- [docs/COMMANDS.md](docs/COMMANDS.md): command reference for agents: every command with its role, exact invocation and what it writes, common flows, and where the changelogs live.
 - [docs/INVENTORY.md](docs/INVENTORY.md): every skill, agent, hook, script and `lanes.py` subcommand with exact usage.
 - [ARCHITECTURE.md](ARCHITECTURE.md): modules, state port, plan graph, briefs and hook entry points.
 - [CHANGELOG.md](CHANGELOG.md): release notes.
@@ -100,4 +108,3 @@ Run the suite from the plugin folder: `cd plugins/dts2-harness && python3 -m uni
 Released versions are in [CHANGELOG.md](CHANGELOG.md). Changes not yet released are listed below.
 
 ## Unreleased
-

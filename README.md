@@ -6,6 +6,13 @@ Claude Code plugin marketplace for Dobeu Tech Solutions.
 |---|---|
 | [`dts2-harness`](plugins/dts2-harness) | Plan-build-review-verify agent harness: end-state interview, Plan and Ship checkpoints, agent roster, deployment verification, GTM, machine prep, multi-repo scaffolding, lessons memory, and a headless Agent SDK runner. Windows, WSL, Linux, macOS. |
 
+## What's new in 3.11.0
+- Head policy gate: `hooks/policy-gate.sh` and `templates/policy.json` deny force-push, `--admin`, deploy CLIs, `gh secret` and `vercel env` for the head and every son; merges and default-branch pushes need a human approval kept in `.claude/settings.local.json`.
+- Son containment and lifecycle: sons commit a branch and the head publishes, opens and merges the PR (`lanes.py publish`); protected paths, a head/son mailbox with deadlines, stuck-loop detection, `lanes.py wait`, and a plugin version-skew check before every son start.
+- Merge safety and scope: base health and a merge mutex gate `merge-go` and `merge-go-step`; a capped post-merge fix then one revert PR; `override`, `dpp_full_ask_each_lane` and `fullauto_freeze_scope`.
+- Agent gates, A/B eval runner (`--runs`, `--arm-b-env`), run-wide report sections, signed receipts, and a docs refresh (`docs/INVENTORY.md` now lists the lanes modules, templates and settings keys).
+- Full notes: [CHANGELOG.md](plugins/dts2-harness/CHANGELOG.md).
+
 ## What's new in 3.10.0
 - Parallel autopilot hardening: a 35-subcommand lane lifecycle in `lanes.py` (leases with TTL and epochs, `transition`, `merge-order`, `merge-go`, `merge-done`, `shutdown`, `reconcile`), a per-run merge journal and typed run records.
 - Son containment: sandboxed headless sons with tool allowlists, an allowlisted environment, hard caps on turns, spend and model calls, and a merge guard hook that lets nothing merge without a `merge-go.md`.

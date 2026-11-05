@@ -103,7 +103,7 @@ Settings are read by `scripts/miniyaml.py` (one parser for `config.yaml`, `keep.
 
 ## Lane tools
 
-`scripts/lanes.py` is a thin argparse CLI (35 subcommands, JSON on stdout) over the `scripts/lanes/` package. It is the only writer of lane state; the head and the sons call it and never edit those files. Dependencies point down this table: `common` and `records` are imported by almost everything, `phases` and `merge` by the lifecycle modules.
+`scripts/lanes.py` is a thin argparse CLI (41 subcommands, JSON on stdout) over the `scripts/lanes/` package. It is the only writer of lane state; the head and the sons call it and never edit those files. Dependencies point down this table: `common` and `records` are imported by almost everything, `phases` and `merge` by the lifecycle modules.
 
 | Module | Responsibility |
 | --- | --- |
@@ -117,15 +117,32 @@ Settings are read by `scripts/miniyaml.py` (one parser for `config.yaml`, `keep.
 | `scripts/lanes/amend.py` | `amend`: change one lane of a running manifest, re-check, bump the epoch, rewrite `brief.md` |
 | `scripts/lanes/runstate.py` | status and stall marks, send-backs, `fold` groups, `stop-check`, `report-check`, the budget counter and spend ledger |
 | `scripts/lanes/supervisor.py` | `preflight`, `spawn` and the son lifecycle, `model_call`, `loop`, `gc_restore` (see below) |
+| `scripts/lanes/audit.py` | `lane_audit`: the lane branch may change only the files its manifest entry owns (behind `lanes.py audit`, used by `lanes/merge.py`) |
+| `scripts/lanes/mailbox.py` | the head/son mailbox: versioned question, answer, need-human and out-of-lane request files, send-backs, `merge-go.json` (`{lane, epoch, verified_head_sha, base_sha}`), deadlines (`mailbox_wait_min`) with a defined park transition, rule-file digests |
+| `scripts/lanes/policy.py` | scope and approval policy around `plan`: the owner `override`, `dpp_full_ask_each_lane` (`approve-lane`), `fullauto_freeze_scope` (`scope.json`, `pending-items.json`), the end state read from `origin/<base>`; asks `approvals.is_human_approved` and treats a missing module as not approved |
+| `scripts/lanes/mergecomp.py` | merge safety nets: the base-health record (`base-health`), the repo-wide merge mutex (`merge-mutex`) and the integration-routing records that `status` and `report` print |
+| `scripts/lanes/waiter.py` | `wait`: returns on a phase change or a son's `exit.json` (inotify, else sleep-backoff) |
 | `scripts/lanes/phases.py` | `transition`, the one writer of a lane's phase, with its `LEGAL` table |
 | `scripts/lanes/shutdown.py` | graceful end of a run |
 | `scripts/lanes/reconcile.py` | ask GitHub before creating, merging or resuming; orphan handling |
 | `scripts/lanes/runrecord.py` | the typed `run.json` (`RunRecord`) and `builders.jsonl` rows |
-| `scripts/lanes/merge.py` | merge order, merge target, `merge-go` grants, `merge-done` |
+| `scripts/lanes/merge.py` | merge order, merge target, `merge-go` grants, `merge-done`; `step_gate_refusal` gives `merge-go-step` the same base-health and mutex refusal as `merge-go` (a `revert-<lane>` step acts for the mutex holder and is not held by the red base it repairs) |
 | `scripts/lanes/mergeplan.py` | merge queue or serial rebase-test-merge plan with the `git merge-tree --write-tree` probe |
-| `scripts/lanes/journal.py` | `merge-journal.jsonl`: grants, merges, fold plans, shipped fold groups, failed walkthroughs and the one revert action item |
+| `scripts/lanes/journal.py` | `merge-journal.jsonl`: grants, merges, fold plans, shipped fold groups, failed walkthroughs, the post-merge fix cap (`fix-attempt`: `post_merge_fix_attempts`, then one journal-deduped revert PR on a `git worktree add -B` branch pushed with `--force-with-lease`) and the supersede close (`fold-close`) |
 | `scripts/lanes/mergeresume.py` | settle a merge a dead head left half done, by asking GitHub |
 | `scripts/lanes/runend.py` | run metrics at the end of a run (`run_metrics.py` hooks) and the run report view |
+
+## Containment, policy and publishing
+
+Sons are untrusted by construction: they commit a branch and report; the head does everything that leaves the machine (ruling Q1).
+
+- **Policy gate.** `hooks/policy-gate.sh` runs `scripts/policy_gate.py` for the head and every son (setting `policy_gate`). The rules are data in `templates/policy.json`: `deny` (force-push in every spelling, `--admin`, deploy CLIs, `gh secret`, `vercel env`, a bare `env`, repo deletes), `require_approval` (`gh pr merge` and a push to the default branch pass only when `approvals.is_human_approved` holds the PR number or branch) and `scanner_required` (staging everything in an unattended run needs a secret scanner). The command is normalised first (`bash -lc`, `eval`, `$(...)`, `env -i`, `sudo`, runners, `git -C`, chains) with the tokenizer of `guard.py`; a hidden command word that names a policy tool is refused. `guard.py --mode merge` (`hooks/merge-guard.sh`) is the older merge gate and keeps its own log.
+- **Approvals.** `scripts/approvals.py` is the human-only channel (ruling Q11): the `dts2_approvals` key in `.claude/settings.local.json`, which every son launch denies for writes. Kinds: `recorded_yes`, `unsafe_no_sandbox`, `blocked_pr_done`, `lane_override`, `merge`. Nothing an agent writes elsewhere counts; `approvals.log` records who asked (`human` or `agent:<session>`). A production-deploying merge needs its own `merge` approval per PR (ruling Q12).
+- **Protected paths.** `scripts/protected.py` lists what a son's diff may not touch (git common-dir config, info and hooks, `.gitattributes`, workflows, the checks script, CODEOWNERS, any `hooks/` folder, head-only `.harness` records, `.claude/settings.local.json`); the publish diff is read with `--no-renames` and a hit parks the lane.
+- **Publish and merge.** `scripts/head_publish.py` (head only; refused when `DTS2_SON` or `DTS2_SON_BRANCH_PREFIX` is set) is behind `lanes.py publish`: protected-path check, push, then adopt an open PR or open one per lane, then merge after the verifier. Zero reported checks is red; a default-branch merge needs required checks plus a review or a merge queue; `bootstrap` installs per lockfile hash and writes a sanitised `son.env`. `pr-receipt.sh` does nothing inside a son.
+- **Provider env and ballots.** `son_launch.provider_env` is the one environment allowlist (`OTEL_` prefix included, ruling Q8); `roster.py command` and the SDK second opinion use it. `scripts/ballot_dispatch.py` runs each council seat and writes `<ballot>.dispatch.json` (argv, model, session id, sha256); `council.py tally` does not count a ballot without a valid record. `scripts/provider_report.py` adds the brief footer and validates the fenced JSON report of non-Claude seats.
+- **Signed receipts.** `scripts/receipts_sign.py` keeps a hash-chained journal (each row carries the hash of the row before) and, with a key, an HMAC-SHA256 signature. The key lives in a file named by `DTS2_PR_RECEIPT_KEY_FILE`; the `DTS2_PR_` prefix is denied to sons, so the path never reaches them. Unset means unsigned; set but unreadable or empty fails closed.
+- **Plugin options.** `scripts/plugin_options.py` reads `CLAUDE_PLUGIN_OPTION_<KEY>` and `CLAUDE_PLUGIN_DATA`; per-repo settings stay in `.claude`.
 
 ## Plan graph and briefs
 
@@ -147,7 +164,10 @@ Settings are read by `scripts/miniyaml.py` (one parser for `config.yaml`, `keep.
 - **Shutdown.** `shutdown` parks running lanes (reason `shutdown`), sends SIGTERM to each son's process group and SIGKILL after a 10 s grace, closes leases, returns budget shares and restores `gc.auto`.
 - **Reconcile.** `reconcile` reads the PRs for each lane's branch and returns one action per lane: `merged`, `adopt-pr`, `create-pr`, `resume`, `park`, `stalled` or `none`. An orphaned lane (quiet, no running process, dirty worktree, no report, no PR) gets one resume and is then parked. Without `gh` it fails closed.
 - **Run record.** `runrecord` types `run.json` for dpp and autopilot runs alike and rejects a wrong-typed field before writing; `builder` rows confirm the reported sha against the branch tip and diff, and `run-resume` reads both so resume parses no Markdown.
-- **Merge.** `merge-plan` chooses the mode, `merge-go` writes `merge-go.md` for one head and base commit (head only), `merge-done` releases the turn, `journal` records every step, and `merge-resume` finishes a merge a dead head left open.
+- **Process watch.** A son starts in its own session and writes `son.json` (pid, process group, argv, session id) and, at the end, `exit.json` (code, signal, cost, reason). `scripts/son_stream.py` reads the stream-json output while it runs: it beats the heartbeat and `detect_stuck` stops a loop (the same call and result 4 times, the same call failing 3 times, two calls taking turns 6 times). `lanes.py wait` blocks on `exit.json` and phase changes so the head does not poll. `lanes.py gc` closes expired leases of crashed runs; `preflight` and `spawn --resume` run it.
+- **Mailbox.** `status.json` carries `"v": 1`, the lane epoch on every write and one state enum (`parked` and `stopped` read as `incomplete` with the old word as the reason); a stale epoch is ignored and a too-new record reads as `incomplete`. A son asks, the head answers through `lanes.py mailbox`; every wait has a deadline and parks the lane when it runs out. A son's `merge-go.json` payload is refused when its HEAD differs.
+- **Version skew.** `scripts/harness_skew.py` compares the son's plugin version with the head's; `supervisor.spawn_refusal` checks it before every son start, and `skills-check.py --son-root` reports it. It also reads live leases (so `skills-check.py` defers an upgrade while a lease is live) and names the marketplace repo from the plugin itself, so no organisation string is hard-coded.
+- **Merge.** `merge-plan` chooses the mode, `merge-go` writes `merge-go.md` for one head and base commit (head only), `merge-done` releases the turn, `journal` records every step, and `merge-resume` finishes a merge a dead head left open. Before `merge-go` or `merge-go-step` grants, `mergecomp` checks the recorded base health (check runs read with `gh api --paginate --slurp`) and the merge mutex; after a merge `fix-attempt` caps post-merge fixes and then opens one revert PR.
 
 At 3.10.0 the lifecycle commands (`transition`, `shutdown`, `reconcile`, `run-record`, `builder`, `run-resume`, `fold-done`, `merge-resume`, `walkthrough-failed`, `report`) exist in the CLI but no skill text calls them yet; `docs/INVENTORY.md` marks them.
 
@@ -162,11 +182,14 @@ At 3.10.0 the lifecycle commands (`transition`, `shutdown`, `reconcile`, `run-re
 | Contracts | `mdparse.py` (one Markdown tokenizer), `contracts.py` (parsers for vote entry, ballot, decision, sections, acceptance, report: a dataclass or `Invalid`) |
 | Metrics and reports | `metrics.py`, `run_metrics.py` (lanes, tokens, wall-clock; plan-time and post-run warnings), `run_report.py` (one run as a markdown table) |
 | Project and setup | `prod-scaffold.py`, `app-type-detect.py`, `deploy-detect.py`, `repo-size.py`, `doctor.py` (`make doctor`), `walkthrough_fallback.py` (optional Playwright post-merge walkthrough: sandbox only, host allowlist, no `file://`) |
+| Containment | `policy_gate.py` (declarative policy), `approvals.py` (human-only approvals), `protected.py` (paths a son may not touch), `head_publish.py` (push, PR, merge, bootstrap), `provider_report.py`, `ballot_dispatch.py`, `receipts_sign.py` (signed receipts), `plugin_options.py` |
+| Son lifecycle | `son_stream.py` (stuck-loop detector, heartbeat from events), `harness_skew.py` (lease read, version skew), `agent_events.py` (StopFailure, PermissionDenied and verifier-stop handlers) |
+| Evals | `evals/run.py` (smoke fixtures; `--runs` and `--arm-b-env` A/B mode over alternating runs) with `eval_stats.py` (median, range, pass^k and a faster, slower, no difference or inconclusive verdict) |
 | Release | `bump-version.py`, `changelog-join.py`, `context-tax.py` |
 
 `skills/autopilot/`, `skills/run/` and `skills/setup/` are a short router (`SKILL.md`) plus phase files read on demand (`phase-*.md`, `son-mode.md`, `modes.md`, `operations.md`); a son reads its brief and `son-mode.md` first.
 
-Hook entry points (each is called by one `hooks/*.sh`, reads the hook JSON on stdin, exits 0): `subagent_report.py`, `session_end.py`, `spawn_dry_run.py`, `context-guard.py`, `pr_payload.py`, and `guard.py` (`--mode merge` from `hooks/merge-guard.sh`; `--mode son` is wired into sons by `lanes.py spawn`).
+Hook entry points (each is called by one `hooks/*.sh`, reads the hook JSON on stdin, exits 0): `subagent_report.py`, `session_end.py`, `spawn_dry_run.py`, `context-guard.py`, `pr_payload.py`, `policy_gate.py` (from `hooks/policy-gate.sh`), `agent_events.py` (from `hooks/stop-failure.sh`, `hooks/permission-denied.sh` and `hooks/subagent-stop.sh`), and `guard.py` (`--mode merge` from `hooks/merge-guard.sh`; `--mode son` is wired into sons by `lanes.py spawn`).
 
 ## Library modules
 
