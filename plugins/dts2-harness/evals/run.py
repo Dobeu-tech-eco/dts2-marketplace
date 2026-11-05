@@ -21,6 +21,7 @@ A missing default baseline is a warned "no baseline" run. --update-baseline with
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -111,6 +112,9 @@ def council_phase(repo: Path, env: dict[str, str], ledger: Path, scenario: dict[
     paths: list[str] = []
     for seat, text in sorted(scenario["ballots"].items()):
         (folder / f"{seat}.md").write_text(text, encoding="utf-8")
+        record: dict[str, Any] = {"argv": ["eval-fixture-seat"], "model": "fixture", "session_id": None,  # G-68: tally needs a record
+                                  "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest()}
+        (folder / f"{seat}.md.dispatch.json").write_text(json.dumps(record), encoding="utf-8")
         paths.append(str(folder / f"{seat}.md"))
     tally: dict[str, Any] = script("council.py", ["tally", *paths], env, repo)
     return {"tally_majority": tally.get("majority"), "tally_ok": tally.get("ok"), "dissenters": tally.get("dissenters")}

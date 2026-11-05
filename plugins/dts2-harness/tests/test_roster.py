@@ -409,12 +409,14 @@ class CommandTests(unittest.TestCase):
         for role in ("reviewer", "builder"):
             data, _ = self.filled("grok", role)
             self.assertEqual(data["env"], {"GROK_WORKFLOWS": "0"})
-            self.assertEqual(data["shell"], shlex.join(["env", "GROK_WORKFLOWS=0", *data["argv"]]))
+            self.assertTrue(data["shell"].startswith("env -i "))  # G-67: an empty environment plus the allowlist
+            self.assertIn("GROK_WORKFLOWS=0", data["shell"])
+            self.assertTrue(data["shell"].endswith(shlex.join(data["argv"])))
 
     def test_env_is_empty_for_other_agents(self) -> None:
         data, _ = self.filled("codex", "builder")
         self.assertEqual(data["env"], {})
-        self.assertFalse(data["shell"].startswith("env "))
+        self.assertTrue(data["shell"].startswith("env -i "))
 
     def test_env_without_prompt_file(self) -> None:
         self.assertEqual(self.resolved("grok", "reviewer")["env"], {"GROK_WORKFLOWS": "0"})
@@ -433,7 +435,7 @@ class CommandTests(unittest.TestCase):
         data, brief = self.filled("codex", "builder")
         self.assertEqual(data["argv"][-2], "--")
         self.assertIn(str(brief), data["argv"][-1])
-        self.assertEqual(data["shell"], shlex.join(data["argv"]) + " < /dev/null")
+        self.assertTrue(data["shell"].endswith(shlex.join(data["argv"]) + " < /dev/null"))
 
     def test_binary_found_through_search_paths(self) -> None:
         env: dict[str, str] = isolated_env(tempfile.mkdtemp(prefix="dts2-path-"))
