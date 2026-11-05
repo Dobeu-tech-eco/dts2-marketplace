@@ -13,13 +13,14 @@ from typing import Any, Final
 import skill_pins_loader  # noqa: F401  (puts scripts/ on sys.path)
 import skill_pins as pins
 from helpers import PLUGIN_ROOT, make_tmp_home
+from skill_text import read_rel
 from test_skill_pins import MATT_URL, PIN_KEEP, SHA_A, SHA_B, pin_fixture
 
 GATE: Final[Path] = PLUGIN_ROOT / "scripts" / "companion-gate.py"
 
 
 def read(relative: str) -> str:
-    return (PLUGIN_ROOT / relative).read_text(encoding="utf-8")
+    return read_rel(relative)
 
 
 def age_lock(repo: Path, age_s: float, skills: tuple[str, ...] = ("grill-me",)) -> None:

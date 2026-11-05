@@ -1,6 +1,6 @@
 ---
 name: run
-description: Run the dts2 plan, build, review, verify pipeline on a task in one repo or workspace: sizes the team, plans against the end state, builds with parallel builders, reviews, ends with a receipt. Use to run the harness or for a multi-file, cross-repo change.
+description: "Run the dts2 plan, build, review, verify pipeline on a task in one repo or workspace: sizes the team, plans against the end state, builds with parallel builders, reviews, ends with a receipt. Use to run the harness or for a multi-file, cross-repo change."
 ---
 
 # Run — plan, build, review, verify, ship

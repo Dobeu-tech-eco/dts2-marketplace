@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 from typing import Any, Final
 
+from briefs import PREFIX_FLAG, cached_prefix
 from model_call import read_block
 
 PLUGIN_ROOT: Final[Path] = Path(__file__).resolve().parent.parent
@@ -190,8 +191,9 @@ def son_settings(cwd: Path, manifest: dict[str, Any], lane_id: str, worktree: Pa
 def launch_flags(cwd: Path, mode: str, manifest: dict[str, Any], lane_id: str, worktree: Path) -> list[str]:
     """Permission mode, tool allowlist, deny list and explicit settings for one son. No `--bare`: bare mode ignores hooks
     passed with `--settings` and in a loaded plugin, and drops OAuth and keychain auth. `--setting-sources local` isolates
-    the son from user and project settings instead."""
-    return ["--setting-sources", SETTING_SOURCES, "--permission-mode", mode, "--tools", TOOLS, "--allowedTools", TOOLS,
+    the son from user and project settings instead. `--append-system-prompt` carries the shared prefix (discipline, roster,
+    probe) so its bytes are the same for every dispatch of the run and can be served from the prompt cache."""
+    return [PREFIX_FLAG, cached_prefix(cwd, str(manifest["stamp"])), "--setting-sources", SETTING_SOURCES, "--permission-mode", mode, "--tools", TOOLS, "--allowedTools", TOOLS,
             "--disallowedTools", ",".join(DISALLOWED),
             "--settings", json.dumps(son_settings(cwd, manifest, lane_id, worktree), separators=(",", ":")),
             "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}']

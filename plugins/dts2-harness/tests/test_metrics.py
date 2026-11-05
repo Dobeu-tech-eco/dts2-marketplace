@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Final
 
 from helpers import PLUGIN_ROOT, _write, read_run_skill
+from skill_text import read_rel
 
 SCRIPT: Final[Path] = PLUGIN_ROOT / "scripts" / "metrics.py"
 METRICS_REL: Final[str] = ".harness/metrics.jsonl"
@@ -95,7 +96,7 @@ class MetricsTrend(unittest.TestCase):
 
 class LearningLoopText(unittest.TestCase):
     def read(self, rel: str) -> str:
-        return (PLUGIN_ROOT / rel).read_text(encoding="utf-8")
+        return read_rel(rel)
 
     def test_learn_text(self) -> None:
         text: str = self.read("skills/learn/SKILL.md")

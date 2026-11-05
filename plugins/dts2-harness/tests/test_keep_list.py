@@ -7,12 +7,13 @@ import unittest
 from typing import Final
 
 from helpers import PLUGIN_ROOT, read_run_skill
+from skill_text import read_rel
 
 REQUIRED_KEYS: Final[tuple[str, ...]] = ("plugins:", "skills:", "agents:")
 
 
 def read(rel: str) -> str:
-    return (PLUGIN_ROOT / rel).read_text(encoding="utf-8")
+    return read_rel(rel)
 
 
 class KeepListTests(unittest.TestCase):

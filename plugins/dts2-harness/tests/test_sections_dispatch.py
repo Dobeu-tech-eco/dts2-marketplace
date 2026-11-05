@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Final
 
 from helpers import PLUGIN_ROOT, make_tmp_home, read_run_skill
+from skill_text import read_rel
 
 SCRIPT: Final[Path] = PLUGIN_ROOT / "scripts" / "handoff-write.py"
 SECTION_COLUMNS: Final[str] = "| # | section | serves component | files / area | depends on | complexity | status |"
@@ -16,7 +17,7 @@ EXPECTED_LINE: Final[str] = "section 1 payments webhook — blocked (S1)"
 
 
 def read(relative: str) -> str:
-    return (PLUGIN_ROOT / relative).read_text(encoding="utf-8")
+    return read_rel(relative)
 
 
 def render_handoff(end_state: str) -> str:
