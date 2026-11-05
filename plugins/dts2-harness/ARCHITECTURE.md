@@ -52,6 +52,7 @@ flowchart TD
 | `runs/<stamp>/plan.md`, `receipt.md`, `task-ledger.md` | run, ship, `task-ledger.py` | plan, change receipt, per-task record |
 | `runs/<stamp>/ledger.jsonl` | `checks.py`, `council.py` | check results with HEAD sha, env, ballots |
 | `runs/<stamp>/run.json`, `budget.json`, `model-ledger.jsonl` | `lanes.py` | pinned CLI version, spend counter, model-call ledger |
+| `runs/<stamp>/flags.md` | `flags_collect.py` | the builders' `FLAGS:` blocks, one section per builder |
 | `runs/<stamp>/merge-order.json`, `merge-go.md` | `lanes.py` | serialised merge state |
 | `runs/<stamp>/<lane>/lease.json`, `status.json`, `brief.md`, `send-back-<n>.md`, `questions/<n>.md` | `lanes.py`, the son | lane lease and epoch, phase and heartbeat, brief, send-backs, son questions |
 | `autopilot/latest.md`, `council.md` | autopilot, `council.py` | last autopilot run, council decisions |
@@ -94,3 +95,5 @@ Imported by the scripts above; none is a hook entry point.
 | `scripts/mdparse.py` | the one Markdown tokenizer (headings, bullets, checkboxes, table rows; skips fenced code) |
 | `scripts/contracts.py` | text-contract parsers on mdparse: vote entry, ballot, decision, sections, acceptance, report; a dataclass or `Invalid` |
 | `scripts/proc.py` | child-process seam: `Runner` (real, fake, dry-run), timeout kill (143), 429 backoff, version pin and fallback flags; model_call, skills-check and task-ledger go through it |.
+
+`ownership_audit.py` (the shared `audit(diff, owned, claimed_sha)` core) and `builder-audit.py` (its CLI: empty diff with DONE, file outside the owned set, claimed commit not HEAD). `plan-gate.py` is the plan checkpoint gate: PASS or FAIL on Foundation, exclusive ownership, model and effort per builder, with an estimated token count. `flags_collect.py` collects each builder report's `FLAGS:` block into `runs/<stamp>/flags.md`.
