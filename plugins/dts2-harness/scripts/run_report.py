@@ -61,10 +61,11 @@ def render(stamp: str, statuses: dict[str, dict[str, Any]], budget: dict[str, An
 
 def load(runs_dir: Path, stamp: str) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
     """Read the run through lanes.py, the only module that knows the state file layout."""
-    import lanes  # noqa: PLC0415 - lazy so render() stays importable without the supervisor
-    found = lanes.read_status_files(runs_dir, stamp)
+    from lanes.common import BUDGET_NAME  # noqa: PLC0415 - lazy so render() stays importable without the supervisor
+    from lanes.runstate import read_json_object, read_status_files  # noqa: PLC0415
+    found = read_status_files(runs_dir, stamp)
     return ({path.parent.name: data for path, data in found},
-            lanes.read_json_object(runs_dir / stamp / lanes.BUDGET_NAME))
+            read_json_object(runs_dir / stamp / BUDGET_NAME))
 
 
 def main() -> int:

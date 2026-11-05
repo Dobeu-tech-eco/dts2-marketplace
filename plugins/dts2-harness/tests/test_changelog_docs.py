@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Final
 
 from helpers import PLUGIN_ROOT
+from skill_text import read_skill
 
 README: Final[Path] = PLUGIN_ROOT / "README.md"
 CHANGELOG: Final[Path] = PLUGIN_ROOT / "CHANGELOG.md"
@@ -86,7 +87,7 @@ class DependencyUpdateTemplateTests(unittest.TestCase):
         self.assertIn("__ECOSYSTEM__", body)
 
     def test_setup_body_offers_both_after_frontmatter(self) -> None:
-        skill = text(PLUGIN_ROOT / "skills" / "setup" / "SKILL.md")
+        skill = read_skill("setup")
         frontmatter, body = skill.split("\n---\n", 1)
         self.assertNotIn("dependabot", frontmatter.lower())
         for needle in ("templates/dependabot.yml", "templates/renovate.json", "default yes"):

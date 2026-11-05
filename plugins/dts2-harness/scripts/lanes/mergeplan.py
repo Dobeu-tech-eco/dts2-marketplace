@@ -1,7 +1,8 @@
 """B6 merge plan: enqueue into a merge queue when the target has one, else a serial rebase, test, merge loop. A `git merge-tree
 --write-tree` probe of every lane against the base moves lanes that would conflict behind the ones that merge clean (never past
 a lane they depend on), and the integration lane (lockfiles, migrations, route tables, barrels, shared files) merges last.
-Nothing here merges anything: it only reads git and gh and returns the plan; merge-go still grants every merge."""
+Nothing here merges anything: it reads git and gh, returns the plan and records its order (and the integration lane) in
+merge-order.json so merge-go grants in that order; merge-go still grants every merge."""
 from __future__ import annotations
 
 import json
@@ -11,7 +12,7 @@ from typing import Any, Final
 from .common import LaneError, binary, run
 from .gitrefs import git_version_error, lane_ref
 from .integration import INTEGRATION_LANE, route, shared_patterns
-from .merge import merge_target_state
+from .merge import merge_target_state, record_plan
 
 PROBE_CLEAN: Final[str] = "clean"
 PROBE_CONFLICT: Final[str] = "conflict"
@@ -84,9 +85,10 @@ def merge_plan(manifest: dict[str, Any], runs_dir: Path, cwd: Path, base: str | 
     integration: dict[str, Any] = route(manifest, shared_patterns(cwd))
     mode: str = MODE_QUEUE if merge_queue_enabled(cwd, target) else MODE_SERIAL
     full: list[str] = [*order, INTEGRATION_LANE] if integration["files"] else order
+    recorded: bool = record_plan(manifest, runs_dir, order, list(integration["files"]))
     result: dict[str, Any] = {"ok": True, "stamp": stamp, "mode": mode, "target": target, "base": ref, "probe": probes,
                               "order": full, "reordered": order != original, "integration": integration,
-                              "steps": plan_steps(full, mode)}
+                              "steps": plan_steps(full, mode), "recorded": recorded}
     if mode == MODE_SERIAL:
         result["note"] = "run merge-plan again after each merge: a lane that conflicted may now be clean"
     return result

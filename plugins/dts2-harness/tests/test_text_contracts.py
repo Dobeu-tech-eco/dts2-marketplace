@@ -116,7 +116,7 @@ class ScoutAgentTests(TextContractMixin):
 
 
 class SetupSkillContracts(TextContractMixin):
-    PATH: Final[Path] = PLUGIN_ROOT / "skills" / "setup" / "SKILL.md"
+    PATH: Final[Path] = PLUGIN_ROOT / "skills" / "setup"
 
     def test_required_phrases(self) -> None:
         self.assert_contains(self.PATH, [
