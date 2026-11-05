@@ -20,6 +20,8 @@ Dispatch the `dts2-harness:auditor` agent, or run:
 `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/machine-prep.py" audit [--profile <path>] [--claude-home <path>]`
 The profile defaults to the plugin's `profiles/blueprint.json`. A `profile` value in `.claude/dts2-harness.local.md` overrides it.
 
+If the auditor's report starts with `PARTIAL: hit turn cap at <step>`, the audit is incomplete: do not show it as the result; re-dispatch the auditor with a narrower scope or run the script form instead.
+
 Show the user: enabled plugins vs the keep-set, budget overruns, forbidden symlinks or sync scripts, and what is missing from the keep-set.
 
 Then explain where plugins are coming from, because this is why disabled plugins come back:

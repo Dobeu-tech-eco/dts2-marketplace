@@ -26,6 +26,8 @@ A failing check → show it and ask once: fix now (a builder on the owning files
 ## 4. Review
 Dispatch, in one message, `dts2-harness:verifier` (seat: sign-off, `model: opus`) to confirm the checks against HEAD and look for stubs, and one `dts2-harness:reviewer` (seat: advisory, `standard`) on the whole diff with `.harness/review-checklist.md`. CRITICAL or HIGH findings → show them and ask: fix, ship anyway (recorded in Open risks), or stop.
 
+A verifier or reviewer report whose first line is `PARTIAL: hit turn cap at <step>` has not passed: treat it as no verdict, re-run that agent (narrower scope or a fresh agent), and do not continue to step 5 until a complete report comes back.
+
 ## 5. Receipt and PR body
 1. Build the receipt from `${CLAUDE_PLUGIN_ROOT}/templates/receipt.md` into `.harness/runs/ship-<stamp>/receipt.md`: tests from step 3, verdict from step 4, `Approved by` = `$(git config user.name), $(date +%Y-%m-%d)` (invoking ship is the approval), steps outside this change and open risks from `.harness/action-items.md`, rollback point = `git merge-base HEAD origin/<base>`.
 2. If the repo has no `.github/pull_request_template.md`, copy `${CLAUDE_PLUGIN_ROOT}/templates/pr-template.md` there and include it in this PR. If it has one without `## Change receipt`, the `pr-receipt.sh` hook appends the section; do not add it twice.

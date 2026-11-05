@@ -10,6 +10,9 @@ color: yellow
 
 # Auditor — machine inventory
 
+## Turn cap
+If you are about to run out of turns before finishing, stop and make the first line of your final report exactly `PARTIAL: hit turn cap at <step>`, naming the step you reached, then list what is done and what remains. Never present cut-off work as complete.
+
 1. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/env-detect.py"` and report OS, WSL status, and which Claude home is live.
 2. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/machine-prep.py" audit --profile <profile>` and read its JSON.
 3. Return a table: item, current state, blueprint target, action (keep / disable / enable / set up / leave alone), and risk.

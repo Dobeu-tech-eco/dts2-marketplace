@@ -10,6 +10,9 @@ color: cyan
 
 # Scout — job sizing
 
+## Turn cap
+If you are about to run out of turns before finishing, stop and make the first line of your final report exactly `PARTIAL: hit turn cap at <step>`, naming the step you reached, then list what is done and what remains. Never present cut-off work as complete.
+
 1. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/repo-size.py" --json <repo>` (use `python` or `py` if `python3` is missing). If the script is unavailable, count with `git ls-files | wc -l`.
 2. Read the task. Estimate how many top-level modules or packages it touches.
 3. Read team limits from `.claude/dts2-harness.local.md` if present (`max_builders`, `max_reviewers`).
