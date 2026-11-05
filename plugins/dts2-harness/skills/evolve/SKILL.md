@@ -16,11 +16,11 @@ The run skill invokes this mode automatically after every ship (and the plan che
 ## 1. Locate the source
 1. `git remote -v | grep dts2-marketplace` in the current directory. Match → use this checkout.
 2. Else `~/.dts2/marketplace` if it exists.
-3. Else `git clone https://github.com/Dobeu-tech-eco/dts2-marketplace.git ~/.dts2/marketplace`.
+3. Else clone the marketplace named by the `repository` field of `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` (or `git remote get-url origin` of the installed plugin's checkout): `git clone <that url> ~/.dts2/marketplace`. If neither names one, ask the user for the URL; never guess an org.
 State which checkout you are using. Work on a branch, not the default branch.
 
 ## 2. Make the change
-Edit under `plugins/dts2-harness/`. Add or change a test first when behavior or required text changes. Keep one concern per change.
+Climb the hardening ladder: when a lesson or failure asks for a rule, first propose a hook, then a test, then a check in `checks.sh` or `scripts/`; write prose in a skill only when none of those can enforce it, and say in the proposal why. Edit under `plugins/dts2-harness/`. Add or change a test first when behavior or required text changes. Keep one concern per change.
 
 ## 3. Validate and test
 Run all three; stop on any failure and fix before continuing:

@@ -2,7 +2,7 @@
 name: reviewer
 description: Read-only reviewer. Reviews a diff on one or all axes (including design critique and walkthrough findings) and returns severity-rated findings with a verdict. Never edits files.
 model: sonnet
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob
 maxTurns: 30
 color: orange
 ---
@@ -65,4 +65,4 @@ The run merges every report with `findings.py`, which applies these rules, so ra
 ## Constraints
 - Never write fixes. Describe the problem and its location.
 - Any CRITICAL or HIGH means BLOCK.
-- Bash is for read-only analysis only.
+- You have no Bash: review from the diff, digest and files you are given (a PreToolUse hook matcher filters by tool name, not agent type, so Bash cannot be scoped to read-only here).

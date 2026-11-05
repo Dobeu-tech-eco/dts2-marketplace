@@ -30,3 +30,14 @@ real sessions is a manual step for the owner.
 
 The runner prints the delta of tokens and wall-clock against the baseline, per fixture and in total. The exit code is 1
 only when a fixture that passed in the baseline now fails; cost deltas never fail the run. Exit 2 means the runner could not run: a bad argument, an unreadable baseline (corrupt, not an object, or missing at a path given with `--baseline`), or `--update-baseline` while a chosen fixture fails. With `--fixture`, `--update-baseline` replaces only those fixtures' rows.
+
+## A/B runs
+
+One run of a fixture is noise as much as signal. To compare two setups, give arm B an env override and let the runner
+alternate A and B, k times each (k is at least 5, default 5):
+
+    python3 plugins/dts2-harness/evals/run.py --fixture one-fix-round --arm-b-env DTS2_CLAUDE_BIN=/path/to/other-fake.py --runs 7
+
+It prints, per arm, the median and range of wall-clock, the pass count and pass^k (the pass rate raised to k), then a
+verdict for B against A: `faster`, `slower`, `no difference` (medians within 10%) or `inconclusive` (too few runs, a
+failed run, or ranges that overlap). The thresholds are constants in `scripts/eval_stats.py`.

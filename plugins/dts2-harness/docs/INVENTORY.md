@@ -44,8 +44,8 @@ Dispatched with the Agent tool as `subagent_type: dts2-harness:<name>`.
 | `dts2-harness:lead` | Read-only planner: slices the end state into a DAG of tasks with exclusive file ownership, picks reviewer axes. Never writes code. | Read, Grep, Glob | opus, 25 | `briefs.py`, `contracts.py`, `delegate.py`, `repo-size.py`, `roster.py` |
 | `dts2-harness:builder` | Implements exactly one builder section inside its owned file set; does not review its own work. | Read, Write, Edit, Grep, Glob, Bash | sonnet, 60 | none |
 | `dts2-harness:fixer` | Fresh-context fixer for fix round 2 on the same failure: applies the one hypothesis the lead picked (escalation seat, `effort: high`). | Read, Write, Edit, Grep, Glob, Bash | opus, 40 | `delegate.py` |
-| `dts2-harness:reviewer` | Read-only reviewer: reviews a diff on one or all axes, returns severity-rated findings and a verdict. | Read, Grep, Glob, Bash | sonnet, 30 | `delegate.py`, `findings.py` |
-| `dts2-harness:verifier` | Read-only verifier: runs configured build, type, lint and test commands, checks for stubs, walks changed screens when asked. Evidence only. | all except Write, Edit, NotebookEdit (`disallowedTools`) | opus, 40 | `checks.py` |
+| `dts2-harness:reviewer` | Read-only reviewer: reviews a diff on one or all axes, returns severity-rated findings and a verdict. | Read, Grep, Glob | sonnet, 30 | `delegate.py`, `findings.py` |
+| `dts2-harness:verifier` | Read-only verifier: runs configured build, type, lint and test commands, checks for stubs, walks changed screens when asked. Evidence only. | Read, Grep, Glob, Bash (`disallowedTools`: Write, Edit, NotebookEdit) | opus, 40 | `checks.py` |
 | `dts2-harness:scout` | Read-only sizing scout: measures a repo, detects other harnesses and a marketing surface, recommends team tier, builder count and reviewer axes. | Read, Grep, Glob, Bash | haiku, 15 | `repo-size.py`, `deploy-detect.py`, `checks.py` |
 | `dts2-harness:auditor` | Read-only machine auditor: inventories installed agent tooling against a blueprint profile and proposes keep, disable and setup. | Read, Grep, Glob, Bash | sonnet, 20 | `env-detect.py`, `machine-prep.py` |
 
@@ -66,6 +66,9 @@ Registered in `hooks/hooks.json`. Every hook script honours the `enabled` settin
 | PreToolUse (`Agent`) | `hooks/spawn-dry-run.sh` | With setting `spawn_dry_run: true`, denies the dispatch and prints the prompt; otherwise passes through. | `spawn_dry_run.py --agent-dry-run` | new |
 | PreCompact (`auto\|manual`) | `hooks/pre-compact.sh` | Refreshes `.harness/handoff/latest.md` so the post-compact session can resume from it. | `handoff-write.py` | new |
 | SubagentStop (`builder\|reviewer\|verifier`) | `hooks/subagent-report.sh stop` | Same report-section check as the handback hook, on the subagent's last message; skipped when `stop_hook_active`; a report starting `PARTIAL: hit turn cap at <step>` passes. | `subagent_report.py --event stop` | new |
+| SubagentStop (`verifier`) | `hooks/subagent-stop.sh` | Blocks once when the newest run ledger lacks one of the five check lines (test, typecheck, lint, secret-scan, scope-check); skipped when `stop_hook_active` or no run exists. | `agent_events.py subagent-stop` | new |
+| StopFailure | `hooks/stop-failure.sh` | Appends a Handoff action item naming the API error that ended the turn (rate limit, overload, auth, billing); deduplicated. | `agent_events.py stop-failure` | new |
+| PermissionDenied | `hooks/permission-denied.sh` | Appends a Handoff action item naming the denied tool and reason; deduplicated. | `agent_events.py permission-denied` | new |
 | SessionEnd | `hooks/session-end.sh` | Releases only the lane leases this session took (reasons `logout`, `prompt_input_exit`, `other`), then refreshes the handoff. Lease expiry stays the guarantee. | `session_end.py`, `handoff-write.py` | new |
 
 `hooks/lib-settings.sh` is a shared helper (`setting <field> <default>`), not a registered hook. The son-side deny list is `scripts/guard.py --mode son`, wired into headless sons by `lanes.py spawn`, not through `hooks.json`.
@@ -104,7 +107,7 @@ Run as `python3 -I "$P/scripts/<x>.py" ...`. Hook-driven and internal scripts ar
 | `agent-memory.py` | none | `--write` (required), `--agents`, `--project` | Give each detected agent a project memory file from one shared source. | `setup`, `run`, `dpp` | |
 | `skill-suggest.py` | none | `--facts` | Ranked candidate skill slugs from repo facts. | `find-skills` | |
 | `marketing-select.py` | none | `--facts` | Ordered `marketing-skills` subset for the GTM pass. | `gtm` | |
-| `skills-check.py` | `<repo>` | `--fix`, `--swap OLD=REF`, `--apply-update NAME=SHA`, `--no-upstream`, `--force-full`, `--home`, `--plugin-root` | Pre-run check of harness version, marketplaces, companion and keep-list skills, with commit pins and proposal-only updates. | `run`, `ship` | changed |
+| `skills-check.py` | `<repo>` | `--fix`, `--swap OLD=REF`, `--apply-update NAME=SHA`, `--no-upstream`, `--force-full`, `--son-root`, `--home`, `--plugin-root` | Pre-run check of harness version, marketplaces, companion and keep-list skills, with commit pins and proposal-only updates; the `skills` CLI is pinned (`SKILLS_CLI_VERSION`), a self-upgrade waits while a lane lease is live, and `--son-root` reports version skew. | `run`, `ship` | changed |
 | `upgrade-check.py` | none | `--from-file` (required), `--plugin-json` | Compare the pre-upgrade version with the installed one. | `skills-check.py` (in-process); by hand | |
 | `companion-gate.py` | `check`, `record` | `--repo`, `--skill` (required), `check`: `--base` | Run-count gates for two costly companion skills. | `run` | new |
 | `env-detect.py` | none (no flags) | none | Report OS, WSL status, which Claude home is live and which agent CLIs are on PATH. Read-only. | `find-skills`, `machine-prep`; `auditor` agent | |
@@ -116,8 +119,9 @@ Run as `python3 -I "$P/scripts/<x>.py" ...`. Hook-driven and internal scripts ar
 | `roster.py` | `detect`, `resolve`, `probe`, `model`, `command`, `classify` | `detect`: `--project`; `resolve`, `probe`: `--config`; `model`: `--agent --tier`; `command`: `--agent --role`, `--tier`, `--effort`, `--prompt-file`, `--workspace`, `--model`; `classify`: `--agent --role --exit-code`, `--axis`, `--usable` | Detect installed coding agents and resolve the roster into seats; `classify` treats exit 143 as a timeout so a council seat can be swapped. | `model`, `setup`, `run`, `sdk`, `autopilot`; `lead` agent | changed |
 | `delegate.py` | none | `--agent --seat --complexity` (required), `--profile-dir`, `--budget`, `--lead-provider`, `--effort` | Resolve model, tier and effort for a dispatch seat (includes the `escalation` seat for the fixer). | `model`, `run`, `onboard`; `lead`, `fixer`, `reviewer` agents | changed |
 | `failover.py` | none | `--current` (required), `--profile-dir`, `--exclude` | Pick the next lead provider on a usage or token limit. | `model`, `run` | |
+| `agent_events.py` | `subagent-stop`, `stop-failure`, `permission-denied` | event name; hook JSON on stdin | Hook handlers: verifier stop gate on the N3 check lines; StopFailure and PermissionDenied append a Handoff action item. | `hooks/subagent-stop.sh`, `stop-failure.sh`, `permission-denied.sh` | new |
 | `seat_swap.py` | `swap`, `identical` | `swap`: `--seats --failed`, `--ledger`, `--step`, `--reason`; `identical`: `--votes-dir --ledger --step --prev --curr` | Council seat substitution and identical-findings ledger note. | `council.py swap` and `identical` (in-process) | new |
-| `council.py` | `eligible`, `dossier`, `tally <ballots...>`, `check-decision <decision>`, `route`, `blind`, `wrap <file\|->`, `ledger`, `seats`, `swap`, `identical` | `eligible`: `--votes-dir`; `dossier`: `--votes-dir --out`; `check-decision`: `--tally --entries`, `--ledger`, `--head`; `route`: `--ledger`, `--head`, `--votes`, `--decision` (APPROVE, FIX, STRIKE); `blind`: `--proposals --out --voters --seed`, `--ledger`, `--authors`; `wrap`: `--source`, `--max-chars`; `ledger`: `--ballots-dir --tally --decision --step --stamp --out`; `seats`: `--usable`, `--config`, `--failed`; `swap`: `--seats --failed`, `--ledger`, `--step`, `--reason`; `identical`: `--votes-dir --ledger --step --prev --curr` | Autopilot council: dossier, ballot tally, decision check, routing of red checks to a fix round, blinding, seat substitution and the untrusted-content fence. | `run`, `dpp`, `autopilot` | changed |
+| `council.py` | `eligible`, `dossier`, `tally <ballots...>`, `check-decision <decision>`, `route`, `blind`, `wrap <file\|->`, `ledger`, `seats`, `swap`, `identical`, `next-round` | `eligible`: `--votes-dir`; `dossier`: `--votes-dir --out`; `check-decision`: `--tally --entries`, `--ledger`, `--head`; `route`: `--ledger`, `--head`, `--votes`, `--decision` (APPROVE, FIX, STRIKE); `blind`: `--proposals --out --voters --seed`, `--ledger`, `--authors`; `wrap`: `--source`, `--max-chars`; `ledger`: `--ballots-dir --tally --decision --step --stamp --out`; `seats`: `--usable`, `--config`, `--failed`; `swap`: `--seats --failed`, `--ledger`, `--step`, `--reason`; `identical`: `--votes-dir --ledger --step --prev --curr`; `next-round`: `--votes-dir --step --kind`, `--retry`, `--revote` | Autopilot council: dossier, ballot tally, decision check, routing of red checks to a fix round, blinding, seat substitution, ballot instance ids (`<step>+<attempt>`; dispatch errors, malformed ballots and 429 are retried, not voted) and the untrusted-content fence. | `run`, `dpp`, `autopilot` | changed |
 | `checks.py` | `run`, `gate`, `summary`, `env-missing <names...>`, `scout-check <file>` | `--stamp` (required for the first four), `--cwd`; `run`: `--base`; `gate`: `--head` | Deterministic checks (tests, types, lint, secret scan, scope) before any model vote, and the run ledger. | `run`, `dpp`, `autopilot`; `verifier` and `scout` agents | new |
 | `briefs.py` | `son-brief <manifest>`, `prefix`, `dry-run <manifest>`, `lead-brief` | `son-brief`: `--lane --epoch`, `--max-bundle`, `--out`; `prefix`: `--stamp`, `--cwd`; `dry-run`: `--lane --worktree`, `--cwd`; `lead-brief`: `--stamp`, `--cwd`, `--task-file`, `--roster-json`, `--probe-json` | Son and lead briefs and the cached prompt prefix; starts no process. | `run`, `dpp`, `autopilot`; `lead` agent | new |
 | `harness-lock.py` | `<action>` (acquire, release, check) | `--file --holder` (required), `--role` (head or son), `--ttl-sec`, `--lock-dir` | Lock a shared `.harness` record for one writer; only a head may lock. | `autopilot` | changed |
@@ -161,7 +165,8 @@ Stamp-keyed commands:
 | `status <stamp>` | none | Lane status, heartbeat and stall marks. | `dpp`, `autopilot` | changed |
 | `sendback <stamp>` | `--lane --reason` (required) | Send a lane back (counted atomically, at most two). | `dpp` | changed |
 | `release <stamp>` | `--lane` (required), `--epoch` | Release a lane; a stale epoch is refused. | `dpp` | changed |
-| `fold <stamp>` | none | Fold lane results into named groups, one PR each. | `dpp` | changed |
+| `fold <stamp>` | `--apply <group> --pr <n>` | Fold lane results into named groups, one PR each; `--apply` records `superseded_by` and the new PR on each original (G-79). Head only. | `dpp` | changed |
+| `fold-close <stamp>` | none | Close each superseded original with a link comment to the new PR; checks the PR state first and journals each close (G-79). Head only. | `dpp`, `autopilot` | new |
 | `fold-done <stamp>` | `--group` (required), `--pr` | Record that a fold group's PR is shipped. | none yet | new |
 | `stop-check <stamp>` | `--from-checkin` (required), `--base` | Whether fullauto may stop; items tied to a ledgered blocked PR do not count; `--base` reads the end state from the fetched `origin/<base>`. | `fullauto` | changed |
 | `approve-lane <stamp>` | `--lane` (required) | Record the user's yes for one lane (`dpp_full_ask_each_lane`); `lease` refuses a lane without it. Head only. | `dpp` | new |
@@ -184,9 +189,12 @@ Stamp-keyed commands:
 | `run-record <stamp>` | `--init`, `--kind` (run or autopilot) | Open or print the run's typed record (`run.json`). | none yet | new |
 | `builder <stamp>` | `--lane --section --branch --status` (required; status is a lane phase or merged), `--round`, `--sha`, `--pr`, `--base` | Append one builder row to `builders.jsonl`; the sha is confirmed against the branch tip and diff. | none yet | new |
 | `run-resume <stamp>` | none | What `run resume` reads: the run record and the newest row of each builder. | none yet | new |
+| `fix-attempt <stamp>` | `--lane --reason` (required) | Count a post-merge fix; past `post_merge_fix_attempts` open one revert PR (or park with the revert action item) (G-78). Head only. | `autopilot`, `dpp` | new |
+| `base-health <stamp>` | none | Is the fetched `origin/<base>` green? Records `base-health.json`; `merge-go` refuses while it is red or the base moved (G-78). Head only. | `autopilot`, `dpp` | new |
+| `merge-mutex <stamp>` | `--lane --op acquire\|release\|status` (required) | The repo-wide merge mutex, held from the rebase to the post-merge PASS; `merge-go` refuses another lane while it is held (G-78). Head only. | `autopilot`, `dpp` | new |
 | `walkthrough-failed <stamp>` | `--lane --reason` (required) | Record a failed post-merge walkthrough and file one revert action item. | none yet | new |
-| `report <stamp>` | `--repo-url` | The run as a markdown table. | none yet | new |
-| `report-check <report>` | `--lanes` (required) | Check the final report against lane ids. | `dpp` | |
+| `report <stamp>` | `--repo-url` | The run as a markdown table plus run-wide sections: refusals, overrides, merge order and rebases, total spend, check-in delta, per-son CI result, merge commit and out-of-lane requests. | none yet | changed |
+| `report-check <report>` | `--lanes` (required), `--stamp` | Check the final report against lane ids; with `--stamp` also cross-check the son run records (unlisted lanes, PRs the report never names). | `dpp` | |
 
 "None yet" means no skill or hook text calls the command in 3.10.0: the head can run it by hand, and the lifecycle commands are the API a later skill change is meant to wire in.
 
@@ -194,7 +202,9 @@ Stamp-keyed commands:
 
 | Script | Subcommands and positionals | Key flags | Purpose | Called by | Since |
 |---|---|---|---|---|---|
-| `doctor.py` | none | `--json` | Preflight checks for this machine. | `make doctor` | new |
+| `doctor.py` | none | `--json` | Preflight checks for this machine: python, git, claude, sandbox, bwrap, socat, auth method (named, never the value), platform. On native Windows the platform row warns that dpp parks (`windows-native`); exit codes by runtime are in `docs/RUNTIMES.md`. | `make doctor` | changed |
+| `plugin_options.py` | `show`, `get KEY [--default V]`, `data-dir` | none | Per-user knobs from `CLAUDE_PLUGIN_OPTION_<KEY>` (plugin `userConfig`) and the non-repo cache directory `CLAUDE_PLUGIN_DATA`; per-repo settings stay in `.claude`. | none yet | new |
+| `receipts_sign.py` | `append JOURNAL BODY`, `verify JOURNAL`, `sign FILE`, `check FILE SIG` | none | Hash-chained journal and HMAC-signed receipts (hashlib, hmac); the key file is named by `DTS2_PR_RECEIPT_KEY_FILE`, which sons never receive. | none yet | new |
 | `machine-prep.py` | `audit`, `plan`, `apply` | `--profile`, `--home`, `--claude-home`, `--tier`, `--days`, `--project` | Audit a machine against a blueprint profile; `apply` prunes plugins by disabling them (reversible). | `machine-prep`; `auditor` agent | |
 | `usage-scan.py` | none | `--claude-home` (required), `--days` | Count Skill, Agent and MCP tool uses in recent transcripts; read-only. | `machine-prep.py` (in-process) | |
 | `context-tax.py` | none | `--root`, `--budget`, `--max-description` | Measure always-loaded skill and agent metadata; exit 1 over budget. | CI `metadata` job | new |
@@ -210,7 +220,7 @@ Stamp-keyed commands:
 | `subagent_report.py` | `--event stop\|handback` (required); hook JSON on stdin | Report-section check. | subagent-report hook | new |
 | `spawn_dry_run.py` | `--agent-dry-run`; hook JSON on stdin | Print the composed brief and command, start nothing. | spawn-dry-run hook | new |
 | `session_end.py` | hook JSON on stdin (no flags) | Release the lane leases this session took. | session-end hook | new |
-| `pr_payload.py` | `parse`, `view --body-out`, `body --body-file --receipt-file`, `payload [pairs...]` | Payload helpers for the PR-receipt hook. | pr-receipt hook | new |
+| `pr_payload.py` | `parse`, `view --body-out`, `body --body-file --receipt-file`, `decisions --ledger`, `payload [pairs...]` | Payload helpers for the PR-receipt hook; `decisions` prints the "Decisions and declined findings" PR section from the ledger. | pr-receipt hook, ship | changed |
 
 ### 4.8 Other entry points
 
@@ -223,13 +233,13 @@ Stamp-keyed commands:
 | `provider_report.py` | `footer`, `check <file\|->` | | Provider-neutral brief footer and validator for the fenced JSON report every non-Claude seat ends with. | `run`, `autopilot` | new |
 | `ballot_dispatch.py` | `dispatch --seat --model --prompt-file --out-dir [--provider] [-- argv]` | | Runs one council seat through the shared call limit and writes the ballot with its `.dispatch.json` record (argv, model, session id, sha256); Claude seats use `--json-schema` and `--restricted`. | `autopilot` council | new |
 | `sdk/dts2-run.py` | `<task>`; `--repo`, `--yes`, `--api-key-env`, `--second-opinion none\|codex\|gemini`, `--ship`, `--live-only` | Headless pipeline on the Agent SDK. | `sdk` | |
-| `evals/run.py` | `--fixture` (repeatable), `--baseline`, `--results-dir`, `--update-baseline` | Run the smoke-eval fixtures against the baseline. | by hand | new |
+| `evals/run.py` | `--fixture` (repeatable), `--baseline`, `--results-dir`, `--update-baseline`, `--runs`, `--arm-b-env` | Run the smoke-eval fixtures against the baseline; with `--arm-b-env` run k >= 5 alternating A/B runs and report median, range, pass^k and a verdict. | by hand | changed |
 
 ## 5. Library modules (no command line)
 
 Imported by the scripts above; none is a CLI. Responsibilities are in `ARCHITECTURE.md`.
 
-`_load.py`, `contracts.py`, `mdparse.py`, `miniyaml.py`, `model_call.py`, `ownership_audit.py`, `prep-tiers.py` (helper for `machine-prep.py`), `proc.py` (also the son lifecycle: `wrap_son`, `son.json`, `exit.json`, SIGINT-then-SIGKILL), `profiles.py`, `skill_pins.py`, `son_launch.py` (also `provider_env`, `allowed_tools`, `auth_problem`, `init_plugin_errors`), `son_stream.py` (stream-json heartbeat, `detect_stuck`, `api_retry` exhaustion), `state_ids.py`, and the modules of `scripts/lanes/` (`amend`, `common`, `conflicts`, `gitrefs`, `integration`, `journal`, `leases`, `merge`, `mergeplan`, `mergeresume`, `phases`, `planner`, `reconcile`, `records`, `runend`, `runrecord`, `runstate`, `shutdown`, `supervisor`, `waiter`).
+`_load.py`, `contracts.py`, `eval_stats.py` (A/B run statistics for `evals/run.py`: median, range, pass^k, verdict), `harness_skew.py` (live-lease read, son-versus-head plugin version skew (also checked by `supervisor.spawn_refusal` before every son start; `DTS2_SON_PLUGIN_ROOT` points it at another son plugin dir), marketplace repo from `plugin.json`), `mdparse.py`, `miniyaml.py`, `model_call.py`, `ownership_audit.py`, `prep-tiers.py` (helper for `machine-prep.py`), `proc.py` (also the son lifecycle: `wrap_son`, `son.json`, `exit.json`, SIGINT-then-SIGKILL), `profiles.py`, `skill_pins.py`, `son_launch.py` (also `provider_env`, `allowed_tools`, `auth_problem`, `init_plugin_errors`), `son_stream.py` (stream-json heartbeat, `detect_stuck`, `api_retry` exhaustion), `state_ids.py`, and the modules of `scripts/lanes/` (`amend`, `common`, `conflicts`, `gitrefs`, `integration`, `journal`, `leases`, `merge`, `mergecomp`, `mergeplan`, `mergeresume`, `phases`, `planner`, `reconcile`, `records`, `runend`, `runrecord`, `runstate`, `shutdown`, `supervisor`, `waiter`).
 
 ## 6. Makefile targets and CI
 
@@ -270,6 +280,7 @@ Sources: `changelog.d/*.md`, the `## Unreleased` lines in `README.md`, and `git 
 |---|---|---|
 | `lanes.py check`, `lease`, `plan` | Run the plan-graph checks; owners may be `dir/` prefixes or globs; routing of lockfiles, migrations, route tables, barrels and `lanes.shared_files` to a final integration lane (a PR bundles at most 5 tasks); `lease` and `plan` fail closed without `gh`; leases carry `expires_at` and `ttl_s`, take the check and the write under one admission lock, and record `session_id`; `plan` adds spend estimates and a `graph` block | G-20, G-16, G-25, B6, G-26 to G-28, Q-22 |
 | `lanes.py release`, `sendback`, `status`, `fold` | `release` refuses a stale `--epoch`; the epoch is mandatory in the state port; send-backs are counted atomically; `status` shows heartbeat and stalls; `fold` names each group | G-11, N2, G-15 |
+| `lanes/mergecomp.py` | Base-health record and merge gate, repo-wide merge mutex, integration routing records (refusal, reason, alternative, override) printed by `status` and `report` (G-78, G-80) | G-78, G-80 |
 | `lanes/mailbox.py`, `lanes/policy.py` | The head/son mailbox and message schema (G-43 to G-45, G-48, G-49); approval and scope policy: override, ask-each-lane, frozen scope, end state from `origin/<base>` (G-46, G-48, G-50) | G-43 to G-51 |
 | `lanes.py` as a whole | Now a thin CLI over the `scripts/lanes/` package; phase writes all go through `transition` | AC-3, G-13 |
 | `council.py` | Strict verdict first line on `tally`; seats may be swapped on timeout; identical findings leave a ledger note | A9, B7 |

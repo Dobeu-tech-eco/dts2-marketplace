@@ -17,10 +17,15 @@ It writes <results-dir>/<stamp>.json (pass/fail, tokens, wall-clock, fix rounds 
 baseline (token and wall-clock totals, per fixture and in total) and exits 1 only when a fixture that passed in the baseline
 now fails. Cost deltas never change the exit code. Exit 2 means the runner itself could not run: an unknown fixture, an unreadable
 baseline (corrupt, not an object, or missing at a path passed with --baseline), or --update-baseline with failing fixtures.
-A missing default baseline is a warned "no baseline" run. --update-baseline with --fixture replaces only those rows."""
+A missing default baseline is a warned "no baseline" run. --update-baseline with --fixture replaces only those rows.
+
+A/B mode (G-75): `--arm-b-env KEY=VALUE` (repeatable) runs every chosen fixture `--runs K` times per arm (K >= 5, default 5),
+alternating A (the normal env) and B (the normal env plus the overrides), and prints per arm the median and range of
+wall-clock, the pass rate and pass^k, then a verdict for B against A: faster, slower, no difference or inconclusive."""
 from __future__ import annotations
 
 import argparse
+import functools
 import hashlib
 import json
 import os
@@ -47,6 +52,7 @@ STEP_TIMEOUT_S: Final[int] = 120
 sys.path.insert(0, str(SCRIPTS))
 from checks import append_ledger  # noqa: E402
 from state_io import atomic_write  # noqa: E402
+import eval_stats  # noqa: E402
 
 
 class EvalError(Exception):
@@ -242,12 +248,61 @@ def fake_env() -> dict[str, str]:
     return env
 
 
+def parse_overrides(pairs: list[str]) -> dict[str, str]:
+    """KEY=VALUE strings to a dict; ValueError on a pair without `=` or with an empty key."""
+    out: dict[str, str] = {}
+    for pair in pairs:
+        key, sep, value = pair.partition("=")
+        if not sep or not key:
+            raise ValueError(f"--arm-b-env needs KEY=VALUE, got: {pair}")
+        out[key] = value
+    return out
+
+
+def arm_line(label: str, arm: dict[str, Any]) -> str:
+    if arm["median"] is None:
+        return f"  {label}: no passing run (k={arm['k']})"
+    return (f"  {label}: median {arm['median']:.0f} ms range {arm['min']:.0f}-{arm['max']:.0f} ms "
+            f"pass {arm['passed']}/{arm['k']} pass^k {arm['pass_k']:.2f}")
+
+
+def compare_fixtures(chosen: list[str], env: dict[str, str], overrides: dict[str, str], runs: int) -> dict[str, dict[str, Any]]:
+    env_b: dict[str, str] = {**env, **overrides}
+    return {name: eval_stats.compare(functools.partial(run_fixture, FIXTURES / name, env),
+                                     functools.partial(run_fixture, FIXTURES / name, env_b), runs) for name in chosen}
+
+
+def main_compare(args: argparse.Namespace, chosen: list[str]) -> int:
+    try:
+        overrides: dict[str, str] = parse_overrides(args.arm_b_env)
+    except ValueError as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}))
+        return 2
+    runs: int = args.runs if args.runs is not None else eval_stats.DEFAULT_RUNS
+    if runs < eval_stats.MIN_RUNS:
+        print(json.dumps({"ok": False, "error": f"--runs must be at least {eval_stats.MIN_RUNS} for an A/B comparison"}))
+        return 2
+    results: dict[str, dict[str, Any]] = compare_fixtures(chosen, fake_env(), overrides, runs)
+    for name, row in sorted(results.items()):
+        print(f"{name}: {row['verdict']}")
+        print(arm_line("A", row["a"]))
+        print(arm_line("B", row["b"]))
+    stamp: str = time.strftime("%Y%m%d-%H%M%S") + f"-{os.getpid()}"
+    out: Path = Path(args.results_dir) / f"{stamp}-ab.json"
+    atomic_write(out, json.dumps({"stamp": stamp, "runs": runs, "arm_b_env": sorted(overrides), "fixtures": results}, indent=2, sort_keys=True) + "\n")
+    print(f"results: {out}")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--fixture", action="append", default=[], help="run only this fixture (repeatable)")
     parser.add_argument("--baseline", default=str(DEFAULT_BASELINE))
     parser.add_argument("--results-dir", default=str(DEFAULT_RESULTS))
     parser.add_argument("--update-baseline", action="store_true", help="write this run to the baseline path")
+    parser.add_argument("--runs", type=int, default=None, help="runs per arm in A/B mode (at least 5; default 5)")
+    parser.add_argument("--arm-b-env", action="append", default=[], metavar="KEY=VALUE",
+                        help="A/B mode: arm B runs with this env override (repeatable)")
     args = parser.parse_args()
     names: list[str] = sorted(p.name for p in FIXTURES.iterdir() if (p / "scenario.json").is_file())
     chosen: list[str] = args.fixture or names
@@ -255,6 +310,8 @@ def main() -> int:
     if unknown:
         print(json.dumps({"ok": False, "error": f"unknown fixture: {', '.join(unknown)}"}))
         return 2
+    if args.arm_b_env:
+        return main_compare(args, chosen)
     base_path: Path = Path(args.baseline)
     if not base_path.exists() and args.baseline != str(DEFAULT_BASELINE) and not args.update_baseline:
         print(json.dumps({"ok": False, "error": f"unreadable baseline: {base_path} does not exist"}))

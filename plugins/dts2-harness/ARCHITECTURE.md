@@ -76,6 +76,9 @@ State reads and writes from the scripts go through `scripts/state_io.py`; see "S
 | PostToolBatch | `hooks/context-guard.sh` | the same guard, once per batch of parallel tool calls |
 | PostToolUse (Bash, `gh api *`) | `hooks/pr-receipt.sh` | the receipt check for a PR opened through `gh api .../pulls -X POST` |
 | SubagentStop (builder, reviewer, verifier) | `hooks/subagent-report.sh stop` | checks the final report for its required `## ` sections with `contracts.parse_report` (`scripts/subagent_report.py`); blocks once, naming the missing sections; skips when `stop_hook_active`; a turn-cap partial report passes |
+| SubagentStop (verifier) | `hooks/subagent-stop.sh` | blocks once while the newest run ledger lacks a check line (`scripts/agent_events.py`) |
+| StopFailure | `hooks/stop-failure.sh` | appends a Handoff action item for the API error that ended the turn |
+| PermissionDenied | `hooks/permission-denied.sh` | appends a Handoff action item naming the denied tool |
 | PostToolUse (SubagentHandback) | `hooks/subagent-report.sh handback` | the same check for agents that finish through `SubagentHandback`, on `tool_input.message`; blocks once per agent |
 | SessionEnd (logout, prompt_input_exit, other) | `hooks/session-end.sh` | releases only the leases stamped with this session's id (`scripts/session_end.py`, through `state_io`), then runs `handoff-write.py`; best effort, lease expiry is the guarantee |
 | PreToolUse (Bash `lanes.py spawn --dry-run`, Agent) | `hooks/spawn-dry-run.sh` | prints the exact son command, env names, byte counts and the son `brief.md` (`scripts/spawn_dry_run.py`, on `briefs.dry_run`) and refuses the call so nothing starts; for Agent only when `spawn_dry_run: true` |

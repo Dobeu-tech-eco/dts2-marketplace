@@ -20,7 +20,7 @@ log = Path(os.environ["FAKE_DIR"]) / "npx.log"
 log.open("a", encoding="utf-8").write(" ".join(args) + "\n")
 if os.environ.get("FAKE_NO_NPX"):
     sys.exit(127)
-args = [a for a in args if a != "-y"][1:]  # drop -y and "skills"
+args = [a for a in args if a not in ("-y", "--yes")][1:]  # drop --yes and the pinned "skills@<ver>"
 cmd = args[0]
 if cmd == "add" and "--list" in args:
     for name in json.loads((Path(os.environ["FAKE_DIR"]) / "listed.json").read_text()).get(args[1], []):
@@ -126,7 +126,7 @@ class Fixture:
         (self.fake / "find.txt").write_text(self.find, encoding="utf-8")
         env = {**os.environ, "PYTHONIOENCODING": "utf-8", "FAKE_DIR": str(self.fake), "FAKE_PUBLISHED": self.published, "FAKE_FAIL": self.fail, "FAKE_CLAUDE_FAIL": self.claude_fail, "FAKE_NO_CONTENTS": self.no_contents, "FAKE_TRUNCATED": self.truncated, "FAKE_NO_NPX": self.no_npx, "FAKE_UPDATE_CLOBBER": self.clobber,
                "DTS2_NPX_BIN": str(self.fake / "npx.py"), "DTS2_GH_BIN": str(self.fake / "gh.py"),
-               "DTS2_CLAUDE_BIN": str(self.fake / "claude.py")}
+               "DTS2_CLAUDE_BIN": str(self.fake / "claude.py"), "DTS2_MARKETPLACE_REPO": "example-org/example-marketplace"}  # G-77
         if self.git_bin:
             env["DTS2_GIT_BIN"] = self.git_bin
         done = subprocess.run([sys.executable, str(SCRIPT), str(self.repo), "--home", str(self.home),

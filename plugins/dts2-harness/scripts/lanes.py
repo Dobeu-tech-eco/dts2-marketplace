@@ -24,8 +24,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from lanes.common import COST_SOURCES, DEFAULT_CALL_TIMEOUT_S, HEARTBEAT_PHASES, LaneError, RUNS_DIR, load_manifest  # noqa: E402
 from lanes.gitrefs import branch_check  # noqa: E402
 from lanes.amend import amend_lane, split_list  # noqa: E402
-from lanes.journal import fold_done, walkthrough_failed  # noqa: E402
+from lanes.journal import close_superseded, fix_attempt, fold_done, walkthrough_failed  # noqa: E402
+from lanes.mergecomp import MUTEX_OPS, base_health, merge_mutex, read_routing, record_routing, routing_markdown  # noqa: E402
 from lanes.mailbox import advance_request, ask, answer, check_rules, check as mailbox_check, merge_go_check, park, request_out_of_lane, wait  # noqa: E402
+from lanes.integration import shared_patterns  # noqa: E402
 from lanes.mergeplan import merge_plan  # noqa: E402
 from lanes.policy import approve_lane, apply_policy, base_outstanding, override  # noqa: E402
 from lanes.merge import audit_lane, merge_done, merge_go, merge_go_step, merge_order, set_merge_target  # noqa: E402
@@ -148,6 +150,16 @@ def add_lifecycle_parsers(sub: Any) -> None:
     walk_p.add_argument("stamp")
     walk_p.add_argument("--lane", required=True)
     walk_p.add_argument("--reason", required=True)
+    fix_p = sub.add_parser("fix-attempt", help="count a post-merge fix attempt; past post_merge_fix_attempts open the revert PR")
+    fix_p.add_argument("stamp")
+    fix_p.add_argument("--lane", required=True)
+    fix_p.add_argument("--reason", required=True)
+    sub.add_parser("base-health", help="is the fetched origin/<base> green? merge-go refuses while it is not").add_argument("stamp")
+    mutex_p = sub.add_parser("merge-mutex", help="the repo-wide merge mutex: acquire before the rebase, release after the post-merge walkthrough passes")
+    mutex_p.add_argument("stamp")
+    mutex_p.add_argument("--lane", required=True)
+    mutex_p.add_argument("--op", required=True, choices=MUTEX_OPS)
+    sub.add_parser("fold-close", help="close the originals a fold --apply superseded, each with a link to the new PR").add_argument("stamp")
     report_p = sub.add_parser("report", help="the run as a markdown table")
     report_p.add_argument("stamp")
     report_p.add_argument("--repo-url", default=None, help="turns PR numbers into links")
@@ -193,7 +205,10 @@ def add_run_parsers(sub: Any) -> None:
             lane_p.add_argument("--reason", required=True)
         else:
             lane_p.add_argument("--epoch", type=int, default=None, help="refuse when older than the stored epoch")
-    sub.add_parser("fold").add_argument("stamp")
+    fold_p = sub.add_parser("fold")
+    fold_p.add_argument("stamp")
+    fold_p.add_argument("--apply", default=None, metavar="GROUP", help="record the group's originals as superseded by --pr")
+    fold_p.add_argument("--pr", type=int, default=None, help="with --apply: the new PR that replaces the originals")
     add_supervisor_parsers(sub)
     add_lifecycle_parsers(sub)
     stop_p = sub.add_parser("stop-check")
@@ -210,6 +225,7 @@ def add_run_parsers(sub: Any) -> None:
     report_p = sub.add_parser("report-check")
     report_p.add_argument("report")
     report_p.add_argument("--lanes", required=True, help="comma-separated lane ids")
+    report_p.add_argument("--stamp", default=None, help="also cross-check the report against this run's son records")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -252,6 +268,8 @@ def dispatch_plan(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> dict[s
                                   args.max or len(draft["lanes"]), runs_dir, cwd, not args.no_prs)
     result = apply_policy(result, runs_dir, cwd, full=args.full, fullauto=args.fullauto, autopilot=args.autopilot)
     warn_thin_plan(result)
+    if isinstance(result.get("manifest"), dict):
+        result = {**result, "routing": record_routing(runs_dir, str(result["stamp"]), result["manifest"], shared_patterns(cwd))}
     return annotate_plan(result, cwd)
 
 
@@ -288,13 +306,13 @@ def dispatch_run(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> dict[st
     if args.command == "plan":
         return dispatch_plan(args, runs_dir, cwd)
     if args.command == "status":
-        return status(runs_dir, args.stamp, cwd)
+        return {**status(runs_dir, args.stamp, cwd), "routing": read_routing(runs_dir, args.stamp)}
     if args.command == "sendback":
         return sendback(runs_dir, args.stamp, args.lane, args.reason)
     if args.command == "release":
         return release(runs_dir, args.stamp, args.lane, args.epoch)
     if args.command == "fold":
-        return fold(runs_dir, args.stamp)
+        return fold(runs_dir, args.stamp, args.apply, args.pr)
     if args.command == "stop-check":
         return dispatch_stop_check(args, runs_dir, cwd)
     if args.command == "approve-lane":
@@ -304,7 +322,7 @@ def dispatch_run(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> dict[st
     if args.command == "mailbox":
         return dispatch_mailbox(args, runs_dir, cwd)
     if args.command == "report-check":
-        return report_check(Path(args.report), split_ids(args.lanes))
+        return report_check(Path(args.report), split_ids(args.lanes), runs_dir if args.stamp else None, args.stamp)
     if args.command == "branch-check":
         return branch_check(args.stamp, split_ids(args.lanes), cwd)
     return dispatch_supervisor(args, runs_dir, cwd)
@@ -362,8 +380,18 @@ def dispatch_lifecycle(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> d
         return fold_done(runs_dir, args.stamp, args.group, args.pr)
     if args.command == "walkthrough-failed":
         return walkthrough_failed(runs_dir, args.stamp, args.lane, args.reason, cwd)
+    if args.command == "fix-attempt":
+        return fix_attempt(runs_dir, args.stamp, args.lane, args.reason, cwd)
+    if args.command == "base-health":
+        return base_health(runs_dir, args.stamp, cwd)
+    if args.command == "merge-mutex":
+        return merge_mutex(runs_dir, args.stamp, args.lane, args.op, cwd)
+    if args.command == "fold-close":
+        return close_superseded(runs_dir, args.stamp, cwd)
     if args.command == "report":
-        return run_report_view(runs_dir, args.stamp, args.repo_url)
+        view: dict[str, Any] = run_report_view(runs_dir, args.stamp, args.repo_url, cwd)
+        rows: list[dict[str, Any]] = read_routing(runs_dir, args.stamp)
+        return {**view, "markdown": str(view.get("markdown", "")) + routing_markdown(rows), "routing": rows}
     return None
 
 
@@ -386,7 +414,8 @@ def dispatch(args: argparse.Namespace) -> dict[str, Any]:
     if args.command == "merge-order":
         return merge_order(manifest, runs_dir)
     if args.command == "merge-plan":
-        return merge_plan(manifest, runs_dir, cwd, args.base)
+        planned: dict[str, Any] = merge_plan(manifest, runs_dir, cwd, args.base)
+        return {**planned, "routing": record_routing(runs_dir, str(manifest["stamp"]), manifest, shared_patterns(cwd))}
     if args.command == "merge-go":
         return merge_go(manifest, runs_dir, args.lane, args.head, cwd, args.base)
     if args.command == "audit":
