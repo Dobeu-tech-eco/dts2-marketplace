@@ -23,6 +23,7 @@ RULE_SOURCES: Final[tuple[Path, ...]] = (
     PLUGIN_ROOT / "templates" / "discipline.md",
     *sorted((PLUGIN_ROOT / "skills" / "run").glob("*.md")),
     PLUGIN_ROOT / "skills" / "ship" / "SKILL.md",
+    *sorted((PLUGIN_ROOT / "agents").glob("*.md")),
 )
 SON_HEADING: Final[str] = "## 6. Son mode"
 # A run of this many consecutive words shared with a rule source is a copied rule, not a reference.

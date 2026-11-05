@@ -15,26 +15,40 @@ from model_call import (
 )
 from state_io import atomic_write
 
-from .common import BUDGET_NAME, DEFAULT_TIMEOUT_MIN, LANE_SECTIONS, LEASE_NAME, LEDGER_NAME, LEDGER_ROW, LaneError, MAX_DIFF_BYTES, MAX_SEND_BACKS, PHASE_BLOCKED, PHASE_INCOMPLETE, PHASE_PR_OPEN, PID_KEYS, REASON_STALLED, RESERVED_KEY, RUN_SECTIONS, SECONDS_PER_MINUTE, SEND_BACK_GLOB, SEND_BACK_NAME, SETTLED_PHASES, STATUS_CLOSED, STATUS_NAME, TERMINAL_PHASES, TIMEOUT_FIELD, UNREPORTED_KEY, WILDCARD_LANE, binary, norm, run
-from .leases import busy, epoch_refusal, lease_epoch, stale_epoch
+from .common import PHASE_ALIASES, REASON_STATUS_VERSION, REASON_UNREADABLE, STATUS_VERSION, MESSAGE_VERSION, binary, BUDGET_NAME, DEFAULT_TIMEOUT_MIN, LANE_SECTIONS, LEASE_NAME, LEDGER_NAME, LEDGER_ROW, LaneError, MAX_DIFF_BYTES, MAX_SEND_BACKS, PHASE_BLOCKED, PHASE_INCOMPLETE, PHASE_PR_OPEN, PID_KEYS, REASON_STALLED, RESERVED_KEY, RUN_SECTIONS, SECONDS_PER_MINUTE, SEND_BACK_GLOB, SEND_BACK_NAME, SETTLED_PHASES, STATUS_CLOSED, STATUS_NAME, TERMINAL_PHASES, TIMEOUT_FIELD, UNREPORTED_KEY, WILDCARD_LANE, norm, run
+from .leases import busy, epoch_refusal, lease_epoch, read_lease, stale_epoch
 from .journal import done_groups, group_key, note_fold_plan
 from .phases import heartbeat, transition  # noqa: F401 - heartbeat is re-exported for callers of this module
 from .planner import read_checkin, read_setting
 from .records import append_ledger, lane_lock, read_json_object  # noqa: F401 - read_json_object is re-exported
 
 
+def unreadable_row(path: Path, reason: str) -> dict[str, Any]:
+    """G-43: a status.json that cannot be read is the lane `incomplete` with a reason, never a crash of the whole poll."""
+    return {"lane": path.parent.name, "status": PHASE_INCOMPLETE, "reason": reason, "unreadable": True}
+
+
+def validated_status(path: Path) -> dict[str, Any]:
+    """One status.json read and checked: a truncated or non-object file, or a schema `v` newer than this code knows, reads as
+    `incomplete`; the old phase words `parked` and `stopped` map onto `incomplete` and keep the old word as the reason."""
+    try:
+        data: Any = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return unreadable_row(path, REASON_UNREADABLE)
+    if not isinstance(data, dict):
+        return unreadable_row(path, REASON_UNREADABLE)
+    version: Any = data.get("v", STATUS_VERSION)
+    if isinstance(version, int) and not isinstance(version, bool) and version > STATUS_VERSION:
+        return {**data, "status": PHASE_INCOMPLETE, "reason": REASON_STATUS_VERSION}
+    word: str = str(data.get("status", ""))
+    return {**data, "status": PHASE_ALIASES[word], "reason": data.get("reason") or word} if word in PHASE_ALIASES else data
+
+
 def read_status_files(runs_dir: Path, stamp: str) -> list[tuple[Path, dict[str, Any]]]:
     run_dir: Path = runs_dir / stamp
     if not run_dir.is_dir():
         raise LaneError(f"no run at {run_dir}")
-    found: list[tuple[Path, dict[str, Any]]] = []
-    for path in sorted(run_dir.glob(f"*/{STATUS_NAME}")):
-        try:
-            data: Any = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError) as exc:
-            raise LaneError(f"unreadable {path}: {exc}") from exc
-        found.append((path, data if isinstance(data, dict) else {}))
-    return found
+    return [(path, validated_status(path)) for path in sorted(run_dir.glob(f"*/{STATUS_NAME}"))]
 
 
 def stale_after(cwd: Path) -> int:
@@ -128,14 +142,19 @@ def status(runs_dir: Path, stamp: str, cwd: Path) -> dict[str, Any]:
 
 
 def sendback(runs_dir: Path, stamp: str, lane_id: str, reason: str) -> dict[str, Any]:
+    """Write `send-back-<n>.md` and, beside it, `send-back-<n>.json` carrying `n` and the lane epoch (G-44), so a son can tell a
+    send-back for its own epoch from a stale one."""
     folder: Path = runs_dir / stamp / lane_id
     count: int = len(list(folder.glob(SEND_BACK_GLOB)))
     if count >= MAX_SEND_BACKS:
         return {"ok": False, "lane": lane_id, "count": count, "path": None,
                 "detail": f"{MAX_SEND_BACKS} send-backs already used; the lane ends incomplete"}
     path: Path = folder / SEND_BACK_NAME.format(n=count + 1)
+    epoch: int = lease_epoch(read_lease(folder / LEASE_NAME))
     atomic_write(path, f"# Send-back {count + 1} for lane {lane_id}\n\n{reason}\n")
-    return {"ok": True, "lane": lane_id, "count": count + 1, "path": str(path)}
+    atomic_write(path.with_suffix(".json"), json.dumps({"v": MESSAGE_VERSION, "kind": "send-back", "lane": lane_id,
+                                                         "n": count + 1, "epoch": epoch, "reason": reason}, indent=2) + "\n")
+    return {"ok": True, "lane": lane_id, "count": count + 1, "path": str(path), "n": count + 1, "epoch": epoch}
 
 
 def release(runs_dir: Path, stamp: str, lane_id: str, epoch: int | None = None) -> dict[str, Any]:
@@ -159,28 +178,50 @@ def close_lease(path: Path, lane_id: str, epoch: int | None) -> dict[str, Any]:
     return {"ok": True, "lane": lane_id, "lease": str(path), "status": STATUS_CLOSED}
 
 
-def add_to_group(group: dict[str, Any], data: dict[str, Any], files: set[str]) -> None:
+def lease_files(path: Path, data: dict[str, Any]) -> set[str]:
+    """G-43: the files a blocked lane owns, from its lease; status.json's own list only when the lease is gone."""
+    record: dict[str, Any] | None = read_lease(path.parent / LEASE_NAME)
+    listed: Any = record.get("files") if record else None
+    return {norm(str(f)) for f in (listed if isinstance(listed, list) else data.get("files", []))}
+
+
+def checkpoints_from_git(path: Path, data: dict[str, Any]) -> list[str]:
+    """G-43: a lane's checkpoints rebuilt from `git log <base>..HEAD` of its worktree (newest first), never trusted from
+    status.json. Empty when there is no worktree, no base or git cannot answer."""
+    worktree: Any = data.get("worktree")
+    record: dict[str, Any] = read_lease(path.parent / LEASE_NAME) or {}
+    base: Any = record.get("base") or data.get("base")
+    if not (isinstance(worktree, str) and Path(worktree).is_dir() and isinstance(base, str) and base):
+        return []
+    code, out = run([*binary("DTS2_GIT_BIN", "git"), "log", "--format=%h %s", f"{base}..HEAD"], Path(worktree))
+    return [line for line in out.splitlines() if line.strip()] if code == 0 else []
+
+
+def add_to_group(group: dict[str, Any], data: dict[str, Any], files: set[str], path: Path | None = None) -> None:
     group["lanes"].append(str(data.get("lane")))
     group["tasks"].extend(str(t) for t in data.get("tasks", []))
     group["blocked_by"] = sorted(set(group["blocked_by"]) | {str(i) for i in data.get("blocked_by", [])})
     if isinstance(data.get("pr"), int):
         group["prs"].append(data["pr"])
+    if path is not None:
+        group["checkpoints"][str(data.get("lane"))] = checkpoints_from_git(path, data)
     group["_files"] |= files
 
 
 def fold(runs_dir: Path, stamp: str) -> dict[str, Any]:
-    """Group blocked lanes with disjoint files so they ship on the fewest PRs; never splits a lane. Each group carries a
-    stable `key` and whether `fold-done` already recorded its PR, so a fold run again after a crash resumes with the rest."""
+    """Group blocked lanes with disjoint files (read from their lease files) so they ship on the fewest PRs; never splits a
+    lane. Each group carries a stable `key`, the lanes' checkpoints rebuilt from `git log`, and whether `fold-done` already
+    recorded its PR, so a fold run again after a crash resumes with the rest."""
     groups: list[dict[str, Any]] = []
-    for _, data in read_status_files(runs_dir, stamp):
+    for path, data in read_status_files(runs_dir, stamp):
         if data.get("status") != PHASE_BLOCKED:
             continue
-        files: set[str] = {norm(str(f)) for f in data.get("files", [])}
+        files: set[str] = lease_files(path, data)
         target: dict[str, Any] | None = next((g for g in groups if not (g["_files"] & files)), None)
         if target is None:
-            target = {"lanes": [], "tasks": [], "blocked_by": [], "prs": [], "_files": set()}
+            target = {"lanes": [], "tasks": [], "blocked_by": [], "prs": [], "checkpoints": {}, "_files": set()}
             groups.append(target)
-        add_to_group(target, data, files)
+        add_to_group(target, data, files, path)
     shipped: set[str] = done_groups(runs_dir, stamp)
     public: list[dict[str, Any]] = [{**{k: v for k, v in g.items() if not k.startswith("_")}, "key": group_key(g["lanes"]),
                                      "done": group_key(g["lanes"]) in shipped} for g in groups]
@@ -197,17 +238,37 @@ def ledger_prs(runs_dir: Path, stamp: str) -> set[int]:
     return {int(m.group(1)) for m in LEDGER_ROW.finditer(path.read_text(encoding="utf-8"))}
 
 
-def stop_check(runs_dir: Path, stamp: str, checkin: Path) -> dict[str, Any]:
-    """fullauto may stop only when check-in has nothing outstanding and every lane is done or blocked in the ledger."""
-    outstanding: list[str] = sorted(read_checkin(checkin))
+def tied_to(item: str, ids: set[str]) -> bool:
+    """True when a check-in item name is, or starts with, one of the ids (`A1` ties `A1 Secrets: STRIPE_KEY`)."""
+    return any(item == i or item.startswith((f"{i} ", f"{i}:")) for i in ids if i)
+
+
+def ledgered_blocked_ids(lanes: list[dict[str, Any]], ledgered: set[int]) -> set[str]:
+    """G-46: the item, task and blocked-by ids of every blocked lane whose PR is in the task ledger. Those items wait on a
+    person, so they are never "outstanding" for the loop."""
+    ids: set[str] = set()
+    for data in lanes:
+        if data.get("status") == PHASE_BLOCKED and data.get("pr") in ledgered:
+            ids |= {str(data.get("item") or ""), *(str(t) for t in data.get("tasks", [])),
+                    *(str(b) for b in data.get("blocked_by", []))}
+    return ids
+
+
+def stop_check(runs_dir: Path, stamp: str, checkin: Path, outstanding_override: set[str] | None = None) -> dict[str, Any]:
+    """fullauto may stop only when check-in has nothing outstanding and every lane is done or blocked in the ledger. An
+    outstanding item tied to a ledgered blocked PR does not count (it is listed under `excluded`); `outstanding_override`
+    is the item set read from a fetched `origin/<base>` end state (see `base_outstanding`)."""
+    raw: set[str] = read_checkin(checkin) if outstanding_override is None else outstanding_override
     lanes: list[dict[str, Any]] = [d for _, d in read_status_files(runs_dir, stamp)]
     ledgered: set[int] = ledger_prs(runs_dir, stamp)
+    waiting: set[str] = ledgered_blocked_ids(lanes, ledgered)
+    outstanding: list[str] = sorted(i for i in raw if not tied_to(i, waiting))
     blocked_without: list[str] = sorted(str(d.get("lane")) for d in lanes
                                         if d.get("status") == PHASE_BLOCKED and d.get("pr") not in ledgered)
     active: list[str] = sorted(str(d.get("lane")) for d in lanes if d.get("status") not in SETTLED_PHASES)
     stop: bool = not outstanding and not active and not blocked_without
-    return {"ok": True, "stamp": stamp, "stop": stop, "outstanding": outstanding, "active": active,
-            "blocked_without_ledger": blocked_without, "lanes": len(lanes)}
+    return {"ok": True, "stamp": stamp, "stop": stop, "outstanding": outstanding, "excluded": sorted(raw - set(outstanding)),
+            "active": active, "blocked_without_ledger": blocked_without, "lanes": len(lanes)}
 
 
 MISSING_ROW: Final[re.Pattern[str]] = re.compile(r"^(?:lane (\S+)|run): missing '(.+)'$")

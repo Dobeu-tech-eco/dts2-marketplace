@@ -12,10 +12,10 @@ from typing import Any, Final
 from state_ids import REJECTED_WORDS
 
 from .common import (
-    HEARTBEAT_PHASES, LEASE_NAME, LaneError, PHASE_BLOCKED, PHASE_DONE, PHASE_INCOMPLETE, PHASE_ORPHANED,
-    PHASE_PR_OPEN, PHASE_STARTING, STATUS_NAME,
+    HEARTBEAT_PHASES, LEASE_NAME, LaneError, PHASE_ALIASES, PHASE_BLOCKED, PHASE_DONE, PHASE_INCOMPLETE, PHASE_ORPHANED,
+    PHASE_PR_OPEN, PHASE_STARTING, STATUS_NAME, STATUS_VERSION,
 )
-from .leases import renew_lease
+from .leases import lease_epoch, read_lease, renew_lease, stale_epoch
 from .merge import inside_son
 from .records import append_ledger, lane_lock, merge_json, read_json_object, state_for
 
@@ -48,6 +48,22 @@ def lane_path(runs_dir: Path, stamp: str, lane_id: str) -> Path:
     return runs_dir / stamp / lane_id / STATUS_NAME
 
 
+def fenced(path: Path, lane_id: str, epoch: int | None) -> dict[str, Any] | None:
+    """G-43: a write that carries a lane epoch older than the lease's is ignored (a refusal marked `stale`), never applied.
+    No epoch given means the writer holds whatever is stored."""
+    stored: int = lease_epoch(read_lease(path.parent / LEASE_NAME))
+    if epoch is None or not stale_epoch(epoch, stored):
+        return None
+    return {"ok": False, "stale": True, "lane": lane_id,
+            "detail": f"stale epoch {epoch} is older than the lane's epoch {stored}; the write was ignored"}
+
+
+def stamped_fields(path: Path, epoch: int | None) -> dict[str, Any]:
+    """The schema version and the lane epoch every status.json write carries."""
+    stored: int = lease_epoch(read_lease(path.parent / LEASE_NAME))
+    return {"v": STATUS_VERSION, "epoch": stored if epoch is None else epoch}
+
+
 def refusal(lane_id: str, current: str | None, to: str, detail: str) -> dict[str, Any]:
     return {"ok": False, "lane": lane_id, "from": current, "to": to, "detail": detail}
 
@@ -66,7 +82,7 @@ def blocked_move(lane_id: str, current: str | None, to: str, actor: str) -> dict
 
 def transition(runs_dir: Path, stamp: str, lane_id: str, to: str, *, reason: str | None = None,
                blocked_by: list[str] | None = None, turn: int | None = None, extra: dict[str, Any] | None = None,
-               actor: str | None = None, now: int | None = None) -> dict[str, Any]:
+               actor: str | None = None, now: int | None = None, epoch: int | None = None) -> dict[str, Any]:
     """Move the lane to phase `to` if the LEGAL table allows it, stamping the heartbeat in the same write. The refusal
     (ok false) names the legal moves. `extra` carries the fields that go with the move (a park's detail, a stall's snapshot)."""
     if to not in ALL_PHASES:
@@ -77,11 +93,15 @@ def transition(runs_dir: Path, stamp: str, lane_id: str, to: str, *, reason: str
     with lane_lock(path) as held:
         if not held:
             raise LaneError(f"lock busy for {path}")
+        stale: dict[str, Any] | None = fenced(path, lane_id, epoch)
+        if stale is not None:
+            return stale
         current: Any = read_json_object(path).get("status") or None
+        current = PHASE_ALIASES.get(current, current)  # a lane left `parked` or `stopped` by an older version is `incomplete`
         no: dict[str, Any] | None = blocked_move(lane_id, current, to, who)
         if no is not None:
             return no
-        changes: dict[str, Any] = {"lane": lane_id, "status": to, "heartbeat": stamped_at}
+        changes: dict[str, Any] = {"lane": lane_id, "status": to, "heartbeat": stamped_at, **stamped_fields(path, epoch)}
         if to == PHASE_STARTING:
             changes.update(dict.fromkeys(FRESH_START))
         changes.update({k: v for k, v in (("turn", turn), ("reason", reason)) if v is not None})
@@ -96,17 +116,21 @@ def transition(runs_dir: Path, stamp: str, lane_id: str, to: str, *, reason: str
 
 
 def heartbeat(runs_dir: Path, stamp: str, lane_id: str, turn: int | None, phase: str | None = None,
-              reason: str | None = None, blocked_by: list[str] | None = None) -> dict[str, Any]:
+              reason: str | None = None, blocked_by: list[str] | None = None, epoch: int | None = None) -> dict[str, Any]:
     """Stamp the lane's status.json at a turn boundary; creates it when the son has not written one yet. A son sets its
     phase (pr-open, done, blocked, incomplete) and an optional reason through here or `transition`, never by writing the file."""
     if phase is not None:
         if phase not in HEARTBEAT_PHASES:
             raise LaneError(f"--status must be one of {', '.join(HEARTBEAT_PHASES)}")
-        moved: dict[str, Any] = transition(runs_dir, stamp, lane_id, phase, reason=reason, blocked_by=blocked_by, turn=turn)
+        moved: dict[str, Any] = transition(runs_dir, stamp, lane_id, phase, reason=reason, blocked_by=blocked_by, turn=turn,
+                           epoch=epoch)
         return moved if not moved["ok"] else {"ok": True, "lane": lane_id, "heartbeat": moved["heartbeat"], "status": phase}
     path: Path = lane_path(runs_dir, stamp, lane_id)
+    stale: dict[str, Any] | None = fenced(path, lane_id, epoch)
+    if stale is not None:
+        return stale
     now: int = int(time.time())
-    changes: dict[str, Any] = {"lane": lane_id, "heartbeat": now}
+    changes: dict[str, Any] = {"lane": lane_id, "heartbeat": now, **stamped_fields(path, epoch)}
     changes.update({k: v for k, v in (("turn", turn), ("reason", reason)) if v is not None})
     if blocked_by:
         changes["blocked_by"] = blocked_by

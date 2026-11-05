@@ -17,6 +17,7 @@ from .integration import shared_patterns
 from .common import DEFAULT_BURN, DEFAULT_PERMISSION_MODE, DEFAULT_TIER, FRONTMATTER_FENCE, KIND_MAX, LEASE_NAME, LaneError, NONE_FOUND, PERMISSION_FIELD, PLUGIN_ROOT, PROFILE_PATH, SETTINGS_FILE, SON_MODEL, SON_SKILL, SOURCE_DELEGATION, binary, find_lane, lease_live, norm
 from .conflicts import assess, external_sources
 from .gitrefs import gh_down
+from .leases import held_items
 
 
 def read_setting(cwd: Path, field: str, default: str) -> str:
@@ -161,7 +162,12 @@ def plan(draft: dict[str, Any], outstanding: set[str], outside: str, full: bool,
     sources = sources + active_lease_files(runs_dir, stamp)
     candidates: list[dict[str, Any]] = []
     refused: list[dict[str, Any]] = []
+    held: dict[str, str] = held_items(runs_dir)
     for lane in draft["lanes"]:
+        holder: str | None = held.get(str(lane.get("item", "")))
+        if holder is not None and holder != f"{stamp}/{lane.get('id')}":  # G-47: another live lease already holds this item
+            refused.append({"lane": lane.get("id"), "item": lane.get("item"), "reason": f"item held by the live lease of lane {holder}"})
+            continue
         kept, refusal = admit_lane(lane, outstanding, outside, full)
         candidates.append(kept) if kept is not None else refused.append(refusal)
     selected, reported = select_lanes(draft, candidates, sources, cap, shared_patterns(cwd)) if full else (candidates, [])

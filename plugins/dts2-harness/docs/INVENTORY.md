@@ -156,23 +156,26 @@ Stamp-keyed commands:
 
 | Subcommand | Arguments and flags | Purpose | Called by | Since |
 |---|---|---|---|---|
-| `plan` | `--from-checkin --draft` (required), `--outside`, `--full`, `--max`, `--stamp` | Admit lanes, add spend estimates, feasibility, a `graph` block (cycle check, critical path), `--full` selection. | `dpp`, `run` | changed |
+| `plan` | `--from-checkin --draft` (required), `--outside`, `--full`, `--max`, `--stamp`, `--autopilot`, `--fullauto` | Admit lanes, add spend estimates, feasibility, a `graph` block (cycle check, critical path), `--full` selection. | `dpp`, `run` | changed |
 | `status <stamp>` | none | Lane status, heartbeat and stall marks. | `dpp`, `autopilot` | changed |
 | `sendback <stamp>` | `--lane --reason` (required) | Send a lane back (counted atomically, at most two). | `dpp` | changed |
 | `release <stamp>` | `--lane` (required), `--epoch` | Release a lane; a stale epoch is refused. | `dpp` | changed |
 | `fold <stamp>` | none | Fold lane results into named groups, one PR each. | `dpp` | changed |
 | `fold-done <stamp>` | `--group` (required), `--pr` | Record that a fold group's PR is shipped. | none yet | new |
-| `stop-check <stamp>` | `--from-checkin` (required) | Whether fullauto may stop. | `fullauto` | |
+| `stop-check <stamp>` | `--from-checkin` (required), `--base` | Whether fullauto may stop; items tied to a ledgered blocked PR do not count; `--base` reads the end state from the fetched `origin/<base>`. | `fullauto` | changed |
+| `approve-lane <stamp>` | `--lane` (required) | Record the user's yes for one lane (`dpp_full_ask_each_lane`); `lease` refuses a lane without it. Head only. | `dpp` | new |
+| `override <lane>` | `--reason` (required) | The owner's override of a lane rule, logged to `state.md`; refused in a son, a vote or the council, and without the human approval channel. | none yet | new |
+| `mailbox <op> <stamp>` | `op` (ask, need-human, answer, check, wait, park, merge-go-check, rules, request, decide); `--lane` (required), `--id`, `--text`, `--reason`, `--session-id`, `--point`, `--files`, `--outcome`, `--epoch`, `--worktree` | The head/son mailbox: versioned question, answer, need-human, send-back and merge-go messages with a deadline (`mailbox_wait_min`) and a park on expiry; the son's merge-go HEAD check; rule re-read digests; the out-of-lane ladder. | `autopilot --son`, `dpp` | new |
 | `branch-check <stamp>` | `--lanes` (required, comma-separated) | Branch-name collision check. | none (internal) | |
 | `preflight <stamp>` | none | Pin the CLI version and test the real son launch. | `dpp` | new |
 | `budget <stamp>` | none | Budget report. | `dpp` | new |
 | `loop <stamp>` | none | Fullauto loop cap. | `fullauto` | new |
 | `call <stamp>` | `--label` (required), `--timeout`, `--cost-source` (claude or none), `--prompt-file`, `--out`; command follows `--` | Any other model call behind the shared limit. | `autopilot` | new |
-| `heartbeat <stamp>` | `--lane` (required), `--turn`, `--status` (pr-open, done, blocked, incomplete), `--reason`, `--blocked-by` | Record a lane heartbeat or phase (goes through `transition`). | `autopilot`; son brief | new |
+| `heartbeat <stamp>` | `--lane` (required), `--epoch`, `--turn`, `--status` (pr-open, done, blocked, incomplete), `--reason`, `--blocked-by` | Record a lane heartbeat or phase (goes through `transition`). | `autopilot`; son brief | new |
 | `merge-target <stamp>` | `--set`, `--yes-default-branch` | Record the branch the run merges into (head only). | `dpp`, `autopilot` | new |
 | `merge-go-step <stamp>` | `--step --head` (required), `--base` | Merge clearance for an autopilot step (head only). | `autopilot` | new |
 | `gc-restore <stamp>` | none | Restore `gc.auto` after an aborted run (head only). | `dpp` | new |
-| `transition <stamp>` | `--lane --to` (required; one of starting, pr-open, done, blocked, incomplete, orphaned), `--reason`, `--blocked-by`, `--turn` | The one writer of a lane's phase, checked against the table of legal moves; a son may report only pr-open, done, blocked, incomplete. | none yet (`heartbeat`, park and spawn call it) | new |
+| `transition <stamp>` | `--lane --to` (required; one of starting, pr-open, done, blocked, incomplete, orphaned), `--epoch`, `--reason`, `--blocked-by`, `--turn` | The one writer of a lane's phase, checked against the table of legal moves; a son may report only pr-open, done, blocked, incomplete. | none yet (`heartbeat`, park and spawn call it) | new |
 | `shutdown <stamp>` | `--grace-s` | Graceful end of a run: park running lanes, stop sons (SIGTERM, then SIGKILL after the grace period), close leases, restore `gc.auto`. | none yet | new |
 | `reconcile <stamp>` | none | Ask GitHub what exists for each lane before creating, merging or resuming; returns one action per lane; fails closed without `gh`. | none yet | new |
 | `run-record <stamp>` | `--init`, `--kind` (run or autopilot) | Open or print the run's typed record (`run.json`). | none yet | new |
@@ -259,6 +262,7 @@ Sources: `changelog.d/*.md`, the `## Unreleased` lines in `README.md`, and `git 
 |---|---|---|
 | `lanes.py check`, `lease`, `plan` | Run the plan-graph checks; owners may be `dir/` prefixes or globs; routing of lockfiles, migrations, route tables, barrels and `lanes.shared_files` to a final integration lane (a PR bundles at most 5 tasks); `lease` and `plan` fail closed without `gh`; leases carry `expires_at` and `ttl_s`, take the check and the write under one admission lock, and record `session_id`; `plan` adds spend estimates and a `graph` block | G-20, G-16, G-25, B6, G-26 to G-28, Q-22 |
 | `lanes.py release`, `sendback`, `status`, `fold` | `release` refuses a stale `--epoch`; the epoch is mandatory in the state port; send-backs are counted atomically; `status` shows heartbeat and stalls; `fold` names each group | G-11, N2, G-15 |
+| `lanes/mailbox.py`, `lanes/policy.py` | The head/son mailbox and message schema (G-43 to G-45, G-48, G-49); approval and scope policy: override, ask-each-lane, frozen scope, end state from `origin/<base>` (G-46, G-48, G-50) | G-43 to G-51 |
 | `lanes.py` as a whole | Now a thin CLI over the `scripts/lanes/` package; phase writes all go through `transition` | AC-3, G-13 |
 | `council.py` | Strict verdict first line on `tally`; seats may be swapped on timeout; identical findings leave a ledger note | A9, B7 |
 | `roster.py classify` | Exit 143 is a timeout with `seatFailed: true` | roster-143 |

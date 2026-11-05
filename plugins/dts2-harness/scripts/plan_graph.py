@@ -28,7 +28,7 @@ from lanes.common import KIND_AREA, KIND_DEPENDS, LEASE_NAME, LaneError, find_la
 from lanes.conflicts import check, conflict  # noqa: E402
 from lanes.integration import is_integration_file, route, shared_patterns  # noqa: E402
 from lanes.gitrefs import gh_down  # noqa: E402
-from lanes.leases import admission_lock, busy, lane_lock, lease_ttl_s, write_lease  # noqa: E402
+from lanes.leases import admission_lock, admission_refusal, busy, lane_lock, lease_ttl_s, refused, write_lease  # noqa: E402
 
 PROVIDES: Final[str] = "provides"
 CONSUMES: Final[str] = "consumes"
@@ -429,6 +429,9 @@ def graph_lease(manifest: dict[str, Any], lane_id: str, runs_dir: Path, cwd: Pat
         blocking: list[dict[str, Any]] = blocking_for(result, lane_id)
         if blocking:
             return {"ok": False, "lane": lane_id, "lease": None, "conflicts": blocking}
+        why: str | None = admission_refusal(runs_dir, str(manifest.get("stamp")), lane_id, str(lane.get("item") or ""))
+        if why is not None:
+            return refused(lane_id, why)
         with lane_lock(path) as held:
             return write_lease(manifest, lane, path, epoch, lease_ttl_s(cwd), files=owned_entries(lane)) if held else busy(lane_id)
 
