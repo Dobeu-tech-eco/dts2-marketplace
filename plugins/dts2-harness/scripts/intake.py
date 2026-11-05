@@ -14,7 +14,6 @@ from pathlib import Path
 from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import council  # noqa: E402
 import state_io  # noqa: E402
 
 FOLD: Final[str] = "fold"
@@ -31,7 +30,6 @@ RESOLVE_TARGETS: Final[tuple[str, ...]] = (FOLD, CLARIFY, STEER, DONE)
 CLARITY_THRESHOLD: Final[int] = 60
 QUESTION_BUDGET: Final[int] = 2
 MAX_TEXT_CHARS: Final[int] = 4000
-WRAP_MAX_CHARS: Final[int] = 2000
 ASSUMPTION_CHARS: Final[int] = 160
 SCORE_MAX: Final[int] = 100
 SCORE_MIN: Final[int] = 0
@@ -62,7 +60,6 @@ QUESTION_TEMPLATES: Final[tuple[str, ...]] = (
 ID_PREFIX: Final[str] = "in-"
 HOOK_FIELD: Final[str] = "prompt"
 SOURCES: Final[tuple[str, ...]] = ("hook", "cli")
-FENCE_SOURCE: Final[str] = "intake"
 EXIT_USAGE: Final[int] = 2
 MD_HEADER: Final[str] = "# Intake queue\n\nGenerated from intake.jsonl by scripts/intake.py. Do not edit by hand.\n\n"
 
@@ -237,22 +234,22 @@ def counts(items: list[dict[str, Any]]) -> dict[str, int]:
 
 
 def context_text(item: dict[str, Any], budget: int = QUESTION_BUDGET) -> str:
-    """What the agent sees. The person's words go inside the untrusted fence; the instruction around them does not."""
-    fenced: str = council.untrusted(FENCE_SOURCE, item["text"], WRAP_MAX_CHARS)
+    """What the agent sees. The person's message already reaches the agent as their own turn, so it is never echoed
+    here: echoing it inside an untrusted fence would tell the agent to ignore the person's request."""
     item_id: str = item["id"]
     if item["kind"] == STEER:
-        return (f"dts2 STEER {item_id}: the person asked to stop and redirect. Finish the current atomic step only, "
-                f"then run /dts2:steer with:\n{fenced}")
+        return (f"dts2 STEER {item_id}: the person's message above asks to stop and redirect. Finish the current atomic "
+                f"step only, then run /dts2:steer with that new direction.")
     if item["status"] == SET:
-        return (f"dts2 intake {item_id} (fold): new input added to the task ledger. Keep working; fold it in where it fits, "
-                f"do not stop current work. Item:\n{fenced}")
+        return (f"dts2 intake {item_id} (fold): the person's message above is added to the task ledger. Keep working; "
+                f"fold it in where it fits, do not stop current work.")
     asks: str = " | ".join(item["questions"])
-    text: str = (f"dts2 intake {item_id} ({item['kind']}, clarity {item['score']}/100): do not stop current work. "
-                 f"At the next safe point ask at most {budget} short questions: {asks}. Then run "
-                 f"`intake.py answer {item_id}`; after the budget the item is set on your best reading.")
+    text: str = (f"dts2 intake {item_id} ({item['kind']}, clarity {item['score']}/100): the person's message above is "
+                 f"queued; do not stop current work. At the next safe point ask at most {budget} short questions: "
+                 f"{asks}. Then run `intake.py answer {item_id}`; after the budget the item is set on your best reading.")
     if item["kind"] == CLARIFY:
         text += " It may change direction of running work; confirm before acting on it."
-    return f"{text}\nItem:\n{fenced}"
+    return text
 
 
 def prompt_from_stdin() -> str:
