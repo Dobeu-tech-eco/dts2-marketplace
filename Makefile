@@ -2,7 +2,7 @@ PLUGIN_DIR := plugins/dts2-harness
 VERSION := $(shell python3 -c "import json; print(json.load(open('$(PLUGIN_DIR)/.claude-plugin/plugin.json'))['version'])")
 DIST := dist
 
-.PHONY: package test check-version
+.PHONY: package test check-version doctor
 
 package:
 	mkdir -p $(DIST)
@@ -15,3 +15,6 @@ test:
 
 check-version:
 	python3 $(PLUGIN_DIR)/scripts/bump-version.py $(VERSION) --check
+
+doctor:
+	python3 $(PLUGIN_DIR)/scripts/doctor.py

@@ -75,7 +75,7 @@ Only agents detected on this machine join the roster; handoff agents get a writt
 | S | under 20k LOC, single package | 1 | 1 (all axes) |
 | M | under 150k LOC or a small monorepo | up to 2 | correctness, security |
 | L | under 600k LOC | up to 4 | + performance |
-| XL | larger | up to 6 | + style |
+| XL | larger | up to 4 | + style |
 
 Worktrees are used only in workspace mode or when `use_worktrees: always` is set; single mode shares the tree on separate file sets.
 

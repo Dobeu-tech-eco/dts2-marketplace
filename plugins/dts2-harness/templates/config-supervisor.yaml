@@ -1,5 +1,5 @@
 # Run caps and supervisor settings for parallel autopilot (dpp, dpp-full, fullauto).
-# Merge these two blocks into .harness/config.yaml; every key is optional and the value shown is the default.
+# Merge these blocks into .harness/config.yaml; every key is optional and the value shown is the default.
 # Only scripts/lanes.py reads them. A missing block means the defaults.
 budget:
   max_turns: 80            # --max-turns for every son; a lane that hits it parks as incomplete (max-turns)
@@ -15,3 +15,12 @@ supervisor:
   backoff_base_s: 2        # first backoff step in seconds; doubles each retry up to backoff_cap_s
   backoff_cap_s: 60
   fallback_models: sonnet  # --fallback-model for sons: comma-separated chain of up to 3 models, tried in order; empty turns it off
+sandbox:
+  enabled: true            # sons run in the Claude Code sandbox (Seatbelt on macOS, bubblewrap on Linux) with default-deny egress
+  # extra_domains: example.internal,registry.example.com   # added to the package registry, GitHub and model API allowlist
+  # More than one unattended son with enabled: false is refused unless `lanes.py spawn --unsafe-no-sandbox` is passed (logged as a warning).
+merge:
+  target: dev              # the branch a dpp run merges into
+  default_branch: main     # merging a run into this branch needs `lanes.py merge-target <stamp> --yes-default-branch` first
+lanes:
+  port_base: 4000          # lane N gets PORT = port_base + 10 * N, plus its own COMPOSE_PROJECT_NAME and DTS2_DB_NAME

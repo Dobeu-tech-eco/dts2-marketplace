@@ -1,0 +1,4 @@
+{"lanes": [{"id": "a", "item": "Left", "files": ["src/shared.py"], "ids": {}, "depends_on": [], "tier": "standard"},
+           {"id": "b", "item": "Right", "files": ["src/shared.py"], "ids": {}, "depends_on": [], "tier": "standard"}],
+ "rounds": [{"check": "pass", "tokens_in": 800, "tokens_out": 250, "cost_usd": 0.01}],
+ "votes": ["APPROVE", "APPROVE", "APPROVE"]}

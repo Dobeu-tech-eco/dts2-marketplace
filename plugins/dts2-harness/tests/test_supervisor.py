@@ -21,13 +21,13 @@ sys.path.insert(0, str(SCRIPTS))
 import model_call  # noqa: E402
 
 STAMP: Final[str] = "20261104-9"
-VERSION: Final[str] = "2.1.230"
+VERSION: Final[str] = "2.1.250"
 FAKE_CLAUDE: Final[str] = r'''#!/usr/bin/env python3
 import json, os, sys, time
 from pathlib import Path
 argv = sys.argv[1:]
 if "--version" in argv:
-    print(os.environ.get("FAKE_VERSION", "2.1.230") + " (Claude Code)")
+    print(os.environ.get("FAKE_VERSION", "2.1.250") + " (Claude Code)")
     sys.exit(0)
 state = Path(os.environ["FAKE_DIR"])
 with open(state / "calls.log", "a") as log:
@@ -102,7 +102,7 @@ class SupervisorBase(unittest.TestCase):
             encoding="utf-8")
         self.env: dict[str, str] = {
             "DTS2_CLAUDE_BIN": str(self.root / "claude.py"), "DTS2_GIT_BIN": str(self.root / "git.py"),
-            "FAKE_DIR": str(self.state), "FAKE_STATUS_FILE": str(self.lane_dir / "status.json"),
+            "DTS2_SON_ENV_PASS": "FAKE_*", "FAKE_DIR": str(self.state), "FAKE_STATUS_FILE": str(self.lane_dir / "status.json"),
         }
 
     def config(self, text: str) -> None:
@@ -548,7 +548,7 @@ class MergeOrderTests(SupervisorBase):
         (self.runs / lane_id / "status.json").write_text(json.dumps({"lane": lane_id, "status": phase}))
 
     def go(self, lane_id: str) -> dict[str, Any]:
-        return self.lanes("merge-go", str(self.manifest), "--lane", lane_id, "--head", "deadbeef")
+        return self.lanes("merge-go", str(self.manifest), "--lane", lane_id, "--head", "deadbeef", "--base", "cafe1234")
 
     def test_order_puts_dependencies_first(self) -> None:
         result = self.lanes("merge-order", str(self.manifest))

@@ -4,7 +4,7 @@ and the dpp head's helpers: plan (admission, spend, feasibility, --full selectio
 stop-check and report-check. It is the only writer of lane state: leases, status.json fields the head owns (heartbeat,
 session id, park reason), send-backs, the budget counter, the model-call ledger and merge order. Its supervisor commands:
 preflight (pin the CLI version), spawn (start a son under every cap), call (any other model call behind the shared
-limit), heartbeat, budget, loop, merge-order, merge-go and merge-done."""
+limit), heartbeat, budget, loop, merge-order, merge-go, merge-go-step and merge-done."""
 from __future__ import annotations
 
 import argparse
@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from model_call import (  # noqa: E402
     cli_version, fallback_used, invoke, is_overload, is_terminated, parse_result, read_budget, read_supervisor,
 )
+from son_launch import SON_MARKER, cli_too_old, launch_flags, merge_config, prepare_lane, sandbox_config, son_env  # noqa: E402
 from state_io import atomic_write  # noqa: E402
 
 RUNS_DIR: Final[str] = ".harness/runs"
@@ -50,11 +51,10 @@ MIN_GIT: Final[tuple[int, int]] = (2, 38)
 GIT_VERSION: Final[re.Pattern[str]] = re.compile(r"git version (\d+)\.(\d+)")
 TIMEOUT_S: Final[int] = 30
 GH_PR_FIELDS: Final[str] = "number,files"
-MAX_LANES: Final[int] = 5
 PLUGIN_ROOT: Final[Path] = Path(__file__).resolve().parent.parent
 SETTINGS_FILE: Final[str] = ".claude/dts2-harness.local.md"
 PERMISSION_FIELD: Final[str] = "son_permission_mode"
-DEFAULT_PERMISSION_MODE: Final[str] = "bypassPermissions"
+DEFAULT_PERMISSION_MODE: Final[str] = "dontAsk"
 SON_MODEL: Final[str] = "opus"
 SON_SKILL: Final[str] = "/dts2-harness:autopilot --son"
 FRONTMATTER_FENCE: Final[str] = "---"
@@ -83,7 +83,9 @@ RUN_NAME: Final[str] = "run.json"
 BUDGET_NAME: Final[str] = "budget.json"
 MODEL_LEDGER_NAME: Final[str] = "model-ledger.jsonl"
 MERGE_ORDER_NAME: Final[str] = "merge-order.json"
+MERGE_PENDING_NAME: Final[str] = "merge-pending.txt"  # unmerged lane ids, one per line; the merge guard reads this, never run state
 MERGE_GO_NAME: Final[str] = "merge-go.md"
+PROTECTED_DEFAULTS: Final[tuple[str, ...]] = ("main", "master")
 PREFLIGHT_TIMEOUT_S: Final[int] = 30
 DEFAULT_CALL_TIMEOUT_S: Final[int] = 1800
 PHASE_PR_OPEN: Final[str] = "pr-open"
@@ -96,6 +98,7 @@ REASON_NO_STATUS: Final[str] = "no-final-status"
 REASON_SLOT: Final[str] = "slot-busy"
 REASON_PREFLIGHT: Final[str] = "preflight-missing"
 REASON_SKEW: Final[str] = "version-skew"
+REASON_SANDBOX: Final[str] = "sandbox-required"
 REASON_LOOPS: Final[str] = "loops"
 REASON_OVERLOAD: Final[str] = "overload"
 REASON_RUNNING: Final[str] = "running"
@@ -149,8 +152,6 @@ def load_manifest(path: Path) -> dict[str, Any]:
     lanes: Any = data.get("lanes") if isinstance(data, dict) else None
     if not isinstance(lanes, list) or not lanes:
         raise LaneError("manifest has no lanes")
-    if len(lanes) > MAX_LANES:
-        raise LaneError(f"manifest has {len(lanes)} lanes; the limit is {MAX_LANES}")
     return data
 
 
@@ -503,10 +504,11 @@ def son_command(manifest: dict[str, Any], lane_id: str, worktree: Path, cwd: Pat
     mode: str = read_setting(cwd, PERMISSION_FIELD, DEFAULT_PERMISSION_MODE)
     argv: list[str] = binary("DTS2_CLAUDE_BIN", "claude") + [
         "-p", f"{SON_SKILL} {manifest['stamp']}/{lane['id']}",
-        "--permission-mode", mode, "--model", SON_MODEL, "--plugin-dir", str(PLUGIN_ROOT),
+        *launch_flags(cwd, mode, manifest, str(lane["id"]), worktree), "--model", SON_MODEL, "--plugin-dir", str(PLUGIN_ROOT),
         *cap_flags(cwd, remaining_usd, session),
     ]
-    return {"ok": True, "lane": lane["id"], "cwd": str(worktree), "permission_mode": mode, "argv": argv}
+    return {"ok": True, "lane": lane["id"], "cwd": str(worktree), "permission_mode": mode, "argv": argv,
+            "env": son_env(manifest, str(lane["id"]), cwd)}
 
 
 def load_draft(path: Path) -> dict[str, Any]:
@@ -1071,23 +1073,49 @@ def claude_version(cwd: Path) -> str | None:
     return cli_version(out) if code == 0 else None
 
 
+def push_access_problem(cwd: Path, env: dict[str, str]) -> str | None:
+    """Why the son env cannot reach the remote (it has no GH_TOKEN or SSH_AUTH_SOCK unless the owner passes them), or None."""
+    try:
+        done = subprocess.run([*binary("DTS2_GIT_BIN", "git"), "ls-remote", "--exit-code", "origin", "HEAD"], cwd=str(cwd), env=env,
+                              capture_output=True, text=True, timeout=TIMEOUT_S, stdin=subprocess.DEVNULL, check=False)
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        return f"`git ls-remote origin` could not run under the son env: {exc}"
+    if done.returncode == 0:
+        return None
+    return ("`git ls-remote origin` fails under the son env, so a son cannot push or open PRs; pass the credential it needs "
+            "(for example GH_TOKEN, or SSH_AUTH_SOCK for ssh remotes) with DTS2_SON_ENV_PASS")
+
+
 def preflight(runs_dir: Path, stamp: str, cwd: Path) -> dict[str, Any]:
-    """Pin `claude --version` in the run's run.json and prove `claude -p` answers within 30 s. A second preflight that
-    finds another version refuses (the CLI changed mid-run). Fails closed: spawn refuses without a passing preflight."""
+    """Pin `claude --version` in the run's run.json and prove the real son launch answers within 30 s: `claude -p ok` with
+    the son's flags, settings and env, so auth, the sandbox (bwrap with failIfUnavailable) and the flags fail once here and
+    not in every son. Also proves the son env can reach the remote. A second preflight that finds another version refuses.
+    Fails closed: spawn refuses without a passing preflight."""
     path: Path = runs_dir / stamp / RUN_NAME
     pinned: Any = read_json_object(path).get("claude_version")
     version: str | None = claude_version(cwd)
     emit = ledger_emitter(runs_dir, stamp, "-")
-    call: dict[str, Any] = invoke(binary("DTS2_CLAUDE_BIN", "claude") + ["-p", "ok", "--output-format", "json"], cwd,
-                                  PREFLIGHT_TIMEOUT_S, "preflight", emit)
+    probe: dict[str, Any] = {"stamp": stamp, "lanes": [{"id": "preflight"}]}
+    mode: str = read_setting(cwd, PERMISSION_FIELD, DEFAULT_PERMISSION_MODE)
+    env: dict[str, str] = son_env(probe, "preflight", cwd)
+    argv: list[str] = [*binary("DTS2_CLAUDE_BIN", "claude"), "-p", "ok", *launch_flags(cwd, mode, probe, "preflight", cwd),
+                       "--plugin-dir", str(PLUGIN_ROOT), "--output-format", "json"]
+    call: dict[str, Any] = invoke(argv, cwd, PREFLIGHT_TIMEOUT_S, "preflight", emit, env=env)
     parsed: dict[str, Any] | None = parse_result(call["stdout"])
     problems: list[str] = []
+    too_old: str | None = cli_too_old(version)
     if version is None:
         problems.append("cannot read `claude --version`")
+    elif too_old is not None:
+        problems.append(too_old)
     elif isinstance(pinned, str) and pinned != version:
         problems.append(f"claude {version} differs from the version {pinned} pinned for this run")
     if call["code"] != 0 or parsed is None or parsed["is_error"]:
-        problems.append(f"`claude -p ok --output-format json` failed (exit {call['code']})")
+        problems.append(f"`claude -p ok` with the son launch flags failed (exit {call['code']}); check auth, the sandbox "
+                        "(bwrap) and the flags")
+    access: str | None = push_access_problem(cwd, env)
+    if access is not None:
+        problems.append(access)
     ok: bool = not problems
     record: dict[str, Any] = {"claude_version": pinned if isinstance(pinned, str) else version, "preflight_ok": ok,
                               "checked": int(time.time()), "problems": problems}
@@ -1103,6 +1131,8 @@ def spawn_refusal(runs_dir: Path, stamp: str, cwd: Path, lane_id: str) -> tuple[
     if pinned.get("preflight_ok") is not True or not isinstance(pinned.get("claude_version"), str):
         return REASON_PREFLIGHT, "run `lanes.py preflight` first; no passing preflight is recorded for this run"
     current: str | None = claude_version(cwd)
+    if cli_too_old(current) is not None:
+        return REASON_SKEW, str(cli_too_old(current))
     if current != pinned["claude_version"]:
         return REASON_SKEW, f"claude is {current}, the run is pinned to {pinned['claude_version']}"
     why: str | None = budget_refusal(spend_state(runs_dir, stamp, cwd), lane_id, int(time.time()))
@@ -1156,7 +1186,8 @@ def claim_lane(status_path: Path) -> int | None:
     return None
 
 
-def spawn(manifest: dict[str, Any], lane_id: str, worktree: Path, runs_dir: Path, cwd: Path, resume: bool) -> dict[str, Any]:
+def spawn(manifest: dict[str, Any], lane_id: str, worktree: Path, runs_dir: Path, cwd: Path, resume: bool,
+          unsafe: bool = False) -> dict[str, Any]:
     """Start (or with resume, continue) one son under every cap, wait for it, then record session id, spend, fallback and
     exit reason. The only place a son process is started. A lane whose son or spawn is still running is refused
     (`running`) and left untouched."""
@@ -1167,14 +1198,59 @@ def spawn(manifest: dict[str, Any], lane_id: str, worktree: Path, runs_dir: Path
     if holder is not None:
         return {"ok": False, "lane": lane_id, "reason": REASON_RUNNING, "detail": f"process {holder} is still running this lane"}
     try:
-        return start_son(manifest, lane_id, worktree, runs_dir, cwd, resume)
+        return start_son(manifest, lane_id, worktree, runs_dir, cwd, resume, unsafe)
     finally:
         merge_json(status_path, dict.fromkeys(PID_KEYS))
 
 
-def start_son(manifest: dict[str, Any], lane_id: str, worktree: Path, runs_dir: Path, cwd: Path, resume: bool) -> dict[str, Any]:
+def sandbox_refusal(runs_dir: Path, stamp: str, cwd: Path, lane_id: str, unsafe: bool) -> tuple[str, str] | None:
+    """More than one unattended son needs the sandbox on, or an explicit --unsafe-no-sandbox (which is logged)."""
+    if sandbox_config(cwd)["enabled"]:
+        return None
+    others: list[str] = [str(d.get("lane")) for _p, d in read_status_files(runs_dir, stamp)
+                         if d.get("lane") != lane_id and lane_alive(d)]
+    if not others:
+        return None
+    if unsafe:
+        append_ledger(runs_dir, stamp, {"lane": lane_id, "event": "unsafe-no-sandbox",
+                                        "warning": f"son started without the sandbox beside {', '.join(others)}"})
+        print(f"warning: lane {lane_id} starts without the sandbox beside running lanes ({', '.join(others)})",
+              file=sys.stderr)
+        return None
+    return REASON_SANDBOX, "a second unattended son needs sandbox.enabled in .harness/config.yaml or --unsafe-no-sandbox"
+
+
+def gc_pause(runs_dir: Path, stamp: str, cwd: Path) -> None:
+    """`git config gc.auto 0` for the run; the previous local value is kept in run.json for gc_restore."""
+    path: Path = runs_dir / stamp / RUN_NAME
+    if "gc_auto_prior" in read_json_object(path):
+        return
+    code, out = run([*binary("DTS2_GIT_BIN", "git"), "config", "--local", "--get", "gc.auto"], cwd)
+    merge_json(path, {"gc_auto_prior": out.strip() if code == 0 else None, "gc_auto_paused": True})
+    run([*binary("DTS2_GIT_BIN", "git"), "config", "--local", "gc.auto", "0"], cwd)
+
+
+def gc_restore(runs_dir: Path, stamp: str, cwd: Path) -> dict[str, Any]:
+    """Put gc.auto back to what it was before gc_pause (unset when it was unset). Safe to call twice. A son is refused."""
+    if inside_son():
+        return son_refusal("gc-restore")
+    path: Path = runs_dir / stamp / RUN_NAME
+    data: dict[str, Any] = read_json_object(path)
+    if not data.get("gc_auto_paused"):
+        return {"ok": True, "stamp": stamp, "restored": False}
+    prior: Any = data.get("gc_auto_prior")
+    git: list[str] = binary("DTS2_GIT_BIN", "git")
+    run([*git, "config", "--local", "gc.auto", str(prior)] if isinstance(prior, str) else
+        [*git, "config", "--local", "--unset", "gc.auto"], cwd)
+    merge_json(path, {"gc_auto_paused": False})
+    return {"ok": True, "stamp": stamp, "restored": True, "gc_auto": prior}
+
+
+def start_son(manifest: dict[str, Any], lane_id: str, worktree: Path, runs_dir: Path, cwd: Path, resume: bool,
+              unsafe: bool = False) -> dict[str, Any]:
     stamp: str = str(manifest["stamp"])
-    refusal: tuple[str, str] | None = spawn_refusal(runs_dir, stamp, cwd, lane_id)
+    refusal: tuple[str, str] | None = (spawn_refusal(runs_dir, stamp, cwd, lane_id)
+                                       or sandbox_refusal(runs_dir, stamp, cwd, lane_id, unsafe))
     if refusal is not None:
         park(runs_dir, stamp, lane_id, refusal[0], refusal[1])
         return {"ok": False, "lane": lane_id, "reason": refusal[0], "detail": refusal[1]}
@@ -1184,6 +1260,8 @@ def start_son(manifest: dict[str, Any], lane_id: str, worktree: Path, runs_dir: 
         park(runs_dir, stamp, lane_id, REASON_ERROR, "no session_id in status.json to resume")
         return {"ok": False, "lane": lane_id, "reason": REASON_ERROR, "detail": "no session_id to resume"}
     start_clock(runs_dir, stamp)
+    gc_pause(runs_dir, stamp, cwd)
+    prepare_lane(cwd, stamp, lane_id)
     share, no_share = reserve_share(runs_dir, stamp, cwd, manifest, lane_id)
     if no_share is not None:
         park(runs_dir, stamp, lane_id, REASON_BUDGET, no_share)
@@ -1198,7 +1276,7 @@ def start_son(manifest: dict[str, Any], lane_id: str, worktree: Path, runs_dir: 
     emit = ledger_emitter(runs_dir, stamp, lane_id)
     try:
         call: dict[str, Any] = invoke(command["argv"], worktree, max(left_s, 1.0), f"son:{lane_id}", emit, root=cwd,
-                                      halt_on_session=True,
+                                      halt_on_session=True, env=command["env"],
                                       on_start=lambda pid: merge_json(status_path, {"son_pid": pid, "spawn_pid": os.getpid()}))
         parsed: dict[str, Any] | None = parse_result(call["stdout"])
         return finish_son(runs_dir, stamp, lane_id, worktree, call, parsed, emit)
@@ -1339,13 +1417,21 @@ def merge_lock(path: Path) -> Iterator[None]:
         yield
 
 
+def save_merge_state(path: Path, state: dict[str, Any]) -> None:
+    """Write merge-order.json and, beside it, the list of lanes still to merge that the merge guard reads to tell an active run
+    from a finished one."""
+    atomic_write(path, json.dumps(state, indent=2) + "\n")
+    pending: list[str] = [str(lane) for lane in state["order"] if lane not in state["merged"]]
+    atomic_write(path.parent / MERGE_PENDING_NAME, "".join(f"{lane}\n" for lane in pending))
+
+
 def merge_order(manifest: dict[str, Any], runs_dir: Path) -> dict[str, Any]:
     """Write merge-order.json (the order, which lanes merged, which one holds the merge) and say who is next."""
     stamp: str = str(manifest["stamp"])
     path: Path = runs_dir / stamp / MERGE_ORDER_NAME
     with merge_lock(path):
         state: dict[str, Any] = merge_state(runs_dir, manifest)
-        atomic_write(path, json.dumps(state, indent=2) + "\n")
+        save_merge_state(path, state)
     return {"ok": True, "stamp": stamp, **state, "next": next_to_merge(runs_dir, stamp, state, manifest)}
 
 
@@ -1365,14 +1451,90 @@ def next_to_merge(runs_dir: Path, stamp: str, state: dict[str, Any], manifest: d
     return None
 
 
-def merge_go(manifest: dict[str, Any], runs_dir: Path, lane_id: str, head: str) -> dict[str, Any]:
-    """Write the lane's merge-go.md, only when it is next in order and no other merge is in flight."""
+def merge_target_state(runs_dir: Path, stamp: str, cwd: Path) -> dict[str, Any]:
+    """The branch this run merges into and whether a recorded yes allows the repo's default branch."""
+    saved: dict[str, Any] = read_json_object(runs_dir / stamp / RUN_NAME)
+    config: dict[str, str] = merge_config(cwd)
+    target: str = str(saved.get("merge_target") or config["target"])
+    defaults: set[str] = {config["default_branch"], *PROTECTED_DEFAULTS}
+    return {"target": target, "is_default": target in defaults, "default_ok": saved.get("default_branch_yes") is True}
+
+
+def set_merge_target(runs_dir: Path, stamp: str, cwd: Path, branch: str | None, yes_default: bool) -> dict[str, Any]:
+    """Record the run's merge target; `yes_default` is the explicit, recorded yes the default branch needs."""
+    if inside_son():
+        return son_refusal("merge-target")
+    if branch is not None and not re.match(r"^[A-Za-z0-9._/-]+$", branch):
+        raise LaneError(f"unsafe branch name {branch!r}")
+    changes: dict[str, Any] = {**({"merge_target": branch} if branch else {}),
+                               **({"default_branch_yes": True, "default_branch_yes_at": int(time.time())} if yes_default else {})}
+    if changes:
+        merge_json(runs_dir / stamp / RUN_NAME, changes)
+    if branch:
+        atomic_write(runs_dir / stamp / "merge-target.txt", branch + "\n")  # read by the merge guard, which never opens run state
+    return {"ok": True, "stamp": stamp, **merge_target_state(runs_dir, stamp, cwd)}
+
+
+def base_tip(cwd: Path, target: str) -> str | None:
+    code, out = run([*binary("DTS2_GIT_BIN", "git"), "rev-parse", f"refs/remotes/origin/{target}"], cwd)
+    return out.strip() if code == 0 and re.match(r"^[0-9a-f]{7,40}$", out.strip()) else None
+
+
+def inside_son() -> bool:
+    """True in a son's process: the marker its env carries, or its lane branch prefix."""
+    return bool(os.environ.get(SON_MARKER) or os.environ.get("DTS2_SON_BRANCH_PREFIX"))
+
+
+def son_refusal(what: str) -> dict[str, Any]:
+    return {"ok": False, "detail": f"{what} is the head's alone; a son never grants its own merge or changes the merge state"}
+
+
+def merge_go(manifest: dict[str, Any], runs_dir: Path, lane_id: str, head: str, cwd: Path = Path("."),
+             base: str | None = None) -> dict[str, Any]:
+    """Write the lane's merge-go.md, only when it is next in order, no other merge is in flight, the run's target is
+    allowed and the base commit it was cleared against is known (recorded as `Base:` for the merge guard). A son is refused."""
+    if inside_son():
+        return {**son_refusal("merge-go"), "lane": lane_id}
     find_lane(manifest, lane_id)
-    with merge_lock(runs_dir / str(manifest["stamp"]) / MERGE_ORDER_NAME):
-        return grant_merge(manifest, runs_dir, lane_id, head)
+    stamp: str = str(manifest["stamp"])
+    state: dict[str, Any] = merge_target_state(runs_dir, stamp, cwd)
+    if state["is_default"] and not state["default_ok"]:
+        return {"ok": False, "lane": lane_id, "detail": f"{state['target']} is the default branch; a run may merge there only "
+                "after `lanes.py merge-target --yes-default-branch` records an explicit yes"}
+    sha: str | None = base or base_tip(cwd, state["target"])
+    if sha is not None and not re.match(r"^[0-9a-f]{7,40}$", sha):
+        return {"ok": False, "lane": lane_id, "detail": "--base must be a commit sha"}
+    if sha is None:
+        return {"ok": False, "lane": lane_id, "detail": f"cannot read origin/{state['target']}; fetch it or pass --base"}
+    with merge_lock(runs_dir / stamp / MERGE_ORDER_NAME):
+        return grant_merge(manifest, runs_dir, lane_id, head, state["target"], sha)
 
 
-def grant_merge(manifest: dict[str, Any], runs_dir: Path, lane_id: str, head: str) -> dict[str, Any]:
+def merge_go_step(runs_dir: Path, stamp: str, step: str, head: str, cwd: Path, base: str | None = None) -> dict[str, Any]:
+    """Head-only grant for one autopilot step: the same `Verified head:` and `Base:` lines as a lane's merge-go.md, written to
+    `<stamp>/<step>/merge-go.md`, with no lane order to follow. Refused inside a son, for a head that is not a commit sha, and for
+    the default branch unless this run recorded the yes (`merge-target --yes-default-branch`)."""
+    if inside_son():
+        return {**son_refusal("merge-go-step"), "step": step}
+    if not re.match(r"^[A-Za-z0-9][A-Za-z0-9._-]*$", step):
+        raise LaneError(f"unsafe step name {step!r}")
+    if not re.match(r"^[0-9a-f]{7,40}$", head):
+        return {"ok": False, "step": step, "detail": "--head must be a commit sha"}
+    state: dict[str, Any] = merge_target_state(runs_dir, stamp, cwd)
+    if state["is_default"] and not state["default_ok"]:
+        return {"ok": False, "step": step, "detail": f"{state['target']} is the default branch; a run may merge there only "
+                "after `lanes.py merge-target --yes-default-branch` records an explicit yes"}
+    sha: str | None = base or base_tip(cwd, state["target"])
+    if sha is None or not re.match(r"^[0-9a-f]{7,40}$", sha):
+        return {"ok": False, "step": step, "detail": f"cannot read origin/{state['target']}; fetch it or pass a sha with --base"}
+    path: Path = runs_dir / stamp / step / MERGE_GO_NAME
+    atomic_write(path, f"# Merge go for step {step}\n\nVerified head: {head}\nBase: {state['target']} {sha}\n"
+                       f"Granted: {int(time.time())}\n")
+    return {"ok": True, "step": step, "path": str(path), "head": head, "target": state["target"], "base": sha}
+
+
+def grant_merge(manifest: dict[str, Any], runs_dir: Path, lane_id: str, head: str, target: str,
+                base: str) -> dict[str, Any]:
     stamp: str = str(manifest["stamp"])
     state: dict[str, Any] = merge_state(runs_dir, manifest)
     if state["current"]:
@@ -1387,9 +1549,10 @@ def grant_merge(manifest: dict[str, Any], runs_dir: Path, lane_id: str, head: st
         return {"ok": False, "lane": lane_id, "next": expected,
                 "detail": f"{lane_id} is not next to merge ({expected or 'none is waiting at pr-open'})"}
     path: Path = runs_dir / stamp / lane_id / MERGE_GO_NAME
-    atomic_write(path, f"# Merge go for lane {lane_id}\n\nVerified head: {head}\nGranted: {int(time.time())}\n")
-    atomic_write(runs_dir / stamp / MERGE_ORDER_NAME, json.dumps({**state, "current": lane_id}, indent=2) + "\n")
-    return {"ok": True, "lane": lane_id, "path": str(path), "head": head}
+    atomic_write(path, f"# Merge go for lane {lane_id}\n\nVerified head: {head}\nBase: {target} {base}\n"
+                       f"Granted: {int(time.time())}\n")
+    save_merge_state(runs_dir / stamp / MERGE_ORDER_NAME, {**state, "current": lane_id})
+    return {"ok": True, "lane": lane_id, "path": str(path), "head": head, "target": target, "base": base}
 
 
 def merge_done(manifest: dict[str, Any], runs_dir: Path, lane_id: str) -> dict[str, Any]:
@@ -1403,8 +1566,8 @@ def finish_merge(manifest: dict[str, Any], runs_dir: Path, lane_id: str) -> dict
     if state["current"] != lane_id:
         return {"ok": False, "lane": lane_id, "detail": f"lane {lane_id} does not hold the merge"}
     done: dict[str, Any] = {**state, "merged": [*state["merged"], lane_id], "current": None}
-    atomic_write(runs_dir / stamp / MERGE_ORDER_NAME, json.dumps(done, indent=2) + "\n")
-    return {"ok": True, "lane": lane_id, "merged": done["merged"]}
+    save_merge_state(runs_dir / stamp / MERGE_ORDER_NAME, done)
+    return {"ok": True, "lane": lane_id, "merged": done["merged"], "all_merged": len(done["merged"]) >= len(done["order"])}
 
 
 def split_ids(raw: str) -> list[str]:
@@ -1420,6 +1583,8 @@ def add_supervisor_parsers(sub: Any) -> None:
     spawn_p.add_argument("--lane", required=True)
     spawn_p.add_argument("--worktree", required=True)
     spawn_p.add_argument("--resume", action="store_true", help="continue the lane's saved session with --resume")
+    spawn_p.add_argument("--unsafe-no-sandbox", action="store_true",
+                         help="allow a second unattended son with the sandbox off; logs a warning")
     call_p = sub.add_parser("call")
     call_p.add_argument("stamp")
     call_p.add_argument("--label", required=True)
@@ -1440,6 +1605,18 @@ def add_supervisor_parsers(sub: Any) -> None:
     go_p.add_argument("manifest")
     go_p.add_argument("--lane", required=True)
     go_p.add_argument("--head", required=True, help="the verified HEAD sha the merge is cleared for")
+    go_p.add_argument("--base", default=None, help="the base commit approved against; default origin/<target> now")
+    target_p = sub.add_parser("merge-target")
+    target_p.add_argument("stamp")
+    target_p.add_argument("--set", default=None, help="record the branch this run merges into (default: dev)")
+    target_p.add_argument("--yes-default-branch", action="store_true", help="record an explicit yes to merging into the default branch")
+    step_p = sub.add_parser("merge-go-step")
+    step_p.add_argument("stamp")
+    step_p.add_argument("--step", required=True, help="the autopilot step the merge belongs to")
+    step_p.add_argument("--head", required=True, help="the verified HEAD sha of the step's PR")
+    step_p.add_argument("--base", default=None, help="the base commit approved against; default origin/<target> now")
+    gc_p = sub.add_parser("gc-restore")
+    gc_p.add_argument("stamp")
     done_p = sub.add_parser("merge-done")
     done_p.add_argument("manifest")
     done_p.add_argument("--lane", required=True)
@@ -1452,7 +1629,7 @@ def add_run_parsers(sub: Any) -> None:
     plan_p.add_argument("--draft", required=True, help="draft lanes.json")
     plan_p.add_argument("--outside", default="", help="'<item>: <why>' marks admitted outside check-in")
     plan_p.add_argument("--full", action="store_true", help="dpp-full: greedy fill, delegation lanes allowed")
-    plan_p.add_argument("--max", type=int, default=MAX_LANES)
+    plan_p.add_argument("--max", type=int, default=0, help="most lanes --full selects; 0 (default) = no cap, the model-call limit throttles")
     plan_p.add_argument("--stamp", default=None)
     sub.add_parser("status").add_argument("stamp")
     for name in ("sendback", "release"):
@@ -1499,7 +1676,7 @@ def dispatch_plan(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> dict[s
     draft: dict[str, Any] = load_draft(Path(args.draft))
     if args.stamp:
         draft = {**draft, "stamp": args.stamp}
-    return plan(draft, read_checkin(Path(args.from_checkin)), args.outside, args.full, args.max, runs_dir, cwd,
+    return plan(draft, read_checkin(Path(args.from_checkin)), args.outside, args.full, args.max or len(draft["lanes"]), runs_dir, cwd,
                 not args.no_prs)
 
 
@@ -1531,6 +1708,12 @@ def dispatch_supervisor(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> 
         return budget_report(runs_dir, args.stamp, cwd)
     if args.command == "loop":
         return loop(runs_dir, args.stamp, cwd)
+    if args.command == "merge-target":
+        return set_merge_target(runs_dir, args.stamp, cwd, args.set, args.yes_default_branch)
+    if args.command == "merge-go-step":
+        return merge_go_step(runs_dir, args.stamp, args.step, args.head, cwd, args.base)
+    if args.command == "gc-restore":
+        return gc_restore(runs_dir, args.stamp, cwd)
     if args.command == "heartbeat":
         return heartbeat(runs_dir, args.stamp, args.lane, args.turn, args.status, args.reason, split_ids(args.blocked_by))
     if args.command == "call":
@@ -1553,13 +1736,16 @@ def dispatch(args: argparse.Namespace) -> dict[str, Any]:
         remaining: float | None = spend_state(runs_dir, str(manifest["stamp"]), cwd)["remaining_usd"]
         return son_command(manifest, args.lane, Path(args.worktree), cwd, remaining)
     if args.command == "spawn":
-        return spawn(manifest, args.lane, Path(args.worktree), runs_dir, cwd, args.resume)
+        return spawn(manifest, args.lane, Path(args.worktree), runs_dir, cwd, args.resume, args.unsafe_no_sandbox)
     if args.command == "merge-order":
         return merge_order(manifest, runs_dir)
     if args.command == "merge-go":
-        return merge_go(manifest, runs_dir, args.lane, args.head)
+        return merge_go(manifest, runs_dir, args.lane, args.head, cwd, args.base)
     if args.command == "merge-done":
-        return merge_done(manifest, runs_dir, args.lane)
+        done: dict[str, Any] = merge_done(manifest, runs_dir, args.lane)
+        if done.get("all_merged"):
+            gc_restore(runs_dir, str(manifest["stamp"]), cwd)
+        return done
     return check(manifest, runs_dir, cwd, not args.no_prs)
 
 

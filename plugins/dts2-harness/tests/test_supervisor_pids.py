@@ -176,7 +176,7 @@ class ParkedLaneLifecycleTests(FixBase):
         self.assertEqual(json.loads((self.lane_dir / "status.json").read_text())["status"], "pr-open")
         manifest = json.loads(self.manifest.read_text())
         self.assertEqual(manifest["lanes"][0]["id"], "a")
-        self.assertTrue(self.lanes("merge-go", str(self.manifest), "--lane", "a", "--head", "abc")["ok"])
+        self.assertTrue(self.lanes("merge-go", str(self.manifest), "--lane", "a", "--head", "abc", "--base", "cafe1234")["ok"])
 
     def test_resume_of_a_parked_lane_resets_its_phase(self) -> None:
         self.preflight()
@@ -206,7 +206,7 @@ class MergeOrderLockTests(base.SupervisorBase):
             (self.runs / lane_id).mkdir(exist_ok=True)
         self.lane_dir.joinpath("status.json").write_text(json.dumps({"lane": "a", "status": "pr-open"}))
         self.assertTrue(self.lanes("merge-order", str(self.manifest))["ok"])
-        self.assertTrue(self.lanes("merge-go", str(self.manifest), "--lane", "a", "--head", "abc")["ok"])
+        self.assertTrue(self.lanes("merge-go", str(self.manifest), "--lane", "a", "--head", "abc", "--base", "cafe1234")["ok"])
         self.assertTrue(self.lanes("merge-done", str(self.manifest), "--lane", "a")["ok"])
         self.assertEqual(list(self.runs.glob("*.lock")), [])
         self.assertEqual(self.json_file("merge-order.json")["merged"], ["a"])
