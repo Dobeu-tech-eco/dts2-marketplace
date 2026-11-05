@@ -3,21 +3,23 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 from model_call import (
     fallback_used, invoke, is_terminated, parse_result, read_budget,
 )
-from proc import cli_version, version_problem
+from proc import RESUME_ENV, cli_version, clear_exit, reap_old_group, record_son_start, set_option, son_session, version_problem, wrap_son, write_exit
+from son_stream import SonWatcher
 from son_launch import cli_too_old, launch_flags, prepare_lane, sandbox_config, son_env
 from state_io import atomic_write
 
-from .common import BUDGET_NAME, COST_CLAUDE, COST_NONE, DEFAULT_PERMISSION_MODE, LaneError, PERMISSION_FIELD, PHASE_INCOMPLETE, PHASE_PR_OPEN, PHASE_STARTING, PID_KEYS, PLUGIN_ROOT, PREFLIGHT_TIMEOUT_S, REASON_BUDGET, REASON_ERROR, REASON_LOOPS, REASON_MAX_TURNS, REASON_NO_STATUS, REASON_OVERLOAD, REASON_PREFLIGHT, REASON_RUNNING, REASON_SANDBOX, REASON_SHUTDOWN, REASON_SKEW, REASON_SLOT, REASON_TIMEOUT, RUN_NAME, SECONDS_PER_MINUTE, SETTLED_PHASES, SON_MODEL, STATUS_NAME, SUBTYPE_MAX_BUDGET, SUBTYPE_MAX_TURNS, TERMINAL_PHASES, TIMEOUT_S, binary, find_lane, run
-from .leases import read_lease
+from .common import BUDGET_NAME, COST_CLAUDE, COST_NONE, DEFAULT_PERMISSION_MODE, LaneError, PERMISSION_FIELD, PHASE_INCOMPLETE, PHASE_PR_OPEN, PHASE_STARTING, PID_KEYS, PLUGIN_ROOT, PREFLIGHT_TIMEOUT_S, REASON_BUDGET, REASON_ERROR, REASON_LOOPS, REASON_MAX_TURNS, REASON_NO_STATUS, REASON_OVERLOAD, REASON_PREFLIGHT, REASON_RUNNING, REASON_SANDBOX, REASON_SHUTDOWN, REASON_SKEW, REASON_SLOT, REASON_STALLED, REASON_TIMEOUT, RUN_NAME, SECONDS_PER_MINUTE, SETTLED_PHASES, SON_MODEL, STATUS_NAME, SUBTYPE_MAX_BUDGET, SUBTYPE_MAX_TURNS, TERMINAL_PHASES, TIMEOUT_S, binary, find_lane, run, son_model
+from .leases import gc_leases, read_lease
 from .merge import inside_son, son_refusal
 from .phases import transition
 from .planner import read_setting, son_command
@@ -73,6 +75,7 @@ def preflight(runs_dir: Path, stamp: str, cwd: Path) -> dict[str, Any]:
     record: dict[str, Any] = {"claude_version": pinned if isinstance(pinned, str) else version, "preflight_ok": ok,
                               "checked": int(time.time()), "problems": problems}
     update_run(runs_dir, stamp, record)
+    gc_leases(runs_dir, int(time.time()))  # the start of a run: close leases a crashed run left behind
     append_ledger(runs_dir, stamp, {"lane": "-", "event": "preflight", "ok": ok, "version": version,
                                     "problems": problems})
     return {"ok": ok, "stamp": stamp, "claude_version": record["claude_version"], "problems": problems}
@@ -107,8 +110,16 @@ def park(runs_dir: Path, stamp: str, lane_id: str, reason: str, detail: str, ses
     append_ledger(runs_dir, stamp, {"lane": lane_id, "event": "park", "reason": reason, "detail": detail})
 
 
+BUDGET_TEXT: Final[re.Pattern[str]] = re.compile(r"budget limit reached|exceeded .{0,20}budget|max[- ]budget", re.I)
+TURNS_TEXT: Final[re.Pattern[str]] = re.compile(r"reached max(?:imum)? turns|max[- ]turns", re.I)
+
+
 def exit_reason(call: dict[str, Any], parsed: dict[str, Any] | None) -> str | None:
-    """Why a finished son call ends the lane incomplete (None when it ended cleanly). Exit 143 is the wall-clock kill."""
+    """Why a finished son call ends the lane incomplete (None when it ended cleanly). Exit 143 is the wall-clock kill. A
+    son stopped for going round in circles is `stalled`; a max-turns or "Budget limit reached" result is `incomplete`
+    (G-56) whatever the exit code."""
+    if call.get("stuck"):
+        return REASON_STALLED
     if call["code"] == 75:
         return REASON_SLOT
     if call.get("halted_overload"):
@@ -120,6 +131,11 @@ def exit_reason(call: dict[str, Any], parsed: dict[str, Any] | None) -> str | No
         return REASON_MAX_TURNS
     if subtype == SUBTYPE_MAX_BUDGET:
         return REASON_BUDGET
+    text: str = str((parsed or {}).get("result_text") or "")
+    if (parsed or {}).get("is_error") and BUDGET_TEXT.search(text):
+        return REASON_BUDGET
+    if (parsed or {}).get("is_error") and TURNS_TEXT.search(text):
+        return REASON_MAX_TURNS
     if call["code"] != 0 or (parsed or {}).get("is_error"):
         return REASON_ERROR
     return None
@@ -213,6 +229,8 @@ def start_son(manifest: dict[str, Any], lane_id: str, worktree: Path, runs_dir: 
     start_clock(runs_dir, stamp)
     gc_pause(runs_dir, stamp, cwd)
     prepare_lane(cwd, stamp, lane_id)
+    if resume:
+        gc_leases(runs_dir, int(time.time()))  # a crashed run's expired lease must not block the resumed one
     share, no_share = reserve_share(runs_dir, stamp, cwd, manifest, lane_id)
     if no_share is not None:
         park(runs_dir, stamp, lane_id, REASON_BUDGET, no_share)
@@ -225,35 +243,63 @@ def start_son(manifest: dict[str, Any], lane_id: str, worktree: Path, runs_dir: 
     if read_json_object(status_path).get("status") not in SETTLED_PHASES:
         transition(runs_dir, stamp, lane_id, PHASE_STARTING)
     emit = ledger_emitter(runs_dir, stamp, lane_id)
+    lane_dir: Path = status_path.parent
     try:
-        call: dict[str, Any] = invoke(command["argv"], worktree, max(left_s, 1.0), f"son:{lane_id}", emit, root=cwd,
-                                      halt_on_session=True, env=command["env"],
-                                      on_start=lambda pid: merge_json(status_path, {"son_pid": pid, "spawn_pid": os.getpid()}))
+        argv, env, watcher = prepare_son(command, lane_dir, status_path, cwd, resume, emit)
+        call: dict[str, Any] = invoke(argv, worktree, max(left_s, 1.0), f"son:{lane_id}", emit, root=cwd,
+                                      halt_on_session=True, env=env, on_line=watcher.feed,
+                                      on_start=lambda pid: start_record(status_path, lane_dir, pid))
+        if watcher.stuck:
+            call = {**call, "stuck": watcher.stuck}
+            emit({"event": "stuck", "detail": watcher.stuck})
         parsed: dict[str, Any] | None = parse_result(call["stdout"])
-        return finish_son(runs_dir, stamp, lane_id, worktree, call, parsed, emit)
+        return finish_son(runs_dir, stamp, lane_id, worktree, call, parsed, emit, cwd)
     finally:
         release_share(runs_dir, stamp, lane_id)
 
 
+def start_record(status_path: Path, lane_dir: Path, pid: int) -> None:
+    merge_json(status_path, {"son_pid": pid, "spawn_pid": os.getpid()})
+    record_son_start(lane_dir, pid)
+
+
+def prepare_son(command: dict[str, Any], lane_dir: Path, status_path: Path, cwd: Path, resume: bool,
+                emit: Any) -> tuple[list[str], dict[str, str], SonWatcher]:
+    """G-52 / G-56: stop what is left of the lane's previous son, forget its exit.json, then build the launch: the son's
+    model from the `son_model` setting, a pre-assigned session id (saved at once, so a crash can still be resumed),
+    stream-json output, and the env that lets the CLI finish an interrupted turn on resume."""
+    if reap_old_group(lane_dir):
+        emit({"event": "reaped", "detail": "stopped a process group left by the previous son"})
+    clear_exit(lane_dir)
+    argv: list[str] = wrap_son(set_option(command["argv"], "--model", son_model(cwd)), lane_dir)
+    session: str | None = son_session(lane_dir)
+    if not resume and isinstance(session, str):
+        merge_json(status_path, {"session_id": session})
+    beat = lambda: merge_json(status_path, {"heartbeat": int(time.time())})  # noqa: E731 - one short closure, used once
+    return argv, {**command["env"], RESUME_ENV: "1"}, SonWatcher(beat)
+
+
 def finish_son(runs_dir: Path, stamp: str, lane_id: str, worktree: Path, call: dict[str, Any], parsed: dict[str, Any] | None,
-               emit: Any) -> dict[str, Any]:
+               emit: Any, cwd: Path | None = None) -> dict[str, Any]:
     status_path: Path = runs_dir / stamp / lane_id / STATUS_NAME
+    primary: str = son_model(cwd) if cwd is not None else SON_MODEL
     session: str | None = (parsed or {}).get("session_id")
     charged, all_known = record_attempts(runs_dir, stamp, lane_id, attempt_usages(call), release=lane_id)
-    fallback: str | None = fallback_used(parsed, SON_MODEL)
+    fallback: str | None = fallback_used(parsed, primary)
     changes: dict[str, Any] = {"lane": lane_id, "worktree": str(worktree), "heartbeat": int(time.time()),
                                **dict.fromkeys(PID_KEYS)}
     if session:
         changes["session_id"] = session
     if fallback:
         changes["fallback_model"] = fallback
-        emit({"event": "fallback", "model": fallback, "primary": SON_MODEL})
+        emit({"event": "fallback", "model": fallback, "primary": primary})
     merge_json(status_path, changes)
     reason: str | None = exit_reason(call, parsed)
     phase: str = str(read_json_object(status_path).get("status", ""))
     if reason is None and phase not in TERMINAL_PHASES | {PHASE_PR_OPEN}:
         reason = REASON_NO_STATUS
-    detail: str = f"exit {call['code']}, {call['retries']} retries"
+    detail: str = f"exit {call['code']}, {call['retries']} retries" + (f", stuck: {call['stuck']}" if call.get("stuck") else "")
+    write_exit(status_path.parent, call, parsed, reason)
     if reason is not None:
         park(runs_dir, stamp, lane_id, reason, detail, session)
     emit({"event": "son-exit", "code": call["code"], "reason": reason, "cost_usd": (parsed or {}).get("cost_usd"),

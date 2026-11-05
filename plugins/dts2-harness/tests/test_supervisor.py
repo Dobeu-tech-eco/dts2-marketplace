@@ -217,7 +217,7 @@ class SpawnTests(SupervisorBase):
         self.assertTrue(result["ok"], result)
         argv = self.son_calls()[0]
         self.assertEqual(argv[argv.index("--max-turns") + 1], "7")
-        self.assertEqual(argv[argv.index("--output-format") + 1], "json")
+        self.assertEqual(argv[argv.index("--output-format") + 1], "stream-json")  # G-56: the head reads heartbeats from the stream
         self.assertEqual(argv[argv.index("--fallback-model") + 1], "sonnet")
         self.assertNotIn("--max-budget-usd", argv)
         self.assertNotIn("--resume", argv)

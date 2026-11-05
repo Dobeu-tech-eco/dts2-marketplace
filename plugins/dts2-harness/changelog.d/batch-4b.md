@@ -1,0 +1,9 @@
+- Batch 4 (round 2): the son process lifecycle. A son now starts in its own session, writes `son.json` (pid, pgid, argv, session id) and, when it ends, `exit.json` (code, signal, cost, session id, reason).
+- G-52: a pre-assigned `--session-id` (uuid4), stream-json output, and the old process group stopped (SIGINT, then SIGKILL) before a lane is dispatched again. `proc.wrap_son(cmd, lane_dir, session_id)` is ready for the planner's `son-command` to call.
+- G-53: `lanes.py reconcile` applies the deterministic mappings: son exit with no final phase -> incomplete (reason from `exit.json`), merged on GitHub -> done, quiet clean lane -> incomplete (stalled); only judgement calls return to the head.
+- G-54: verified the `(stamp, kind, lane, attempt)` dedupe in the merge journal and builders log, and PR check-then-act; the `council.md`, lessons and action-item appends are not deduped yet (see the report).
+- G-55: `lanes.py gc` closes expired leases of crashed runs; `preflight` and `spawn --resume` run it; tests for heartbeat renewal and TTL expiry.
+- G-56: max-turns and "Budget limit reached" results end the lane incomplete; SIGINT then SIGKILL after 30 s (`timeout -s INT -k 30`); `CLAUDE_CODE_RESUME_INTERRUPTED_TURN=1` in the son env; the harness retries an overload only after the CLI's `api_retry` is exhausted; the heartbeat comes from stream-json events.
+- G-57: `son_stream.detect_stuck` marks a lane stalled after 4 identical action/observation pairs, 3 failing identical actions or 6 ping-pong actions.
+- G-58: `lanes.py wait <stamp> --timeout` blocks on `exit.json` and phase changes (inotify, else sleep-backoff); the dpp head calls it once instead of polling `status`.
+- G-59: `son_model` setting (default `opus`) replaces the fixed son model; council head and alternate model ids come from one place (`profiles/agents/claude.json`), checked by a test.
