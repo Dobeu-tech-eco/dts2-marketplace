@@ -1,8 +1,8 @@
-# dts2-harness 3.10 agent guide
+# dts2-harness 3.11 agent guide
 
-How to talk to the harness, which command to reach for, and what changed in 3.10.0. Written for an agent (or a person) who lands in a repo that uses the harness and needs to act without reading every skill file. The exhaustive reference is `INVENTORY.md` (every skill, agent, hook, script and `lanes.py` subcommand); the internals are in `../ARCHITECTURE.md`; the full release notes are in `../CHANGELOG.md`.
+How to talk to the harness, which command to reach for, and what changed in 3.11.0 and 3.10.0. Written for an agent (or a person) who lands in a repo that uses the harness and needs to act without reading every skill file. The exhaustive reference is `INVENTORY.md` (every skill, agent, hook, script and `lanes.py` subcommand); the internals are in `../ARCHITECTURE.md`; the full release notes are in `../CHANGELOG.md`.
 
-Contents: 1 Talking to the harness, 2 Which command when, 3 The head, son and council flow, 4 Rules every agent follows, 5 What changed in 3.10.0, 6 Where state lives.
+Contents: 1 Talking to the harness, 2 Which command when, 3 The head, son and council flow, 4 Rules every agent follows, 5 Release history (3.11.0, 3.10.0), 6 Where state lives.
 
 ## 1. Talking to the harness
 
@@ -62,6 +62,14 @@ The harness answers in a fixed shape:
 | See where autopilot is, or pick it up again | `autopilot status`, `autopilot resume` | |
 | Run many autopilot lanes at once | `dpp [dry-run] [--full] [resume]` | A head plans lanes from the check-in list, you approve the lanes, one headless son per lane, the head merges in order. `dry-run` plans only. |
 | Same, and let the head fill lanes itself | `dpp-full` | `dpp --full`: adds a delegation scan and keeps dispatching without a new approval. User-typed only. |
+| Wait for sons without polling | `lanes.py wait <stamp> --timeout N` | Head only. Returns on a phase change or a son's exit. |
+| Answer a son, or see what a son asked | `lanes.py mailbox <op> <stamp>` | Ops: ask, need-human, answer, check, wait, park, merge-go-check, rules, request, decide. A wait that runs out parks the lane. |
+| Push a finished lane and open its PR | `lanes.py publish <stamp> --lane <x>` | Head only. Sons commit a branch and never push. Refused when the diff touches a protected path. |
+| Approve one new lane under `dpp-full` | `lanes.py approve-lane <stamp> --lane <x>` | Needed when `dpp_full_ask_each_lane` is true. |
+| Override a lane rule as the owner | `lanes.py override <lane> --reason ...` | Needs a human approval (`dts2_approvals`); refused in a son, a vote or the council. |
+| Check whether the base is green before merging | `lanes.py base-health <stamp>`, `merge-mutex` | `merge-go` and `merge-go-step` refuse on a red base or while another lane holds the mutex. |
+| Cap a post-merge fix | `lanes.py fix-attempt <stamp> --lane <x> --reason ...` | After `post_merge_fix_attempts` it opens one revert PR. |
+| Close PRs a fold replaced | `lanes.py fold-close <stamp>` | After `fold --apply <group> --pr <n>`. |
 | Run the whole backlog unattended | `fullauto` | `dpp-full` with autopilot forced on, looping check-in until `lanes.py stop-check` says nothing is outstanding. User-typed only. Budget caps in `.harness/config.yaml` bound it. |
 | Open a PR for the branch you are on | `ship [base]` | Pre-check, repo checks, secret scan, verifier and reviewer, receipt, push, PR. Never merges. Then sweeps stale branches and PRs. Base defaults to `dev` when it exists. |
 | See progress against the end state | `check-in` | Read-only checklist, `N of M complete`. |
@@ -99,9 +107,9 @@ Three roles appear in 3.10.0 and the words are used consistently across the skil
 
 - builds in its own file set only, with builder branches `dts2/<stamp>/lane-<x>-b<n>`;
 - heartbeats every turn (`lanes.py heartbeat <stamp> --lane <x>`) and records each builder step (`lanes.py builder`);
-- may report only `pr-open`, `done`, `blocked` or `incomplete`, and stops at `pr-open`: the head merges;
+- may report only `pr-open`, `done`, `blocked` or `incomplete`, and stops at `pr-open`: the head publishes (push, PR) with `lanes.py publish` and merges;
 - never merges, never runs `merge-go`, `reconcile`, `dpp`, `setup`, `onboard`, never starts another son, never writes `lessons.md` (lessons go in its `report.md`);
-- asks the head, not the user, through `questions/<n>.md`;
+- asks the head, not the user, through the mailbox (`questions/<n>.json`); user prompts become need-human;
 - runs without `GH_TOKEN`, `GITHUB_TOKEN`, `SSH_AUTH_SOCK` or cloud credentials unless `DTS2_SON_ENV_PASS` names them, under `guard.py --mode son` as the deny hook.
 
 **Council.** Sits only when three full rounds of the autopilot gate fail (`council.py eligible`). Five frontier seats across as many providers as are usable (`council.py seats`); each reads the full dossier of the step and votes; ballots are fenced (`council.py wrap`), blind (`council.py blind` strips authorship and shuffles options), and a seat that times out is swapped (`seat_swap.py`). Every dissenting seat writes a brief. Fable 5.1 heads the council and decides: more fixes (at most two rounds), strike items (each becomes a Decisions action item) or approve, and its record must answer every dissent. The council is written to `.harness/council.md` and summarised in the PR, the receipt and `check-in`. One council per step; it never overrides a hard stop or branch protection.
@@ -120,7 +128,23 @@ Three roles appear in 3.10.0 and the words are used consistently across the skil
 - Companion skills pinned in `.harness/keep.yaml` with `pin: <sha>` are never updated without `--fix --apply-update NAME=SHA` after an explicit yes.
 - Secrets never go in chat, logs or action items: logs and items are redacted, missing env vars are recorded by name only.
 
-## 5. What changed in 3.10.0
+## 5. Release history
+
+### 3.11.0
+
+Full notes: `../CHANGELOG.md` section `[3.11.0]`; per-command detail: `INVENTORY.md` section 9.
+
+- Head policy gate: `hooks/policy-gate.sh` and `templates/policy.json` deny force-push, `--admin`, deploy CLIs, `gh secret`, `vercel env` and a bare `env` for the head and every son; merges need a human approval.
+- Son containment: the head pushes, opens and merges son PRs (`lanes.py publish`, `head_publish.py`); protected paths; human-only approvals in `.claude/settings.local.json` (`dts2_approvals`); allowlisted provider environment; council ballots carry a `.dispatch.json` record.
+- Son lifecycle and mailbox: own process group, `son.json` and `exit.json`, stuck-loop detection, `lanes.py wait`, `gc`, `reconcile`, versioned `status.json` with epochs, the head/son mailbox with deadlines.
+- Scope policy: `override`, `dpp_full_ask_each_lane`, `fullauto_freeze_scope`, lease holds a check-in item, `max_fullauto_loops: 3` stays a resumable park.
+- Merge safety: base health and merge mutex gate `merge-go` and `merge-go-step`; `fix-attempt` and the revert PR; `fold-close`; integration routing records.
+- Agent gates: retryable council dispatch failures, least-privilege agent tools, `subagent-stop.sh`, `stop-failure.sh`, `permission-denied.sh`.
+- Hooks: every hook runs `python3 -I`; one shared Stop deadline; `stop_checks_block`, `context_guard_stop`, `pr_receipt_template_push`.
+- Evals and skills: A/B mode in `evals/run.py` with `eval_stats.py`, pinned `skills` CLI, version-skew check (`harness_skew.py`).
+- Reports and receipts: run-wide report sections, doctor rows for bwrap, socat, auth and platform, `receipts_sign.py`, `plugin_options.py`, `OTEL_` env allowlist.
+
+### 3.10.0
 
 Full notes: `../CHANGELOG.md` section `[3.10.0]`; per-command detail: `INVENTORY.md` section 7.
 
