@@ -98,6 +98,7 @@ Run the suite from the plugin folder: `cd plugins/dts2-harness && python3 -m uni
 
 ## Docs
 - [docs/GUIDE.md](docs/GUIDE.md): how to talk to the harness, which command when, the head, son and council flow, and the 3.10.0 digest. Start here.
+- [docs/COMMANDS.md](docs/COMMANDS.md): command reference for agents: every command with its role, exact invocation and what it writes, common flows, and where the changelogs live.
 - [docs/INVENTORY.md](docs/INVENTORY.md): every skill, agent, hook, script and `lanes.py` subcommand with exact usage.
 - [ARCHITECTURE.md](ARCHITECTURE.md): modules, state port, plan graph, briefs and hook entry points.
 - [CHANGELOG.md](CHANGELOG.md): release notes.

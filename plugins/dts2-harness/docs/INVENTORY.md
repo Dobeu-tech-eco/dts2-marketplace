@@ -4,9 +4,9 @@ Every command an agent or a user can run in this plugin, with its purpose, exact
 
 In examples, `$P` stands for `${CLAUDE_PLUGIN_ROOT}`, `<repo>` for a repo root, `<stamp>` for a run stamp and `<manifest>` for a lane manifest (`lanes.json`). Scripts print one JSON object on stdout unless noted. The "Since" column is `new` for a command added in 3.10.0 and `changed` for an existing command whose arguments or output changed; section 7 lists the changes.
 
-For a shorter orientation (how to talk to the harness, which command when, the head, son and council flow) read `GUIDE.md` first.
+For a shorter orientation (how to talk to the harness, which command when, the head, son and council flow) read `GUIDE.md` first. For one page of exact invocations per command (role, what it writes, flows, changelog locations) read `COMMANDS.md`.
 
-Contents: 1 Skills, 2 Agents, 3 Hooks, 4 CLI scripts (4.1 state and progress, 4.2 detection and scaffolding, 4.3 roster, council and orchestration, 4.4 review and build gates, 4.5 parallel lanes, 4.6 maintenance, 4.7 hook entry points, 4.8 other entry points), 5 Library modules (5.1 lanes package, 5.2 templates), 6 Makefile targets and CI, 7 Changed in 3.10.0, 8 Settings keys, 9 Changed in 3.11.0.
+Contents: 1 Skills, 2 Agents, 3 Hooks, 4 CLI scripts (4.1 state and progress, 4.2 detection and scaffolding, 4.3 roster, council and orchestration, 4.4 review and build gates, 4.5 parallel lanes, 4.6 maintenance, 4.7 hook entry points, 4.8 other entry points), 5 Library modules (5.1 lanes package, 5.2 templates), 6 Makefile targets and CI, 7 Changed in 3.10.0, 8 Settings keys, 9 Changed in 3.11.0, 10 Documentation.
 
 ## 1. Skills (slash commands)
 
@@ -425,3 +425,14 @@ Sources: `CHANGELOG.md` (3.11.0) and `git log --oneline 6a74faa..HEAD -- plugins
 | `skills-check.py` | Pinned `skills` CLI; no self-upgrade while a lease is live; `--son-root` skew report; no org string | G-76, G-77 |
 | `doctor.py` | Reports bwrap, socat, auth method and platform; native Windows warns | G-85 |
 | Hooks `stop-checks.sh`, `pr-receipt.sh`, `context-guard.sh`, `session-lessons.sh` | `python3 -I`, one shared deadline, branch-to-stamp receipt, current-run plan check, lessons inside the untrusted fence | G-30 to G-37, G-69 |
+
+## 10. Documentation
+
+Pages under `docs/` and the plugin root that an agent reads. None is a command.
+
+| Page | What it holds | Since |
+|---|---|---|
+| `docs/COMMANDS.md` | Command reference for agents: every `lanes.py` subcommand, script, skill, agent and hook with role, exact invocation and what it writes; six copy-paste flows; where the changelogs live. | 3.11.0 |
+| `docs/GUIDE.md` | Agent guide: how to talk to the harness, which command when, head, son and council flow, release digests. | 3.10.0 |
+| `docs/INVENTORY.md` | This page. | 3.10.0 |
+| `docs/RUNTIMES.md` | Exit codes by runtime (WSL, Docker, native Windows). | 3.11.0 |
