@@ -19,6 +19,7 @@ Lessons live in the repo, so they travel with the code and every agent and machi
 3. Write each lesson as one line that an agent can act on:
    `- [L-014] Validate webhook signatures before parsing the body. (seen 3x, last 2026-10-17, source: run 20261017-0012)`
    Rules start with a verb, name the specific thing, and avoid "be careful".
+   A lesson tied to part of the repo ends with `{paths: src/api/**, *.ts}` (comma-separated globs; `**` crosses directories, `*` stays in one). Session start and `scope-check.py --lessons` print it only when a changed file or an active lane file matches, newest 5. A lesson with no `{paths: ...}` always prints.
    A lesson seen twice (same normalized text, or same file and rule) is offered for promotion: a line in `.harness/checks.sh` (sourced by the Stop hook), a test skeleton in the repo's test directory, or a `review-checklist.md` entry. Record `lives at <path>` on the lesson.
 4. Keep the list short: at most 40 lessons. Past that, drop the oldest single-occurrence lessons first and tell the user which ones.
 5. Show the diff of `lessons.md` and wait for approval before writing (interactive use). In auto mode, skip the wait; see Auto mode.

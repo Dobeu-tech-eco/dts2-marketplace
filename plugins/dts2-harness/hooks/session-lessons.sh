@@ -3,7 +3,7 @@
 set -uo pipefail
 # shellcheck source-path=SCRIPTDIR source=lib-settings.sh
 source "$(dirname "$0")/lib-settings.sh"
-MAX_LESSONS_DEFAULT=10
+MAX_LESSONS_DEFAULT=5
 MAX_OPEN_ITEMS=5
 LESSONS=".harness/lessons.md"
 STATE=".harness/state.md"
@@ -12,13 +12,24 @@ ACTION_ITEMS=".harness/action-items.md"
 [[ "$(setting lessons_inject true)" == "true" ]] || exit 0
 HOOK_INPUT=""
 [[ -t 0 ]] || read -r -t 1 -d '' HOOK_INPUT || true
+# Only lessons whose paths: globs match the changed files (or that have none), newest few; scope-check.py does the matching.
+matching_lessons() {
+  local plugin_dir="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}" max="$1"
+  command -v python3 >/dev/null 2>&1 || return 1
+  timeout 4 python3 "$plugin_dir/scripts/scope-check.py" --lessons "$PWD" 2>/dev/null \
+    | python3 -c 'import json,sys; [print(line) for line in json.load(sys.stdin)["lessons"][-int(sys.argv[1]):]]' "$max" 2>/dev/null
+}
 print_lessons() {
-  local max
+  local max found
   max="$(setting lessons_max "$MAX_LESSONS_DEFAULT")"
-  [[ "$max" =~ ^[0-9]+$ ]] || max="$MAX_LESSONS_DEFAULT"
-  echo "dts2-harness lessons for this repo (apply when relevant):"
-  grep -E '^- ' "$LESSONS" | tail -n "$max"
+  [[ "$max" =~ ^[1-9][0-9]*$ ]] || max="$MAX_LESSONS_DEFAULT"
+  found="$(matching_lessons "$max")" || found="$(grep -E '^- ' "$LESSONS" | tail -n "$max")"
+  if [[ -n "$found" ]]; then
+    echo "dts2-harness lessons for this repo (apply when relevant):"
+    echo "$found"
+  fi
   [[ -s ".harness/lessons-inbox.md" ]] && echo "(Unreviewed lesson candidates exist. Run the dts2-harness learn skill to consolidate them.)"
+  return 0
 }
 print_open_items() {
   local items
