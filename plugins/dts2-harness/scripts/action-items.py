@@ -14,8 +14,9 @@ from typing import Any, Final
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from checks import redact  # noqa: E402
 from state_io import atomic_write  # noqa: E402
+import state_io  # noqa: E402
 
-ITEMS_PATH: Final[str] = ".harness/action-items.md"
+ITEMS_PATH: Final[str] = state_io.ACTION_ITEMS_REL
 GROUP_IDS: Final[dict[str, str]] = {
     "Secrets": "S", "Decisions": "D", "Handoff": "H", "Deploy": "Y", "Promotions": "P",
 }

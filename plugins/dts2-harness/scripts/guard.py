@@ -22,10 +22,10 @@ from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from son_launch import merge_config  # noqa: E402
-from state_io import append_text  # noqa: E402
+from state_io import MERGE_GUARD_LOG_REL, RUNS_REL, append_text  # noqa: E402
 
-LOG_NAME: Final[str] = ".harness/merge-guard.log"
-RUNS_DIR: Final[str] = ".harness/runs"
+LOG_NAME: Final[str] = MERGE_GUARD_LOG_REL
+RUNS_DIR: Final[str] = RUNS_REL
 MERGE_GO_NAME: Final[str] = "merge-go.md"
 HEAD_LINE: Final[re.Pattern[str]] = re.compile(r"^Verified head:\s*([0-9a-f]{7,40})\s*$", re.M)
 BASE_LINE: Final[re.Pattern[str]] = re.compile(r"^Base:\s*(\S+)\s+([0-9a-f]{7,40})\s*$", re.M)

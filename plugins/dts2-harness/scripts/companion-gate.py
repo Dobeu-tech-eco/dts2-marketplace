@@ -25,6 +25,7 @@ from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from state_io import atomic_write  # noqa: E402
+import state_io  # noqa: E402
 
 ONCE_PER_REPO: Final[str] = "setup-pre-commit"
 BY_DIFF_SIZE: Final[str] = "improve-codebase-architecture"
@@ -42,7 +43,7 @@ def git_cmd() -> list[str]:
 
 
 def state_path(repo: Path) -> Path:
-    return repo / ".harness" / STATE_FILE
+    return state_io.harness_path(repo, STATE_FILE)
 
 
 def read_state(repo: Path) -> dict[str, str]:

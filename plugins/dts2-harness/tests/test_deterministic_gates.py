@@ -57,7 +57,7 @@ class ChecksTests(unittest.TestCase):
         lines: list[dict[str, Any]] = [json.loads(x) for x in ledger_of(root).read_text().splitlines()]
         self.assertEqual({r["name"] for r in lines}, {"test", "typecheck", "lint", "secret-scan", "scope-check"})
         for record in lines:
-            self.assertEqual(set(record), {"kind", "name", "status", "duration_ms", "log_path", "head"})
+            self.assertEqual(set(record), {"kind", "name", "status", "duration_ms", "log_path", "head", "v", "ts", "run", "lane", "id"})
             self.assertIsInstance(record["duration_ms"], int)
             self.assertTrue((root / record["log_path"]).is_file())
 

@@ -12,11 +12,12 @@ from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from state_io import atomic_write  # noqa: E402
+import state_io  # noqa: E402
 
 TEMPLATES: Final[Path] = Path(__file__).resolve().parent.parent / "templates"
 CI_PATH: Final[str] = ".github/workflows/ci.yml"
-CHECKS_PATH: Final[str] = ".harness/checks.sh"
-CONFIG_PATH: Final[str] = ".harness/config.yaml"
+CHECKS_PATH: Final[str] = state_io.CHECKS_SH_REL
+CONFIG_PATH: Final[str] = state_io.CONFIG_REL
 COMMAND_KEYS: Final[tuple[str, ...]] = ("test", "typecheck", "lint", "build")
 SERVICES: Final[frozenset[str]] = frozenset({"web-app", "api"})
 HOSTED: Final[frozenset[str]] = frozenset({"web-app", "api", "static-site"})

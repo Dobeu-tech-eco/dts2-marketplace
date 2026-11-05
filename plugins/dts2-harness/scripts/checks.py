@@ -26,12 +26,14 @@ from pathlib import Path
 from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from state_io import append_text, atomic_write  # noqa: E402
+import miniyaml  # noqa: E402
+import state_io  # noqa: E402
+from state_io import atomic_write  # noqa: E402
 
-RUNS_DIR: Final[str] = ".harness/runs"
+RUNS_DIR: Final[str] = state_io.RUNS_REL
 LEDGER_NAME: Final[str] = "ledger.jsonl"
 CHECKS_DIR: Final[str] = "checks"
-CONFIG_PATH: Final[str] = ".harness/config.yaml"
+CONFIG_PATH: Final[str] = state_io.CONFIG_REL
 COMMAND_CHECKS: Final[tuple[str, ...]] = ("test", "typecheck", "lint")
 EXPECTED_CHECKS: Final[tuple[str, ...]] = (*COMMAND_CHECKS, "secret-scan", "scope-check")
 BASE_NAME: Final[str] = "base"
@@ -98,9 +100,27 @@ def read_ledger(path: Path) -> list[dict[str, Any]]:
     return records
 
 
-def append_ledger(path: Path, record: dict[str, Any]) -> None:
-    """Append one record in a single O_APPEND write, so lanes sharing a stamp never drop each other's lines."""
-    append_text(path, json.dumps(record, sort_keys=True) + "\n")
+def ledger_run(path: Path) -> str | None:
+    """The run stamp a ledger belongs to: the name of its folder when that is a stamp."""
+    try:
+        return str(state_io.Stamp.parse(path.parent.name))
+    except state_io.InvalidId:
+        return None
+
+
+def append_ledger(path: Path, record: dict[str, Any]) -> bool:
+    """Append one record as an event ({v, ts, run, lane, kind, id} plus the record's own fields) in a single O_APPEND write,
+    so lanes sharing a stamp never drop each other's lines. A record that carries its own `id` is written once; False
+    means that id was already in the ledger."""
+    fields: dict[str, Any] = {k: v for k, v in record.items() if k not in ("kind", "id", "lane", "run", "v", "ts")}
+    lane: Any = record.get("lane")
+    try:
+        event: dict[str, Any] = state_io.make_event(
+            str(record.get("kind", "event")), run=ledger_run(path), lane=lane, id=record.get("id"), **fields)
+    except state_io.InvalidId:
+        event = state_io.make_event(str(record.get("kind", "event")), run=ledger_run(path), id=record.get("id"),
+                                    **fields, lane_label=str(lane))
+    return state_io.append_event_at(path, event)
 
 
 def latest_checks(records: list[dict[str, Any]], head: str | None = None) -> dict[str, dict[str, Any]]:
@@ -125,42 +145,19 @@ def current_head(cwd: Path) -> str | None:
     return lines[0] if lines else None
 
 
-def inline_list(value: str) -> list[str] | None:
-    """Read a one-line flow list such as [".env", "secrets/**"]; None when the text is not one."""
-    if not (value.startswith("[") and value.endswith("]")):
-        return None
-    return [item.strip().strip("\"'") for item in value[1:-1].split(",") if item.strip()]
-
-
 def parse_config(text: str) -> dict[str, Any]:
-    """Read the `commands:` block (key: value) and the `do_not_touch:` list (block or inline) from .harness/config.yaml.
+    """Read the `commands:` block (key: value) and the `do_not_touch:` list (block or inline) from .harness/config.yaml,
+    through miniyaml.
 
     `unreadable` is true when `do_not_touch` has a value this parser cannot read, so the scope check fails closed."""
-    commands: dict[str, str] = {}
-    forbidden: list[str] = []
-    unreadable: bool = False
-    block: str = ""
-    for raw in text.splitlines():
-        if raw.lstrip().startswith("#"):
-            continue
-        line: str = raw.rstrip()
-        if line and not line.startswith((" ", "\t", "-")):
-            block, _, rest = line.partition(":")
-            block = block.strip()
-            value: str = rest.split(" #", 1)[0].strip()
-            if block == "do_not_touch" and value and not value.startswith("#"):
-                items: list[str] | None = inline_list(value)
-                if items is None:
-                    unreadable = True
-                else:
-                    forbidden += items
-            continue
-        body: str = line.strip()
-        if block == "commands" and ":" in body:
-            key, value = body.split(":", 1)
-            commands[key.strip()] = value.strip().strip("\"'")
-        elif block == "do_not_touch" and body.startswith("- "):
-            forbidden.append(body[2:].strip().strip("\"'"))
+    data: dict[str, Any] = miniyaml.parse(text)
+    block: Any = data.get("commands")
+    commands: dict[str, str] = (
+        {key: value for key, value in block.items() if isinstance(value, str)} if isinstance(block, dict) else {}
+    )
+    listed: Any = data.get("do_not_touch")
+    forbidden: list[str] = [item for item in listed if isinstance(item, str)] if isinstance(listed, list) else []
+    unreadable: bool = isinstance(listed, dict) or (isinstance(listed, str) and bool(listed))
     return {"commands": commands, "do_not_touch": forbidden, "unreadable": unreadable}
 
 

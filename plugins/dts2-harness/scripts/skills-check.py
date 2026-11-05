@@ -10,12 +10,10 @@ deletes or overwrites a git-tracked file: tracked skills are skipped and reporte
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 from datetime import date
 from pathlib import Path
@@ -25,6 +23,9 @@ from typing import Any, Final
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from state_io import atomic_write  # noqa: E402
 import skill_pins as pins  # noqa: E402
+import proc  # noqa: E402
+import _load  # noqa: E402
+import state_io  # noqa: E402
 
 SCRIPTS: Final[Path] = Path(__file__).resolve().parent
 PLUGIN_ROOT: Final[Path] = SCRIPTS.parent
@@ -54,6 +55,7 @@ HARNESS_PLUGIN: Final[str] = "dts2-harness@dts2"
 TIMEOUT_S: Final[int] = 120
 TIMED_OUT: Final[int] = 124
 NOT_FOUND: Final[int] = 127
+RUNNER: proc.Runner | None = None  # tests set a proc.FakeRunner; None starts real processes
 CANDIDATES_SHOWN: Final[int] = 3
 # On Windows npx is npx.cmd, run through cmd.exe, which interprets & | > even in list-form argv,
 # so every value that reaches a command line must match one of these first.
@@ -73,7 +75,7 @@ DAILY_MARKER: Final[str] = ".skills-checked"
 
 
 def checked_today(repo: Path) -> bool:
-    marker: Path = repo / ".harness" / DAILY_MARKER
+    marker: Path = state_io.harness_path(repo, DAILY_MARKER)
     try:
         return marker.read_text(encoding="utf-8").strip() == date.today().isoformat()
     except OSError:
@@ -81,7 +83,7 @@ def checked_today(repo: Path) -> bool:
 
 
 def mark_checked(repo: Path) -> None:
-    marker: Path = repo / ".harness" / DAILY_MARKER
+    marker: Path = state_io.harness_path(repo, DAILY_MARKER)
     atomic_write(marker, date.today().isoformat() + "\n")
 FIND_LINE: Final[re.Pattern[str]] = re.compile(r"^([\w.-]+/[\w.-]+)@([\w.-]+)\s+([\d.]+)([KkMm]?) installs")
 LIST_LINE: Final[re.Pattern[str]] = re.compile(r"^\S\s{4}([\w.-]+)\s*$")
@@ -89,30 +91,16 @@ ANSI: Final[re.Pattern[str]] = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 
 
 def load_upgrade_check() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("upgrade_check", SCRIPTS / "upgrade-check.py")
-    assert spec is not None and spec.loader is not None
-    module: ModuleType = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return _load.load("upgrade-check")
 
 
 def binary(name: str, default: str) -> list[str]:
-    value: str = os.environ.get(name, default)
-    if value.endswith(".py"):
-        return [sys.executable, value]
-    # Windows ships npx as npx.cmd; subprocess only finds it through PATHEXT via which().
-    return [shutil.which(value) or value]
+    return proc.binary(name, default)
 
 
 def run(cmd: list[str], cwd: Path) -> tuple[int, str]:
-    try:
-        done = subprocess.run(cmd, cwd=str(cwd), capture_output=True, text=True, encoding="utf-8", errors="replace",
-                              timeout=TIMEOUT_S, stdin=subprocess.DEVNULL)
-    except subprocess.TimeoutExpired:
-        return TIMED_OUT, "timed out"
-    except OSError as exc:
-        return NOT_FOUND, str(exc)
-    return done.returncode, ANSI.sub("", (done.stdout or "") + (done.stderr or ""))
+    return proc.run(cmd, cwd, timeout_s=TIMEOUT_S, runner=RUNNER, strip_ansi=True, merge_stderr=True,
+                    timeout_code=TIMED_OUT)
 
 
 def npx(*args: str) -> list[str]:
@@ -141,7 +129,7 @@ def strip_comment(value: str) -> str:
 
 
 def read_keep(repo: Path) -> dict[str, Any]:
-    path: Path = repo / ".harness" / "keep.yaml"
+    path: Path = state_io.harness_path(repo, "keep.yaml")
     return parse_keep(path.read_text(encoding="utf-8") if path.is_file() else "")
 
 
@@ -174,7 +162,7 @@ def parse_keep(text: str) -> dict[str, Any]:
 
 def swap_keep_entry(repo: Path, old: str, new: str, ref: str) -> None:
     """Replace the `old` entry (or append one) so a setup re-run keeps the replacement."""
-    path: Path = repo / ".harness" / "keep.yaml"
+    path: Path = state_io.harness_path(repo, "keep.yaml")
     text: str = path.read_bytes().decode("utf-8") if path.is_file() else "skills:\n"
     newline: str = "\r\n" if "\r\n" in text else "\n"
     lines: list[str] = text.splitlines()
@@ -618,7 +606,7 @@ def propose_updates(repo: Path, wanted: list[dict[str, Any]], write: bool = True
     stores them in the proposals file; check-only mode returns them and writes nothing. Nothing is
     installed and keep.yaml is untouched until an explicit --apply-update."""
     found = pins.build_proposals(wanted, lambda r: upstream_head(r, repo), lambda r, b, h: files_between(r, b, h, repo))
-    target: Path = repo / ".harness" / pins.PROPOSALS_FILE
+    target: Path = state_io.harness_path(repo, pins.PROPOSALS_FILE)
     if write and (found or target.is_file()):
         atomic_write(target, json.dumps(found, indent=2) + "\n")
     return found
@@ -628,7 +616,7 @@ def apply_update(repo: Path, home: Path, spec: str, report: dict[str, Any]) -> N
     """Apply one approved proposal: NAME=SHA must match the stored proposal exactly."""
     name, _, sha = spec.partition("=")
     name, sha = name.strip(), sha.strip()
-    target: Path = repo / ".harness" / pins.PROPOSALS_FILE
+    target: Path = state_io.harness_path(repo, pins.PROPOSALS_FILE)
     try:
         stored: list[dict[str, Any]] = json.loads(target.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -650,7 +638,7 @@ def apply_update(repo: Path, home: Path, spec: str, report: dict[str, Any]) -> N
     if code != 0 or installed(repo, name, home) != "claude":
         report["failed"].append({"name": name, "output": out[-400:]})
         return
-    keep: Path = repo / ".harness" / "keep.yaml"
+    keep: Path = state_io.harness_path(repo, "keep.yaml")
     text: str = keep.read_bytes().decode("utf-8") if keep.is_file() else ""
     updated: str = pins.set_pin_text(text, name, sha)
     if updated == text:  # a default companion with no keep entry yet: add one carrying the pin
@@ -695,7 +683,7 @@ def check_harness(repo: Path, home: Path, plugin_root: Path, fix: bool, daily: b
     upgrade = load_upgrade_check()
     plugin_json: Path = plugin_root / ".claude-plugin" / "plugin.json"
     installed_v: str = upgrade.read_version(plugin_json)
-    marker: Path = repo / ".harness" / "upgrade-from.txt"
+    marker: Path = state_io.harness_path(repo, "upgrade-from.txt")
     result: dict[str, Any] = {"installed": installed_v, "published": None, "upgrade_available": False,
                               "upgrade_started": False, "upgrade_failed": None, "resume_upgrade": None,
                               "marketplaces": {}, "plugins_updated": [], "restart_required": False}
