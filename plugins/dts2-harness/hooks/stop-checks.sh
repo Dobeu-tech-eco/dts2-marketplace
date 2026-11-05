@@ -72,12 +72,14 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   fi
 fi
 TIMED_OUT=false
+SKIPPED=false
 RED_OUTPUT=""
 save_fingerprint() {
   [[ "$IN_GIT" == "true" ]] || return 0
-  # A timed-out or red run saves a partial marker: the next Stop with the same tree runs the checks again instead of skipping.
+  # A timed-out, red or skipped run saves a partial marker: the next Stop with the same tree runs the checks again instead of
+  # treating nothing-ran as green.
   local suffix=""
-  if [[ "$TIMED_OUT" == "true" || -n "$RED_OUTPUT" ]]; then
+  if [[ "$TIMED_OUT" == "true" || "$SKIPPED" == "true" || -n "$RED_OUTPUT" ]]; then
     suffix=" partial"
   fi
   printf '%s%s' "$FINGERPRINT" "$suffix" >"$FINGERPRINT_FILE" 2>/dev/null || true
@@ -117,6 +119,7 @@ run_checks() {
   # executes any of it from a stop hook.
   if is_son; then
     echo "dts2-harness stop checks: skipped: son" >&2
+    SKIPPED=true
     return 0
   fi
   if [[ -f ".harness/checks.sh" ]]; then
