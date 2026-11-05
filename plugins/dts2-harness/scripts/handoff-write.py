@@ -23,6 +23,7 @@ HARNESS: Final[str] = state_io.HARNESS
 OUTPUT: Final[str] = state_io.HANDOFF_LATEST_REL
 TEMPLATE: Final[Path] = Path(__file__).resolve().parent.parent / "templates" / "handoff-latest.md"
 RECEIPT_PLACEHOLDER: Final[str] = "(filled at the ship checkpoint)"
+ROLLBACK_PREFIX: Final[str] = "Rollback (human-run"
 RESUME_COMMAND: Final[str] = "/dts2-harness:run resume"
 NEW_TASK: Final[str] = "No open items. Start a new task with `/dts2-harness:run <task>`."
 MAX_STATE_ITEMS: Final[int] = 5
@@ -76,6 +77,14 @@ def receipt_verdict(receipt: str) -> str:
     return "unknown"
 
 
+def rollback_line(receipt: str) -> str:
+    """The human-run Rollback line the ship step wrote into the receipt (AA-10), or a pointer when there is none."""
+    for line in receipt.splitlines():
+        if line.startswith(ROLLBACK_PREFIX):
+            return line.strip()
+    return "Rollback: none recorded"
+
+
 def deploy_summary(end_state: str) -> str:
     fields: dict[str, str] = {}
     for name in ("provider", "productionUrl", "status"):
@@ -93,6 +102,7 @@ def state_summary(repo: Path, run: Path | None) -> str:
         f"- Last decision: {decisions[-1][2:] if decisions else 'none'}",
         f"- Last failure: {failures[-1][2:] if failures else 'none'}",
         f"- Review verdict: {receipt_verdict(receipt) if receipt else 'no receipt yet'}",
+        f"- {rollback_line(receipt)}",
         f"- {deploy_summary(read(repo / HARNESS / 'end-state.md'))}",
     ]
     return redact("\n".join(lines))

@@ -15,6 +15,7 @@ If you are about to run out of turns before finishing, stop and make the first l
 You never write, edit, or execute code.
 
 ## Inputs
+- You are handed one page, the lead brief (`briefs.py lead-brief`): the task verbatim, the roster and probe in a few lines, the deterministic check results, and pointers. It is not a data dump. Read the files it points at yourself (`.harness/end-state.md`, `.harness/discipline.md`, `.harness/config.yaml`, `.harness/lessons.md`) and do not ask the caller to inline them.
 - The task, verbatim.
 - `.harness/end-state.md`. If the task names a slice, accept it; otherwise pick the next unchecked slice from `## Acceptance criteria`. List the criteria the plan covers, quoted. Read the Skills table: give each builder the skills whose `serves component` matches its files, in `order`; give reviewers the skills with phase `review`. Folders under `## Other harnesses` marked `coexist` are read-only: never assign them.
 - `.harness/discipline.md`. Follow every rule; the plan is how you define done first.
@@ -28,8 +29,8 @@ You never write, edit, or execute code.
 
 ## Produce
 1. A DAG of 3-7 tasks (more only for tier L/XL). For each task: one-sentence goal, files owned (write), files read-only, dependencies, acceptance criteria.
-2. **Foundation (wave 0).** Every plan has a mandatory `## Foundation` section, `wave: 0`: one builder section that owns what everything else imports first, namely shared types, config, schema or migrations, routes and the project skeleton or manifest. Write what it creates and its done-when. If nothing is shared, write `Foundation: none needed — <why>` (never omit the section). Foundation files belong to wave 0 only: no later builder owns them, and no builder section or ready-queue entry starts until wave 0 is merged.
-3. **Builders.** Group tasks so each builder owns a separate file set. Never give two builders the same file. Builders are execution seats: they never get a frontier model. Pick the cheapest capable agent by `tokenBurn.standard` in its roster profile, not by raw `costTier`, breaking ties by `costTier`. Rate each builder's `complexity:`; the run resolves model and effort from it (mechanical → economy/low, normal → standard/medium, design → standard/high), so harder work raises effort, never tier.
+2. **Foundation (wave 0).** Every plan has a mandatory `## Foundation` section, `wave: 0`: one builder section that owns what everything else imports first, namely shared types, config, schema or migrations, routes and the project skeleton or manifest. Write what it creates and its done-when, and rate it with `complexity:` like any builder: its model and effort come from that rating (never frontier). If nothing is shared, write `Foundation: none needed — <why>` (never omit the section). Foundation files belong to wave 0 only: no later builder owns them, and no builder section or ready-queue entry starts until wave 0 is merged.
+3. **Builders.** Group tasks so each builder owns a separate file set, cut as vertical slices (one feature across data, api and ui, tests with it) rather than one layer per builder. Never give two builders the same file. Owners are files, `dir/` prefixes or globs, never empty and never the whole repo; a builder that owns a package manifest owns the lockfile beside it. When builders share a contract, mark it: `provides:` on the creator, `consumes:` on the user, and `stubbed_on:` when the user can build against a stub and start at once (it merges after its provider). Never create a cycle. Builders are execution seats: they never get a frontier model. Pick the cheapest capable agent by `tokenBurn.standard` in its roster profile, not by raw `costTier`, breaking ties by `costTier`. Rate each builder's `complexity:`; the run resolves model and effort from it (mechanical → economy/low, normal → standard/medium, design → standard/high), so harder work raises effort, never tier.
 4. **Integration task.** If builders touch shared types, routes, or config, add a final single-owner integration task that depends on all of them.
 5. **Done.** Never empty. One line per outcome with its check method: `tests` (command), `visual` (screen to inspect), `source` (file and what to find), or `review` (axis).
 6. **Axes.** Always correctness, style, completeness. Add `security` when the planned files touch auth, network, dependencies, or env. Add `critique` and `walkthrough` when the planned files touch UI components named in the end state. Add `performance` when they touch queries or loops over unbounded data. `walkthrough` is performed by the verifier; the reviewer's matching axis is `walkthrough-findings`.
@@ -44,10 +45,12 @@ Covers: <acceptance criteria, quoted>
 
 ## Foundation
 wave: 0
+complexity: <mechanical|normal|design>
 - <shared types / config / schema / skeleton this plan builds first> | owns: src/types.ts | done when: <criteria> (or `Foundation: none needed — <why>`)
 
 ### Builder 1 (<agent>) — skills: <skills or none>
 complexity: <mechanical|normal|design>
+provides: <contract names or none>   consumes: <contract names or none>   stubbed_on: <consumed names built against a stub, or none>
 - T1 <goal> | owns: src/a.ts | depends: none | done when: <criteria>
 ### Builder 2 (<agent>) — skills: <skills or none>
 - T2 ...

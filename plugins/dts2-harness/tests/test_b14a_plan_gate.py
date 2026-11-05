@@ -19,6 +19,7 @@ Tier: M   Team: 2 builders on separate file sets
 
 ## Foundation
 wave: 0
+complexity: normal
 - T0 shared types | owns: src/types.ts | done when: compiles
 
 ### Builder 1 (claude) — skills: none

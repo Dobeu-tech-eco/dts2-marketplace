@@ -12,6 +12,8 @@ OUTSIDE_OWNED: Final[str] = "outside_owned"
 CLAIMED_NOT_HEAD: Final[str] = "claimed_not_head"
 DONE_STATUS: Final[str] = "DONE"
 MAX_REDISPATCH: Final[int] = 1
+STATUS_PREFIX: Final[int] = 3  # "XY " before the path
+RENAME_CODES: Final[str] = "RC"
 GLOB_CHARS: Final[tuple[str, ...]] = ("*", "?", "[")
 
 
@@ -27,6 +29,24 @@ def is_owned(path: str, owned: Iterable[str]) -> bool:
         elif path == entry:
             return True
     return False
+
+
+def parse_status_z(raw: str) -> list[str]:
+    """Paths from `git status --porcelain -z --untracked-files=all`. A rename or copy entry (`R`/`C` in either column) is followed by
+    its source path as a separate field; both the new and the old path count, so a rename cannot hide a file outside the owned set."""
+    fields: list[str] = raw.split("\0")
+    paths: list[str] = []
+    index: int = 0
+    while index < len(fields):
+        entry: str = fields[index]
+        index += 1
+        if len(entry) < STATUS_PREFIX:
+            continue
+        paths.append(entry[STATUS_PREFIX:])
+        if (entry[0] in RENAME_CODES or entry[1] in RENAME_CODES) and index < len(fields) and fields[index]:
+            paths.append(fields[index])
+            index += 1
+    return paths
 
 
 def same_commit(claimed: str, head: str) -> bool:

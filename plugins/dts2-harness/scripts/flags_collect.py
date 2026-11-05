@@ -31,6 +31,8 @@ def parse(report: str) -> list[dict[str, str]]:
             return []
         flags: list[dict[str, str]] = []
         for item in lines[index + 1:]:
+            if not item.strip() and not flags:
+                continue  # blank lines right after `FLAGS:` do not end the block
             parsed = FLAG_ITEM.match(item.strip())
             if not parsed:
                 break

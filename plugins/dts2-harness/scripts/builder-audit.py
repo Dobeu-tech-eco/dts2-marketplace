@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ownership_audit import audit, next_action  # noqa: E402
+from ownership_audit import audit, next_action, parse_status_z  # noqa: E402
 
 
 def git(repo: str, *args: str) -> str:
@@ -32,9 +32,10 @@ def main() -> int:
     parser.add_argument("--attempt", type=int, default=0, help="re-dispatches already made")
     args = parser.parse_args()
     head: str = git(args.repo, "rev-parse", "HEAD").strip()
-    changed: list[str] = git(args.repo, "diff", "--name-only", f"{args.base}..HEAD").splitlines()
+    # --no-renames: a renamed file shows as a delete of the old path and an add of the new one, so both are audited
+    changed: list[str] = git(args.repo, "diff", "--name-only", "--no-renames", f"{args.base}..HEAD").splitlines()
     committed_only: set[str] = set(changed)
-    dirty: list[str] = [line[3:] for line in git(args.repo, "status", "--porcelain").splitlines() if line]
+    dirty: list[str] = parse_status_z(git(args.repo, "status", "--porcelain", "-z", "--untracked-files=all"))
     owned: list[str] = [o.strip() for o in args.owned.split(",") if o.strip()]
     result = audit(sorted(committed_only | set(dirty)), owned, args.claimed_sha, head=head, status=args.status)
     result["action"] = next_action(result, args.attempt)
