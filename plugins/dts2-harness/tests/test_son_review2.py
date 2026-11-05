@@ -10,10 +10,10 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from contextlib import redirect_stdout
 from pathlib import Path
 from typing import Any, Final
-from unittest import mock
 
 import test_supervisor as sup
 from test_son_fixes import FAKE_GIT, LANES, PLUGIN_ROOT, PREFIX, bash, guard, son_launch
@@ -308,9 +308,9 @@ class SpawnTests(sup.SupervisorBase):
 class CrashFailsClosedTests(GuardBase):
     def run_main(self, command: str, mode: str = "merge") -> str:
         out = io.StringIO()
-        with mock.patch.object(sys, "argv", ["guard.py", "--mode", mode, "--cwd", str(self.root)]), \
-                mock.patch.object(sys, "stdin", io.StringIO(json.dumps(bash(command)))), \
-                mock.patch.object(guard, "decide", side_effect=RuntimeError("boom")), redirect_stdout(out):
+        with unittest.mock.patch.object(sys, "argv", ["guard.py", "--mode", mode, "--cwd", str(self.root)]), \
+                unittest.mock.patch.object(sys, "stdin", io.StringIO(json.dumps(bash(command)))), \
+                unittest.mock.patch.object(guard, "decide", side_effect=RuntimeError("boom")), redirect_stdout(out):
             self.assertEqual(guard.main(), 0)
         return out.getvalue()
 
