@@ -24,7 +24,7 @@ from .common import (
     SECONDS_PER_MINUTE, STATUS_NAME, binary, run,
 )
 from .gitrefs import PR_STATE_MERGED, PR_STATE_OPEN, branch_prs, gh_down, lane_ref
-from .merge import inside_son, son_refusal
+from .merge import inside_son, record_merged, son_refusal
 from .phases import transition
 from .records import merge_json
 from .runstate import lane_status, read_status_files, stale_after
@@ -38,7 +38,8 @@ ACTION_PARK: Final[str] = "park"
 ACTION_STALLED: Final[str] = "stalled"
 ACTION_NONE: Final[str] = "none"
 # A lane can be orphaned only while it is not in a finished or waiting state.
-ORPHANABLE: Final[frozenset[str]] = frozenset({"", "starting", PHASE_INCOMPLETE, PHASE_ORPHANED})
+# The empty phase (no status yet) is left out: LEGAL has no move from it to orphaned, so there is nothing to flag.
+ORPHANABLE: Final[frozenset[str]] = frozenset({"starting", PHASE_INCOMPLETE, PHASE_ORPHANED})
 
 AskGithub = Callable[[Path, str], tuple[list[dict[str, Any]] | None, str | None]]
 
@@ -75,7 +76,9 @@ def orphan_action(runs_dir: Path, stamp: str, lane: str, phase: str, data: dict[
     if phase == PHASE_ORPHANED or resumes < MAX_ORPHAN_RESUMES:
         number: int = resumes if phase == PHASE_ORPHANED else resumes + 1
         if phase != PHASE_ORPHANED:
-            transition(runs_dir, stamp, lane, PHASE_ORPHANED, reason=REASON_ORPHANED, actor="head")
+            moved: dict[str, Any] = transition(runs_dir, stamp, lane, PHASE_ORPHANED, reason=REASON_ORPHANED, actor="head")
+            if not moved["ok"]:
+                return ACTION_STALLED, f"could not flag the lane orphaned: {moved['detail']}"
             merge_json(runs_dir / stamp / lane / STATUS_NAME, {"resume_count": number})
         return ACTION_RESUME, (f"orphaned: dirty worktree, no report, no PR; spawn --resume "
                                f"(resume {number} of {MAX_ORPHAN_RESUMES})")
@@ -94,6 +97,7 @@ def decide(runs_dir: Path, stamp: str, path: Path, data: dict[str, Any], info: d
         merge_json(path, {"pr": merged.get("number"), "pr_url": merged.get("url"), "merged_on_github": True})
         if phase != PHASE_DONE:
             transition(runs_dir, stamp, lane, PHASE_DONE, reason="merged on GitHub", actor="head")
+        record_merged(runs_dir, stamp, lane)
         return ACTION_MERGED, f"PR #{merged.get('number')} is already merged; do not merge it again", False, report
     if opened is not None:
         merge_json(path, {"pr": opened.get("number"), "pr_url": opened.get("url")})

@@ -130,6 +130,8 @@ def save_merge_state(path: Path, state: dict[str, Any]) -> None:
     """Write merge-order.json and, beside it, the list of lanes still to merge that the merge guard reads to tell an active run
     from a finished one."""
     atomic_write(path, json.dumps(state, indent=2) + "\n")
+    if not state["order"]:
+        return  # no order known yet: leave the guard to the lanes' status files rather than claim nothing is pending
     pending: list[str] = [str(lane) for lane in state["order"] if lane not in state["merged"]]
     atomic_write(path.parent / MERGE_PENDING_NAME, "".join(f"{lane}\n" for lane in pending))
 
@@ -256,6 +258,22 @@ def grant_merge(manifest: dict[str, Any], runs_dir: Path, lane_id: str, head: st
     save_merge_state(runs_dir / stamp / MERGE_ORDER_NAME, {**state, "current": lane_id})
     note(runs_dir, stamp, KIND_GRANTED, lane=lane_id, key=int(time.time() * 1000), head=head, base=base, target=target)
     return {"ok": True, "lane": lane_id, "path": str(path), "head": head, "target": target, "base": base}
+
+
+def record_merged(runs_dir: Path, stamp: str, lane_id: str) -> bool:
+    """Record a lane that GitHub shows merged in merge-order.json the way `merge-done` does (merged list, merge released,
+    pending list rewritten), without needing the manifest. False when it was already recorded."""
+    path: Path = runs_dir / stamp / MERGE_ORDER_NAME
+    with merge_lock(path):
+        saved: dict[str, Any] = read_json_object(path)
+        merged: list[str] = [str(i) for i in saved.get("merged") or []]
+        if lane_id in merged:
+            return False
+        state: dict[str, Any] = {**saved, "order": [str(i) for i in saved.get("order") or []], "merged": [*merged, lane_id],
+                                 "current": None if saved.get("current") == lane_id else saved.get("current")}
+        save_merge_state(path, state)
+    note(runs_dir, stamp, KIND_MERGED, lane=lane_id, key="")
+    return True
 
 
 def merge_done(manifest: dict[str, Any], runs_dir: Path, lane_id: str) -> dict[str, Any]:

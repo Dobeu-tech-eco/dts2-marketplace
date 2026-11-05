@@ -145,7 +145,9 @@ def digest(findings: list[Finding], diff_stat: str) -> str:
     for f in (x for x in findings if x.severity not in DIGEST_FULL):
         rest[f.file or "no location"] = rest.get(f.file or "no location", 0) + 1
     lines += [f"- {n} lower finding(s) in {path}" for path, n in sorted(rest.items())]
-    lines = lines[:DIGEST_MAX_LINES]
+    if len(lines) > DIGEST_MAX_LINES:
+        dropped: int = len(lines) - (DIGEST_MAX_LINES - 1)
+        lines = [*lines[:DIGEST_MAX_LINES - 1], f"- ... {dropped} more line(s) not shown"]
     return "\n".join([*lines, "", "git diff --stat:", diff_stat.rstrip() or "(empty)"]) + "\n"
 
 

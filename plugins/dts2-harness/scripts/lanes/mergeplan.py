@@ -56,15 +56,18 @@ def probe_all(manifest: dict[str, Any], cwd: Path, base: str) -> dict[str, str]:
 
 
 def reorder(manifest: dict[str, Any], probes: dict[str, str]) -> list[str]:
-    """Stable topological order that takes the first ready lane which probed clean (or unknown), else the first ready one."""
+    """Stable topological order over depends_on and merge_after that takes the first ready lane which probed clean (or unknown), else the first ready one."""
     ids: list[str] = [str(lane["id"]) for lane in manifest["lanes"]]
+    from plan_graph import contract_edges  # local: plan_graph imports this package
+    _, merge_after, _ = contract_edges(manifest)
     needs: dict[str, set[str]] = {str(lane["id"]): {str(d) for d in (lane.get("depends_on") or []) if str(d) in ids}
+                                  | (merge_after.get(str(lane["id"]), set()) & set(ids))
                                   for lane in manifest["lanes"]}
     ordered: list[str] = []
     while len(ordered) < len(ids):
         ready: list[str] = [i for i in ids if i not in ordered and needs[i] <= set(ordered)]
         if not ready:
-            raise LaneError("depends_on has a cycle; no merge order exists")
+            raise LaneError("depends_on or merge_after has a cycle; no merge order exists")
         ordered.append(next((i for i in ready if probes.get(i) != PROBE_CONFLICT), ready[0]))
     return ordered
 
