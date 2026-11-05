@@ -1,0 +1,6 @@
+{"lanes": [{"id": "a", "item": "Parse", "files": ["src/parse.py"], "ids": {}, "depends_on": [], "tier": "standard"}],
+ "rounds": [{"check": "pass", "tokens_in": 1000, "tokens_out": 350, "cost_usd": 0.02}],
+ "votes": ["APPROVE", "APPROVE", "REJECT"],
+ "ballots": {"seat1": "VOTE: APPROVE\nLooks right.\n", "seat2": "VOTE: APPROVE\nFine.\n", "seat3": "VOTE: APPROVE\nOk.\n",
+             "seat4": "VOTE: REJECT\n## Dissent brief\nMissing a malformed-input case.\n",
+             "seat5": "VOTE: REJECT\n## Dissent brief\nNo test for empty string.\n"}}

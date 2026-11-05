@@ -1,0 +1,47 @@
+{
+  "fake_binaries": true,
+  "fixtures": {
+    "clean-fix": {
+      "fix_rounds": 0,
+      "mismatch": {},
+      "pass": true,
+      "tokens": 1600,
+      "wall_ms": 494
+    },
+    "lane-overlap": {
+      "fix_rounds": 0,
+      "mismatch": {},
+      "pass": true,
+      "tokens": 1050,
+      "wall_ms": 396
+    },
+    "one-fix-round": {
+      "fix_rounds": 1,
+      "mismatch": {},
+      "pass": true,
+      "tokens": 3300,
+      "wall_ms": 673
+    },
+    "split-vote": {
+      "fix_rounds": 0,
+      "mismatch": {},
+      "pass": true,
+      "tokens": 1350,
+      "wall_ms": 577
+    },
+    "stale-lease": {
+      "fix_rounds": 0,
+      "mismatch": {},
+      "pass": true,
+      "tokens": 900,
+      "wall_ms": 594
+    }
+  },
+  "totals": {
+    "fix_rounds": 1,
+    "fixtures": 5,
+    "passed": 5,
+    "tokens": 8200,
+    "wall_ms": 2734
+  }
+}

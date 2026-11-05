@@ -1,0 +1,4 @@
+{"lanes": [{"id": "a", "item": "Clamp", "files": ["src/clamp.py"], "ids": {}, "depends_on": [], "tier": "standard"}],
+ "rounds": [{"check": "fail", "tokens_in": 1500, "tokens_out": 600, "cost_usd": 0.03},
+            {"check": "pass", "tokens_in": 900, "tokens_out": 300, "cost_usd": 0.02}],
+ "votes": ["APPROVE", "APPROVE", "APPROVE"]}
