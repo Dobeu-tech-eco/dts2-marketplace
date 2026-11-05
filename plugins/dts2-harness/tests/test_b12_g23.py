@@ -28,7 +28,7 @@ SHAPE: Final[set[str]] = {"v", "ts", "run", "lane", "kind", "id"}
 class EventShapeTests(unittest.TestCase):
     def test_shape(self) -> None:
         event = state_io.make_event("check", run=STAMP, lane="a", name="lint")
-        self.assertTrue(SHAPE <= set(event))
+        self.assertLessEqual(SHAPE, set(event))
         self.assertEqual((event["v"], event["run"], event["lane"], event["kind"], event["name"]), (1, STAMP, "a", "check", "lint"))
         self.assertIsInstance(event["ts"], int)
         self.assertTrue(event["id"])
@@ -150,7 +150,7 @@ class ConsumerTests(unittest.TestCase):
                            capture_output=True, text=True, check=True)
         rows = [json.loads(line) for line in (repo / ".harness" / "metrics.jsonl").read_text().splitlines()]
         self.assertEqual(len(rows), 1)
-        self.assertTrue(SHAPE <= set(rows[0]))
+        self.assertLessEqual(SHAPE, set(rows[0]))
         self.assertEqual((rows[0]["kind"], rows[0]["rounds"], rows[0]["stamp"]), ("metrics", 2, STAMP))
 
 

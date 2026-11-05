@@ -4,7 +4,10 @@ and the dpp head's helpers: plan (admission, spend, feasibility, --full selectio
 stop-check and report-check. It is the only writer of lane state: leases, status.json fields the head owns (heartbeat,
 session id, park reason), send-backs, the budget counter, the model-call ledger and merge order. Its supervisor commands:
 preflight (pin the CLI version), spawn (start a son under every cap), call (any other model call behind the shared
-limit), heartbeat, budget, loop, merge-order, merge-plan, merge-go, merge-go-step and merge-done."""
+limit), heartbeat, budget, loop, merge-order, merge-plan, merge-go, merge-go-step and merge-done. Its lifecycle commands:
+transition (the one writer of a lane's phase, against a table of legal moves), shutdown (the graceful end of a run),
+reconcile (ask GitHub before creating, merging or resuming), run-record, builder and run-resume (the typed run record and
+builders.jsonl), fold-done, merge-resume and walkthrough-failed (the merge journal) and report (the run as a table)."""
 from __future__ import annotations
 
 import argparse
@@ -18,11 +21,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from lanes.common import COST_SOURCES, DEFAULT_CALL_TIMEOUT_S, HEARTBEAT_PHASES, LaneError, RUNS_DIR, load_manifest  # noqa: E402
 from lanes.conflicts import check  # noqa: E402
 from lanes.gitrefs import branch_check  # noqa: E402
+from lanes.journal import fold_done, walkthrough_failed  # noqa: E402
 from lanes.leases import lease  # noqa: E402
 from lanes.mergeplan import merge_plan  # noqa: E402
 from lanes.merge import merge_done, merge_go, merge_go_step, merge_order, set_merge_target  # noqa: E402
+from lanes.mergeresume import merge_resume  # noqa: E402
+from lanes.phases import ALL_PHASES, transition  # noqa: E402
 from lanes.planner import load_draft, plan, read_checkin, son_command  # noqa: E402
+from lanes.reconcile import reconcile  # noqa: E402
+from lanes.runend import VERDICT_MERGED, VERDICT_SHUTDOWN, record_run_end, run_report_view, warn_thin_plan  # noqa: E402
+from lanes.runrecord import BUILDER_STATUSES, RUN_KINDS, init_run, read_run, record_builder, resume_view  # noqa: E402
 from lanes.runstate import budget_report, fold, heartbeat, release, report_check, sendback, spend_state, status, stop_check  # noqa: E402
+from lanes.shutdown import GRACE_S, shutdown  # noqa: E402
 from lanes.supervisor import gc_restore, loop, model_call, preflight, spawn  # noqa: E402
 
 
@@ -81,6 +91,48 @@ def add_supervisor_parsers(sub: Any) -> None:
     done_p.add_argument("--lane", required=True)
 
 
+def add_lifecycle_parsers(sub: Any) -> None:
+    """Subcommands for the lane lifecycle: phases, shutdown, reconcile, the typed run record and the merge journal."""
+    move_p = sub.add_parser("transition", help="move a lane to a phase if the table of legal moves allows it")
+    move_p.add_argument("stamp")
+    move_p.add_argument("--lane", required=True)
+    move_p.add_argument("--to", required=True, choices=ALL_PHASES)
+    move_p.add_argument("--reason", default=None)
+    move_p.add_argument("--blocked-by", default="", help="item ids a blocked lane waits for, comma separated")
+    move_p.add_argument("--turn", type=int, default=None)
+    down_p = sub.add_parser("shutdown", help="graceful end of a run: park lanes, stop sons, close leases")
+    down_p.add_argument("stamp")
+    down_p.add_argument("--grace-s", type=float, default=GRACE_S, help="seconds a son gets after SIGTERM before SIGKILL")
+    sub.add_parser("reconcile", help="ask GitHub what exists for each lane before creating, merging or resuming").add_argument("stamp")
+    rec_p = sub.add_parser("run-record", help="the run's typed record; --init opens it")
+    rec_p.add_argument("stamp")
+    rec_p.add_argument("--init", action="store_true")
+    rec_p.add_argument("--kind", choices=RUN_KINDS, default="run")
+    build_p = sub.add_parser("builder", help="append one builder row to builders.jsonl")
+    build_p.add_argument("stamp")
+    build_p.add_argument("--lane", required=True)
+    build_p.add_argument("--section", required=True)
+    build_p.add_argument("--branch", required=True)
+    build_p.add_argument("--status", required=True, choices=BUILDER_STATUSES)
+    build_p.add_argument("--round", type=int, default=0, dest="round_no")
+    build_p.add_argument("--sha", default=None, help="the commit the builder reports; confirmed against the branch tip and diff")
+    build_p.add_argument("--pr", type=int, default=None)
+    build_p.add_argument("--base", default=None, help="the ref the diff is taken against when confirming the sha")
+    sub.add_parser("run-resume", help="what `run resume` reads: the run record and the newest row of each builder").add_argument("stamp")
+    fold_p = sub.add_parser("fold-done", help="record that a fold group's PR is shipped")
+    fold_p.add_argument("stamp")
+    fold_p.add_argument("--group", required=True, help="the group key `fold` printed")
+    fold_p.add_argument("--pr", type=int, default=None)
+    sub.add_parser("merge-resume", help="pick up a merge a dead head left half done").add_argument("manifest")
+    walk_p = sub.add_parser("walkthrough-failed", help="record a failed post-merge walkthrough and file the revert action item")
+    walk_p.add_argument("stamp")
+    walk_p.add_argument("--lane", required=True)
+    walk_p.add_argument("--reason", required=True)
+    report_p = sub.add_parser("report", help="the run as a markdown table")
+    report_p.add_argument("stamp")
+    report_p.add_argument("--repo-url", default=None, help="turns PR numbers into links")
+
+
 def add_run_parsers(sub: Any) -> None:
     """Subcommands keyed by run stamp, for the dpp head."""
     plan_p = sub.add_parser("plan")
@@ -101,6 +153,7 @@ def add_run_parsers(sub: Any) -> None:
             lane_p.add_argument("--epoch", type=int, default=None, help="refuse when older than the stored epoch")
     sub.add_parser("fold").add_argument("stamp")
     add_supervisor_parsers(sub)
+    add_lifecycle_parsers(sub)
     stop_p = sub.add_parser("stop-check")
     stop_p.add_argument("stamp")
     stop_p.add_argument("--from-checkin", required=True)
@@ -135,8 +188,10 @@ def dispatch_plan(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> dict[s
     draft: dict[str, Any] = load_draft(Path(args.draft))
     if args.stamp:
         draft = {**draft, "stamp": args.stamp}
-    return plan(draft, read_checkin(Path(args.from_checkin)), args.outside, args.full, args.max or len(draft["lanes"]), runs_dir, cwd,
-                not args.no_prs)
+    result: dict[str, Any] = plan(draft, read_checkin(Path(args.from_checkin)), args.outside, args.full,
+                                  args.max or len(draft["lanes"]), runs_dir, cwd, not args.no_prs)
+    warn_thin_plan(result)
+    return result
 
 
 def dispatch_run(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> dict[str, Any] | None:
@@ -179,6 +234,34 @@ def dispatch_supervisor(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> 
         return model_call(runs_dir, args.stamp, cwd, args.label, args.command_argv, args.timeout,
                           Path(args.out) if args.out else None, Path(args.prompt_file) if args.prompt_file else None,
                           args.cost_source)
+    return dispatch_lifecycle(args, runs_dir, cwd)
+
+
+def dispatch_lifecycle(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> dict[str, Any] | None:
+    if args.command == "transition":
+        return transition(runs_dir, args.stamp, args.lane, args.to, reason=args.reason, turn=args.turn,
+                          blocked_by=split_ids(args.blocked_by))
+    if args.command == "shutdown":
+        done: dict[str, Any] = shutdown(runs_dir, args.stamp, cwd, args.grace_s)
+        if done.get("ok"):
+            record_run_end(runs_dir, args.stamp, cwd, VERDICT_SHUTDOWN)
+        return done
+    if args.command == "reconcile":
+        return reconcile(runs_dir, args.stamp, cwd)
+    if args.command == "run-record":
+        record = init_run(runs_dir, args.stamp, args.kind) if args.init else read_run(runs_dir, args.stamp)
+        return {"ok": True, "run": record.to_dict()}
+    if args.command == "builder":
+        return record_builder(runs_dir, args.stamp, args.lane, section=args.section, branch=args.branch, status=args.status,
+                              round_no=args.round_no, sha=args.sha, pr=args.pr, cwd=cwd, base=args.base)
+    if args.command == "run-resume":
+        return resume_view(runs_dir, args.stamp)
+    if args.command == "fold-done":
+        return fold_done(runs_dir, args.stamp, args.group, args.pr)
+    if args.command == "walkthrough-failed":
+        return walkthrough_failed(runs_dir, args.stamp, args.lane, args.reason, cwd)
+    if args.command == "report":
+        return run_report_view(runs_dir, args.stamp, args.repo_url)
     return None
 
 
@@ -202,10 +285,13 @@ def dispatch(args: argparse.Namespace) -> dict[str, Any]:
         return merge_plan(manifest, runs_dir, cwd, args.base)
     if args.command == "merge-go":
         return merge_go(manifest, runs_dir, args.lane, args.head, cwd, args.base)
+    if args.command == "merge-resume":
+        return merge_resume(manifest, runs_dir, cwd)
     if args.command == "merge-done":
         done: dict[str, Any] = merge_done(manifest, runs_dir, args.lane)
         if done.get("all_merged"):
             gc_restore(runs_dir, str(manifest["stamp"]), cwd)
+            record_run_end(runs_dir, str(manifest["stamp"]), cwd, VERDICT_MERGED)
         return done
     return check(manifest, runs_dir, cwd, not args.no_prs)
 

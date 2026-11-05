@@ -3,17 +3,20 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from pathlib import Path
 from typing import Any
 
 from model_call import (
     read_budget, read_supervisor,
 )
+from proc import fallback_flags
 from son_launch import launch_flags, son_env
 
 from .integration import shared_patterns
-from .common import DEFAULT_BURN, DEFAULT_PERMISSION_MODE, DEFAULT_TIER, FRONTMATTER_FENCE, KIND_MAX, LEASE_NAME, LaneError, NONE_FOUND, PERMISSION_FIELD, PLUGIN_ROOT, PROFILE_PATH, SETTINGS_FILE, SON_MODEL, SON_SKILL, SOURCE_DELEGATION, STATUS_ACTIVE, binary, find_lane, norm
+from .common import DEFAULT_BURN, DEFAULT_PERMISSION_MODE, DEFAULT_TIER, FRONTMATTER_FENCE, KIND_MAX, LEASE_NAME, LaneError, NONE_FOUND, PERMISSION_FIELD, PLUGIN_ROOT, PROFILE_PATH, SETTINGS_FILE, SON_MODEL, SON_SKILL, SOURCE_DELEGATION, binary, find_lane, lease_live, norm
 from .conflicts import assess, external_sources
+from .gitrefs import gh_down
 
 
 def read_setting(cwd: Path, field: str, default: str) -> str:
@@ -39,8 +42,7 @@ def cap_flags(cwd: Path, remaining_usd: float | None, session: str | None) -> li
     caps: dict[str, Any] = read_budget(cwd)
     chain: list[str] = read_supervisor(cwd)["fallback_models"]
     flags: list[str] = ["--max-turns", str(caps["max_turns"]), "--output-format", "json"]
-    if chain:
-        flags += ["--fallback-model", ",".join(chain[:3])]  # a comma-separated chain tried in order, at most 3 models
+    flags += fallback_flags(chain)  # a comma-separated chain tried in order, at most 3 models
     if caps["max_usd"] is not None and remaining_usd is not None:
         flags += ["--max-budget-usd", f"{max(remaining_usd, 0.01):.2f}"]
     if session:
@@ -114,15 +116,16 @@ def admit_lane(lane: dict[str, Any], outstanding: set[str], outside: str, full: 
                   "reason": "not outstanding in check-in; pass --outside \"<item>: <why>\" to admit it"}
 
 
-def active_lease_files(runs_dir: Path, stamp: str) -> list[tuple[str, set[str]]]:
-    """Files held by this run's active leases, so a new lane never overlaps a son still building."""
+def active_lease_files(runs_dir: Path, stamp: str, now: int | None = None) -> list[tuple[str, set[str]]]:
+    """Files held by this run's live leases (active and not expired), so a new lane never overlaps a son still building."""
     found: list[tuple[str, set[str]]] = []
+    clock: int = int(time.time()) if now is None else now
     for path in sorted((runs_dir / stamp).glob(f"*/{LEASE_NAME}")):
         try:
             data: Any = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
-        if isinstance(data, dict) and data.get("status") == STATUS_ACTIVE:
+        if isinstance(data, dict) and lease_live(data, clock):
             found.append((f"lane {stamp}/{data.get('lane') or path.parent.name}",
                           {norm(str(f)) for f in data.get("files", [])}))
     return found
@@ -166,6 +169,8 @@ def plan(draft: dict[str, Any], outstanding: set[str], outside: str, full: bool,
     feasibility: dict[str, Any] = assess(manifest, sources, prs_checked, shared_patterns(cwd))
     result: dict[str, Any] = {"ok": bool(selected) and not refused and feasibility["ok"], "stamp": stamp,
                               "manifest": manifest, "feasibility": feasibility, "refused": refused, "reported": reported}
+    if with_prs and not prs_checked:  # fail closed: without gh the open-PR overlap check did not happen
+        result = {**result, "ok": False, "detail": gh_down("plan")}
     if full and len(selected) < cap:
         result["note"] = NONE_FOUND
     return result
