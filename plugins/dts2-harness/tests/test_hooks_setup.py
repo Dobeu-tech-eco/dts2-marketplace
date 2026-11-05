@@ -147,6 +147,22 @@ class ApplyTests(TempCase):
         self.assertEqual("go test ./...\n", (self.cwd / ".claude/hooks/dts2/test-command").read_text(encoding="utf-8"))
         self.assertTrue(self.settings.read_text(encoding="utf-8").endswith("}\n"))
 
+    def test_user_scope_keeps_test_command_in_the_project(self) -> None:
+        (self.cwd / "go.mod").write_text("module x\n", encoding="utf-8")
+        result = self.apply("test-on-stop", "--scope", "user")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertFalse((self.home / ".claude/hooks/dts2/test-command").exists())
+        self.assertEqual("go test ./...\n", (self.cwd / ".claude/hooks/dts2/test-command").read_text(encoding="utf-8"))
+
+    def test_existing_test_command_is_not_overwritten(self) -> None:
+        (self.cwd / "go.mod").write_text("module x\n", encoding="utf-8")
+        custom = self.cwd / ".claude/hooks/dts2/test-command"
+        custom.parent.mkdir(parents=True)
+        custom.write_text("make check\n", encoding="utf-8")
+        result = self.apply("test-on-stop")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("make check\n", custom.read_text(encoding="utf-8"))
+
     def test_existing_settings_are_kept_and_backed_up(self) -> None:
         existing: dict[str, Any] = {
             "permissions": {"allow": ["Bash(ls:*)"]},
@@ -297,6 +313,16 @@ class TemplateTests(TempCase):
         self.assertEqual((0, ""), (passing.returncode, passing.stdout))
         (hooks / "test-command").unlink()
         self.assertEqual("", run_template("test-on-stop", "{}", env).stdout)
+
+    def test_test_on_stop_ignores_command_next_to_a_user_script(self) -> None:
+        user_dir = self.home / ".claude" / "hooks" / "dts2"
+        user_dir.mkdir(parents=True)
+        script = user_dir / "test-on-stop.sh"
+        shutil.copyfile(TEMPLATES / "test-on-stop.sh", script)
+        (user_dir / "test-command").write_text("echo other-project; exit 3\n", encoding="utf-8")
+        result = subprocess.run(["bash", str(script)], input="{}", capture_output=True, text=True,
+                                env={**os.environ, "CLAUDE_PROJECT_DIR": str(self.cwd)}, check=False)
+        self.assertEqual((0, ""), (result.returncode, result.stdout))
 
     def test_merge_on_green_with_fake_gh(self) -> None:
         bin_dir = self.root / "bin"

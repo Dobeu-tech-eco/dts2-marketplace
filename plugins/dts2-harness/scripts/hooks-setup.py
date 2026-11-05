@@ -310,13 +310,13 @@ def apply(ids: list[str], scope: str, cwd: Path, home: Path, dry_run: bool) -> d
     copied: list[str] = [str(dest) for _, dest in copy_plan if not dest.exists()]
     if not dry_run and added:
         write_all(target, settings, backup, copy_plan, detect_test_command(cwd) if "test-on-stop" in added else None,
-                  dest_dir)
+                  dest_dir, script_dir("project", cwd, home))
     return {"settings": str(target), "added": added, "skipped": skipped, "copied": copied,
             "backup": str(backup) if backup else None, "dry_run": dry_run}
 
 
 def write_all(target: Path, settings: dict[str, Any], backup: Path | None, copy_plan: list[tuple[Path, Path]],
-              test_command: str | None, dest_dir: Path) -> None:
+              test_command: str | None, dest_dir: Path, test_dir: Path) -> None:
     if backup is not None:
         shutil.copy2(target, backup)
     dest_dir.mkdir(parents=True, exist_ok=True)
@@ -324,8 +324,10 @@ def write_all(target: Path, settings: dict[str, Any], backup: Path | None, copy_
         if not dest.exists():
             shutil.copyfile(source, dest)
         dest.chmod(0o755)
-    if test_command:
-        (dest_dir / TEST_COMMAND_FILE).write_text(test_command + "\n", encoding="utf-8")
+    test_file: Path = test_dir / TEST_COMMAND_FILE
+    if test_command and not test_file.exists():
+        test_dir.mkdir(parents=True, exist_ok=True)
+        test_file.write_text(test_command + "\n", encoding="utf-8")
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(settings, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
