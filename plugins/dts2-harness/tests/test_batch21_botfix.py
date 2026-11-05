@@ -103,5 +103,17 @@ class DedupeOnlyAfterWrite(unittest.TestCase):
         self.assertTrue(out.is_file())
 
 
+class CouncilSequenceSeed(unittest.TestCase):
+    def test_F6_sequence_is_seeded_from_existing_allocations(self) -> None:
+        council = load_script("council.py", "council_f6")
+        with tempfile.TemporaryDirectory() as tmp:
+            votes = Path(tmp)  # an instances.json from before the `#seq` counter: two instances of s3 were already handed out
+            (votes / "instances.json").write_text(json.dumps({"s3:plan:r1": 2, "s4:plan:r1": 1}), encoding="utf-8")
+            resumed = council.next_round(votes, "s3", "plan", retry="HTTP 429")
+            other = council.next_round(votes, "s4", "plan")
+        self.assertEqual(resumed["instance"], "s3+3")
+        self.assertEqual(other["instance"], "s4+2")
+
+
 if __name__ == "__main__":
     unittest.main()

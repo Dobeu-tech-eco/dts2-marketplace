@@ -508,13 +508,14 @@ def next_round(votes_dir: Path, step: str, kind: str, retry: str | None = None, 
     held: list[dict[str, Any]] = [r for r in round_outcomes(base) if r["kind"] == kind] if base.is_dir() else []
     complete: int = sum(1 for r in held if r["complete"])
     attempts: dict[str, int] = read_instances(votes_dir)
+    allocated: int = sum(count for name, count in attempts.items() if name.startswith(f"{tag}:"))  # one instance per attempt so far
     retrying: bool = retry is not None and is_retryable(retry)
     round_no: int = complete + 1
     key: str = f"{tag}:{kind}:r{round_no}"
     attempt: int = attempts.get(key, 0) + 1
     attempts[key] = attempt
     seq_key: str = f"{tag}{SEQUENCE_SUFFIX}"
-    sequence: int = attempts.get(seq_key, 0) + 1  # monotonic per step, so a later round never reuses an earlier instance id
+    sequence: int = max(attempts.get(seq_key, 0), allocated) + 1  # monotonic per step, seeded from earlier allocations (resume)
     attempts[seq_key] = sequence
     base.mkdir(parents=True, exist_ok=True)
     atomic_write(votes_dir / INSTANCES_NAME, json.dumps(attempts, indent=2, sort_keys=True) + "\n")
