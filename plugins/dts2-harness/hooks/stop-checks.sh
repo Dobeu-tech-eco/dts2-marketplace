@@ -26,7 +26,11 @@ remaining_s() {
 step_budget_s() {
   local left
   left="$(remaining_s)"
-  (( left < CHECK_TIMEOUT_S )) && echo "$left" || echo "$CHECK_TIMEOUT_S"
+  if (( left < CHECK_TIMEOUT_S )); then
+    echo "$left"
+  else
+    echo "$CHECK_TIMEOUT_S"
+  fi
 }
 [[ "$(setting enabled true)" == "true" ]] || exit 0
 write_handoff() {
@@ -34,6 +38,9 @@ write_handoff() {
   timeout "$HANDOFF_TIMEOUT_S" python3 -I "$PLUGIN_DIR/scripts/handoff-write.py" "$PWD" >/dev/null 2>&1 || true
 }
 write_handoff
+# The hook payload is read once, before any check step runs: a child that reads stdin cannot starve maybe_block of it.
+PAYLOAD=""
+[[ -t 0 ]] || read -r -t 1 -d '' PAYLOAD || true
 [[ "$(setting stop_checks true)" == "true" ]] || exit 0
 EXCLUDES=(':(exclude).harness/cache' ':(exclude).harness/handoff')
 state_dir() {
@@ -68,9 +75,11 @@ TIMED_OUT=false
 RED_OUTPUT=""
 save_fingerprint() {
   [[ "$IN_GIT" == "true" ]] || return 0
-  # A timed-out run saves a partial marker: the next Stop with the same tree runs the checks again instead of skipping.
+  # A timed-out or red run saves a partial marker: the next Stop with the same tree runs the checks again instead of skipping.
   local suffix=""
-  [[ "$TIMED_OUT" == "true" ]] && suffix=" partial"
+  if [[ "$TIMED_OUT" == "true" || -n "$RED_OUTPUT" ]]; then
+    suffix=" partial"
+  fi
   printf '%s%s' "$FINGERPRINT" "$suffix" >"$FINGERPRINT_FILE" 2>/dev/null || true
 }
 # run_step <command...>: run under the shared deadline; stderr gets the last lines, a non-zero exit is recorded as red.
@@ -81,7 +90,7 @@ run_step() {
     TIMED_OUT=true
     return 0
   fi
-  out="$(timeout "$budget" "$@" 2>&1)"
+  out="$(timeout "$budget" "$@" 2>&1 </dev/null)"
   rc=$?
   out="$(printf '%s\n' "$out" | tail -20)"
   [[ -n "$out" ]] && printf '%s\n' "$out" >&2
@@ -104,8 +113,13 @@ run_eslint() {
   run_step "$eslint_bin" --no-error-on-unmatched-pattern -- "${changed[@]}"
 }
 run_checks() {
-  # Repo-defined checks are the repo's own code: a son (an autonomous run) never executes them from a stop hook.
-  if [[ -f ".harness/checks.sh" ]] && ! is_son; then
+  # Everything below runs the repo's own code (checks.sh, node_modules/.bin/tsc and eslint): a son (an autonomous run) never
+  # executes any of it from a stop hook.
+  if is_son; then
+    echo "dts2-harness stop checks: skipped: son" >&2
+    return 0
+  fi
+  if [[ -f ".harness/checks.sh" ]]; then
     run_step bash ".harness/checks.sh"
   fi
   [[ -f "package.json" && -d "node_modules" ]] || return 0
@@ -119,9 +133,7 @@ run_checks() {
 maybe_block() {
   [[ -n "$RED_OUTPUT" ]] || return 0
   [[ "$(setting stop_checks_block false)" == "true" ]] || return 0
-  local payload=""
-  [[ -t 0 ]] || read -r -t 1 -d '' payload || true
-  [[ "$payload" =~ \"stop_hook_active\"[[:space:]]*:[[:space:]]*true ]] && return 0
+  [[ "$PAYLOAD" =~ \"stop_hook_active\"[[:space:]]*:[[:space:]]*true ]] && return 0
   printf '%s' "$RED_OUTPUT" | python3 -I -c 'import json,sys; print(json.dumps({"decision": "block", "reason": "dts2-harness stop checks are red; fix before stopping:\n" + sys.stdin.read()[-2000:]}))'
 }
 run_checks

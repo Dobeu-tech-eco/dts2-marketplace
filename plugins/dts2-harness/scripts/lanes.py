@@ -29,7 +29,7 @@ from lanes.mergecomp import MUTEX_OPS, base_health, merge_mutex, read_routing, r
 from lanes.mailbox import advance_request, ask, answer, check_rules, check as mailbox_check, merge_go_check, park, request_out_of_lane, wait  # noqa: E402
 from lanes.integration import shared_patterns  # noqa: E402
 from lanes.mergeplan import merge_plan  # noqa: E402
-from lanes.policy import approve_lane, apply_policy, base_outstanding, override  # noqa: E402
+from lanes.policy import approve_lane, apply_policy, base_outstanding, frozen_items, override  # noqa: E402
 from lanes.merge import audit_lane, merge_done, merge_go, merge_go_step, merge_order, set_merge_target  # noqa: E402
 from lanes.mergeresume import merge_resume  # noqa: E402
 from lanes.phases import ALL_PHASES, transition  # noqa: E402
@@ -265,7 +265,8 @@ def dispatch_plan(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> dict[s
     if args.stamp:
         draft = {**draft, "stamp": args.stamp}
     result: dict[str, Any] = plan(draft, read_checkin(Path(args.from_checkin)), args.outside, args.full,
-                                  args.max or len(draft["lanes"]), runs_dir, cwd, not args.no_prs)
+                                  args.max or len(draft["lanes"]), runs_dir, cwd, not args.no_prs,
+                                  frozen_items(runs_dir, str(draft.get("stamp")), cwd, args.fullauto))
     result = apply_policy(result, runs_dir, cwd, full=args.full, fullauto=args.fullauto, autopilot=args.autopilot)
     warn_thin_plan(result)
     if isinstance(result.get("manifest"), dict):

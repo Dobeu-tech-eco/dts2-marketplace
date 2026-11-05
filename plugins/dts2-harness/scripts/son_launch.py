@@ -53,17 +53,18 @@ GIT_ALLOWED: Final[tuple[str, ...]] = (  # G-64: add and commit, never push; the
     "Bash(git rev-parse*)", "Bash(git branch*)", "Bash(git checkout*)", "Bash(git switch*)", "Bash(git merge*)",
     "Bash(git worktree*)", "Bash(git ls-files*)", "Bash(git stash*)",
 )
-HARNESS_ALLOWED: Final[tuple[str, ...]] = ("Bash(python3 -I *scripts/*)", f"Bash(bash {CHECKS_SH_REL}*)")
+HARNESS_ALLOWED: Final[tuple[str, ...]] = (f"Bash(python3 -I {PLUGIN_ROOT / 'scripts'}/*)", f"Bash(bash {CHECKS_SH_REL}*)")
 CHECK_BLOCK: Final[str] = "commands"  # `commands:` in .harness/config.yaml: test, typecheck, lint
 RULE_UNSAFE: Final[re.Pattern[str]] = re.compile(r"[()\n]")
 HANDOVER_DENY: Final[tuple[str, ...]] = ("Bash(git push*)", "Bash(gh pr*)", "Bash(gh api*)")  # G-64: a son hands over a branch
 DISALLOWED: Final[tuple[str, ...]] = (
     *HANDOVER_DENY,
-    "Bash(gh pr merge *)", "Bash(*lanes.py merge-go*)", "Bash(*lanes.py merge-target*)", "Bash(gh repo delete *)", "Bash(git -c *)", "Bash(git push --force *)",
+    "Bash(gh pr merge *)", "Bash(*head_publish.py*)", "Bash(*lanes.py merge-go*)", "Bash(*lanes.py merge-target*)", "Bash(gh repo delete *)", "Bash(git -c *)", "Bash(git push --force *)",
     "Bash(git push -f *)", "Read(~/.ssh/**)", "Read(**/.env)", "Read(**/.env.*)", "Read(~/.aws/**)",
     "Read(~/.config/gcloud/**)", "Edit(.claude/**)", "Write(.claude/**)", "Edit(.mcp.json)", "Write(.mcp.json)",
     "Edit(.git/hooks/**)", "Write(.git/hooks/**)",
 )
+APPROVAL_FILE: Final[str] = ".claude/settings.local.json"
 MERGE_GO_NAME: Final[str] = "merge-go.md"
 PROBE_LANE: Final[str] = "preflight"  # the preflight probe is not a lane: it has no builders and no grant file
 BUILDERS_VAR: Final[str] = "DTS2_BUILDERS_DIR"
@@ -212,6 +213,11 @@ def existing(paths: list[Path]) -> list[str]:
     return [str(p) for p in paths if p.exists()]
 
 
+def approval_files(root: Path, worktree: Path) -> list[str]:
+    """`.claude/settings.local.json` holds the human-only approval key (Q11): no son may write it, in the repo or its worktree."""
+    return [str(base / APPROVAL_FILE) for base in (root, worktree.resolve())]
+
+
 def write_scope(manifest: dict[str, Any], lane_id: str, cwd: Path, worktree: Path) -> tuple[list[str], list[str]]:
     """(allowWrite, denyWrite) for one son. Sandbox protected paths cover `.git/hooks` and `.git/config` only inside the
     working directory, and a linked worktree commits into the main repo's git dir, so the deny entries are explicit (a
@@ -222,7 +228,7 @@ def write_scope(manifest: dict[str, Any], lane_id: str, cwd: Path, worktree: Pat
     stamp: str = str(manifest["stamp"])
     lane_dir: Path = root / RUNS_DIR / stamp / lane_id
     allow: list[str] = [str(root / CACHE_DIR), str(common), str(lane_dir), str(worktree.resolve())]
-    deny: list[str] = [str(common / "hooks"), str(common / "config"),
+    deny: list[str] = [str(common / "hooks"), str(common / "config"), *approval_files(root, worktree),
                        *existing([common / "modules", *sorted((common / "worktrees").glob("*/config.worktree"))])]
     if lane_id != PROBE_LANE:
         allow.append(str(builders_dir(root, lane_id)))

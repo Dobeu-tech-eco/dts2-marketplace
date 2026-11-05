@@ -17,7 +17,7 @@ from .common import (
 )
 from .leases import lease_epoch, read_lease, renew_lease, stale_epoch
 from .merge import inside_son
-from .records import append_ledger, lane_lock, merge_json, read_json_object, state_for
+from .records import append_ledger, lane_lock, read_json_object, state_for
 
 ACTOR_HEAD: Final[str] = "head"
 ACTOR_SON: Final[str] = "son"
@@ -125,15 +125,24 @@ def heartbeat(runs_dir: Path, stamp: str, lane_id: str, turn: int | None, phase:
         moved: dict[str, Any] = transition(runs_dir, stamp, lane_id, phase, reason=reason, blocked_by=blocked_by, turn=turn,
                            epoch=epoch)
         return moved if not moved["ok"] else {"ok": True, "lane": lane_id, "heartbeat": moved["heartbeat"], "status": phase}
+    return beat(runs_dir, stamp, lane_id, turn, reason, blocked_by, epoch)
+
+
+def beat(runs_dir: Path, stamp: str, lane_id: str, turn: int | None, reason: str | None, blocked_by: list[str] | None,
+         epoch: int | None) -> dict[str, Any]:
+    """A heartbeat with no phase change. The epoch is checked under the status lock, and a stale writer renews nothing."""
     path: Path = lane_path(runs_dir, stamp, lane_id)
-    stale: dict[str, Any] | None = fenced(path, lane_id, epoch)
-    if stale is not None:
-        return stale
     now: int = int(time.time())
-    changes: dict[str, Any] = {"lane": lane_id, "heartbeat": now, **stamped_fields(path, epoch)}
-    changes.update({k: v for k, v in (("turn", turn), ("reason", reason)) if v is not None})
-    if blocked_by:
-        changes["blocked_by"] = blocked_by
-    merged: dict[str, Any] = merge_json(path, changes)
-    renew_lease(path.parent / LEASE_NAME, now)
+    with lane_lock(path) as held:
+        if not held:
+            raise LaneError(f"lock busy for {path}")
+        stale: dict[str, Any] | None = fenced(path, lane_id, epoch)
+        if stale is not None:
+            return stale
+        changes: dict[str, Any] = {"lane": lane_id, "heartbeat": now, **stamped_fields(path, epoch)}
+        changes.update({k: v for k, v in (("turn", turn), ("reason", reason)) if v is not None})
+        if blocked_by:
+            changes["blocked_by"] = blocked_by
+        merged: dict[str, Any] = state_for(path).merge_record(path.name, changes)
+        renew_lease(path.parent / LEASE_NAME, now)
     return {"ok": True, "lane": lane_id, "heartbeat": now, "status": merged.get("status")}

@@ -77,6 +77,14 @@ def read_object(path: Path) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def frozen_items(runs_dir: Path, stamp: str, cwd: Path, fullauto: bool) -> set[str] | None:
+    """The stored fullauto scope, or None when it is not frozen yet (or the setting is off): `plan` filters by it first."""
+    if not (fullauto and flag(cwd, FREEZE_SCOPE_FIELD)):
+        return None
+    items: Any = read_object(runs_dir / stamp / SCOPE_NAME).get("items")
+    return set(items) if isinstance(items, list) and items else None
+
+
 def freeze_scope(result: dict[str, Any], runs_dir: Path, stamp: str) -> dict[str, Any]:
     """G-50: the first fullauto plan stores its item set and hash in `<stamp>/scope.json`; later plans keep only lanes whose
     item is in it. Any other item goes to `pending-items.json` and the result's `pending` list, never into a lane."""
@@ -89,7 +97,7 @@ def freeze_scope(result: dict[str, Any], runs_dir: Path, stamp: str) -> dict[str
         atomic_write(path, json.dumps(frozen, indent=2) + "\n")
         return {**result, "scope_hash": frozen["hash"], "pending": []}
     inside: list[dict[str, Any]] = [lane for lane in lanes if str(lane.get("item", "")) in frozen["items"]]
-    outside: list[str] = sorted({str(lane.get("item", "")) for lane in lanes} - set(frozen["items"]))
+    outside: list[str] = sorted(({str(lane.get("item", "")) for lane in lanes} | set(result.get("out_of_scope", []))) - set(frozen["items"]))
     pending: list[str] = sorted({*read_object(runs_dir / stamp / PENDING_NAME).get("items", []), *outside})
     if outside:
         atomic_write(runs_dir / stamp / PENDING_NAME, json.dumps({"v": 1, "items": pending}, indent=2) + "\n")
