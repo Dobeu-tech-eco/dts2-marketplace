@@ -61,6 +61,7 @@ ID_PREFIX: Final[str] = "in-"
 HOOK_FIELD: Final[str] = "prompt"
 SOURCES: Final[tuple[str, ...]] = ("hook", "cli")
 EXIT_USAGE: Final[int] = 2
+HOOK_LOCK_TRIES: Final[int] = 1
 MD_HEADER: Final[str] = "# Intake queue\n\nGenerated from intake.jsonl by scripts/intake.py. Do not edit by hand.\n\n"
 
 
@@ -181,9 +182,13 @@ def next_id(items: list[dict[str, Any]]) -> str:
     return f"{ID_PREFIX}{max(numbers, default=0) + 1}"
 
 
-def locked(root: Path) -> Any:
-    """The intake ledger lock. Not re-entrant: callers hold it once and use the `*_in` helpers below."""
-    return state_io.FileStore(root).lock(state_io.INTAKE_REL)
+def locked(root: Path, tries: int | None = None) -> Any:
+    """The intake ledger lock. Not re-entrant: callers hold it once and use the `*_in` helpers below.
+    `tries` is the number of acquire attempts; None keeps the store default (the CLI retries, the hook does not)."""
+    store: Any = state_io.FileStore(root)
+    if tries is None:
+        return store.lock(state_io.INTAKE_REL)
+    return store.lock(state_io.INTAKE_REL, tries=tries)
 
 
 def append_in(root: Path, items: list[dict[str, Any]], classified: tuple[str, str], source: str, threshold: int,
@@ -298,7 +303,7 @@ def record_hook_prompt(root: Path, prompt: str, threshold: int, budget: int) -> 
     classified: tuple[str, str] | None = classify(prompt)
     if classified is None:
         return None
-    with locked(root):
+    with locked(root, tries=HOOK_LOCK_TRIES):
         items: list[dict[str, Any]] = load_items(root)
         target: dict[str, Any] | None = open_clarify(items, budget)
         if target is not None and classified[0] != STEER and is_reply(classified[1], threshold):
