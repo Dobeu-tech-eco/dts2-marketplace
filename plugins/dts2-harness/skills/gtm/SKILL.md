@@ -15,6 +15,7 @@ This command never hard-stops. If something is missing it installs it, falls bac
 
 Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/ensure-ignored.py" <repo>`.
 Dispatch `dts2-harness:scout` for the marketing-surface list; without `.harness/end-state.md`, say so and continue with scout's output only.
+A scout report whose first line is `PARTIAL: hit turn cap at <step>` is not the surface list: re-dispatch the scout with a narrower scope or a fresh agent, inside the fix-loop cap.
 
 ## 2. GTM deep-dive
 Before the pipeline, run a short deep-dive.

@@ -30,6 +30,7 @@ Dispatch `dts2-harness:lead` (seat: sign-off, `model: opus`) with the feature re
 - **Each repo plan doc** that exists: the feature added in that doc's own format and place (a roadmap entry, a phase task, a status line `planned`), never a reformat of the rest.
 - **action-items.md**: a Decisions row for each open question, a Secrets row (name only, via `action-items.py <repo> add Secrets NAME`) for each new secret the feature needs, a Deploy row for each external setup step.
 - `## Done` for the feature: one checkable outcome per line.
+A lead report whose first line is `PARTIAL: hit turn cap at <step>` is not a patch: do not show it for approval; re-dispatch the lead with a narrower scope or a fresh agent, inside the fix-loop cap.
 
 ## 4. Architecture and agent-friendly passes, then approval
 1. **5b. Architecture pass.** Run `/improve-codebase-architecture` against the repo with the new sections as the planned change; present its findings as amendments to the patch and ask `Apply these architecture amendments? (y/n/edit)`.
