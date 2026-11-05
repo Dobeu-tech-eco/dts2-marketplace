@@ -74,4 +74,4 @@ Hooks read settings from `.claude/dts2-harness.local.md` through `hooks/lib-sett
 
 ## Scripts worth knowing
 
-`checks.py` (deterministic gate), `council.py` (dossier, tally, blind ballots, seats), `lanes.py` (lane leases and supervision), `roster.py` and `delegate.py` (which agent and model for which seat), `prod-scaffold.py` (CI and ops files for a target app), `doctor.py` (preflight table, `make doctor`).
+`checks.py` (deterministic gate), `council.py` (dossier, tally, blind ballots, seats), `lanes.py` (thin CLI over the `scripts/lanes/` package: `conflicts`, `leases`, `gitrefs`, `planner`, `runstate`, `supervisor`, `merge`, shared `common`), `roster.py` and `delegate.py` (which agent and model for which seat), `prod-scaffold.py` (CI and ops files for a target app), `doctor.py` (preflight table, `make doctor`).
