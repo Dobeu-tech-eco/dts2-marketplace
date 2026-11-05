@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -34,7 +35,9 @@ from lanes.runend import VERDICT_MERGED, VERDICT_SHUTDOWN, record_run_end, run_r
 from lanes.runrecord import BUILDER_STATUSES, RUN_KINDS, init_run, read_run, record_builder, resume_view  # noqa: E402
 from lanes.runstate import budget_report, fold, heartbeat, release, report_check, sendback, spend_state, status, stop_check  # noqa: E402
 from lanes.shutdown import GRACE_S, shutdown  # noqa: E402
+from lanes.leases import gc_leases  # noqa: E402
 from lanes.supervisor import gc_restore, loop, model_call, preflight, spawn  # noqa: E402
+from lanes.waiter import DEFAULT_TIMEOUT_S as WAIT_TIMEOUT_S, wait_for_change  # noqa: E402
 from plan_graph import annotate_plan, graph_check as check, graph_lease as lease  # noqa: E402
 
 
@@ -69,6 +72,10 @@ def add_supervisor_parsers(sub: Any) -> None:
     beat_p.add_argument("--reason", default=None, help="why, recorded with --status")
     beat_p.add_argument("--blocked-by", default="", help="item ids a blocked lane waits for, comma separated")
     sub.add_parser("merge-order").add_argument("manifest")
+    wait_p = sub.add_parser("wait", help="block until a lane's phase or exit.json changes, or the timeout")
+    wait_p.add_argument("stamp")
+    wait_p.add_argument("--timeout", type=float, default=WAIT_TIMEOUT_S, help="hard deadline in seconds")
+    sub.add_parser("gc", help="close expired leases of lanes nobody is running (a crashed run's)")
     plan_p = sub.add_parser("merge-plan")
     plan_p.add_argument("manifest")
     plan_p.add_argument("--base", help="ref to probe lanes against (default origin/<merge target>)")
@@ -247,6 +254,11 @@ def dispatch_supervisor(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> 
         return merge_go_step(runs_dir, args.stamp, args.step, args.head, cwd, args.base)
     if args.command == "gc-restore":
         return gc_restore(runs_dir, args.stamp, cwd)
+    if args.command == "wait":
+        return wait_for_change(runs_dir, args.stamp, args.timeout)
+    if args.command == "gc":
+        closed: list[str] = gc_leases(runs_dir, int(time.time()))
+        return {"ok": True, "closed": closed}
     if args.command == "heartbeat":
         return heartbeat(runs_dir, args.stamp, args.lane, args.turn, args.status, args.reason, split_ids(args.blocked_by))
     if args.command == "call":

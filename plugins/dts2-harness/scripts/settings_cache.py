@@ -21,7 +21,7 @@ CONFIG_FILE: Final[str] = state_io.CONFIG_REL
 LOCAL_FILE: Final[str] = ".claude/dts2-harness.local.md"
 CACHE_FILE: Final[str] = state_io.SETTINGS_CACHE_REL
 CACHE_MODE: Final[int] = 0o600
-SCHEMA_VERSION: Final[int] = 1
+SCHEMA_VERSION: Final[int] = 2
 # section -> key -> (type, default). The defaults are the ones model_call.py and lanes.py already used.
 SCHEMA: Final[dict[str, dict[str, tuple[type, Any]]]] = {
     "budget": {
@@ -35,6 +35,7 @@ SCHEMA: Final[dict[str, dict[str, tuple[type, Any]]]] = {
     "local": {
         "enabled": (bool, True), "max_builders": (int, 6), "max_reviewers": (int, 4),
         "son_permission_mode": (str, "bypassPermissions"), "lead_provider": (str, "claude"),
+        "son_model": (str, "opus"),
     },
 }
 DEFAULTS: Final[dict[str, dict[str, Any]]] = {

@@ -89,7 +89,7 @@ Run as `python3 -I "$P/scripts/<x>.py" ...`. Hook-driven and internal scripts ar
 | `clarity-score.py` | `<ratings>` | none | Requirement clarity score; the weakest component bounds it. | `feature`, `setup` | |
 | `plan-gate.py` | `<plan>` | `--json` | PASS or FAIL for a lead plan before the checkpoint: Foundation section, exclusive ownership, `complexity:` per builder, token estimate. | `run` | new |
 | `state_io.py` | `migrate-all [repo]` | none | Upgrade every record under `.harness/runs/` to the current version; safe to repeat. | by hand | new |
-| `settings_cache.py` | `[repo]` | `--get` | Parsed settings from `.harness/config.yaml` and the local frontmatter, cached. | by hand | new |
+| `settings_cache.py` | `[repo]` | `--get` | Parsed settings from `.harness/config.yaml` and the local frontmatter, cached; `local.son_model` (default `opus`) is the model every dpp son runs on. | by hand | changed |
 
 ### 4.2 Repo detection and scaffolding
 
@@ -172,9 +172,11 @@ Stamp-keyed commands:
 | `merge-target <stamp>` | `--set`, `--yes-default-branch` | Record the branch the run merges into (head only). | `dpp`, `autopilot` | new |
 | `merge-go-step <stamp>` | `--step --head` (required), `--base` | Merge clearance for an autopilot step (head only). | `autopilot` | new |
 | `gc-restore <stamp>` | none | Restore `gc.auto` after an aborted run (head only). | `dpp` | new |
+| `wait <stamp>` | `--timeout` (seconds, hard deadline, default 600) | Block until a lane's phase or `exit.json` changes (inotify when the kernel has it, else a sleep-backoff loop), then return which lanes moved; the head calls it once instead of polling `status`. | `dpp` | new |
+| `gc` | none | Close expired leases of lanes nobody is running (a crashed run's); `preflight` and `spawn --resume` run it too. | `dpp` | new |
 | `transition <stamp>` | `--lane --to` (required; one of starting, pr-open, done, blocked, incomplete, orphaned), `--reason`, `--blocked-by`, `--turn` | The one writer of a lane's phase, checked against the table of legal moves; a son may report only pr-open, done, blocked, incomplete. | none yet (`heartbeat`, park and spawn call it) | new |
 | `shutdown <stamp>` | `--grace-s` | Graceful end of a run: park running lanes, stop sons (SIGTERM, then SIGKILL after the grace period), close leases, restore `gc.auto`. | none yet | new |
-| `reconcile <stamp>` | none | Ask GitHub what exists for each lane before creating, merging or resuming; returns one action per lane; fails closed without `gh`. | none yet | new |
+| `reconcile <stamp>` | none | Ask GitHub what exists for each lane before creating, merging or resuming; returns one action per lane (a lane whose son exited, or that stalled, is also moved to incomplete here); fails closed without `gh`. | none yet | new |
 | `run-record <stamp>` | `--init`, `--kind` (run or autopilot) | Open or print the run's typed record (`run.json`). | none yet | new |
 | `builder <stamp>` | `--lane --section --branch --status` (required; status is a lane phase or merged), `--round`, `--sha`, `--pr`, `--base` | Append one builder row to `builders.jsonl`; the sha is confirmed against the branch tip and diff. | none yet | new |
 | `run-resume <stamp>` | none | What `run resume` reads: the run record and the newest row of each builder. | none yet | new |
@@ -223,7 +225,7 @@ Stamp-keyed commands:
 
 Imported by the scripts above; none is a CLI. Responsibilities are in `ARCHITECTURE.md`.
 
-`_load.py`, `contracts.py`, `mdparse.py`, `miniyaml.py`, `model_call.py`, `ownership_audit.py`, `prep-tiers.py` (helper for `machine-prep.py`), `proc.py`, `profiles.py`, `skill_pins.py`, `son_launch.py` (also `provider_env`, `allowed_tools`, `auth_problem`, `init_plugin_errors`), `state_ids.py`, and the modules of `scripts/lanes/` (`amend`, `common`, `conflicts`, `gitrefs`, `integration`, `journal`, `leases`, `merge`, `mergeplan`, `mergeresume`, `phases`, `planner`, `reconcile`, `records`, `runend`, `runrecord`, `runstate`, `shutdown`, `supervisor`).
+`_load.py`, `contracts.py`, `mdparse.py`, `miniyaml.py`, `model_call.py`, `ownership_audit.py`, `prep-tiers.py` (helper for `machine-prep.py`), `proc.py` (also the son lifecycle: `wrap_son`, `son.json`, `exit.json`, SIGINT-then-SIGKILL), `profiles.py`, `skill_pins.py`, `son_launch.py` (also `provider_env`, `allowed_tools`, `auth_problem`, `init_plugin_errors`), `son_stream.py` (stream-json heartbeat, `detect_stuck`, `api_retry` exhaustion), `state_ids.py`, and the modules of `scripts/lanes/` (`amend`, `common`, `conflicts`, `gitrefs`, `integration`, `journal`, `leases`, `merge`, `mergeplan`, `mergeresume`, `phases`, `planner`, `reconcile`, `records`, `runend`, `runrecord`, `runstate`, `shutdown`, `supervisor`, `waiter`).
 
 ## 6. Makefile targets and CI
 
@@ -247,7 +249,7 @@ Sources: `changelog.d/*.md`, the `## Unreleased` lines in `README.md`, and `git 
 | What | Commands | Source |
 |---|---|---|
 | Lane lifecycle | `lanes.py transition`, `shutdown`, `reconcile`, `run-record`, `builder`, `run-resume`, `fold-done`, `merge-resume`, `walkthrough-failed`, `report` | G-13, G-14, G-15, G-17, N6 |
-| Lane supervisor and merge | `lanes.py spawn`, `call`, `heartbeat`, `preflight`, `budget`, `loop`, `merge-order`, `merge-plan`, `merge-go`, `merge-target`, `merge-go-step`, `merge-done`, `gc-restore` | A4, A5, A6, A11, N1, N2, B6, Q-15, G-18 |
+| Lane supervisor and merge | `lanes.py spawn`, `call`, `heartbeat`, `preflight`, `budget`, `loop`, `merge-order`, `merge-plan`, `merge-go`, `merge-target`, `merge-go-step`, `merge-done`, `gc-restore`, `wait`, `gc` | A4, A5, A6, A11, N1, N2, B6, Q-15, G-18 |
 | Plan graph | `lanes.py amend`; `plan_graph.py analyse`, `merge-order`, `brief` | G-26, G-27, G-28, G-29, Q-22 |
 | Review and build gates | `builder-audit.py`, `plan-gate.py`, `flags_collect.py`, `findings.py merge\|digest`, `review_split.py plan`, `rollback_ref.py create\|line` | AA-1, AA-5, AA-9, Q-21, AA-7, AA-10 |
 | Council | `council.py route`, `blind`, `wrap`, `swap`, `identical`; `seat_swap.py` | B2, A9, B7 |
