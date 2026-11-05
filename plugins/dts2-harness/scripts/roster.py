@@ -19,6 +19,8 @@ import state_io  # noqa: E402
 from profiles import PROFILE_DIR, Profiles  # noqa: E402
 from son_launch import provider_env  # noqa: E402
 
+COOLDOWN_REASON_FMT: Final[str] = "cooling down until {reset} ({why})"
+DISPATCH_SET_BY: Final[str] = "dispatch"
 DEFAULT_ROSTER: Final[list[dict[str, Any]]] = [{"name": "claude"}]
 COPILOT_TIMEOUT_SECONDS: Final[int] = 10
 IDE_MARKERS: Final[dict[str, str]] = {
@@ -343,9 +345,40 @@ def opt_in_override(
     return False, NOT_OPTED_IN
 
 
+def cooldowns_module() -> Any | None:
+    """The cooldowns module, or None when it cannot be imported (callers then behave as before)."""
+    try:
+        import cooldowns
+    except Exception:
+        return None
+    return cooldowns
+
+
+def cooling_entry(name: str) -> dict[str, Any] | None:
+    module: Any | None = cooldowns_module()
+    if module is None:
+        return None
+    try:
+        return module.is_cooling(name)
+    except Exception:
+        return None
+
+
+def cooling_result(cooling: dict[str, Any], profile: dict[str, Any], budget: str) -> dict[str, Any]:
+    reset: str = str(cooling.get("reset_at", ""))
+    reason: str = COOLDOWN_REASON_FMT.format(reset=reset, why=cooling.get("reason", ""))
+    return {
+        "available": False, "reason": reason, "budget": budget or BUDGET_UNKNOWN,
+        "costTier": profile["costTier"], "roles": [], "auth": AUTH_NONE, "resetAt": reset,
+    }
+
+
 def probe_entry(
     entry: dict[str, Any], profile: dict[str, Any], budget: str, env: dict[str, str],
 ) -> dict[str, Any]:
+    cooling: dict[str, Any] | None = cooling_entry(entry["name"])
+    if cooling is not None:
+        return cooling_result(cooling, profile, budget)
     available, reason = availability(profile, env)
     auth: str = auth_mode(profile, env, available, entry.get("auth"))
     available, reason = opt_in_override(entry, available, reason, auth)
@@ -596,6 +629,25 @@ def seat_fallback(profile: dict[str, Any] | None, role: str, usable: list[str] |
     return target
 
 
+def record_cooldown(
+    output: str, exit_code: int, agent: str, role: str, quota_hit: bool,
+) -> tuple[dict[str, Any] | None, bool]:
+    """Record a usage-limit cooldown for the agent; returns (stored entry or None, reset date unknown)."""
+    module: Any | None = cooldowns_module()
+    if module is None:
+        return None, False
+    try:
+        det: dict[str, Any] | None = module.detect(output, exit_code, agent)
+        if det is None and quota_hit:
+            det = {"agent": agent, "provider": None, "reset_at": None, "reason": UNAVAILABLE, "transient": False}
+        if det is None:
+            return None, False
+        stored: dict[str, Any] | None = module.record_detection(det, set_by=role or DISPATCH_SET_BY)
+    except Exception:
+        return None, False
+    return stored, bool(stored and stored.get("needs_date"))
+
+
 def classify_dispatch(
     agent: str, role: str, output: str, exit_code: int, profile: dict[str, Any] | None = None,
     usable: list[str] | None = None, axis: str | None = None,
@@ -607,6 +659,10 @@ def classify_dispatch(
     seat: str = seat_of(profile, role, axis)
     base: dict[str, Any] = {"agent": agent, "role": role, "seat": seat, "seatFailed": False}
     hit: dict[str, Any] | None = classify_output(output, exit_code, agent)
+    if hit is not None or exit_code != 0:
+        cooldown, needs_date = record_cooldown(output, exit_code, agent, role, hit is not None)
+        if cooldown is not None:
+            base = {**base, "cooldown": cooldown, "needsDate": needs_date}
     if hit is not None:
         return {**base, **hit, "dropForRun": True, "fallback": seat_fallback(profile, seat, usable)}
     if error_tail(output, exit_code, CONTEXT_BUDGET) is not None:

@@ -37,10 +37,21 @@ def verified_first(profiles: dict[str, dict[str, Any]]) -> list[str]:
     return verified + unverified
 
 
+def cooling_now() -> list[str]:
+    """Names with an active cooldown; empty when the cooldown store cannot be read."""
+    try:
+        import cooldowns
+        return list(cooldowns.cooling_names())
+    except Exception:
+        return []
+
+
 def next_lead(
     profiles: dict[str, dict[str, Any]], current: str, exclude: Iterable[str] = (),
+    cooling: Iterable[str] | None = None,
 ) -> str | None:
-    skipped: set[str] = {current, *exclude}
+    paused: Iterable[str] = cooling_now() if cooling is None else cooling
+    skipped: set[str] = {current, *exclude, *paused}
     for name in rotation(verified_first(profiles), current):
         if name not in skipped:
             return name
