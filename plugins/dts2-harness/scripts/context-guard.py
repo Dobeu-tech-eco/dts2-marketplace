@@ -93,10 +93,28 @@ def current_run(effective: Path, active: str | None = None) -> Path | None:
     return max(runs, key=lambda p: p.stat().st_mtime) if runs else None
 
 
+PLAN_FILES: Final[tuple[str, ...]] = ("plan.md", "plan.out.json", "lanes.json")  # run, autopilot/dpp plan outputs
+PLAN_APPROVED: Final[re.Pattern[str]] = re.compile(r"\bplan (?:was |is )?approved\b", re.IGNORECASE)
+STATE_SCAN_BYTES: Final[int] = 262144
+
+
+def state_says_approved(run: Path) -> bool:
+    """True when the run's own state.md records the plan approval (a run that approved in conversation and never saved
+    plan.md was stopped as a pre-plan spike, H-004)."""
+    try:
+        with open(run / "state.md", encoding="utf-8", errors="replace") as handle:
+            return PLAN_APPROVED.search(handle.read(STATE_SCAN_BYTES)) is not None
+    except OSError:
+        return False
+
+
 def has_plan(effective: Path, active: str | None = None) -> bool:
-    """True when the current run (not any older run) has reached its plan checkpoint."""
+    """True when the current run (not any older run) has reached its plan checkpoint: a saved plan (plan.md, or the
+    autopilot/dpp plan.out.json or lanes.json), or a `plan approved` line in the run's state.md."""
     run: Path | None = current_run(effective, active)
-    return run is not None and (run / "plan.md").is_file()
+    if run is None:
+        return False
+    return any((run / name).is_file() for name in PLAN_FILES) or state_says_approved(run)
 
 
 def int_field(state: dict[str, Any], key: str) -> int:

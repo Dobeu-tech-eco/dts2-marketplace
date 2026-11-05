@@ -194,6 +194,21 @@ class ActiveRunPlanTests(unittest.TestCase):
         self.on_branch("main")
         self.assertFalse(self.guard.has_plan(self.repo, self.guard.active_stamp(self.repo)))
 
+    def test_autopilot_and_dpp_plan_outputs_count(self) -> None:  # H-004
+        self.on_branch("dts2/20260202-2/main")
+        for name in ("plan.out.json", "lanes.json"):
+            path = self.repo / RUNS_REL / "20260202-2" / name
+            path.write_text("{}\n", encoding="utf-8")
+            self.assertTrue(self.guard.has_plan(self.repo, "20260202-2"), name)
+            path.unlink()
+
+    def test_a_plan_approval_recorded_in_run_state_counts(self) -> None:  # H-004
+        state = self.repo / RUNS_REL / "20260202-2" / "state.md"
+        state.write_text("- lead/plan: waiting at plan checkpoint\n", encoding="utf-8")
+        self.assertFalse(self.guard.has_plan(self.repo, "20260202-2"))
+        state.write_text("- plan approved by Jeremy: R1 approved\n", encoding="utf-8")
+        self.assertTrue(self.guard.has_plan(self.repo, "20260202-2"))
+
 
 class SonApprovalKeyTests(LaneCase):
     def test_a_son_may_not_write_the_human_approval_file(self) -> None:
