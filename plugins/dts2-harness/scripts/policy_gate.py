@@ -255,14 +255,16 @@ def rule_matches(rule: dict[str, Any], words: list[str]) -> bool:
 
 
 def expansion_hides_flags(rule: dict[str, Any], words: list[str]) -> bool:
-    """A flag-checked rule for a command whose arguments hold a `$` cannot be judged; refuse it (fail closed)."""
+    """A flag-checked rule for a command whose arguments hold a `$` cannot be judged; refuse it (fail closed). A rule with a
+    `sub` only judges commands that run that sub-command; a flag-only rule judges every command of its tool."""
     view = tool_view(words)
-    if view is None or view[0] not in rule.get("cmd", []) or not rule.get("sub") or not (rule.get("flags") or rule.get("short_flags")):
+    if view is None or view[0] not in rule.get("cmd", []) or not (rule.get("flags") or rule.get("short_flags")):
         return False
     _, positionals, flags = view
-    if not has_sequence(positionals, rule["sub"]):
+    skip: int = len(rule["sub"]) if rule.get("sub") else 0
+    if skip and not has_sequence(positionals, rule["sub"]):
         return False
-    return any(arg.startswith(("$", "`")) for arg in positionals[len(rule["sub"]):]) or any("$" in flag or "`" in flag for flag in flags)
+    return any(arg.startswith(("$", "`")) for arg in positionals[skip:]) or any("$" in flag or "`" in flag for flag in flags)
 
 
 def deny_reason(policy: dict[str, Any], command: str) -> str | None:
