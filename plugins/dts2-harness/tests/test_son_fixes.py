@@ -78,6 +78,8 @@ class SonSettingsTests(unittest.TestCase):
         self.assertIn(str(root.parent / "repo-dts2-a-builders"), fs["allowWrite"])  # an exact path: no mid-path wildcard on Linux
         self.assertIn(str(root / ".harness" / "cache"), fs["allowWrite"])
         self.assertEqual(fs["denyWrite"], [str(root / ".git" / "hooks"), str(root / ".git" / "config"),
+                                           str(root / ".claude" / "settings.local.json"),
+                                           str(root.parent / "wt" / ".claude" / "settings.local.json"),
                                            str(root / ".harness" / "runs" / "s1" / "a" / "merge-go.md")])
 
     def test_no_bare_and_guard_hook_present(self) -> None:
