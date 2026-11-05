@@ -20,6 +20,7 @@ Read the file for a section only when you reach it; do not read ahead. All files
 | `phase-3-parking.md` | Read `phase-3-parking.md` (same folder) when a step parks, a hard stop fires, or a run resumes: section 4; and at the end of every run, before `phase-4-report.md`, for section 5a, adjudication (it runs on every run, parked or not). |
 | `phase-4-report.md` | Read `phase-4-report.md` (same folder) when the queue is done and section 5a adjudication (`phase-3-parking.md`) has run: section 5, the final report. |
 | `son-mode.md` | Read `son-mode.md` (same folder) when the arguments are `--son <stamp>/<lane>`: section 6. A son reads its `brief.md` and this file first, then loads the other phase files on demand as it reaches each section, exactly as the head does (sections 0 to 5a apply to it), except that it never runs the steps `son-mode.md` reserves for the head. |
+| `son-contract.md` | Read `son-contract.md` (same folder) with `son-mode.md`: the mailbox rules every son obeys (no own stamp, protected records, need-human, parks, merge-go check, fresh rules). |
 
 ## Guardrails
 - The council is an escalation, not a shortcut: it sits only after three complete rounds of the normal vote on the same ballot have failed (`council.py eligible`), never earlier and never because one dispatch failed.
