@@ -1,4 +1,4 @@
-# dts2-harness 3.11 agent guide
+# dts2 4.0 agent guide
 
 > Migrating from dts2-harness (old name): the plugin is now `dts2`, so commands are `/dts2:<command>`. Run `/plugin uninstall dts2-harness@dts2`, `/plugin marketplace update dts2`, `/plugin install dts2@dts2`, `/reload-plugins`; settings and `.harness/` state are unchanged.
 
