@@ -198,8 +198,11 @@ def write_handoff(repo: Path) -> dict[str, Any]:
     module: ModuleType = load_action_items()
     items: list[dict[str, Any]] = module.list_items(read(repo / module.ITEMS_PATH).splitlines(), date.today())
     path: Path = repo / OUTPUT
+    text: str = render(repo, items)
+    if read(path) == text:
+        return {"written": False, "reason": "unchanged", "path": OUTPUT, "open_items": len(items), "resume": RESUME_COMMAND}
     path.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write(path, render(repo, items))
+    atomic_write(path, text)
     return {"written": True, "path": OUTPUT, "open_items": len(items), "resume": RESUME_COMMAND}
 
 
