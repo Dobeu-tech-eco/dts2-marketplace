@@ -256,12 +256,24 @@ def gemini_second_opinion(diff: str, repo: Path) -> str:
         return run_second_opinion(argv, repo, env)
 
 
+def second_opinion_env(profile_env: dict[str, str] | None) -> dict[str, str]:
+    """The son allowlist plus the profile env (G-67): a second-opinion CLI never sees GH_TOKEN, cloud credentials or the
+    Anthropic key. The provider's own key variables pass through when set."""
+    sys.path.insert(0, str(PLUGIN_ROOT / "scripts"))
+    from son_launch import provider_env
+    source: dict[str, str] = dict(os.environ)
+    keys: list[str] = [k for k in ("OPENAI_API_KEY", "GEMINI_API_KEY", "XAI_API_KEY") if source.get(k)]
+    env: dict[str, str] = provider_env(source)
+    env.update({k: source[k] for k in keys})
+    return {**env, **(profile_env or {})}
+
+
 def run_second_opinion(argv: list[str], repo: Path, env: dict[str, str] | None = None) -> str:
     """Run one second-opinion CLI with the profile env on top of ours; a timeout becomes a note so
     the run still reaches the receipt."""
     try:
         result = subprocess.run(argv, cwd=repo, capture_output=True, text=True,
-                                stdin=subprocess.DEVNULL, env={**os.environ, **(env or {})},
+                                stdin=subprocess.DEVNULL, env=second_opinion_env(env),
                                 timeout=SECOND_OPINION_TIMEOUT_S)
     except subprocess.TimeoutExpired:
         return TIMED_OUT.format(seconds=SECOND_OPINION_TIMEOUT_S)
