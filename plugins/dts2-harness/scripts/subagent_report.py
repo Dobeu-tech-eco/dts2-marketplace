@@ -67,7 +67,8 @@ def already_blocked(payload: dict[str, Any]) -> bool:
     try:
         marker.touch()
     except OSError:
-        pass
+        # Marker unwritable (read-only TMPDIR, full disk): the block may fire again, but a report check never fails the session.
+        return False
     return False
 
 
