@@ -2,18 +2,18 @@
 from __future__ import annotations
 
 import json
-import os
 import re
-import shutil
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Final
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import proc  # noqa: E402
+from proc import binary  # noqa: E402,F401 - re-exported: the lanes modules take it from here
+from state_io import LEASE_NAME, RUNS_REL, STATUS_NAME  # noqa: E402,F401
 
-RUNS_DIR: Final[str] = ".harness/runs"
+RUNS_DIR: Final[str] = RUNS_REL
 MANIFEST_NAME: Final[str] = "lanes.json"
-LEASE_NAME: Final[str] = "lease.json"
 STATUS_CLOSED: Final[str] = "closed"
 STATUS_ACTIVE: Final[str] = "active"
 SCHEMA_PATTERNS: Final[tuple[str, ...]] = (
@@ -41,7 +41,6 @@ DEFAULT_PERMISSION_MODE: Final[str] = "dontAsk"
 SON_MODEL: Final[str] = "opus"
 SON_SKILL: Final[str] = "/dts2-harness:autopilot --son"
 FRONTMATTER_FENCE: Final[str] = "---"
-STATUS_NAME: Final[str] = "status.json"
 LEDGER_NAME: Final[str] = "task-ledger.md"
 SEND_BACK_NAME: Final[str] = "send-back-{n}.md"
 SEND_BACK_GLOB: Final[str] = "send-back-*.md"
@@ -52,6 +51,7 @@ SECONDS_PER_MINUTE: Final[int] = 60
 PHASE_DONE: Final[str] = "done"
 PHASE_BLOCKED: Final[str] = "blocked"
 PHASE_INCOMPLETE: Final[str] = "incomplete"
+PHASE_ORPHANED: Final[str] = "orphaned"
 TERMINAL_PHASES: Final[frozenset[str]] = frozenset({PHASE_DONE, PHASE_BLOCKED, PHASE_INCOMPLETE})
 SETTLED_PHASES: Final[frozenset[str]] = frozenset({PHASE_DONE, PHASE_BLOCKED})
 REASON_STALLED: Final[str] = "stalled"
@@ -68,6 +68,11 @@ MODEL_LEDGER_NAME: Final[str] = "model-ledger.jsonl"
 MERGE_ORDER_NAME: Final[str] = "merge-order.json"
 MERGE_PENDING_NAME: Final[str] = "merge-pending.txt"  # unmerged lane ids, one per line; the merge guard reads this, never run state
 MERGE_GO_NAME: Final[str] = "merge-go.md"
+BUILDERS_NAME: Final[str] = "builders.jsonl"
+MERGE_JOURNAL_NAME: Final[str] = "merge-journal.jsonl"
+REPORT_NAME: Final[str] = "report.md"
+LEASE_TTL_FACTOR: Final[int] = 2  # a lease lives this many times max_wall_minutes unless a heartbeat renews it
+DEFAULT_LEASE_TTL_S: Final[int] = 2 * 90 * 60
 PROTECTED_DEFAULTS: Final[tuple[str, ...]] = ("main", "master")
 PREFLIGHT_TIMEOUT_S: Final[int] = 30
 DEFAULT_CALL_TIMEOUT_S: Final[int] = 1800
@@ -85,6 +90,8 @@ REASON_SANDBOX: Final[str] = "sandbox-required"
 REASON_LOOPS: Final[str] = "loops"
 REASON_OVERLOAD: Final[str] = "overload"
 REASON_RUNNING: Final[str] = "running"
+REASON_SHUTDOWN: Final[str] = "shutdown"
+REASON_ORPHANED: Final[str] = "orphaned"
 COST_CLAUDE: Final[str] = "claude"
 COST_NONE: Final[str] = "none"
 COST_SOURCES: Final[tuple[str, ...]] = (COST_CLAUDE, COST_NONE)
@@ -111,20 +118,9 @@ class LaneError(Exception):
     """Raised on a malformed manifest or an unknown lane."""
 
 
-def binary(name: str, default: str) -> list[str]:
-    value: str = os.environ.get(name, default)
-    if value.endswith(".py"):
-        return [sys.executable, value]
-    return [shutil.which(value) or value]
-
-
 def run(cmd: list[str], cwd: Path) -> tuple[int, str]:
-    try:
-        done = subprocess.run(cmd, cwd=str(cwd), capture_output=True, text=True, encoding="utf-8",
-                              errors="replace", timeout=TIMEOUT_S, stdin=subprocess.DEVNULL)
-    except (subprocess.TimeoutExpired, OSError) as exc:
-        return 1, str(exc)
-    return done.returncode, done.stdout or ""
+    """(exit code, stdout) of one command through proc.run: a timeout is 143, a missing program 127, never an exception."""
+    return proc.run(cmd, cwd, timeout_s=TIMEOUT_S)
 
 
 def load_manifest(path: Path) -> dict[str, Any]:
@@ -158,3 +154,11 @@ def find_lane(manifest: dict[str, Any], lane_id: str) -> dict[str, Any]:
         if lane.get("id") == lane_id:
             return lane
     raise LaneError(f"unknown lane '{lane_id}'")
+
+
+def lease_live(record: dict[str, Any] | None, now: int) -> bool:
+    """True for an active lease that has not passed its `expires_at`. A lease with no expiry (written before G-16) never expires."""
+    if not isinstance(record, dict) or record.get("status") != STATUS_ACTIVE:
+        return False
+    expires: Any = record.get("expires_at")
+    return not (isinstance(expires, (int, float)) and not isinstance(expires, bool) and expires <= now)

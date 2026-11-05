@@ -4,18 +4,23 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
+from contracts import Invalid, parse_report
 from model_call import (
     is_overload, parse_result, read_budget, read_supervisor,
 )
 from state_io import atomic_write
 
-from .common import BUDGET_NAME, DEFAULT_TIMEOUT_MIN, HEARTBEAT_PHASES, LANE_HEADING, LANE_SECTIONS, LEASE_NAME, LEDGER_NAME, LEDGER_ROW, LaneError, MAX_DIFF_BYTES, MAX_SEND_BACKS, MODEL_LEDGER_NAME, PHASE_BLOCKED, PHASE_INCOMPLETE, PHASE_PR_OPEN, PID_KEYS, REASON_STALLED, RESERVED_KEY, RUN_HEADING, RUN_SECTIONS, SECONDS_PER_MINUTE, SECTION_HEADING, SEND_BACK_GLOB, SEND_BACK_NAME, SETTLED_PHASES, STATUS_CLOSED, STATUS_NAME, TERMINAL_PHASES, TIMEOUT_FIELD, UNREPORTED_KEY, WILDCARD_LANE, binary, norm, run
-from .leases import busy, epoch_refusal, lane_lock, lease_epoch, read_lease
+from .common import BUDGET_NAME, DEFAULT_TIMEOUT_MIN, LANE_SECTIONS, LEASE_NAME, LEDGER_NAME, LEDGER_ROW, LaneError, MAX_DIFF_BYTES, MAX_SEND_BACKS, PHASE_BLOCKED, PHASE_INCOMPLETE, PHASE_PR_OPEN, PID_KEYS, REASON_STALLED, RESERVED_KEY, RUN_SECTIONS, SECONDS_PER_MINUTE, SEND_BACK_GLOB, SEND_BACK_NAME, SETTLED_PHASES, STATUS_CLOSED, STATUS_NAME, TERMINAL_PHASES, TIMEOUT_FIELD, UNREPORTED_KEY, WILDCARD_LANE, binary, norm, run
+from .leases import busy, epoch_refusal, lease_epoch, stale_epoch
+from .journal import done_groups, group_key, note_fold_plan
+from .phases import heartbeat, transition  # noqa: F401 - heartbeat is re-exported for callers of this module
 from .planner import read_checkin, read_setting
+from .records import append_ledger, lane_lock, read_json_object  # noqa: F401 - read_json_object is re-exported
 
 
 def read_status_files(runs_dir: Path, stamp: str) -> list[tuple[Path, dict[str, Any]]]:
@@ -77,32 +82,6 @@ def lane_status(path: Path, data: dict[str, Any], threshold: int, now: int, stal
             "incomplete_reason": REASON_STALLED if stale and not alive else None, "snapshot": None}
 
 
-def merge_json(path: Path, changes: dict[str, Any]) -> dict[str, Any]:
-    """Read-merge-write one JSON object under its lock; the merged object. Raises LaneError when the lock is busy."""
-    with lane_lock(path) as held:
-        if not held:
-            raise LaneError(f"lock busy for {path}")
-        current: dict[str, Any] = read_lease(path) or {}
-        merged: dict[str, Any] = {**current, **changes}
-        atomic_write(path, json.dumps(merged, indent=2) + "\n")
-    return merged
-
-
-def append_ledger(runs_dir: Path, stamp: str, record: dict[str, Any]) -> None:
-    """Add one line to the run's model-call ledger (retries, fallbacks, parks, version checks)."""
-    path: Path = runs_dir / stamp / MODEL_LEDGER_NAME
-    line: str = json.dumps({"t": int(time.time()), **record}, sort_keys=True)
-    with lane_lock(path) as held:
-        if not held:
-            raise LaneError(f"ledger lock busy for {path}")
-        old: str = path.read_text(encoding="utf-8") if path.is_file() else ""
-        atomic_write(path, old + line + "\n")
-
-
-def ledger_emitter(runs_dir: Path, stamp: str, lane_id: str) -> Any:
-    return lambda event: append_ledger(runs_dir, stamp, {"lane": lane_id, **event})
-
-
 def snapshot_stall(folder: Path, path: Path, data: dict[str, Any], now: int) -> str:
     """Keep the stalled lane's last status.json and `git diff` in its run dir; the diff file's path."""
     atomic_write(folder / f"stall-{now}-status.json", path.read_text(encoding="utf-8"))
@@ -123,8 +102,8 @@ def recent_snapshot(folder: Path, now: int, stall_s: int) -> str | None:
 
 def mark_stalled(runs_dir: Path, stamp: str, path: Path, data: dict[str, Any], row: dict[str, Any], now: int) -> None:
     row["snapshot"] = snapshot_stall(path.parent, path, data, now)
-    merge_json(path, {"status": PHASE_INCOMPLETE, "reason": REASON_STALLED, "stalled_at": now,
-                      "snapshot": row["snapshot"]})
+    transition(runs_dir, stamp, row["lane"], PHASE_INCOMPLETE, reason=REASON_STALLED,
+               extra={"stalled_at": now, "snapshot": row["snapshot"]})
     append_ledger(runs_dir, stamp, {"lane": row["lane"], "event": "stalled", "last_seen": row["last_seen"],
                                     "snapshot": row["snapshot"]})
 
@@ -146,27 +125,6 @@ def status(runs_dir: Path, stamp: str, cwd: Path) -> dict[str, Any]:
             mark_stalled(runs_dir, stamp, path, data, row, now)
         rows.append(row)
     return {"ok": True, "stamp": stamp, "stale_after_s": threshold, "stall_after_s": stall_s, "lanes": rows}
-
-
-def heartbeat(runs_dir: Path, stamp: str, lane_id: str, turn: int | None, phase: str | None = None,
-              reason: str | None = None, blocked_by: list[str] | None = None) -> dict[str, Any]:
-    """Stamp the lane's status.json at a turn boundary; creates it when the son has not written one yet. A son sets its
-    phase (pr-open, done, blocked, incomplete) and an optional reason through here, never by writing the file."""
-    path: Path = runs_dir / stamp / lane_id / STATUS_NAME
-    now: int = int(time.time())
-    changes: dict[str, Any] = {"lane": lane_id, "heartbeat": now}
-    if turn is not None:
-        changes["turn"] = turn
-    if phase is not None:
-        if phase not in HEARTBEAT_PHASES:
-            raise LaneError(f"--status must be one of {', '.join(HEARTBEAT_PHASES)}")
-        changes["status"] = phase
-    if reason is not None:
-        changes["reason"] = reason
-    if blocked_by:
-        changes["blocked_by"] = blocked_by
-    merged: dict[str, Any] = merge_json(path, changes)
-    return {"ok": True, "lane": lane_id, "heartbeat": now, "status": merged.get("status")}
 
 
 def sendback(runs_dir: Path, stamp: str, lane_id: str, reason: str) -> dict[str, Any]:
@@ -194,8 +152,8 @@ def close_lease(path: Path, lane_id: str, epoch: int | None) -> dict[str, Any]:
     except (OSError, ValueError) as exc:
         raise LaneError(f"no lease at {path}: {exc}") from exc
     stored: int = lease_epoch(record)
-    if epoch is not None and epoch < stored:
-        return epoch_refusal(lane_id, epoch, stored)
+    if stale_epoch(epoch, stored):
+        return epoch_refusal(lane_id, int(epoch or 0), stored)
     closed: dict[str, Any] = {**record, "status": STATUS_CLOSED, "released": int(time.time())}
     atomic_write(path, json.dumps(closed, indent=2) + "\n")
     return {"ok": True, "lane": lane_id, "lease": str(path), "status": STATUS_CLOSED}
@@ -211,7 +169,8 @@ def add_to_group(group: dict[str, Any], data: dict[str, Any], files: set[str]) -
 
 
 def fold(runs_dir: Path, stamp: str) -> dict[str, Any]:
-    """Group blocked lanes with disjoint files so they ship on the fewest PRs; never splits a lane."""
+    """Group blocked lanes with disjoint files so they ship on the fewest PRs; never splits a lane. Each group carries a
+    stable `key` and whether `fold-done` already recorded its PR, so a fold run again after a crash resumes with the rest."""
     groups: list[dict[str, Any]] = []
     for _, data in read_status_files(runs_dir, stamp):
         if data.get("status") != PHASE_BLOCKED:
@@ -222,8 +181,13 @@ def fold(runs_dir: Path, stamp: str) -> dict[str, Any]:
             target = {"lanes": [], "tasks": [], "blocked_by": [], "prs": [], "_files": set()}
             groups.append(target)
         add_to_group(target, data, files)
-    public: list[dict[str, Any]] = [{k: v for k, v in g.items() if not k.startswith("_")} for g in groups]
-    return {"ok": True, "stamp": stamp, "groups": public, "open_prs": len(public)}
+    shipped: set[str] = done_groups(runs_dir, stamp)
+    public: list[dict[str, Any]] = [{**{k: v for k, v in g.items() if not k.startswith("_")}, "key": group_key(g["lanes"]),
+                                     "done": group_key(g["lanes"]) in shipped} for g in groups]
+    if public:
+        note_fold_plan(runs_dir, stamp, public)
+    return {"ok": True, "stamp": stamp, "groups": public, "open_prs": len(public),
+            "remaining": [g["key"] for g in public if not g["done"]]}
 
 
 def ledger_prs(runs_dir: Path, stamp: str) -> set[int]:
@@ -246,28 +210,7 @@ def stop_check(runs_dir: Path, stamp: str, checkin: Path) -> dict[str, Any]:
             "blocked_without_ledger": blocked_without, "lanes": len(lanes)}
 
 
-def report_sections(text: str) -> tuple[dict[str, set[str]], set[str]]:
-    """({lane: {### names}}, {## names}) from a dpp-report.md, names lower-cased."""
-    lanes: dict[str, set[str]] = {}
-    run: set[str] = set()
-    current: str | None = None
-    for line in text.splitlines():
-        lane_match = LANE_HEADING.match(line)
-        run_match = RUN_HEADING.match(line)
-        section_match = SECTION_HEADING.match(line)
-        if lane_match:
-            current = lane_match.group(1)
-            lanes.setdefault(current, set())
-        elif run_match:
-            current = None
-            run.add(run_match.group(1).lower())
-        elif section_match and current is not None:
-            lanes[current].add(section_match.group(1).lower())
-    return lanes, run
-
-
-def has_section(found: set[str], wanted: str) -> bool:
-    return any(name.startswith(wanted.lower()) for name in found)
+MISSING_ROW: Final[re.Pattern[str]] = re.compile(r"^(?:lane (\S+)|run): missing '(.+)'$")
 
 
 def report_check(path: Path, lane_ids: list[str]) -> dict[str, Any]:
@@ -275,15 +218,10 @@ def report_check(path: Path, lane_ids: list[str]) -> dict[str, Any]:
         text: str = path.read_text(encoding="utf-8")
     except OSError as exc:
         raise LaneError(f"cannot read report {path}: {exc}") from exc
-    lanes, run = report_sections(text)
-    missing: list[dict[str, str]] = [{"lane": lane_id, "section": s} for lane_id in lane_ids for s in LANE_SECTIONS
-                                     if not has_section(lanes.get(lane_id, set()), s)]
-    missing += [{"lane": WILDCARD_LANE, "section": s} for s in RUN_SECTIONS if not has_section(run, s)]
+    parsed = parse_report(text, lane_ids, LANE_SECTIONS, RUN_SECTIONS)
+    rows = [MISSING_ROW.match(m) for m in (parsed.reasons if isinstance(parsed, Invalid) else ())]
+    missing: list[dict[str, str]] = [{"lane": row.group(1) or WILDCARD_LANE, "section": row.group(2)} for row in rows if row]
     return {"ok": not missing, "report": str(path), "missing": missing}
-
-
-def read_json_object(path: Path) -> dict[str, Any]:
-    return read_lease(path) or {}
 
 
 def new_budget(now: int) -> dict[str, Any]:

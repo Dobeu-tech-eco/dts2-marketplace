@@ -44,7 +44,17 @@ cost = float(os.environ.get("FAKE_COST", "0.5"))
 result = {"type": "result", "subtype": "success", "is_error": False, "session_id": session, "num_turns": 3,
           "total_cost_usd": cost}
 status_file = os.environ.get("FAKE_STATUS_FILE")
-if status_file and "-p" in argv and argv[argv.index("-p") + 1] != "ok":
+
+
+def spawned_by_supervisor(path):
+    """Only `lanes spawn` claims the lane (spawn_pid) before starting a son; `lanes call` and the probe never do."""
+    try:
+        return bool(json.loads(Path(path).read_text()).get("spawn_pid"))
+    except (OSError, ValueError):
+        return False
+
+
+if status_file and "-p" in argv and argv[argv.index("-p") + 1] != "ok" and spawned_by_supervisor(status_file):
     # The supervisor records son_pid in status.json right after it spawns us, as a locked read-merge-write. Write
     # only once that has landed, and replace the file atomically, or our write can be lost to (or tear under) it.
     deadline = time.time() + 10
@@ -589,12 +599,14 @@ class MergeOrderTests(SupervisorBase):
         self.assertFalse(self.go("c")["ok"])
         self.assertIsNone(self.lanes("merge-order", str(self.manifest))["next"])
 
-    def test_parked_lane_loses_its_turn_for_lanes_that_do_not_depend_on_it(self) -> None:
-        # a depends on b, so a parked b no longer lets a through (see test_supervisor_fixes); c is independent
+    def test_parked_lane_does_not_hold_up_the_lanes_behind_it(self) -> None:
+        # b is parked incomplete: it is not waited for, so a (which depends on it) takes the turn; c waits behind a
         self.phase("b", "incomplete")
         self.phase("a", "pr-open")
         self.phase("c", "pr-open")
-        self.assertTrue(self.go("c")["ok"])
+        self.assertEqual(self.lanes("merge-order", str(self.manifest))["next"], "a")
+        self.assertFalse(self.go("c")["ok"])
+        self.assertTrue(self.go("a")["ok"])
 
     def test_dependency_cycle_is_an_error(self) -> None:
         lanes = [{"id": "a", "item": "S1", "files": [], "depends_on": ["b"]},

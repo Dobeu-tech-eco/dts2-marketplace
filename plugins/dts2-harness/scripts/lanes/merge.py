@@ -3,19 +3,19 @@ from __future__ import annotations
 
 import contextlib
 import json
-import os
 import re
 import time
 from pathlib import Path
 from typing import Any, Iterator
 
-from son_launch import SON_MARKER, merge_config
+from son_launch import merge_config
 from state_io import atomic_write
 
-from .common import LaneError, MERGE_GO_NAME, MERGE_ORDER_NAME, MERGE_PENDING_NAME, PHASE_BLOCKED, PHASE_INCOMPLETE, PHASE_PR_OPEN, PROTECTED_DEFAULTS, RUN_NAME, STATUS_NAME, binary, find_lane, run
+from .common import LaneError, MERGE_GO_NAME, MERGE_ORDER_NAME, MERGE_PENDING_NAME, PHASE_BLOCKED, PHASE_INCOMPLETE, PHASE_PR_OPEN, PROTECTED_DEFAULTS, STATUS_NAME, binary, find_lane, run
 from .integration import INTEGRATION_LANE
-from .leases import lane_lock
-from .runstate import merge_json, read_json_object
+from .journal import KIND_GRANTED, KIND_MERGED, note
+from .records import inside_son, lane_lock, read_json_object, son_refusal
+from .runrecord import read_run, update_run
 
 
 def merge_sequence(manifest: dict[str, Any]) -> list[str]:
@@ -32,8 +32,10 @@ def merge_sequence(manifest: dict[str, Any]) -> list[str]:
     return ordered
 
 
-def unmerged_needs(manifest: dict[str, Any], lane_id: str, merged: list[str]) -> list[str]:
-    """Lanes `lane_id` depends on, directly or through others, that have not merged yet (manifest order)."""
+def unmerged_needs(manifest: dict[str, Any], lane_id: str, merged: list[str],
+                   parked: frozenset[str] = frozenset()) -> list[str]:
+    """Lanes `lane_id` depends on, directly or through others, that have not merged yet (manifest order). A lane parked
+    incomplete or blocked (`parked`) is not waited for: it does not hold up the merge order of the lanes behind it."""
     direct: dict[str, list[str]] = {str(lane["id"]): [str(d) for d in (lane.get("depends_on") or [])]
                                     for lane in manifest["lanes"]}
     seen: set[str] = set()
@@ -43,7 +45,13 @@ def unmerged_needs(manifest: dict[str, Any], lane_id: str, merged: list[str]) ->
         if dep not in seen and dep in direct:
             seen.add(dep)
             pending.extend(direct[dep])
-    return [i for i in direct if i in seen and i not in merged]
+    return [i for i in direct if i in seen and i not in merged and i not in parked]
+
+
+def parked_lanes(runs_dir: Path, stamp: str, manifest: dict[str, Any]) -> frozenset[str]:
+    """Lanes of the manifest whose son parked them incomplete or blocked."""
+    ids: list[str] = [str(lane["id"]) for lane in manifest["lanes"]]
+    return frozenset(i for i in ids if lane_phase(runs_dir, stamp, i) in (PHASE_INCOMPLETE, PHASE_BLOCKED))
 
 
 def valid_order(manifest: dict[str, Any], order: Any) -> bool:
@@ -147,7 +155,7 @@ def next_to_merge(runs_dir: Path, stamp: str, state: dict[str, Any], manifest: d
         phase: str = lane_phase(runs_dir, stamp, lane_id)
         if lane_id in state["merged"] or phase in (PHASE_INCOMPLETE, PHASE_BLOCKED):
             continue
-        if unmerged_needs(manifest, lane_id, state["merged"]):
+        if unmerged_needs(manifest, lane_id, state["merged"], parked_lanes(runs_dir, stamp, manifest)):
             continue
         return lane_id if phase == PHASE_PR_OPEN else None
     return None
@@ -155,11 +163,11 @@ def next_to_merge(runs_dir: Path, stamp: str, state: dict[str, Any], manifest: d
 
 def merge_target_state(runs_dir: Path, stamp: str, cwd: Path) -> dict[str, Any]:
     """The branch this run merges into and whether a recorded yes allows the repo's default branch."""
-    saved: dict[str, Any] = read_json_object(runs_dir / stamp / RUN_NAME)
+    saved = read_run(runs_dir, stamp)
     config: dict[str, str] = merge_config(cwd)
-    target: str = str(saved.get("merge_target") or config["target"])
+    target: str = str(saved.merge_target or config["target"])
     defaults: set[str] = {config["default_branch"], *PROTECTED_DEFAULTS}
-    return {"target": target, "is_default": target in defaults, "default_ok": saved.get("default_branch_yes") is True}
+    return {"target": target, "is_default": target in defaults, "default_ok": saved.default_branch_yes is True}
 
 
 def set_merge_target(runs_dir: Path, stamp: str, cwd: Path, branch: str | None, yes_default: bool) -> dict[str, Any]:
@@ -171,7 +179,7 @@ def set_merge_target(runs_dir: Path, stamp: str, cwd: Path, branch: str | None, 
     changes: dict[str, Any] = {**({"merge_target": branch} if branch else {}),
                                **({"default_branch_yes": True, "default_branch_yes_at": int(time.time())} if yes_default else {})}
     if changes:
-        merge_json(runs_dir / stamp / RUN_NAME, changes)
+        update_run(runs_dir, stamp, changes)
     if branch:
         atomic_write(runs_dir / stamp / "merge-target.txt", branch + "\n")  # read by the merge guard, which never opens run state
     return {"ok": True, "stamp": stamp, **merge_target_state(runs_dir, stamp, cwd)}
@@ -180,15 +188,6 @@ def set_merge_target(runs_dir: Path, stamp: str, cwd: Path, branch: str | None, 
 def base_tip(cwd: Path, target: str) -> str | None:
     code, out = run([*binary("DTS2_GIT_BIN", "git"), "rev-parse", f"refs/remotes/origin/{target}"], cwd)
     return out.strip() if code == 0 and re.match(r"^[0-9a-f]{7,40}$", out.strip()) else None
-
-
-def inside_son() -> bool:
-    """True in a son's process: the marker its env carries, or its lane branch prefix."""
-    return bool(os.environ.get(SON_MARKER) or os.environ.get("DTS2_SON_BRANCH_PREFIX"))
-
-
-def son_refusal(what: str) -> dict[str, Any]:
-    return {"ok": False, "detail": f"{what} is the head's alone; a son never grants its own merge or changes the merge state"}
 
 
 def merge_go(manifest: dict[str, Any], runs_dir: Path, lane_id: str, head: str, cwd: Path = Path("."),
@@ -242,7 +241,7 @@ def grant_merge(manifest: dict[str, Any], runs_dir: Path, lane_id: str, head: st
     state: dict[str, Any] = merge_state(runs_dir, manifest)
     if state["current"]:
         return {"ok": False, "lane": lane_id, "detail": f"lane {state['current']} holds the merge; one merge at a time"}
-    waiting_on: list[str] = unmerged_needs(manifest, lane_id, state["merged"])
+    waiting_on: list[str] = unmerged_needs(manifest, lane_id, state["merged"], parked_lanes(runs_dir, stamp, manifest))
     if waiting_on:
         return {"ok": False, "lane": lane_id, "next": next_to_merge(runs_dir, stamp, state, manifest),
                 "waiting_on": waiting_on,
@@ -255,6 +254,7 @@ def grant_merge(manifest: dict[str, Any], runs_dir: Path, lane_id: str, head: st
     atomic_write(path, f"# Merge go for lane {lane_id}\n\nVerified head: {head}\nBase: {target} {base}\n"
                        f"Granted: {int(time.time())}\n")
     save_merge_state(runs_dir / stamp / MERGE_ORDER_NAME, {**state, "current": lane_id})
+    note(runs_dir, stamp, KIND_GRANTED, lane=lane_id, key=int(time.time() * 1000), head=head, base=base, target=target)
     return {"ok": True, "lane": lane_id, "path": str(path), "head": head, "target": target, "base": base}
 
 
@@ -271,4 +271,5 @@ def finish_merge(manifest: dict[str, Any], runs_dir: Path, lane_id: str) -> dict
         return {"ok": False, "lane": lane_id, "detail": f"lane {lane_id} does not hold the merge"}
     done: dict[str, Any] = {**state, "merged": [*state["merged"], lane_id], "current": None}
     save_merge_state(runs_dir / stamp / MERGE_ORDER_NAME, done)
+    note(runs_dir, stamp, KIND_MERGED, lane=lane_id, key="")
     return {"ok": True, "lane": lane_id, "merged": done["merged"], "all_merged": len(done["merged"]) >= len(done["order"])}
