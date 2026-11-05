@@ -8,7 +8,7 @@ from typing import Any, Callable, Final
 
 from proc import EXIT_NOT_FOUND
 
-from .common import BRANCH_PREFIX, GIT_VERSION, HEAD_NAME, LANE_PREFIX, MIN_GIT, binary, run
+from .common import BRANCH_PREFIX, GIT_VERSION, HEAD_NAME, LANE_PREFIX, MIN_GIT, STEP_PREFIX, binary, run
 
 GH_TRIES: Final[int] = 3  # one try and two retries: a flaky gh gets a second chance, a missing one fails the same way each time
 GH_RETRY_WAIT_S: Final[float] = 0.4
@@ -23,6 +23,11 @@ def head_ref(stamp: str) -> str:
 
 def lane_ref(stamp: str, lane_id: str) -> str:
     return f"{BRANCH_PREFIX}/{stamp}/{LANE_PREFIX}{lane_id}"
+
+
+def step_ref(stamp: str, step: str) -> str:
+    """The branch a standalone autopilot step builds on: dts2/<stamp>/step-<step>."""
+    return f"{BRANCH_PREFIX}/{stamp}/{STEP_PREFIX}{step}"
 
 
 def planned_refs(stamp: str, lanes: list[str]) -> list[str]:
