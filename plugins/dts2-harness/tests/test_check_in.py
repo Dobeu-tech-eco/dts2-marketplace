@@ -162,9 +162,9 @@ class SkillTests(unittest.TestCase):
             self.assertIn(phrase, text)
 
     def test_wired_into_onboard_and_readmes(self) -> None:
-        self.assertIn("/dts2-harness:check-in", (PLUGIN_ROOT / "skills" / "onboard" / "SKILL.md").read_text(encoding="utf-8"))
+        self.assertIn("/dts2:check-in", (PLUGIN_ROOT / "skills" / "onboard" / "SKILL.md").read_text(encoding="utf-8"))
         self.assertIn("check-in", (PLUGIN_ROOT / "README.md").read_text(encoding="utf-8"))
-        self.assertIn("/dts2-harness:check-in", (PLUGIN_ROOT.parent.parent / "README.md").read_text(encoding="utf-8"))
+        self.assertIn("/dts2:check-in", (PLUGIN_ROOT.parent.parent / "README.md").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

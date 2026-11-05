@@ -15,16 +15,16 @@ SYNCED: dict[str, list[str]] = {
 }
 USAGE: dict[str, int] = {"holocron": 5, "beads": 2, "marketing-skills": 0, "twin": 2}
 SETTINGS: dict[str, Any] = {"enabledPlugins": {
-    "dts2-harness@dts2": True, "used@mkt": True, "unused@mkt": True,
+    "dts2@dts2": True, "used@mkt": True, "unused@mkt": True,
     **{f"{n}@synced": True for n in SYNCED}}}
-MARKET: dict[str, list[str]] = {"dts2-harness@dts2": ["lead.md"], "used@mkt": [], "unused@mkt": []}
+MARKET: dict[str, list[str]] = {"dts2@dts2": ["lead.md"], "used@mkt": [], "unused@mkt": []}
 
 
 NO_REQUIRED: list[str] = ["nothing@*"]
 
 
 def make_profile(required: list[str] | None = None, **claude: Any) -> Path:
-    base: dict[str, Any] = {"enabledPlugins": ["dts2-harness@dts2"], "keepSyncedPlugins": []}
+    base: dict[str, Any] = {"enabledPlugins": ["dts2@dts2"], "keepSyncedPlugins": []}
     profile = {"budget": {}, "claude": {**base, **claude},
                "requiredByHarness": required or ["marketing-skills@synced", "impeccable@*"]}
     path: Path = make_tmp_home() / "profile.json"

@@ -19,7 +19,7 @@ MAX_LEVELS: Final[int] = 8
 ADVICE_MEMBER: Final[str] = "Run from {root}; this folder is a member repo of that workspace."
 ADVICE_SINGLE: Final[str] = "Single-repo harness."
 ADVICE_ROOT: Final[str] = "Workspace root."
-ADVICE_NONE: Final[str] = "No harness here; run /dts2-harness:setup."
+ADVICE_NONE: Final[str] = "No harness here; run /dts2:setup."
 
 
 def find_ancestor_manifest(start: Path) -> Path | None:

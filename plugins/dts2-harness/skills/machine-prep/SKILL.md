@@ -16,7 +16,7 @@ Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/env-detect.py"`.
 - Never sync or copy agents, skills, plugins, or rules between the Windows and WSL homes.
 
 ## 2. Audit (read-only)
-Dispatch the `dts2-harness:auditor` agent, or run:
+Dispatch the `dts2:auditor` agent, or run:
 `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/machine-prep.py" audit [--profile <path>] [--claude-home <path>]`
 The profile defaults to the plugin's `profiles/blueprint.json`. A `profile` value in `.claude/dts2-harness.local.md` overrides it.
 
@@ -63,7 +63,7 @@ Ask once, for the chosen tier: apply the plugin change, apply and also walk thro
 Run `... machine-prep.py apply --tier <chosen>`. It backs up `settings.json` to `<claude home>/backups/` before writing. Report the backup path.
 
 ## 6. Set up the slim startup
-- Confirm `dts2-harness@dts2` is enabled and `harness@harness` is disabled, so agents are not duplicated.
+- Confirm `dts2@dts2` is enabled and `harness@harness` is disabled, so agents are not duplicated.
 - Point the user to the blueprint repo's `apply.ps1` (Windows) or `apply.sh` (WSL/Linux) for Codex agents and the weekly budget audit, if they want those too.
 - Remind them to restart Claude Code and to sign in with `claude auth login` on the binary they actually run.
 

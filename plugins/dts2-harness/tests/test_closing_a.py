@@ -18,7 +18,7 @@ if str(SCRIPTS) not in sys.path:
 import subagent_report  # noqa: E402
 
 PAYLOAD: Final[dict[str, Any]] = {
-    "session_id": "s-closing-a", "agent_type": "dts2-harness:builder",
+    "session_id": "s-closing-a", "agent_type": "dts2:builder",
     "tool_name": "SubagentHandback", "tool_input": {"message": "done"},
 }
 

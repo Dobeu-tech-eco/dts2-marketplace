@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from state_io import atomic_write  # noqa: E402
 
 SEMVER: Final[re.Pattern[str]] = re.compile(r"^\d+\.\d+\.\d+$")
-PLUGIN_NAME: Final[str] = "dts2-harness"
+PLUGIN_NAME: Final[str] = "dts2"
 MARKETPLACE: Final[str] = ".claude-plugin/marketplace.json"
 PLUGIN_JSON: Final[str] = "plugins/dts2-harness/.claude-plugin/plugin.json"
 TEXT_CONTRACTS: Final[str] = "plugins/dts2-harness/tests/test_text_contracts.py"

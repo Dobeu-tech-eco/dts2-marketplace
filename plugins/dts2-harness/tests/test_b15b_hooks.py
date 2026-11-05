@@ -44,27 +44,27 @@ class RegistrationTests(unittest.TestCase):
 
 class SubagentReportTests(unittest.TestCase):
     def test_complete_report_passes(self) -> None:
-        self.assertEqual(stop("dts2-harness:builder", GOOD_BUILDER), {})
+        self.assertEqual(stop("dts2:builder", GOOD_BUILDER), {})
 
     def test_missing_sections_block_with_exact_names(self) -> None:
-        result = stop("dts2-harness:builder", "## Files changed\n- a\n")
+        result = stop("dts2:builder", "## Files changed\n- a\n")
         self.assertEqual(result["decision"], "block")
         self.assertIn("'commands run', 'concerns'", result["reason"])
         self.assertNotIn("'files changed'", result["reason"])
 
     def test_stop_hook_active_is_skipped(self) -> None:
-        self.assertEqual(stop("dts2-harness:builder", "nothing", stop_hook_active=True), {})
+        self.assertEqual(stop("dts2:builder", "nothing", stop_hook_active=True), {})
 
     def test_other_agents_and_partial_reports_pass(self) -> None:
-        self.assertEqual(stop("dts2-harness:scout", "nothing"), {})
-        self.assertEqual(stop("dts2-harness:reviewer", "PARTIAL: hit turn cap at review\n"), {})
+        self.assertEqual(stop("dts2:scout", "nothing"), {})
+        self.assertEqual(stop("dts2:reviewer", "PARTIAL: hit turn cap at review\n"), {})
 
     def test_reviewer_needs_findings_and_verdict(self) -> None:
-        self.assertIn("'findings', 'verdict'", stop("dts2-harness:reviewer", "looks fine")["reason"])
+        self.assertIn("'findings', 'verdict'", stop("dts2:reviewer", "looks fine")["reason"])
 
     def test_handback_blocks_once_per_agent(self) -> None:
         tmp = tempfile.mkdtemp(prefix="dts2-tmpdir-")
-        payload = {"tool_name": "SubagentHandback", "agent_type": "dts2-harness:verifier", "agent_id": "a1", "session_id": "s",
+        payload = {"tool_name": "SubagentHandback", "agent_type": "dts2:verifier", "agent_id": "a1", "session_id": "s",
                    "tool_input": {"message": "## Results\nok\n"}}
         first = run_hook("subagent-report.sh", payload, "handback", env={"TMPDIR": tmp})
         self.assertEqual(json.loads(first.stdout)["decision"], "block")
@@ -72,12 +72,12 @@ class SubagentReportTests(unittest.TestCase):
         self.assertEqual(run_hook("subagent-report.sh", payload, "handback", env={"TMPDIR": tmp}).stdout.strip(), "")
 
     def test_handback_ignores_other_tools_and_disabled_setting(self) -> None:
-        other = {"tool_name": "Bash", "agent_type": "dts2-harness:verifier", "tool_input": {"message": "x"}}
+        other = {"tool_name": "Bash", "agent_type": "dts2:verifier", "tool_input": {"message": "x"}}
         self.assertEqual(run_hook("subagent-report.sh", other, "handback").stdout.strip(), "")
         repo = make_tmp_home()
         (repo / ".claude").mkdir()
         (repo / ".claude" / "dts2-harness.local.md").write_text("---\nsubagent_report_check: false\n---\n", encoding="utf-8")
-        out = run_hook("subagent-report.sh", {"agent_type": "dts2-harness:builder", "last_assistant_message": "x"}, "stop", cwd=repo)
+        out = run_hook("subagent-report.sh", {"agent_type": "dts2:builder", "last_assistant_message": "x"}, "stop", cwd=repo)
         self.assertEqual(out.stdout.strip(), "")
 
 
@@ -162,7 +162,7 @@ class SpawnDryRunTests(unittest.TestCase):
         self.assertIn("could not be composed", reason)
 
     def test_agent_dispatch_is_untouched_unless_the_setting_is_on(self) -> None:
-        tool_input = {"subagent_type": "dts2-harness:builder", "prompt": "do the thing"}
+        tool_input = {"subagent_type": "dts2:builder", "prompt": "do the thing"}
         self.assertEqual(self.call("Agent", tool_input), {})
         reason = self.call("Agent", tool_input, setting=True)["hookSpecificOutput"]["permissionDecisionReason"]
         self.assertIn("do the thing", reason)

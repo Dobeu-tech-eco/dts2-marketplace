@@ -12,8 +12,8 @@ Reads `.harness/action-items.md`; handoff briefs under `.harness/handoff/` appea
 2. Print the items grouped in this order: Secrets, Decisions, Handoff, Deploy, Promotions. One line each: `<id> <item> — owner <owner or unassigned>, <age_days>d — <resolve_command>`. Skip empty groups. No open items → say `No open action items.`
 3. Row ids are the group letter plus the row position: `S1` secret, `D1` decision, `H1` handoff, `Y1` deploy, `P1` promotion. Ids stay stable when rows are marked done.
 4. `resolve_command` is what the user runs next:
-   - Secrets → `run add secret NAME` (`/dts2-harness:run add secret NAME`)
-   - Promotions → `learn promote <id>` (`/dts2-harness:learn`)
+   - Secrets → `run add secret NAME` (`/dts2:run add secret NAME`)
+   - Promotions → `learn promote <id>` (`/dts2:learn`)
    - Handoff → `open .harness/handoff/<agent>/<n>.md`
    - Deploy and Decisions → `run` (deploy watch and plan checkpoint respectively)
 
@@ -21,7 +21,7 @@ Reads `.harness/action-items.md`; handoff briefs under `.harness/handoff/` appea
 Sections the run parked appear after the groups: the list also shows every `## Sections` row of `.harness/end-state.md` with status `blocked`, one line each: `section <#> <name> — blocked (<action-item id>)`. The same lines appear in the handoff file's `## Open items`.
 
 ## Subcommands
-- `done <row>`: `action-items.py <repo> done S1`. Marks the row `done`. For a secret, check presence first as in `/dts2-harness:run` (`add secret NAME`); never mark a secret done without it.
+- `done <row>`: `action-items.py <repo> done S1`. Marks the row `done`. For a secret, check presence first as in `/dts2:run` (`add secret NAME`); never mark a secret done without it.
 - `add <group> <text>`: `action-items.py <repo> add Decisions "pick a domain"`. Appends an open row with today's date and prints its id. For Secrets the text is the variable name.
 - `assign <row> <agent>`: `action-items.py <repo> assign S1 codex`. Sets the owner column. The owner is the agent or person who acts next.
 

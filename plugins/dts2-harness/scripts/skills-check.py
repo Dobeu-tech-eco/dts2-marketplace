@@ -53,7 +53,7 @@ RETIRED: Final[dict[str, str]] = {
 }
 # Windows silently drops the symlink a bare install makes, so Claude Code never sees the skill.
 INSTALL_FLAGS: Final[tuple[str, ...]] = ("-a", "claude-code", "--copy", "-y")
-HARNESS_PLUGIN: Final[str] = "dts2-harness@dts2"
+HARNESS_PLUGIN: Final[str] = "dts2@dts2"
 TIMEOUT_S: Final[int] = 120
 # G-76: the `skills` npm CLI is pinned. A moving `latest` could change flags or lock-file shape under a run; raise this
 # constant in a reviewed commit, with the tests, when a newer CLI is wanted.

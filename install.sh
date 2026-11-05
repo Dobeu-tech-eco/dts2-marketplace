@@ -20,9 +20,9 @@ unless you have a native Linux Claude CLI.
 
 Inside Claude Code, run:
   /plugin marketplace add $DEST   (offline copy; normally: /plugin marketplace add Dobeu-tech-eco/dts2-marketplace)
-  /plugin install dts2-harness@dts2
+  /plugin install dts2@dts2
 Then disable the older copies so agents are not duplicated:
   /plugin -> Installed -> harness and harness-ops -> Disable
-  (or run /dts2-harness:machine-prep, which does it with a settings backup)
-Restart Claude Code, then run /dts2-harness:onboard
+  (or run /dts2:machine-prep, which does it with a settings backup)
+Restart Claude Code, then run /dts2:onboard
 MSG
