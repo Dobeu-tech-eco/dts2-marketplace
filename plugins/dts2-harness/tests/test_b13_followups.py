@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from typing import Final
+from unittest import mock
 
 from helpers import PLUGIN_ROOT
 
@@ -23,6 +24,11 @@ MANIFEST: Final = {"stamp": STAMP, "base": "abc1234", "scope": "single", "lanes"
 
 
 class ParkedNeedsTests(unittest.TestCase):
+    def setUp(self) -> None:
+        patcher = mock.patch.object(sys.modules["lanes.merge"], "lane_audit", return_value={"ok": True, "violations": [], "changed": []})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_unmerged_needs_skips_parked_lanes(self) -> None:
         self.assertEqual(unmerged_needs(MANIFEST, "b", []), ["a"])
         self.assertEqual(unmerged_needs(MANIFEST, "b", [], frozenset({"a"})), [])

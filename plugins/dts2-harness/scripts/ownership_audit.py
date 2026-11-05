@@ -1,7 +1,7 @@
 """Shared ownership audit (G-24, AA-1): did a builder stay inside its owned files and report the real HEAD?
 
-Pure functions, no I/O. `scripts/builder-audit.py` is the thin CLI for the run flow and `lanes.py audit` calls
-`audit()` for lane branches, so both gates agree on what counts as a violation."""
+Pure functions, no I/O. `scripts/builder-audit.py` is the thin CLI for the run flow; `scripts/lanes/audit.py` (`lanes.py audit <manifest> <lane> --head <sha>`,
+run by `merge-go`) calls `audit()` for lane branches, so both gates agree on what counts as a violation."""
 from __future__ import annotations
 
 import fnmatch

@@ -9,6 +9,12 @@ from typing import Any, Final
 
 import test_b9_merge_flow as b9
 
+PASSTHROUGH_GIT: Final[str] = """#!/usr/bin/env python3
+import subprocess, sys
+if "--name-only" in sys.argv:
+    sys.exit(0)  # the lane ownership audit: no changed files
+sys.exit(subprocess.run(["git", *sys.argv[1:]], check=False).returncode)
+"""
 HEAD: Final[str] = "aaaaaaa1"
 BASE_SHA: Final[str] = "bbbbbbb2"
 
@@ -38,7 +44,10 @@ class PlannedMergeOrderTests(b9.Base):
         (folder / "status.json").write_text(json.dumps({"status": phase}), encoding="utf-8")
 
     def go(self, path: str, lane_id: str) -> dict[str, Any]:
-        return self.run_cmd("merge-go", path, "--lane", lane_id, "--head", HEAD, "--base", BASE_SHA)
+        wrapper: Path = self.fake / "git.py"
+        wrapper.write_text(PASSTHROUGH_GIT, encoding="utf-8")
+        return self.run_cmd("merge-go", path, "--lane", lane_id, "--head", HEAD, "--base", BASE_SHA,
+                            extra_env={"DTS2_GIT_BIN": str(wrapper)})
 
     def done(self, path: str, lane_id: str) -> dict[str, Any]:
         return self.run_cmd("merge-done", path, "--lane", lane_id)
