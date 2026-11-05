@@ -7,24 +7,26 @@ count. Exit 0 on PASS, 1 on FAIL."""
 from __future__ import annotations
 
 import argparse
-import fnmatch
 import json
 import re
 import sys
 from pathlib import Path
 from typing import Final
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from plan_graph import entries_overlap  # noqa: E402
+
 EFFORT: Final[dict[str, str]] = {"mechanical": "low", "normal": "medium", "design": "high"}
 MODEL: Final[dict[str, str]] = {"mechanical": "haiku", "normal": "sonnet", "design": "sonnet"}
 TOKENS_PER_TASK: Final[dict[str, int]] = {"mechanical": 15_000, "normal": 40_000, "design": 80_000}
 TOKENS_PER_REVIEW_AXIS: Final[int] = 25_000
-FOUNDATION_DEFAULT: Final[str] = "normal"
-GLOB_CHARS: Final[tuple[str, ...]] = ("*", "?", "[")
+FOUNDATION_DEFAULT: Final[str] = "normal"  # used for the integration section
 FRONTIER_WORDS: Final[re.Pattern[str]] = re.compile(r"\b(opus|frontier)\b", re.IGNORECASE)
 HEADING: Final[re.Pattern[str]] = re.compile(r"^(#{2,3})\s+(.*)$")
 BUILDER_HEADING: Final[re.Pattern[str]] = re.compile(r"^Builder\s+(\d+)\b")
 OWNS: Final[re.Pattern[str]] = re.compile(r"\|\s*owns:\s*([^|]*)")
 COMPLEXITY: Final[re.Pattern[str]] = re.compile(r"^complexity:\s*(\w+)", re.MULTILINE)
+NO_FOUNDATION: Final[re.Pattern[str]] = re.compile(r"Foundation:\s*none needed", re.IGNORECASE)
 TASK_LINE: Final[re.Pattern[str]] = re.compile(r"^-\s+T\d+\b", re.MULTILINE)
 
 
@@ -48,15 +50,9 @@ def owns_of(body: str) -> list[str]:
 
 
 def overlaps(a: str, b: str) -> bool:
-    """Two ownership entries collide when equal, one is a dir/ prefix of the other, or a glob matches the other."""
-    if a == b:
-        return True
-    for left, right in ((a, b), (b, a)):
-        if left.endswith("/") and right.startswith(left):
-            return True
-        if any(ch in left for ch in GLOB_CHARS) and fnmatch.fnmatchcase(right, left):
-            return True
-    return False
+    """Two ownership entries collide when some path could match both: equal, a dir/ prefix over the other, a glob over a file, or two
+    globs that could match a common path (conservative: `src/**` and `src/api/*.py` collide)."""
+    return a == b or entries_overlap(a, b)
 
 
 def evaluate(plan: str) -> dict[str, object]:
@@ -71,8 +67,19 @@ def evaluate(plan: str) -> dict[str, object]:
             has_foundation = True
             label: str = "Foundation"
             owners.extend((label, p) for p in owns_of(body))
-            if TASK_LINE.search(body):
-                tokens += TOKENS_PER_TASK[FOUNDATION_DEFAULT] * len(TASK_LINE.findall(body))
+            if NO_FOUNDATION.search(body) and not owns_of(body):
+                continue
+            found_f = COMPLEXITY.search(body)
+            if not found_f or found_f.group(1) not in EFFORT:
+                failures.append(f"{label}: missing or invalid complexity (mechanical|normal|design); Foundation carries model and effort like a builder")
+                continue
+            complexity_f: str = found_f.group(1)
+            if re.search(r"model:\s*(opus|frontier)", body, re.IGNORECASE):
+                failures.append(f"{label}: a builder never runs a frontier model")
+            estimate_f: int = TOKENS_PER_TASK[complexity_f] * max(1, len(TASK_LINE.findall(body)))
+            tokens += estimate_f
+            dispatches.append({"builder": label, "complexity": complexity_f, "model": MODEL[complexity_f],
+                               "effort": EFFORT[complexity_f], "tokens": estimate_f})
         elif title.startswith("Integration"):
             owners.extend(("Integration", p) for p in owns_of(body))
             tokens += TOKENS_PER_TASK[FOUNDATION_DEFAULT] * max(1, len(TASK_LINE.findall(body)))

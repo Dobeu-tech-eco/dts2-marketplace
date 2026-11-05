@@ -38,6 +38,7 @@ flowchart TD
 | scout | read-only sizing, harness and marketing-surface detection, evidence collection |
 | lead | read-only planner; slices the end state into builder sections with exclusive file ownership |
 | builder | implements one builder section inside its file set |
+| fixer | fresh-context fixer for fix round 2 on the same failure; applies the one hypothesis the lead picked (escalation seat, `effort: high`) |
 | reviewer | read-only review on one or all axes; severity-rated findings and a verdict |
 | verifier | read-only; runs the configured commands and reports evidence |
 | auditor | read-only inventory of installed agent tooling (used by machine-prep) |
@@ -104,3 +105,5 @@ Imported by the scripts above; none is a hook entry point.
 | `scripts/proc.py` | child-process seam: `Runner` (real, fake, dry-run), timeout kill (143), 429 backoff, version pin and fallback flags; model_call, skills-check and task-ledger go through it |.
 
 `ownership_audit.py` (the shared `audit(diff, owned, claimed_sha)` core) and `builder-audit.py` (its CLI: empty diff with DONE, file outside the owned set, claimed commit not HEAD). `plan-gate.py` is the plan checkpoint gate: PASS or FAIL on Foundation, exclusive ownership, model and effort per builder, with an estimated token count. `flags_collect.py` collects each builder report's `FLAGS:` block into `runs/<stamp>/flags.md`.
+
+`plan_graph.py` (the plan graph, run by `lanes.py plan`, `check` and `lease`: `provides`/`consumes`/`stubbed_on` contracts with a provider-first merge order, prefix and glob owners, empty and repo-wide owners refused, a package manifest owning its lockfile, areas from package roots, a layer-cake warning, the cycle check and the critical-path line; its `merge-order` records the provider-first order and `brief` prints the six-section lane brief), `scripts/lanes/amend.py` (`lanes.py amend`: change one lane, re-check, bump the epoch, rewrite `brief.md`), `findings.py` (reviewer findings calibrated by the `DIMENSIONS` table, deduped by file:line keeping the higher severity, and the digest for the final reviewer), `review_split.py` (partitions a diff above a line threshold into path-group slices, one reviewer each), `rollback_ref.py` (`refs/dts2/<stamp>/base` and the human-run Rollback line).

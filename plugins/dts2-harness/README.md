@@ -14,7 +14,7 @@ Second-generation Dobeu Tech Solutions agent harness. It supersedes `harness@har
 | Scale teams | `scout` sizes the job, `run` picks tier S/M/L/XL: up to 4 parallel builders on disjoint lanes, up to 4 reviewers by axis, git worktrees for large jobs. |
 
 ## Components
-- Agents: lead, builder, reviewer, verifier, scout, auditor
+- Agents: lead, builder, fixer, reviewer, verifier, scout, auditor
 - Skills: onboard, machine-prep, setup, run, learn, evolve, gtm, sdk, action-items, model, find-skills, check-in, ship, feature, autopilot, dpp, dpp-full, fullauto
 - Hooks: SessionStart (lessons), Stop (typecheck and lint)
 - Settings: `.claude/dts2-harness.local.md` (template in `templates/`)

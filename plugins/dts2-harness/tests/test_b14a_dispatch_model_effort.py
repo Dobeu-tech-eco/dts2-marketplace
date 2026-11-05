@@ -65,7 +65,7 @@ class MechanicalDispatchTests(unittest.TestCase):
 
     def test_no_scribe_agent_was_added(self) -> None:
         names = sorted(p.stem for p in (PLUGIN_ROOT / "agents").glob("*.md"))
-        self.assertEqual(names, ["auditor", "builder", "lead", "reviewer", "scout", "verifier"])
+        self.assertEqual(names, ["auditor", "builder", "fixer", "lead", "reviewer", "scout", "verifier"])
 
 
 if __name__ == "__main__":
