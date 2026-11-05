@@ -12,4 +12,6 @@ command -v python3 >/dev/null 2>&1 || exit 0
 number_or() { [[ "$1" =~ ^[0-9]+$ ]] && echo "$1" || echo "$2"; }
 TOOL_LIMIT="$(number_or "$(setting context_guard_tool_calls "$TOOL_CALLS_DEFAULT")" "$TOOL_CALLS_DEFAULT")"
 MB_LIMIT="$(number_or "$(setting context_guard_mb "$MB_DEFAULT")" "$MB_DEFAULT")"
-exec python3 -I "$PLUGIN_DIR/scripts/context-guard.py" --tool-calls "$TOOL_LIMIT" --mb "$MB_LIMIT"
+STOP_FLAG=()
+[[ "$(setting context_guard_stop false)" == "true" ]] && STOP_FLAG=(--stop)
+exec python3 -I "$PLUGIN_DIR/scripts/context-guard.py" --tool-calls "$TOOL_LIMIT" --mb "$MB_LIMIT" ${STOP_FLAG[@]+"${STOP_FLAG[@]}"}

@@ -11,8 +11,8 @@ PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 [[ "$(setting session_end_release true)" == "true" ]] || exit 0
 command -v python3 >/dev/null 2>&1 || exit 0
 payload="$(cat)"
-reason="$(printf '%s' "$payload" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("reason", ""))' 2>/dev/null)"
+reason="$(printf '%s' "$payload" | python3 -I -c 'import json,sys; print(json.load(sys.stdin).get("reason", ""))' 2>/dev/null)"
 case "$reason" in logout | prompt_input_exit | other) ;; *) exit 0 ;; esac
 printf '%s' "$payload" | timeout "$RELEASE_TIMEOUT_S" python3 -I "$PLUGIN_DIR/scripts/session_end.py" >/dev/null 2>&1 || true
-[[ -d ".harness" ]] && { timeout "$HANDOFF_TIMEOUT_S" python3 "$PLUGIN_DIR/scripts/handoff-write.py" "$PWD" >/dev/null 2>&1 || true; }
+[[ -d ".harness" ]] && { timeout "$HANDOFF_TIMEOUT_S" python3 -I "$PLUGIN_DIR/scripts/handoff-write.py" "$PWD" >/dev/null 2>&1 || true; }
 exit 0

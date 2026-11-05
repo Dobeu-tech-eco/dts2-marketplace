@@ -1,4 +1,4 @@
-"""Stop hook skips unchanged diffs and runs tsc incrementally under .harness/cache."""
+"""Stop hook skips unchanged diffs and runs the local tsc incrementally under .harness/cache."""
 from __future__ import annotations
 
 import os
@@ -54,8 +54,10 @@ def make_env(with_ts: bool = False) -> Env:
     if with_ts:
         (repo / "package.json").write_text("{}\n", encoding="utf-8")
         (repo / "tsconfig.json").write_text("{}\n", encoding="utf-8")
-        (repo / "node_modules").mkdir()
-        (repo / "node_modules" / ".keep").write_text("", encoding="utf-8")
+        local_bin: Path = repo / "node_modules" / ".bin"  # G-32: the hook runs the local tsc, never npx
+        local_bin.mkdir(parents=True)
+        (local_bin / "tsc").write_text(FAKE_NPX.replace('"$*"', '"tsc $*"'), encoding="utf-8")
+        (local_bin / "tsc").chmod(0o755)
     git(repo, "add", "-A", "-f")
     git(repo, "commit", "-q", "-m", "base")
     return env
