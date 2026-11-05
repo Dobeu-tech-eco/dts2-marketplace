@@ -63,6 +63,11 @@ class LeadBriefTests(unittest.TestCase):
     def test_empty_ledger_says_no_checks_yet(self) -> None:
         self.assertIn("no checks recorded yet", briefs.lead_brief(TASK, ROSTER, PROBE, [], "s1"))
 
+    def test_env_only_ledger_still_shows_missing_env_names(self) -> None:
+        text: str = briefs.lead_brief(TASK, ROSTER, PROBE, [{"kind": "env", "missing": ["SECRET_ONE"]}], "s1")
+        self.assertIn("no checks recorded yet", text)
+        self.assertIn("SECRET_ONE", text)
+
     def test_cli_builds_from_json_files_and_records_the_probe(self) -> None:
         root: Path = Path(tempfile.mkdtemp(prefix="dts2-lead-"))
         (root / "roster.json").write_text(json.dumps(ROSTER), encoding="utf-8")

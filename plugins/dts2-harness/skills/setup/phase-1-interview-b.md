@@ -8,6 +8,7 @@
 4. When the user confirms, say `Components locked.` and list them. After this, add or remove a component only if the user asks.
 5. Workspace mode only: mark each component with the repo that owns it, or `cross-repo` when it spans repos. Then ask once: `Which repo must ship first, and what shared surfaces must stay in sync?` From the answer record `depends_on` per repo, `contracts` (name, owner, consumers) and `release_order`. Never guess them; anything the user leaves out goes to Open questions.
 6. Blueprint: after components are locked, record a `## Blueprint` block for the end state, one row per layer: data model, api surface, screens/routes, auth, infra/deploy, observability, background jobs. Ask once for the choice per layer (propose from scout's findings); `n/a` is allowed with a status of `n/a`. Never invent a choice the user did not give.
+7. Greenfield only: now ask the deploy-target question you deferred in Round 2. Read the "Round 2 (continued) — Deploy target" section of `phase-1-interview-a.md` (same folder) and run it here, once you know what is being built. Brownfield already did it in Round 2.
 
 ### Round 3b: 3b. Sections (end to end)
 

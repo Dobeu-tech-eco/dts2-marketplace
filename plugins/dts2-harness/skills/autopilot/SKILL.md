@@ -1,6 +1,6 @@
 ---
 name: autopilot
-description: Run harness steps end to end without human plan or ship approval: a gate of three frontier models from different providers and a council for deadlocks replace the checkpoints. One branch and PR per step. Use for autopilot or run unattended.
+description: "Run harness steps end to end without human plan or ship approval: a gate of three frontier models from different providers and a council for deadlocks replace the checkpoints. One branch and PR per step. Use for autopilot or run unattended."
 ---
 
 # Autopilot — the harness pipeline with a consensus gate instead of a human
@@ -17,9 +17,9 @@ Read the file for a section only when you reach it; do not read ahead. All files
 | `phase-0-preflight.md` | Read `phase-0-preflight.md` (same folder) at the start of a run: section 0, pre-check, preflight, queue, base and merge target, voters, state. |
 | `phase-1-gate.md` | Read `phase-1-gate.md` (same folder) when a plan or build goes to the vote: section 1, the consensus gate, and section 1b, the council. |
 | `phase-2-step.md` | Read `phase-2-step.md` (same folder) for each step: section 2, plan, build, verify, vote, and section 3, PR, CI, merge. |
-| `phase-3-parking.md` | Read `phase-3-parking.md` (same folder) when a step parks, a hard stop fires, or a run resumes: section 4, and section 5a, adjudication. |
-| `phase-4-report.md` | Read `phase-4-report.md` (same folder) when the queue is done: section 5, the final report. |
-| `son-mode.md` | Read `son-mode.md` (same folder) when the arguments are `--son <stamp>/<lane>`: section 6. A son reads its `brief.md` and this file, and no other phase file. |
+| `phase-3-parking.md` | Read `phase-3-parking.md` (same folder) when a step parks, a hard stop fires, or a run resumes: section 4; and at the end of every run, before `phase-4-report.md`, for section 5a, adjudication (it runs on every run, parked or not). |
+| `phase-4-report.md` | Read `phase-4-report.md` (same folder) when the queue is done and section 5a adjudication (`phase-3-parking.md`) has run: section 5, the final report. |
+| `son-mode.md` | Read `son-mode.md` (same folder) when the arguments are `--son <stamp>/<lane>`: section 6. A son reads its `brief.md` and this file first, then loads the other phase files on demand as it reaches each section, exactly as the head does (sections 0 to 5a apply to it), except that it never runs the steps `son-mode.md` reserves for the head. |
 
 ## Guardrails
 - The council is an escalation, not a shortcut: it sits only after three complete rounds of the normal vote on the same ballot have failed (`council.py eligible`), never earlier and never because one dispatch failed.

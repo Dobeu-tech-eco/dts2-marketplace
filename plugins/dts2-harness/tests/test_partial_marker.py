@@ -15,11 +15,13 @@ DISPATCH_FILES: Final[tuple[str, ...]] = (
     "skills/run/phase-2-build.md",
     "skills/run/phase-3-review.md",
     "skills/run/phase-4-ship.md",
-    "skills/autopilot/SKILL.md",
+    "skills/autopilot/phase-1-gate.md",
+    "skills/autopilot/phase-2-step.md",
     "skills/feature/SKILL.md",
     "skills/ship/SKILL.md",
     "skills/gtm/SKILL.md",
-    "skills/setup/SKILL.md",
+    "skills/setup/phase-1-interview-a.md",
+    "skills/setup/phase-2-scaffold.md",
 )
 
 

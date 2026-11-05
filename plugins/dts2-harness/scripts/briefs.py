@@ -108,9 +108,11 @@ def probe_lines(probe: dict[str, Any]) -> list[str]:
 
 def check_lines(ledger: list[dict[str, Any]]) -> list[str]:
     import checks  # lazy: checks.py reads the ledger format it also writes
-    if not any(r.get("kind") == "check" for r in ledger):
+    has_checks: bool = any(r.get("kind") == "check" for r in ledger)
+    if not has_checks and not any(r.get("kind") == "env" for r in ledger):
         return ["no checks recorded yet"]
-    return checks.summary(ledger).rstrip("\n").splitlines()
+    lines: list[str] = checks.summary(ledger).rstrip("\n").splitlines()
+    return lines if has_checks else ["no checks recorded yet", *lines[2:]]
 
 
 def lead_brief(task: str, roster: dict[str, Any], probe: dict[str, Any], ledger: list[dict[str, Any]], stamp: str) -> str:

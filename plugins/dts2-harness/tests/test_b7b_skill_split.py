@@ -33,12 +33,18 @@ class SkillSplitTests(unittest.TestCase):
     def test_setup_is_a_router(self) -> None:
         self.check("setup")
 
-    def test_a_son_reads_only_its_brief_and_the_son_file(self) -> None:
+    def test_a_son_reads_its_brief_and_son_file_then_phases_on_demand(self) -> None:
         router: str = (SKILLS / "autopilot" / "SKILL.md").read_text(encoding="utf-8")
-        self.assertIn("A son reads its `brief.md` and this file, and no other phase file", router)
+        self.assertIn("A son reads its `brief.md` and this file first, then loads the other phase files on demand", router)
         son: str = (SKILLS / "autopilot" / "son-mode.md").read_text(encoding="utf-8")
         self.assertIn("## 6. Son mode", son)
         self.assertIn("briefs.py", son)
+        self.assertNotIn("no other phase file", router)
+        self.assertNotIn("are all a son reads", son)
+
+    def test_adjudication_is_loaded_on_every_run(self) -> None:
+        router: str = (SKILLS / "autopilot" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("at the end of every run, before `phase-4-report.md`", router)
 
     def test_numbered_sections_survive_in_order(self) -> None:
         text: str = "\n".join(f.read_text(encoding="utf-8") for f in sorted((SKILLS / "autopilot").glob("*.md")) if f.name != "SKILL.md")
