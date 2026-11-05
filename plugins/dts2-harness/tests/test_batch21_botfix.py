@@ -3,12 +3,14 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 from typing import Any, Final
+from unittest import mock
 
 PLUGIN_ROOT: Final[Path] = Path(__file__).resolve().parent.parent
 SCRIPTS: Final[Path] = PLUGIN_ROOT / "scripts"
@@ -113,6 +115,23 @@ class CouncilSequenceSeed(unittest.TestCase):
             other = council.next_round(votes, "s4", "plan")
         self.assertEqual(resumed["instance"], "s3+3")
         self.assertEqual(other["instance"], "s4+2")
+
+
+class HeadProbeSkipsHooks(unittest.TestCase):
+    def test_F7_push_probe_runs_without_the_repo_hooks(self) -> None:
+        from lanes import supervisor
+        work = Path(tempfile.mkdtemp(prefix="dts2-b21-"))
+        log = work / "argv.json"
+        fake = work / "git.py"
+        fake.write_text(f"#!/usr/bin/env python3\nimport json, sys\nopen({str(log)!r}, 'w').write(json.dumps(sys.argv[1:]))\n", encoding="utf-8")
+        fake.chmod(0o755)
+        with mock.patch.dict(os.environ, {"DTS2_GIT_BIN": str(fake)}):
+            self.assertIsNone(supervisor.head_push_problem(work))
+        argv = json.loads(log.read_text(encoding="utf-8"))
+        self.assertIn("core.hooksPath=/dev/null", argv)
+        self.assertIn("--no-verify", argv)
+        self.assertLess(argv.index("core.hooksPath=/dev/null"), argv.index("push"))
+        self.assertIn("--dry-run", argv)
 
 
 if __name__ == "__main__":
