@@ -9,11 +9,8 @@ from __future__ import annotations
 
 import json
 import math
-import os
 import random
 import re
-import signal
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -27,6 +24,10 @@ except ImportError:  # pragma: no cover - non-POSIX: the limit is skipped and th
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import miniyaml  # noqa: E402
 import state_io  # noqa: E402
+from proc import (  # noqa: E402,F401  (re-exported: lanes.py and the tests import these names from here)
+    EXIT_TERMINATED, KILL_GRACE_S, OVERLOAD, SIGNALS_TERMINATED, backoff_delay, cli_version, is_terminated, run_once,
+    terminate)
+import proc  # noqa: E402
 
 CONFIG_FILE: Final[str] = state_io.CONFIG_REL
 RESULT_STDERR_CHARS: Final[int] = 4000
@@ -37,15 +38,10 @@ DEFAULT_BUDGET: Final[dict[str, int]] = {"max_turns": 80, "max_rounds": 4, "max_
 DEFAULT_WALL_MINUTES: Final[float] = 90.0
 DEFAULT_SUPERVISOR: Final[dict[str, Any]] = {"max_model_calls": 4, "stall_minutes": 10, "retry_max": 4,
                                               "backoff_base_s": 2.0, "backoff_cap_s": 60.0, "fallback_models": "sonnet"}
-EXIT_TERMINATED: Final[int] = 143
-SIGNALS_TERMINATED: Final[frozenset[int]] = frozenset({143, 124, -signal.SIGTERM, -signal.SIGKILL})
 POLL_S: Final[float] = 0.2
-KILL_GRACE_S: Final[int] = 5
-OVERLOAD: Final[re.Pattern[str]] = re.compile(r"\b429\b|\b529\b|rate[ _-]?limit|overloaded", re.I)
 SESSION_ID: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 MODEL_NAME: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9._:/\[\]-]{1,100}$")
 MAX_COST_USD: Final[float] = 1_000_000.0
-VERSION: Final[re.Pattern[str]] = re.compile(r"(\d+\.\d+\.\d+)")
 Event = Callable[[dict[str, Any]], None]
 
 
@@ -140,48 +136,6 @@ def is_overload(code: int, stdout: str, stderr: str) -> bool:
     return OVERLOAD.search(f"{stdout}\n{stderr}") is not None
 
 
-def backoff_delay(attempt: int, base: float, cap: float, rng: random.Random | None = None) -> float:
-    """base * 2^attempt, capped, plus up to `base` of jitter."""
-    jitter: float = (rng or random).uniform(0, base)
-    return min(cap, base * (2 ** attempt)) + jitter
-
-
-def terminate(proc: subprocess.Popen[str]) -> tuple[str, str]:
-    """SIGTERM the whole process group, then SIGKILL after a grace period; the partial output."""
-    for sig in (signal.SIGTERM, signal.SIGKILL):
-        try:
-            os.killpg(proc.pid, sig)
-        except (ProcessLookupError, PermissionError):
-            pass  # the group already exited or is not ours to signal; communicate() below still reaps the child
-        try:
-            out, err = proc.communicate(timeout=KILL_GRACE_S)
-            return out or "", err or ""
-        except subprocess.TimeoutExpired:
-            continue
-    return "", ""
-
-
-def run_once(argv: list[str], cwd: Path, timeout_s: float, env: dict[str, str] | None,
-             stdin_text: str | None = None, on_start: Callable[[int], None] | None = None) -> dict[str, Any]:
-    """Run one command to completion or to the wall-clock limit. A timeout reports exit 143 and `timed_out`.
-    `stdin_text` is piped to the child (a prompt); without it stdin is closed. `on_start` gets the child's pid."""
-    try:
-        proc: subprocess.Popen[str] = subprocess.Popen(
-            argv, cwd=str(cwd), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            stdin=subprocess.DEVNULL if stdin_text is None else subprocess.PIPE, text=True,
-            encoding="utf-8", errors="replace", env=env, start_new_session=True)
-    except OSError as exc:
-        return {"code": 127, "stdout": "", "stderr": str(exc), "timed_out": False}
-    if on_start is not None:
-        on_start(proc.pid)
-    try:
-        out, err = proc.communicate(input=stdin_text, timeout=max(1.0, timeout_s))
-    except subprocess.TimeoutExpired:
-        out, err = terminate(proc)
-        return {"code": EXIT_TERMINATED, "stdout": out, "stderr": err, "timed_out": True}
-    return {"code": proc.returncode, "stdout": out or "", "stderr": err or "", "timed_out": False}
-
-
 def timeout_result(code: int, detail: str) -> dict[str, Any]:
     return {"code": code, "stdout": "", "stderr": detail, "timed_out": True, "attempts": 0, "retries": 0,
             "results": [], "halted_overload": False}
@@ -222,29 +176,15 @@ def retry_loop(argv: list[str], cwd: Path, timeout_s: float, label: str, setting
                stdin_text: str | None = None, halt_on_session: bool = False,
                clock: Callable[[], float] = time.monotonic,
                on_start: Callable[[int], None] | None = None) -> dict[str, Any]:
-    deadline: float = clock() + timeout_s
-    attempt: int = 0
-    results: list[dict[str, Any]] = []
-    while True:
-        result: dict[str, Any] = run_once(argv, cwd, deadline - clock(), env, stdin_text,
-                                       **({"on_start": on_start} if on_start else {}))
-        results.append({"code": result["code"], "stdout": result["stdout"],
-                        "stderr": result["stderr"][-RESULT_STDERR_CHARS:]})
-        retriable: bool = not result["timed_out"] and is_overload(result["code"], result["stdout"], result["stderr"])
-        done: dict[str, Any] = {**result, "attempts": attempt + 1, "retries": attempt, "results": results,
-                                "halted_overload": False}
-        if not retriable or attempt >= settings["retry_max"]:
-            return done
-        if halt_on_session and (parse_result(result["stdout"]) or {}).get("session_id"):
-            emit({"event": "retry-halted", "label": label, "attempt": attempt + 1, "reason": "session-open"})
-            return {**done, "halted_overload": True}
-        delay: float = backoff_delay(attempt, settings["backoff_base_s"], settings["backoff_cap_s"], rng)
-        if clock() + delay >= deadline:
-            return done
-        emit({"event": "retry", "label": label, "attempt": attempt + 1, "delay_s": round(delay, 3),
-              "code": result["code"], "reason": "429-or-overload"})
-        sleep(delay)
-        attempt += 1
+    def attempt(left: float) -> dict[str, Any]:
+        return run_once(argv, cwd, left, env, stdin_text, **({"on_start": on_start} if on_start else {}))
+
+    return proc.run_retrying(
+        attempt, timeout_s, retry_max=settings["retry_max"], base_s=settings["backoff_base_s"],
+        cap_s=settings["backoff_cap_s"],
+        retriable=lambda r: is_overload(r["code"], r["stdout"], r["stderr"]),
+        halt=(lambda r: bool((parse_result(r["stdout"]) or {}).get("session_id"))) if halt_on_session else None,
+        sleep=sleep, rng=rng, clock=clock, emit=emit, label=label, stderr_chars=RESULT_STDERR_CHARS)
 
 
 def result_objects(stdout: str) -> Iterator[dict[str, Any]]:
@@ -300,14 +240,3 @@ def fallback_used(parsed: dict[str, Any] | None, primary: str) -> str | None:
         return str(parsed["fallback"])
     others: list[str] = [m for m in parsed["models"] if primary.lower() not in m.lower()]
     return others[0] if others and parsed["models"] and len(others) == len(parsed["models"]) else None
-
-
-def cli_version(text: str) -> str | None:
-    """x.y.z from `claude --version` output, or None when it cannot be read."""
-    match = VERSION.search(text)
-    return match.group(1) if match else None
-
-
-def is_terminated(code: int) -> bool:
-    """Exit 143 (SIGTERM) and its neighbours: the wall-clock cap or an outside kill. The lane ends incomplete."""
-    return code in SIGNALS_TERMINATED

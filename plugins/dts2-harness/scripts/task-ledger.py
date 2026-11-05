@@ -8,8 +8,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-import subprocess
 import sys
 from datetime import date
 from pathlib import Path
@@ -20,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from state_io import atomic_write  # noqa: E402
 import state_io  # noqa: E402
 import _load  # noqa: E402
+import proc  # noqa: E402
 
 RUNS_DIR: Final[str] = state_io.RUNS_REL
 ITEMS_PATH: Final[str] = state_io.ACTION_ITEMS_REL
@@ -37,8 +36,7 @@ class LedgerError(Exception):
 
 
 def binary(name: str, default: str) -> list[str]:
-    value: str = os.environ.get(name, default)
-    return [sys.executable, value] if value.endswith(".py") else [value]
+    return proc.binary(name, default)
 
 
 def load_action_items() -> ModuleType:
@@ -72,12 +70,12 @@ def read_lanes(run_dir: Path) -> list[dict[str, Any]]:
     return lanes
 
 
-def open_pr_numbers(cwd: Path) -> set[int] | None:
+def open_pr_numbers(cwd: Path, runner: proc.Runner | None = None) -> set[int] | None:
     cmd: list[str] = binary("DTS2_GH_BIN", "gh") + ["pr", "list", "--state", "open", "--json", GH_PR_FIELDS]
+    code, out = proc.run(cmd, cwd, timeout_s=TIMEOUT_S, runner=runner)
     try:
-        done = subprocess.run(cmd, cwd=str(cwd), capture_output=True, text=True, timeout=TIMEOUT_S, check=False)
-        return {int(pr["number"]) for pr in json.loads(done.stdout)} if done.returncode == 0 else None
-    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return {int(pr["number"]) for pr in json.loads(out)} if code == 0 else None
+    except (ValueError, TypeError, KeyError):
         return None
 
 

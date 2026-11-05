@@ -89,3 +89,4 @@ Imported by the scripts above; none is a hook entry point.
 | `scripts/state_ids.py` | `Stamp` and `LaneId` value objects; the only way a run stamp or lane id reaches a path |
 | `scripts/mdparse.py` | the one Markdown tokenizer (headings, bullets, checkboxes, table rows; skips fenced code) |
 | `scripts/contracts.py` | text-contract parsers on mdparse: vote entry, ballot, decision, sections, acceptance, report; a dataclass or `Invalid` |
+| `scripts/proc.py` | child-process seam: `Runner` (real, fake, dry-run), timeout kill (143), 429 backoff, version pin and fallback flags; model_call, skills-check and task-ledger go through it |

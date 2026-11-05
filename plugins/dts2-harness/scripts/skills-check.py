@@ -14,7 +14,6 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 from datetime import date
 from pathlib import Path
@@ -24,6 +23,7 @@ from typing import Any, Final
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from state_io import atomic_write  # noqa: E402
 import skill_pins as pins  # noqa: E402
+import proc  # noqa: E402
 import _load  # noqa: E402
 import state_io  # noqa: E402
 
@@ -55,6 +55,7 @@ HARNESS_PLUGIN: Final[str] = "dts2-harness@dts2"
 TIMEOUT_S: Final[int] = 120
 TIMED_OUT: Final[int] = 124
 NOT_FOUND: Final[int] = 127
+RUNNER: proc.Runner | None = None  # tests set a proc.FakeRunner; None starts real processes
 CANDIDATES_SHOWN: Final[int] = 3
 # On Windows npx is npx.cmd, run through cmd.exe, which interprets & | > even in list-form argv,
 # so every value that reaches a command line must match one of these first.
@@ -94,22 +95,12 @@ def load_upgrade_check() -> ModuleType:
 
 
 def binary(name: str, default: str) -> list[str]:
-    value: str = os.environ.get(name, default)
-    if value.endswith(".py"):
-        return [sys.executable, value]
-    # Windows ships npx as npx.cmd; subprocess only finds it through PATHEXT via which().
-    return [shutil.which(value) or value]
+    return proc.binary(name, default)
 
 
 def run(cmd: list[str], cwd: Path) -> tuple[int, str]:
-    try:
-        done = subprocess.run(cmd, cwd=str(cwd), capture_output=True, text=True, encoding="utf-8", errors="replace",
-                              timeout=TIMEOUT_S, stdin=subprocess.DEVNULL)
-    except subprocess.TimeoutExpired:
-        return TIMED_OUT, "timed out"
-    except OSError as exc:
-        return NOT_FOUND, str(exc)
-    return done.returncode, ANSI.sub("", (done.stdout or "") + (done.stderr or ""))
+    return proc.run(cmd, cwd, timeout_s=TIMEOUT_S, runner=RUNNER, strip_ansi=True, merge_stderr=True,
+                    timeout_code=TIMED_OUT)
 
 
 def npx(*args: str) -> list[str]:
