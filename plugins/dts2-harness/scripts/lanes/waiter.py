@@ -72,7 +72,7 @@ class Inotify:
             try:
                 os.read(self.fd, 65536)
             except BlockingIOError:
-                pass
+                pass  # another reader drained the event between select and read; the caller re-checks its state anyway
 
     def close(self) -> None:
         os.close(self.fd)

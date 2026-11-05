@@ -89,7 +89,7 @@ def interrupt_then_kill(proc: subprocess.Popen[str], grace_s: float | None = Non
     try:
         proc.wait(timeout=INT_GRACE_S if grace_s is None else grace_s)
     except subprocess.TimeoutExpired:
-        pass
+        pass  # the child ignored SIGINT for the whole grace period; the SIGKILL below ends it
     signal_group(proc.pid, signal.SIGKILL)
     proc.wait()
 
@@ -99,6 +99,20 @@ def pump(stream: Any, sink: list[str], on_line: Callable[[str], bool] | None, st
         sink.append(line)
         if on_line is not None and on_line(line):
             stop.set()
+
+
+def drain_readers(proc: subprocess.Popen[str], readers: list[threading.Thread], deadline: float) -> None:
+    """Join the pipe readers until `deadline`. Descendants that keep the pipes open past it are SIGKILLed with the
+    child's group, and only the streams whose reader finished are closed (closing one a reader blocks on would hang)."""
+    for reader in readers:
+        reader.join(timeout=max(0.0, deadline - time.monotonic()))
+    if any(reader.is_alive() for reader in readers):
+        signal_group(proc.pid, signal.SIGKILL)
+        for reader in readers:
+            reader.join(timeout=KILL_GRACE_S)
+    for stream, reader in zip((proc.stdout, proc.stderr), readers):
+        if stream is not None and not reader.is_alive():
+            stream.close()
 
 
 def run_streaming(proc: subprocess.Popen[str], timeout_s: float, stdin_text: str | None,
@@ -130,11 +144,7 @@ def run_streaming(proc: subprocess.Popen[str], timeout_s: float, stdin_text: str
     if timed_out or stopped:
         interrupt_then_kill(proc)
     proc.wait()
-    for reader in readers:
-        reader.join(timeout=KILL_GRACE_S)
-    for stream in (proc.stdout, proc.stderr):
-        if stream is not None:
-            stream.close()
+    drain_readers(proc, readers, deadline)
     return {"code": EXIT_TERMINATED if timed_out else proc.returncode, "stdout": "".join(out), "stderr": "".join(err),
             "timed_out": timed_out, "stopped": stopped}
 
@@ -400,4 +410,4 @@ def clear_exit(lane_dir: Path) -> None:
     try:
         (lane_dir / EXIT_FILE).unlink()
     except FileNotFoundError:
-        pass
+        pass  # nothing to clear: the lane has no exit record yet

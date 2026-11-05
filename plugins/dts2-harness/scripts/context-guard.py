@@ -21,6 +21,7 @@ BYTES_PER_MB: Final[int] = 1048576
 SESSION_UNSAFE: Final[re.Pattern[str]] = re.compile(r"[^A-Za-z0-9_-]")
 TOOL_USE: Final[re.Pattern[bytes]] = re.compile(rb'"type": ?"tool_use"')
 NEWLINE: Final[bytes] = b"\n"
+ACTIVE_BRANCH: Final[re.Pattern[str]] = re.compile(r"^ref: refs/heads/dts2/([A-Za-z0-9._-]+)/")
 MISPLACED: Final[str] = "workspace-member"
 MESSAGE: Final[str] = (
     "dts2-harness CONTEXT GUARD (%s): %s. STOP: do not dispatch or continue any agent. "
@@ -53,8 +54,28 @@ def fire(marker_dir: Path, session: str, trigger: str, details: str) -> None:
     print(json.dumps(output))
 
 
-def has_plan(effective: Path) -> bool:
-    return next(effective.glob(f"{state_io.RUNS_REL}/*/plan.md"), None) is not None
+def head_ref(repo: Path) -> str:
+    """The branch ref `.git/HEAD` names (follows a worktree's `.git` file); empty when it cannot be read."""
+    git: Path = repo / ".git"
+    try:
+        if git.is_file():
+            pointer: str = git.read_text(encoding="utf-8").strip()
+            git = (repo / pointer.removeprefix("gitdir:").strip()) if pointer.startswith("gitdir:") else git
+        return (git / "HEAD").read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def active_stamp(repo: Path) -> str | None:
+    """The run stamp in a `dts2/<stamp>/...` branch name: the run this session is on (new or resumed), or None."""
+    match: re.Match[str] | None = ACTIVE_BRANCH.match(head_ref(repo))
+    return match.group(1) if match else None
+
+
+def has_plan(effective: Path, active: str | None = None) -> bool:
+    """A plan checkpoint exists for the active run; with no active run known, for any run."""
+    stamp: str = active if active is not None and (effective / state_io.RUNS_REL / active).is_dir() else "*"
+    return next(effective.glob(f"{state_io.RUNS_REL}/{stamp}/plan.md"), None) is not None
 
 
 def int_field(state: dict[str, Any], key: str) -> int:
@@ -98,7 +119,8 @@ def run(tool_calls: int, mb: int) -> None:
     if scope.get("scope") == MISPLACED:
         fire(marker_dir, session, "misplaced", f"cwd {cwd} is a member repo of workspace {scope.get('workspaceRoot')}")
         return
-    if has_plan(Path(scope.get("workspaceRoot") or cwd)):
+    effective: Path = Path(scope.get("workspaceRoot") or cwd)
+    if has_plan(effective, active_stamp(Path(cwd))):
         return
     transcript: Path = Path(str(payload.get("transcript_path") or ""))
     if not transcript.is_file():

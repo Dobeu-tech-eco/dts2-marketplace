@@ -1,0 +1,11 @@
+### Fixed
+- Review A: `proc.run_once` streaming path keeps its deadline while draining pipes held by descendants (kills the group, no blocking close); documented the two ignored exceptions in `proc.py`.
+- Review B: `Inotify.wait` ignored `BlockingIOError` is commented.
+- Review C: `detect_stuck` compares a SHA-256 of the full observation, not a 2000-char prefix.
+- Review D: a mailbox timeout park carries the question's epoch; a stale question no longer parks a re-leased lane.
+- Review E: the son contract reports `pr-open` first, then waits for the grant (no circular wait with `next_to_merge`).
+- Review F: `plan` filters by the frozen fullauto scope before the cap and conflict selection; excluded items are recorded as pending.
+- Review G: the no-phase heartbeat checks the epoch under the status lock and does not renew a lease when stale.
+- Review K: the context guard resolves the active run from the `dts2/<stamp>/` branch before looking for a plan.
+- Review P (partial): sons cannot write `.claude/settings.local.json` (sandbox write deny).
+- Review M: `test_batch17_mailbox.py` uses `import unittest.mock as mock`.
