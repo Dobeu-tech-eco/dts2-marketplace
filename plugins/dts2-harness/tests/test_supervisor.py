@@ -599,12 +599,14 @@ class MergeOrderTests(SupervisorBase):
         self.assertFalse(self.go("c")["ok"])
         self.assertIsNone(self.lanes("merge-order", str(self.manifest))["next"])
 
-    def test_parked_lane_loses_its_turn_for_lanes_that_do_not_depend_on_it(self) -> None:
-        # a depends on b, so a parked b no longer lets a through (see test_supervisor_fixes); c is independent
+    def test_parked_lane_does_not_hold_up_the_lanes_behind_it(self) -> None:
+        # b is parked incomplete: it is not waited for, so a (which depends on it) takes the turn; c waits behind a
         self.phase("b", "incomplete")
         self.phase("a", "pr-open")
         self.phase("c", "pr-open")
-        self.assertTrue(self.go("c")["ok"])
+        self.assertEqual(self.lanes("merge-order", str(self.manifest))["next"], "a")
+        self.assertFalse(self.go("c")["ok"])
+        self.assertTrue(self.go("a")["ok"])
 
     def test_dependency_cycle_is_an_error(self) -> None:
         lanes = [{"id": "a", "item": "S1", "files": [], "depends_on": ["b"]},

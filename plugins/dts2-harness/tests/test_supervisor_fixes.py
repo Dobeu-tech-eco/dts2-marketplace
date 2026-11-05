@@ -91,22 +91,19 @@ class MergeDependencyTests(base.SupervisorBase):
     def go(self, lane_id: str) -> dict[str, Any]:
         return self.lanes("merge-go", str(self.manifest), "--lane", lane_id, "--head", "deadbeef", "--base", "cafe1234")
 
-    def test_dependent_of_a_parked_lane_is_never_next(self) -> None:
+    def test_dependent_of_a_parked_lane_is_not_held_up_by_it(self) -> None:
         self.phase("a", "incomplete")
         self.phase("b", "pr-open")
-        self.assertIsNone(self.lanes("merge-order", str(self.manifest))["next"])
-        refused = self.go("b")
-        self.assertFalse(refused["ok"])
-        self.assertIn("depends on unmerged lane a", refused["detail"])
-        self.assertFalse((self.runs / "b" / "merge-go.md").exists())
+        self.assertEqual(self.lanes("merge-order", str(self.manifest))["next"], "b")
+        self.assertTrue(self.go("b")["ok"])
 
-    def test_blocked_dependency_holds_back_transitive_dependents(self) -> None:
+    def test_building_dependency_holds_back_dependents_past_a_blocked_one(self) -> None:
         self.phase("a", "blocked")
         self.phase("b", "building")
         self.phase("c", "pr-open")
         refused = self.go("c")
         self.assertFalse(refused["ok"])
-        self.assertIn("a", refused["waiting_on"])
+        self.assertNotIn("a", refused["waiting_on"])
         self.assertIn("b", refused["waiting_on"])
 
     def test_merged_dependency_releases_the_dependent(self) -> None:
