@@ -2,8 +2,10 @@
 enabled: true
 # Hooks
 stop_checks: true
+stop_checks_block: false     # true = a red typecheck, lint or checks.sh run blocks the stop once (never twice in a row)
 lessons_inject: true
 lessons_max: 5
+pr_receipt_template_push: false  # true = the PR-receipt hook commits and pushes the PR template to the PR branch (never in son mode)
 # Team scaling for the run skill
 auto_scale: true
 max_builders: 4
@@ -28,6 +30,7 @@ auto_learn: true          # run learn after the ship checkpoint; false turns it 
 context_guard: true              # stop the run and re-run setup on a context spike before the plan checkpoint, or when run from a workspace member folder
 context_guard_tool_calls: 250    # tool calls in this session before the guard fires
 context_guard_mb: 12             # transcript size in MB before the guard fires
+context_guard_stop: false        # true = the guard also ends the turn (continue:false) instead of only advising
 # Delegation (Rule 9): frontier is for advice and sign-off only; builders never run a frontier model
 max_execution_effort: high   # cap builder effort (low|medium|high|max); the lead never gives a builder a frontier model
 delegation_strict: true   # block ship if any builder ran a frontier model

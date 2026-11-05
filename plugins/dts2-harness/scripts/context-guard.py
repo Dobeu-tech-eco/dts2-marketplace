@@ -15,6 +15,7 @@ SCRIPT_DIR: Final[Path] = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 from state_io import atomic_write  # noqa: E402
 import state_io  # noqa: E402
+from state_ids import STAMP_PATTERN  # noqa: E402
 import _load  # noqa: E402
 
 BYTES_PER_MB: Final[int] = 1048576
@@ -29,6 +30,11 @@ MESSAGE: Final[str] = (
     "run scope-check, then /dts2-harness:setup (workspace re-link if a manifest exists) and resume with run resume.")
 
 
+DEFAULT_EVENT: Final[str] = "PostToolUse"
+BATCH_EVENT: Final[str] = "PostToolBatch"  # same guard, fired once per parallel batch
+STOP_REASON: Final[str] = "dts2-harness context guard (%s): %s. Re-run setup and resume with run resume."
+
+
 def load_scope_module() -> ModuleType:
     return _load.load("scope-check")
 
@@ -41,7 +47,7 @@ def read_json(path: Path) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
-def fire(marker_dir: Path, session: str, trigger: str, details: str) -> None:
+def fire(marker_dir: Path, session: str, trigger: str, details: str, stop: bool = False, event: str = DEFAULT_EVENT) -> None:
     marker: Path = marker_dir / f"dts2-guard-{session}-{trigger}"
     if marker.exists():
         return
@@ -50,7 +56,10 @@ def fire(marker_dir: Path, session: str, trigger: str, details: str) -> None:
     except OSError:
         pass
     output: dict[str, Any] = {"hookSpecificOutput": {
-        "hookEventName": "PostToolUse", "additionalContext": MESSAGE % (trigger, details)}}
+        "hookEventName": event, "additionalContext": MESSAGE % (trigger, details)}}
+    if stop:  # context_guard_stop: also end the turn instead of only advising
+        output["continue"] = False
+        output["stopReason"] = STOP_REASON % (trigger, details)
     print(json.dumps(output))
 
 
@@ -72,10 +81,22 @@ def active_stamp(repo: Path) -> str | None:
     return match.group(1) if match else None
 
 
+def current_run(effective: Path, active: str | None = None) -> Path | None:
+    """The run this session is in: the active run (stamp in the `dts2/<stamp>/` branch name) when its folder exists, else the
+    newest stamped run folder by name, else the most recently touched folder."""
+    if active is not None and (effective / state_io.RUNS_REL / active).is_dir():
+        return effective / state_io.RUNS_REL / active
+    runs: list[Path] = [p for p in (effective / state_io.RUNS_REL).glob("*") if p.is_dir()]
+    stamped: list[Path] = sorted(p for p in runs if STAMP_PATTERN.fullmatch(p.name))
+    if stamped:
+        return stamped[-1]
+    return max(runs, key=lambda p: p.stat().st_mtime) if runs else None
+
+
 def has_plan(effective: Path, active: str | None = None) -> bool:
-    """A plan checkpoint exists for the active run; with no active run known, for any run."""
-    stamp: str = active if active is not None and (effective / state_io.RUNS_REL / active).is_dir() else "*"
-    return next(effective.glob(f"{state_io.RUNS_REL}/{stamp}/plan.md"), None) is not None
+    """True when the current run (not any older run) has reached its plan checkpoint."""
+    run: Path | None = current_run(effective, active)
+    return run is not None and (run / "plan.md").is_file()
 
 
 def int_field(state: dict[str, Any], key: str) -> int:
@@ -104,20 +125,21 @@ def count_new_calls(transcript: Path, state_file: Path) -> tuple[int, int]:
     return calls, size
 
 
-def run(tool_calls: int, mb: int) -> None:
+def run(tool_calls: int, mb: int, stop: bool) -> None:
     payload: Any = json.load(sys.stdin)
     if not isinstance(payload, dict):
         return
     session: str = SESSION_UNSAFE.sub("", str(payload.get("session_id") or ""))
     if not session:
         return
+    event: str = BATCH_EVENT if payload.get("hook_event_name") == BATCH_EVENT else DEFAULT_EVENT
     cwd: str = str(payload.get("cwd") or "")
     if not cwd or not os.path.isdir(cwd):
         cwd = os.getcwd()
     marker_dir: Path = Path(os.environ.get("TMPDIR") or "/tmp")
     scope: dict[str, Any] = load_scope_module().detect(Path(cwd))
     if scope.get("scope") == MISPLACED:
-        fire(marker_dir, session, "misplaced", f"cwd {cwd} is a member repo of workspace {scope.get('workspaceRoot')}")
+        fire(marker_dir, session, "misplaced", f"cwd {cwd} is a member repo of workspace {scope.get('workspaceRoot')}", stop, event)
         return
     effective: Path = Path(scope.get("workspaceRoot") or cwd)
     if has_plan(effective, active_stamp(Path(cwd))):
@@ -128,16 +150,17 @@ def run(tool_calls: int, mb: int) -> None:
     calls, size = count_new_calls(transcript, marker_dir / f"dts2-guard-{session}-offset.json")
     size_mb: int = size // BYTES_PER_MB
     if calls >= tool_calls or size_mb >= mb:
-        fire(marker_dir, session, "spike", f"{calls} tool calls / {size_mb} MB with no plan checkpoint reached")
+        fire(marker_dir, session, "spike", f"{calls} tool calls / {size_mb} MB with no plan checkpoint reached", stop, event)
 
 
 def main() -> int:
     parser: argparse.ArgumentParser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tool-calls", type=int, required=True)
     parser.add_argument("--mb", type=int, required=True)
+    parser.add_argument("--stop", action="store_true", help="also emit continue:false with a stopReason when the guard fires")
     args: argparse.Namespace = parser.parse_args()
     try:
-        run(args.tool_calls, args.mb)
+        run(args.tool_calls, args.mb, args.stop)
     except Exception:  # noqa: BLE001 - a guard must never fail the session
         return 0
     return 0
