@@ -2,6 +2,12 @@
 
 <what changed and why>
 
+## Follows
+
+Follows: <the PR this one builds on, as #<n>, or none>
+
+Merge: merge commit only (no squash, no rebase)
+
 ## Change receipt
 
 ### Tests run

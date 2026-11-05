@@ -1,6 +1,7 @@
 ---
 name: dpp-full
 description: dpp with --full. The head fills up to five lanes from the check-in list plus a delegation scan of sons' questions, parked items and new action items, and keeps dispatching without asking. Use when the user says dpp-full or full parallel autopilot.
+disable-model-invocation: true
 ---
 
 # dpp-full — dpp with `--full`

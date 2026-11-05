@@ -1,6 +1,6 @@
 ---
 name: feature
-description: Add a feature to the roadmap and update every plan to match. Scores how clear the feature is, runs the setup deep interview scoped to just this feature when it is not clear enough (plus the grill, architecture and agent-friendly passes), then has the lead write it into the approved end state as a component with acceptance criteria, Blueprint lines and Sections, updates the repo's own plan and status docs and the action items, and opens a pull request for the plan change. Use when the user says add a feature, new feature, put this on the roadmap, plan this feature, or we also need X.
+description: Add a feature to the roadmap and update every plan to match: scores clarity, interviews when unclear, has the lead write it into the end state with acceptance criteria, and opens a plan PR. Use for add a feature or put this on the roadmap.
 ---
 
 # Feature — from idea to planned sections, every plan in sync
@@ -30,6 +30,7 @@ Dispatch `dts2-harness:lead` (seat: sign-off, `model: opus`) with the feature re
 - **Each repo plan doc** that exists: the feature added in that doc's own format and place (a roadmap entry, a phase task, a status line `planned`), never a reformat of the rest.
 - **action-items.md**: a Decisions row for each open question, a Secrets row (name only, via `action-items.py <repo> add Secrets NAME`) for each new secret the feature needs, a Deploy row for each external setup step.
 - `## Done` for the feature: one checkable outcome per line.
+A lead report whose first line is `PARTIAL: hit turn cap at <step>` is not a patch: do not show it for approval; re-dispatch the lead with a narrower scope or a fresh agent, inside the fix-loop cap.
 
 ## 4. Architecture and agent-friendly passes, then approval
 1. **5b. Architecture pass.** Run `/improve-codebase-architecture` against the repo with the new sections as the planned change; present its findings as amendments to the patch and ask `Apply these architecture amendments? (y/n/edit)`.
