@@ -52,6 +52,7 @@ flowchart TD
 | `runs/<stamp>/plan.md`, `receipt.md`, `task-ledger.md` | run, ship, `task-ledger.py` | plan, change receipt, per-task record |
 | `runs/<stamp>/ledger.jsonl` | `checks.py`, `council.py` | check results with HEAD sha, env, ballots |
 | `runs/<stamp>/run.json`, `budget.json`, `model-ledger.jsonl` | `lanes.py` | pinned CLI version, spend counter, model-call ledger |
+| `runs/<stamp>/flags.md` | `flags_collect.py` | the builders' `FLAGS:` blocks, one section per builder |
 | `runs/<stamp>/merge-order.json`, `merge-go.md` | `lanes.py` | serialised merge state |
 | `runs/<stamp>/<lane>/lease.json`, `status.json`, `brief.md`, `send-back-<n>.md`, `questions/<n>.md` | `lanes.py`, the son | lane lease and epoch, phase and heartbeat, brief, send-backs, son questions |
 | `autopilot/latest.md`, `council.md` | autopilot, `council.py` | last autopilot run, council decisions |
@@ -76,4 +77,4 @@ Hooks read settings from `.claude/dts2-harness.local.md` through `hooks/lib-sett
 
 `checks.py` (deterministic gate), `council.py` (dossier, tally, blind ballots, seats), `lanes.py` (lane leases and supervision), `roster.py` and `delegate.py` (which agent and model for which seat), `prod-scaffold.py` (CI and ops files for a target app), `doctor.py` (preflight table, `make doctor`), `repo-size.py` (tier, per-module lines, heavy files and suggested sections).
 
-`ownership_audit.py` (the shared `audit(diff, owned, claimed_sha)` core) and `builder-audit.py` (its CLI: empty diff with DONE, file outside the owned set, claimed commit not HEAD). `plan-gate.py` is the plan checkpoint gate: PASS or FAIL on Foundation, exclusive ownership, model and effort per builder, with an estimated token count.
+`ownership_audit.py` (the shared `audit(diff, owned, claimed_sha)` core) and `builder-audit.py` (its CLI: empty diff with DONE, file outside the owned set, claimed commit not HEAD). `plan-gate.py` is the plan checkpoint gate: PASS or FAIL on Foundation, exclusive ownership, model and effort per builder, with an estimated token count. `flags_collect.py` collects each builder report's `FLAGS:` block into `runs/<stamp>/flags.md`.
