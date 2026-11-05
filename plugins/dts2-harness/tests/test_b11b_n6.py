@@ -25,7 +25,7 @@ def make_run() -> Path:
         "lanes": {"a": {"rounds": 2, "charged_usd": 3.25, "sessions": {}}, "b": {"rounds": 1, "sessions": {}}},
     }), encoding="utf-8")
     (run_dir / "a" / "status.json").write_text(json.dumps(
-        {"lane": "a", "status": "done", "pr": 12, "heartbeat": 1000 + 754}), encoding="utf-8")
+        {"lane": "a", "status": "done", "pr": 12, "started": 1000, "heartbeat": 1000 + 754}), encoding="utf-8")
     (run_dir / "b" / "status.json").write_text(json.dumps({"lane": "b", "status": "blocked"}), encoding="utf-8")
     return runs
 

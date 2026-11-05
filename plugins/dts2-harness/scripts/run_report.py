@@ -20,8 +20,9 @@ def number(value: Any) -> float | None:
     return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
-def wall_clock(status: dict[str, Any], budget: dict[str, Any]) -> str:
-    begin: float | None = number(status.get("started")) or number(budget.get("started"))
+def wall_clock(status: dict[str, Any]) -> str:
+    """Lane wall time from its own `started`; `-` when absent (the run-wide start would overstate later lanes)."""
+    begin: float | None = number(status.get("started"))
     end: float | None = number(status.get("heartbeat"))
     if begin is None or end is None or end < begin:
         return MISSING
@@ -41,7 +42,7 @@ def lane_row(lane: str, status: dict[str, Any], budget: dict[str, Any], repo_url
     rounds: Any = spend.get("rounds")
     cost: float | None = number(spend.get("charged_usd"))
     return [lane, str(status.get("status") or MISSING), str(rounds) if isinstance(rounds, int) else MISSING,
-            f"{cost:.2f}" if cost is not None else MISSING, wall_clock(status, budget), pr_cell(status, repo_url)]
+            f"{cost:.2f}" if cost is not None else MISSING, wall_clock(status), pr_cell(status, repo_url)]
 
 
 def table(rows: list[list[str]]) -> str:
