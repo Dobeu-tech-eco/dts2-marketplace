@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Ship the current work as a pull request on the user's own initiative. Runs the pre-check, the repo's type, lint, test and build commands, a secret and do-not-touch scan, a verifier and a reviewer, writes the change receipt, fills the PR template, pushes the branch and opens the PR. Then sweeps the repo so only main and dev remain, folding or closing redundant pull requests and deleting merged or stale branches after one confirmation. Never merges. Use when the user says ship, open a PR, make a pull request, ship this, or clean up PRs and branches.
+description: Ship the current branch as a pull request: pre-check, repo checks, secret scan, verifier and reviewer, receipt, PR template, push, open PR; then sweep stale branches and PRs after one confirmation. Never merges. Use for ship, open a PR, or clean up PRs.
 ---
 
 # Ship — pre-check, verify, PR, then tidy branches and PRs
@@ -22,14 +22,17 @@ Read `.harness/config.yaml` `commands:`. Run `verify` when it exists, else each 
 - **Repo checks.** Run `.harness/checks.sh` when it exists, and any repo-declared checker the repo's CLAUDE.md requires before a PR.
 
 A failing check → show it and ask once: fix now (a builder on the owning files, up to the 3-round cap from the run skill) or stop. Never open a PR on a red check unless the user overrides; the override goes in Open risks.
+A builder fix report whose first line is `PARTIAL: hit turn cap at <step>` is not a fix: re-dispatch the builder on the remaining steps or a fresh builder, inside the 3-round cap.
 
 ## 4. Review
 Dispatch, in one message, `dts2-harness:verifier` (seat: sign-off, `model: opus`) to confirm the checks against HEAD and look for stubs, and one `dts2-harness:reviewer` (seat: advisory, `standard`) on the whole diff with `.harness/review-checklist.md`. CRITICAL or HIGH findings → show them and ask: fix, ship anyway (recorded in Open risks), or stop.
 
+A verifier or reviewer report whose first line is `PARTIAL: hit turn cap at <step>` has not passed: treat it as no verdict, re-run that agent (narrower scope or a fresh agent), and do not continue to step 5 until a complete report comes back.
+
 ## 5. Receipt and PR body
 1. Build the receipt from `${CLAUDE_PLUGIN_ROOT}/templates/receipt.md` into `.harness/runs/ship-<stamp>/receipt.md`: tests from step 3, verdict from step 4, `Approved by` = `$(git config user.name), $(date +%Y-%m-%d)` (invoking ship is the approval), steps outside this change and open risks from `.harness/action-items.md`, rollback point = `git merge-base HEAD origin/<base>`.
 2. If the repo has no `.github/pull_request_template.md`, copy `${CLAUDE_PLUGIN_ROOT}/templates/pr-template.md` there and include it in this PR. If it has one without `## Change receipt`, the `pr-receipt.sh` hook appends the section; do not add it twice.
-3. Install and run `/pr` (see Companion skills) for the title and summary, then fill the template: Summary, Linked work (end-state section or feature slug, closed action-item ids, any PRs this one folds from step 7), Type, Pre-checks boxes ticked only for checks that actually ran green, Consensus `n/a: human approved`, and the receipt. Write it to `.harness/runs/ship-<stamp>/pr-body.md`. Title in Conventional Commits form.
+3. Install and run `/pr` (see Companion skills) for the title and summary, then fill the template: Summary, Linked work (end-state section or feature slug, closed action-item ids, any PRs this one folds from step 7), the `Follows:` line naming the open PR this branch was cut from (or `none`), and the `Merge:` line that reads `merge commit only`, Type, Pre-checks boxes ticked only for checks that actually ran green, Consensus `n/a: human approved`, and the receipt. Write it to `.harness/runs/ship-<stamp>/pr-body.md`. Title in Conventional Commits form.
 
 ## 6. Push and open
 Invoking ship is the user's request to push this branch and open its PR, so: `git push -u origin <branch>` (never `--force` and never to `main` or `dev`; a branch that is Lovable- or v0-connected is never force-pushed), then `gh pr create --base <base> --title <title> --body-file .harness/runs/ship-<stamp>/pr-body.md`. Print the PR URL, then `gh pr checks <n> --watch` with a 20-minute cap and report pass/fail per check. A failing check → show `gh run view <id> --log-failed` (last 40 lines) and offer a follow-up fix; never re-run CI or merge without an explicit yes.
