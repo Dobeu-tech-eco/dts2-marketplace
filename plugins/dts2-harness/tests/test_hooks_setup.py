@@ -17,7 +17,8 @@ from helpers import PLUGIN_ROOT
 SCRIPT: Final[Path] = PLUGIN_ROOT / "scripts" / "hooks-setup.py"
 TEMPLATES: Final[Path] = PLUGIN_ROOT / "templates" / "hooks"
 HAVE_TOOLS: Final[bool] = shutil.which("bash") is not None and shutil.which("python3") is not None
-BASE_IDS: Final[list[str]] = ["command-guard", "auto-format", "test-on-stop", "notify", "merge-on-green"]
+BASE_IDS: Final[list[str]] = ["command-guard", "auto-format", "test-on-stop", "notify", "merge-on-green",
+                              "db-guard", "migration-check"]
 
 
 def run(*args: str) -> subprocess.CompletedProcess[str]:
@@ -102,6 +103,22 @@ class CatalogAndRecommendTests(TempCase):
         (self.cwd / ".git").mkdir()
         (self.cwd / ".git" / "config").write_text('[remote "origin"]\n\turl = git@github.com:a/b.git\n', encoding="utf-8")
         self.assertIn("merge-on-green", self.ids(self.recommend()))
+
+    def test_database_detection(self) -> None:
+        self.assertNotIn("db-guard", self.ids(self.recommend()))
+        (self.cwd / "prisma").mkdir()
+        (self.cwd / "prisma" / "schema.prisma").write_text("", encoding="utf-8")
+        by_id = {item["id"]: item for item in self.recommend()["recommended"]}
+        self.assertIn("prisma/schema.prisma", by_id["db-guard"]["detected"])
+        self.assertIn("prisma/schema.prisma", by_id["migration-check"]["why"])
+        other = Path(tempfile.mkdtemp(prefix="dts2-db-", dir=self.root))
+        (other / "supabase").mkdir()
+        data = run_json("recommend", "--cwd", str(other), "--home", str(self.home))
+        self.assertIn("db-guard", [item["id"] for item in data["recommended"]])
+        node = Path(tempfile.mkdtemp(prefix="dts2-db-", dir=self.root))
+        (node / "package.json").write_text(json.dumps({"dependencies": {"drizzle-orm": "1"}}), encoding="utf-8")
+        data = run_json("recommend", "--cwd", str(node), "--home", str(self.home))
+        self.assertIn("migration-check", [item["id"] for item in data["recommended"]])
 
     def test_already_present_and_existing_counts(self) -> None:
         self.assertEqual(0, self.apply("notify").returncode)
@@ -220,6 +237,47 @@ class TemplateTests(TempCase):
 
     def test_guard_ignores_bad_input(self) -> None:
         self.assertEqual("", run_template("command-guard", "not json").stdout)
+
+    def db(self, command: str) -> bool:
+        result = run_template("db-guard", tool_input(command))
+        self.assertEqual(0, result.returncode)
+        if not result.stdout.strip():
+            return False
+        self.assertEqual("deny", json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"])
+        self.assertIn("db-guard", result.stdout)
+        return True
+
+    def test_db_guard_denies(self) -> None:
+        for command in ('psql -c "DROP TABLE users"', "npx prisma migrate reset", "DELETE FROM users;",
+                        'psql -c "delete from users"', "npx prisma db push --force-reset",
+                        "prisma db push --accept-data-loss", "supabase db reset --local", "drizzle-kit drop",
+                        "rails db:drop", "dropdb mydb", 'mysql -e "TRUNCATE TABLE a"',
+                        'psql -c "ALTER TABLE a DROP COLUMN b"'):
+            self.assertTrue(self.db(command), command)
+
+    def test_db_guard_allows(self) -> None:
+        for command in ("SELECT * FROM users", "DELETE FROM users WHERE id=1", "ls -la", "truncate -s 0 app.log",
+                        "npx prisma migrate dev --create-only"):
+            self.assertFalse(self.db(command), command)
+
+    def test_migration_check_only_prints_a_system_message(self) -> None:
+        git = ["git", "-c", "user.name=t", "-c", "user.email=t@example.com"]
+        subprocess.run(["git", "init", "-q"], cwd=self.cwd, check=True)
+        (self.cwd / "prisma").mkdir()
+        schema = self.cwd / "prisma" / "schema.prisma"
+        schema.write_text("a", encoding="utf-8")
+        subprocess.run([*git, "add", "-A"], cwd=self.cwd, check=True)
+        subprocess.run([*git, "commit", "-q", "-m", "init"], cwd=self.cwd, check=True)
+        env = {"CLAUDE_PROJECT_DIR": str(self.cwd)}
+        self.assertEqual("", run_template("migration-check", "{}", env).stdout)
+        schema.write_text("b", encoding="utf-8")
+        result = run_template("migration-check", "{}", env)
+        self.assertEqual(0, result.returncode)
+        out = json.loads(result.stdout)
+        self.assertEqual(["systemMessage"], list(out))
+        self.assertIn("prisma/schema.prisma", out["systemMessage"])
+        active = run_template("migration-check", json.dumps({"stop_hook_active": True}), env)
+        self.assertEqual((0, ""), (active.returncode, active.stdout))
 
     def test_test_on_stop(self) -> None:
         hooks = self.cwd / ".claude" / "hooks" / "dts2"

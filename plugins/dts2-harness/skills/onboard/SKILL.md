@@ -69,6 +69,7 @@ Only agents detected on this machine join the roster; handoff agents get a writt
 5. CI, cron, or a second machine without the desktop app → `sdk`.
 6. Changing the harness itself → `evolve`. Launching a product → `gtm`.
 7. Optional Claude Code hooks (command guard, auto-format, tests on stop, notifications) → the Hooks step below.
+8. Database tooling: `/dts2-harness:find-skills` suggests database MCP servers and skills for your stack.
 
 ## Tiers the run skill picks automatically
 | Tier | Typical size | Builders | Reviewers |
@@ -90,6 +91,8 @@ The plugin's own hooks are already active: the policy gate, the merge guard, the
 3. Ask once with AskUserQuestion (multi-select) which to add, and the scope: project (shared, the default), local, or user.
 4. On picks, run `hooks-setup.py apply --ids ... --scope ... --dry-run`, show the result, then run `apply` for real.
 5. Report what was added, what was skipped and the backup path.
+
+When a database is detected, `db-guard` (blocks destructive database commands) and `migration-check` (reminds you to review migrations) are recommended too. The harness never runs destructive database actions; it always asks.
 
 Existing hooks are never overwritten or removed. Nothing is written without a pick. `/hooks` in Claude Code shows the result.
 

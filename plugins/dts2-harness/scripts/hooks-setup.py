@@ -37,7 +37,14 @@ CATALOG: Final[tuple[dict[str, Any], ...]] = (
     {"id": "merge-on-green", "event": "Stop", "matcher": None, "timeout": 30,
      "summary": "Report whether the open PR for this branch has green checks; never merges.",
      "why": "Shows when a pull request is ready to merge."},
+    {"id": "db-guard", "event": "PreToolUse", "matcher": "Bash", "timeout": 10,
+     "summary": "Deny destructive database commands (DROP, TRUNCATE, DELETE without WHERE, prisma migrate reset, supabase db reset).",
+     "why": "Database data cannot be undone; the user must confirm and run these themselves."},
+    {"id": "migration-check", "event": "Stop", "matcher": None, "timeout": 15,
+     "summary": "Remind you to generate and review a migration when schema or migration files changed; never runs one.",
+     "why": "Keeps schema changes and migrations in step."},
 )
+DB_HOOK_IDS: Final[frozenset[str]] = frozenset({"db-guard", "migration-check"})
 CATALOG_BY_ID: Final[dict[str, dict[str, Any]]] = {entry["id"]: entry for entry in CATALOG}
 
 
@@ -177,14 +184,39 @@ def has_github_remote(cwd: Path) -> bool:
     return "github.com" in out or "github.com" in read_text(cwd / ".git" / "config")
 
 
+DB_NODE_DEPS: Final[tuple[str, ...]] = (
+    "prisma", "@prisma/client", "drizzle-orm", "@supabase/supabase-js", "pg", "postgres", "@neondatabase/serverless",
+    "better-sqlite3", "kysely", "typeorm", "sequelize", "mongoose")
+DB_PYTHON_WORDS: Final[tuple[str, ...]] = ("sqlalchemy", "psycopg", "alembic", "django")
+DB_FILES: Final[tuple[str, ...]] = ("prisma/schema.prisma", "supabase/config.toml", "alembic.ini")
+DB_GLOBS: Final[tuple[str, ...]] = ("drizzle.config.*", "knexfile.*", "migrations/**/*.sql")
+
+
+def detect_database(cwd: Path) -> str | None:
+    """Name what shows database use in the repo, or None."""
+    found: list[str] = [name for name in DB_FILES if (cwd / name).is_file()]
+    if (cwd / "supabase").is_dir() and "supabase/config.toml" not in found:
+        found.append("supabase/")
+    found.extend(pattern for pattern in DB_GLOBS if next(cwd.glob(pattern), None) is not None)
+    package: dict[str, Any] = package_json(cwd)
+    deps: dict[str, Any] = {**(package.get("dependencies") or {}), **(package.get("devDependencies") or {})}
+    found.extend(f"{dep} dependency" for dep in DB_NODE_DEPS if dep in deps)
+    python_text: str = "\n".join(read_text(cwd / name).lower() for name in ("pyproject.toml", "requirements.txt"))
+    found.extend(f"{word} (python)" for word in DB_PYTHON_WORDS if word in python_text)
+    return ", ".join(found[:4]) or None
+
+
 def detection(cwd: Path) -> dict[str, str | None]:
     """Per hook id: what was detected (a string) or None when the hook is not recommended on detection alone."""
+    database: str | None = detect_database(cwd)
     return {
         "command-guard": "always",
         "notify": "always",
         "auto-format": detect_formatters(cwd),
         "test-on-stop": detect_test_command(cwd),
         "merge-on-green": "github.com remote" if has_github_remote(cwd) else None,
+        "db-guard": database,
+        "migration-check": database,
     }
 
 
@@ -200,8 +232,9 @@ def recommend(cwd: Path, home: Path) -> dict[str, Any]:
         detected: str | None = found[entry["id"]]
         if detected is None:
             continue
+        why: str = entry["why"] + (f" Database detected: {detected}." if entry["id"] in DB_HOOK_IDS else "")
         recommended.append({
-            "id": entry["id"], "event": entry["event"], "matcher": entry["matcher"], "why": entry["why"],
+            "id": entry["id"], "event": entry["event"], "matcher": entry["matcher"], "why": why,
             "detected": None if detected == "always" else detected,
             "already_present": hook_command(entry["id"], "project") in present,
         })
