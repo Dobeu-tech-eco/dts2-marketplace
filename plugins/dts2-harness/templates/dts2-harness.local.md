@@ -11,6 +11,7 @@ max_reviewers: 4
 continuous_dispatch: true     # keep max_builders in flight while ready sections exist; park stalled builders and move on
 builder_timeout_min: 20       # minutes without a builder report before it is parked
 son_permission_mode: dontAsk   # claude -p permission mode for dpp sons (with a tool allowlist, deny list and guard hook)
+son_model: opus            # model every dpp son runs on (alias or full model id)
 use_worktrees: auto        # auto = one worktree per builder in a git repo (scratch dir per builder without git) | always | never
 # Headless runner (sdk skill)
 second_opinion: none       # none | codex | gemini
