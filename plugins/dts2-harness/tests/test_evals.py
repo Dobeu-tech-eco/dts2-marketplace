@@ -130,6 +130,24 @@ class EvalRunnerTests(unittest.TestCase):
         result = self.run_mod.run_fixture(PLUGIN_ROOT / "evals" / "fixtures" / "stale-lease", self.run_mod.fake_env())
         self.assertTrue(result["pass"], result)
 
+    def test_result_stamp_is_unique_per_process_within_one_second(self) -> None:
+        results = self.tmp / "r"
+        empty = self.tmp / "empty2.json"
+        empty.write_text("{}", encoding="utf-8")
+        for pid in (111, 222):
+            with mock.patch.object(self.run_mod.time, "strftime", return_value="20260101-000000"), \
+                    mock.patch.object(self.run_mod.os, "getpid", return_value=pid):
+                code, text = self.main("--fixture", "clean-fix", "--baseline", str(empty), "--results-dir", str(results))
+            self.assertEqual(code, 0, text)
+        self.assertEqual(sorted(p.name for p in results.glob("*.json")), ["20260101-000000-111.json", "20260101-000000-222.json"])
+
+    def test_missing_default_baseline_warns_and_exits_zero(self) -> None:
+        absent = self.tmp / "no-default.json"
+        with mock.patch.object(self.run_mod, "DEFAULT_BASELINE", absent):
+            code, text = self.main("--fixture", "clean-fix", "--results-dir", str(self.tmp / "r"))
+        self.assertEqual(code, 0, text)
+        self.assertIn("warning: no baseline", text)
+
     def test_pass_fail_regression_exits_one(self) -> None:
         baseline = self.tmp / "b.json"
         baseline.write_text(json.dumps({"fixtures": {"clean-fix": row(True, 100, 100)}, "totals": {"tokens": 100, "wall_ms": 100}}))
