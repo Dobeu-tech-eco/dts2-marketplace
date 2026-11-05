@@ -30,6 +30,7 @@ KIND_SCOPE: Final[str] = "scope"
 BRANCH_PREFIX: Final[str] = "dts2"
 HEAD_NAME: Final[str] = "main"
 LANE_PREFIX: Final[str] = "lane-"
+STEP_PREFIX: Final[str] = "step-"
 MIN_GIT: Final[tuple[int, int]] = (2, 38)
 GIT_VERSION: Final[re.Pattern[str]] = re.compile(r"git version (\d+)\.(\d+)")
 TIMEOUT_S: Final[int] = 30

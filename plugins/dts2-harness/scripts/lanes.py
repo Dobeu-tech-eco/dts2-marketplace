@@ -29,7 +29,7 @@ from lanes.merge import merge_done, merge_go, merge_go_step, merge_order, set_me
 from lanes.mergeresume import merge_resume  # noqa: E402
 from lanes.phases import ALL_PHASES, transition  # noqa: E402
 from lanes.planner import load_draft, plan, read_checkin, son_command  # noqa: E402
-from lanes.reconcile import reconcile  # noqa: E402
+from lanes.reconcile import reconcile, reconcile_step  # noqa: E402
 from lanes.runend import VERDICT_MERGED, VERDICT_SHUTDOWN, record_run_end, run_report_view, warn_thin_plan  # noqa: E402
 from lanes.runrecord import BUILDER_STATUSES, RUN_KINDS, init_run, read_run, record_builder, resume_view  # noqa: E402
 from lanes.runstate import budget_report, fold, heartbeat, release, report_check, sendback, spend_state, status, stop_check  # noqa: E402
@@ -105,7 +105,9 @@ def add_lifecycle_parsers(sub: Any) -> None:
     down_p = sub.add_parser("shutdown", help="graceful end of a run: park lanes, stop sons, close leases")
     down_p.add_argument("stamp")
     down_p.add_argument("--grace-s", type=float, default=GRACE_S, help="seconds a son gets after SIGTERM before SIGKILL")
-    sub.add_parser("reconcile", help="ask GitHub what exists for each lane before creating, merging or resuming").add_argument("stamp")
+    recon_p = sub.add_parser("reconcile", help="ask GitHub what exists for each lane before creating, merging or resuming")
+    recon_p.add_argument("stamp")
+    recon_p.add_argument("--step", default=None, help="a standalone autopilot step: check its branch dts2/<stamp>/step-<step> instead of the lanes")
     rec_p = sub.add_parser("run-record", help="the run's typed record; --init opens it")
     rec_p.add_argument("stamp")
     rec_p.add_argument("--init", action="store_true")
@@ -259,6 +261,8 @@ def dispatch_lifecycle(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> d
             record_run_end(runs_dir, args.stamp, cwd, VERDICT_SHUTDOWN)
         return done
     if args.command == "reconcile":
+        if args.step is not None:
+            return reconcile_step(args.stamp, args.step, cwd)
         return reconcile(runs_dir, args.stamp, cwd)
     if args.command == "run-record":
         record = init_run(runs_dir, args.stamp, args.kind) if args.init else read_run(runs_dir, args.stamp)

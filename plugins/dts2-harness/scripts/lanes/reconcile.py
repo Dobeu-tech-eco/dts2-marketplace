@@ -9,10 +9,13 @@ For each lane it reads the PRs whose head is the lane's branch and decides one a
   park         it was already resumed once and is orphaned again: end it incomplete
   stalled      quiet and clean without a report: the usual stalled handling applies (send-back, resume or re-plan)
   none         nothing to do
+`reconcile_step` does the same for one standalone autopilot step (branch `dts2/<stamp>/step-<step>`, no status.json): it
+answers merged, adopt-pr or create-pr from GitHub alone and writes nothing.
 It fails closed: if GitHub cannot be asked, nothing is decided. There is no per-tool heartbeat hook; staleness is the one
 `status` already computes."""
 from __future__ import annotations
 
+import re
 import time
 from pathlib import Path
 from typing import Any, Callable, Final
@@ -23,7 +26,7 @@ from .common import (
     LaneError, PHASE_DONE, PHASE_INCOMPLETE, PHASE_ORPHANED, PHASE_PR_OPEN, REASON_ORPHANED, REASON_STALLED, REPORT_NAME,
     SECONDS_PER_MINUTE, STATUS_NAME, binary, run,
 )
-from .gitrefs import PR_STATE_MERGED, PR_STATE_OPEN, branch_prs, gh_down, lane_ref
+from .gitrefs import PR_STATE_MERGED, PR_STATE_OPEN, branch_prs, gh_down, lane_ref, step_ref
 from .merge import inside_son, son_refusal
 from .phases import transition
 from .records import merge_json
@@ -138,3 +141,25 @@ def reconcile(runs_dir: Path, stamp: str, cwd: Path, now: int | None = None, ask
         return {"ok": False, "stamp": stamp, "error": str(exc), "detail": gh_down("reconcile"), "lanes": rows}
     return {"ok": True, "stamp": stamp, "lanes": rows, "actions": {row["lane"]: row["action"] for row in rows},
             "orphaned": [row["lane"] for row in rows if row["action"] in (ACTION_RESUME, ACTION_PARK)]}
+
+
+def reconcile_step(stamp: str, step: str, cwd: Path, ask: AskGithub = branch_prs) -> dict[str, Any]:
+    """Ask GitHub about one standalone step's branch; the runner acts on `action` (merged, adopt-pr or create-pr)."""
+    if inside_son():
+        return son_refusal("reconcile")
+    if not re.match(r"^[A-Za-z0-9][A-Za-z0-9._-]*$", step):
+        raise LaneError(f"unsafe step name {step!r}")
+    branch: str = step_ref(stamp, step)
+    prs, why = ask(cwd, branch)
+    if prs is None:
+        return {"ok": False, "stamp": stamp, "step": step, "branch": branch, "error": why or "GitHub did not answer",
+                "detail": gh_down("reconcile")}
+    merged, opened = pick(prs, PR_STATE_MERGED), pick(prs, PR_STATE_OPEN)
+    if merged is not None:
+        action, detail = ACTION_MERGED, f"PR #{merged.get('number')} is already merged; do not merge it again"
+    elif opened is not None:
+        action, detail = ACTION_ADOPT, f"PR #{opened.get('number')} is already open for this branch; do not create another"
+    else:
+        action, detail = ACTION_CREATE, "GitHub has no PR for this branch; creating one is safe"
+    return {"ok": True, "stamp": stamp, "step": step, "branch": branch, "pr": pr_view(merged or opened or (prs[0] if prs else None)),
+            "action": action, "detail": detail}
