@@ -25,16 +25,10 @@ def norm(path: str) -> str:
 
 
 def disjoint_lane_count(lanes: list[dict[str, Any]]) -> int:
-    """Lanes that can run together: greedy count of lanes whose file sets share nothing with those already counted."""
-    claimed: set[str] = set()
-    count: int = 0
-    for lane in lanes:
-        files: set[str] = {norm(str(f)) for f in lane.get("files", []) if f}
-        if files & claimed:
-            continue
-        claimed |= files
-        count += 1
-    return count
+    """Lanes whose files overlap no other lane. Order-independent: each lane is compared with every other lane."""
+    sets: list[set[str]] = [{norm(str(f)) for f in lane.get("files", []) if f} for lane in lanes]
+    return sum(1 for i, mine in enumerate(sets)
+               if not any(mine & other for j, other in enumerate(sets) if j != i))
 
 
 def plan_warning(manifest: dict[str, Any]) -> str | None:
