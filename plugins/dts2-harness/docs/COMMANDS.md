@@ -129,6 +129,8 @@ Invocation shown without the prefix `python3 -I "$CLAUDE_PLUGIN_ROOT/scripts/`; 
 | `seat_swap.py` | head | Council seat substitution and identical-findings ledger note. | `seat_swap.py swap --seats S --failed F [--ledger L --step N --reason R] \| identical --votes-dir D --ledger L --step N --prev P --curr C` | ledger note |
 | `session_end.py` | hook | Release the lane leases this session took (hook JSON on stdin). | `session_end.py` | lease files |
 | `settings_cache.py` | either | Parsed settings from `.harness/config.yaml` and the local frontmatter, cached. | `settings_cache.py [repo] [--get key]` | cache file |
+| `hooks-setup.py` | either | List, recommend and add optional hooks (`command-guard`, `auto-format`, `test-on-stop`, `notify`, `merge-on-green`, `db-guard`, `migration-check`) to settings; merge only, backup first. | `hooks-setup.py list \| recommend [--cwd D --home H] \| apply --ids A,B [--scope project\|local\|user --cwd D --home H --dry-run]` | settings file, `.claude/hooks/dts2/` (`apply`) |
+| `improve-scan.py` | either | Read-only audit of hooks, MCP servers, database tooling, plugins, commands, subagents, permissions, CI and agent docs; ranked recommendations. | `improve-scan.py [--cwd D] [--home H]` | none |
 | `skill-suggest.py` | either | Ranked candidate skill names from repo facts. | `skill-suggest.py [--facts F]` | none |
 | `skills-check.py` | either | Pre-run check of harness version, marketplaces, companion and keep-list skills; proposal-only updates. | `skills-check.py <repo> [--fix] [--swap OLD=REF] [--apply-update NAME=SHA] [--no-upstream] [--force-full] [--son-root P] [--home H] [--plugin-root P]` | `skill-updates.json`, installed skills (`--fix`) |
 | `spawn_dry_run.py` | hook | Print the composed brief and command without starting anything (hook JSON on stdin). | `spawn_dry_run.py [--agent-dry-run]` | none |
@@ -150,7 +152,7 @@ Typed as `/dts2:<name>`. `user only` means `disable-model-invocation: true`: the
 
 | Command | Role | What it does | Exact invocation | Writes / side effects |
 |---|---|---|---|---|
-| `/dts2:onboard` | user only | Explain the harness and recommend where to start. Changes nothing. | `/dts2:onboard` | none |
+| `/dts2:onboard` | user only | Explain the harness and recommend where to start; an optional last step adds hooks you pick. | `/dts2:onboard` | settings and `.claude/hooks/dts2/` (only on a pick) |
 | `/dts2:machine-prep` | user only | Audit this computer's agent tooling and prune to the blueprint (once per machine). | `/dts2:machine-prep` | plugin settings (with backup) |
 | `/dts2:setup` | user or model | Interview to an approved end state, then scaffold harness config in one repo, many repos or a workspace. | `/dts2:setup [path ...] [--scaffold-only]` | end-state file, config, CI, gitignore |
 | `/dts2:run` | user or model | Plan, build, review and verify one task with a human at the two checkpoints; ends with a receipt. | `/dts2:run <task> \| resume \| section <#> \| add secret NAME \| review-pr <number>` | branches, receipt, state, PR |
@@ -168,7 +170,7 @@ Typed as `/dts2:<name>`. `user only` means `disable-model-invocation: true`: the
 | `/dts2:check-in` | user or model | Read-only progress against the approved end state: `N of M complete`. | `/dts2:check-in` | none |
 | `/dts2:model` | user only | Choose which agent provider fills the lead, advisory and sign-off seats; records `lead_provider`. | `/dts2:model` | settings file |
 | `/dts2:cooldown` | user only | Pause an agent that hit a usage limit until its reset date, resume it, or list what is paused. | `/dts2:cooldown set <agent> <date or duration> [reason] \| clear <agent> \| list` | agent status file |
-| `/dts2:find-skills` | user or model | Rescan the repo, ask up to three questions, suggest ranked skills, add to the keep list on a yes. | `/dts2:find-skills` | keep list (on a yes) |
+| `/dts2:find-skills` | user or model | Rescan the repo, audit every improvement option (skills, hooks, MCP servers, plugins, commands, subagents, permissions, CI), ask, and wire in the picks on a yes. | `/dts2:find-skills` | keep list, settings (on a yes) |
 | `/dts2:steer` | user or model | Stop running work and redirect it. Finishes the current atomic step, dispatches nothing new, checkpoints a handoff, reviews open intake items, re-plans to the new direction, confirms in one short message and resumes. | `/dts2:steer <new direction>` | handoff file, intake queue, plan |
 
 ## 5. Agents (7)
