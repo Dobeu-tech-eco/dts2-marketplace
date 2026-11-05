@@ -137,7 +137,7 @@ class AgentMetadata(unittest.TestCase):
         self.assertTrue(meta.get("disallowedTools"))
         self.assertNotRegex(meta["disallowedTools"], r"[\[\]\n]")
         self.assertEqual(tool_names(meta["disallowedTools"]), set(WRITE_TOOLS))
-        self.assertNotIn("tools", meta, "an allowlist would drop the tools the verifier needs to run tests")
+        self.assertEqual(tool_names(meta["tools"]), {"Read", "Grep", "Glob", "Bash"}, "G-73: least privilege, Bash to run the checks")
 
     def test_builder_may_write(self) -> None:
         self.assertLessEqual(WRITE_TOOLS - {"NotebookEdit"}, tool_names(frontmatter_map(AGENTS / "builder.md")["tools"]))
