@@ -27,7 +27,7 @@ from son_launch import SON_MARKER  # noqa: E402
 from state_io import RUNS_REL  # noqa: E402
 
 LANES: Final[Path] = SCRIPTS / "lanes.py"
-AUTOPILOT: Final[Path] = PLUGIN_ROOT / "skills" / "autopilot" / "SKILL.md"
+AUTOPILOT: Final[Path] = PLUGIN_ROOT / "skills" / "autopilot" / "son-contract.md"
 STAMP: Final[str] = "20261105-1"
 OTHER_STAMP: Final[str] = "20261105-2"
 GIT_ENV: Final[dict[str, str]] = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid",

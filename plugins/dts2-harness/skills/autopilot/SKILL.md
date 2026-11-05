@@ -20,6 +20,7 @@ Read the file for a section only when you reach it; do not read ahead. All files
 | `phase-3-parking.md` | Read `phase-3-parking.md` (same folder) when a step parks, a hard stop fires, or a run resumes: section 4; and at the end of every run, before `phase-4-report.md`, for section 5a, adjudication (it runs on every run, parked or not). |
 | `phase-4-report.md` | Read `phase-4-report.md` (same folder) when the queue is done and section 5a adjudication (`phase-3-parking.md`) has run: section 5, the final report. |
 | `son-mode.md` | Read `son-mode.md` (same folder) when the arguments are `--son <stamp>/<lane>`: section 6. A son reads its `brief.md` and this file first, then loads the other phase files on demand as it reaches each section, exactly as the head does (sections 0 to 5a apply to it), except that it never runs the steps `son-mode.md` reserves for the head. |
+| `son-contract.md` | Read `son-contract.md` (same folder) with `son-mode.md`: the mailbox rules every son obeys (no own stamp, protected records, need-human, parks, merge-go check, fresh rules). |
 
 ## Guardrails
 - The council is an escalation, not a shortcut: it sits only after three complete rounds of the normal vote on the same ballot have failed (`council.py eligible`), never earlier and never because one dispatch failed.
@@ -33,16 +34,3 @@ Read the file for a section only when you reach it; do not read ahead. All files
 - Never deploy, delete data, force-push, use `--admin`, or bypass branch protection. A tool or policy denial is a park, never something to route around.
 - Never print a secret's value.
 - A missing user-supplied value is never a reason to stop (section 4); it is a reason for the PR to wait (section 5a), and the run ends with as few open PRs as the bundle rule allows.
-
-## Son contract (the mailbox rules of section 6)
-Every rule below binds a son started with `--son`; the head is the other end of each message (`lanes.py mailbox`, run with `python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/lanes.py"`). Each line cites the section it narrows instead of repeating it.
-- **No own stamp.** The stamp and lane come from `--son <stamp>/<lane>` and `brief.md`; a son never creates a run, stamp or `.harness/autopilot/` folder (section 0 belongs to the head).
-- **Protected records.** A son never writes `.harness/end-state.md`, `.harness/council.md`, `.harness/state.md`, `.harness/lessons.md` or `.harness/autopilot/latest.md`; its findings go in `report.md` and the head folds them (dpp section 7).
-- **No prompts to a person.** Where sections 0 to 5a would ask the user, the son sends `mailbox need-human <stamp> --lane <lane> --text "..."` and waits with `mailbox wait`; the head answers, never the user.
-- **Every wait has a deadline.** `mailbox_wait_min` bounds each wait; on expiry the lane parks `incomplete` with reason `mailbox-timeout` (section 4) and the head decides what happens next.
-- **Seat-pool collapse parks.** When fewer than three distinct voter seats answer (section 1), the son runs `mailbox park <stamp> --lane <lane> --reason seat-pool-collapse` and stops; it never votes with a short panel.
-- **Context guard parks.** When the context guard fires inside a son, the son runs `mailbox park <stamp> --lane <lane> --reason context-guard --session-id <id>`, which writes `incomplete` with the session id so the head can resume it.
-- **No browser parks.** When a walkthrough needs a browser and the son has none, it runs `mailbox park <stamp> --lane <lane> --reason no-browser`; it never marks the check skipped.
-- **Merge needs the exact head.** Before it reports `pr-open` as ready, the son runs `mailbox merge-go-check`; a HEAD that differs from `verified_head_sha` voids the grant. Every write carries `--epoch` from `brief.md`; a stale epoch is ignored.
-- **Fresh rules.** The son runs `mailbox rules --point start|vote|ship|merge` at its start and before each vote, ship and merge, and re-reads every file the answer lists as changed.
-- **Out of lane.** A change outside the file set is asked for with `mailbox request`; it climbs head, vote, council, user, one rung at a time. A son never uses `lanes.py override`.
