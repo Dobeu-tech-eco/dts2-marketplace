@@ -11,6 +11,7 @@ Rules for the whole interview:
 
 1. Look at the repo root. **Greenfield** if there is no source code yet (empty, or only README, LICENSE, `.gitignore`, config stubs). Otherwise **brownfield**.
 2. Brownfield: dispatch the `dts2-harness:scout` agent on the repo and keep its output. You need its `Harnesses:` line, its `Marketing surface:` line, and the stack and modules it reports. Also read any existing `.harness/` files (config, lessons, state) for context.
+   A scout report whose first line is `PARTIAL: hit turn cap at <step>` is incomplete: re-dispatch the scout with a narrower scope or a fresh agent before using its output.
 3. Tell the user in one line what you found, for example: `Brownfield: TypeScript monorepo, 4 packages, marketing site found.`
 
 ### Round 2 — Repos

@@ -1,6 +1,6 @@
 ---
 name: dpp
-description: Run several autopilot lanes in parallel as headless sons, one worktree and branch each, under a head that plans lanes from the check-in list, checks feasibility, gets approval, supervises, serialises merges and writes one report. Use when the user says dpp, parallel autopilot, run lanes in parallel, or asks to work several check-in items at once.
+description: Run several autopilot lanes in parallel as headless sons, one worktree each, under a head that plans lanes, supervises, serialises merges and writes one report. Use when the user says dpp, parallel autopilot, or work several check-in items at once.
 ---
 
 # dpp — parallel autopilot under one head

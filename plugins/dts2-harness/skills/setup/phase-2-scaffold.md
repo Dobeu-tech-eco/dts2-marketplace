@@ -6,6 +6,7 @@ Gate: `.harness/end-state.md` has `status: approved`, or the user passed `--scaf
 
 ### Single
 1. Confirm the repo root and that `.git` exists (warn if not). With `--scaffold-only`, dispatch `dts2-harness:scout` now for its `Harnesses:` and `Marketing surface:` lines; every harness it finds is treated as `coexist`.
+   A scout report whose first line is `PARTIAL: hit turn cap at <step>` is incomplete: re-dispatch the scout with a narrower scope or a fresh agent before using its output.
 2. If `.harness/config.yaml` exists, ask: back up `.harness/` to `.harness.bak-<timestamp>/` and rewrite, merge missing keys only, or abort. (`end-state.md` is never overwritten here.)
 3. Detect the stack from root files (`package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `Gemfile`, `composer.json`, workspace markers such as `pnpm-workspace.yaml`, `turbo.json`, `nx.json`, `go.work`).
 4. For each harness the user chose to retire: move it to `.harness.bak-<stamp>/<folder>`. Leave `coexist` folders untouched.

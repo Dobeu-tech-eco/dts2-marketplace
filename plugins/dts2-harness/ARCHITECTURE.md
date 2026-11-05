@@ -74,7 +74,7 @@ Hooks read settings from `.claude/dts2-harness.local.md` through `hooks/lib-sett
 
 ## Scripts worth knowing
 
-`checks.py` (deterministic gate), `council.py` (dossier, tally, blind ballots, seats), `lanes.py` (lane leases and supervision), `roster.py` and `delegate.py` (which agent and model for which seat), `prod-scaffold.py` (CI and ops files for a target app), `doctor.py` (preflight table, `make doctor`).
+`checks.py` (deterministic gate), `council.py` (dossier, tally, blind ballots, seats), `lanes.py` (thin CLI over the `scripts/lanes/` package: `conflicts`, `leases`, `gitrefs`, `planner`, `runstate`, `supervisor`, `merge`, shared `common`; `integration` routes lockfiles, migrations, route tables, barrels and `lanes.shared_files` to a final integration lane and caps a PR at 5 tasks; `mergeplan` is the merge-queue or serial rebase-test-merge plan with the `git merge-tree --write-tree` probe), `seat_swap.py` (swaps a timed-out council seat for the next bench provider and notes identical findings in the run ledger), `walkthrough_fallback.py` (optional Playwright post-merge walkthrough: sandbox only, host allowlist, no `file://`, screenshots in the report), `roster.py` and `delegate.py` (which agent and model for which seat), `prod-scaffold.py` (CI and ops files for a target app), `doctor.py` (preflight table, `make doctor`).
 
 `skills/autopilot/` and `skills/setup/` are short routers (`SKILL.md`) that point to phase files read on demand (`phase-*.md`, `son-mode.md`); the text is the same as before, moved, so a son reads only its brief and `son-mode.md`.
 

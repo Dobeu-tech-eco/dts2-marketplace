@@ -174,9 +174,9 @@ class LanesPlanTests(unittest.TestCase):
     @staticmethod
     def lane_sections() -> tuple[str, ...]:
         namespace: dict[str, Any] = {}
-        source: str = SCRIPT.read_text(encoding="utf-8")
+        source: str = (SCRIPT.parent / "lanes" / "common.py").read_text(encoding="utf-8")  # moved there by AC-3
         match = re.search(r"^LANE_SECTIONS: Final\[tuple\[str, \.\.\.\]\] = (\([^)]*\))", source, re.M | re.S)
-        assert match is not None, "LANE_SECTIONS missing from lanes.py"
+        assert match is not None, "LANE_SECTIONS missing from lanes/common.py"
         exec(f"value = {match.group(1)}", namespace)  # noqa: S102 - the tuple literal from our own script
         return tuple(namespace["value"])
 

@@ -1,6 +1,6 @@
 ---
 name: gtm
-description: Take a product through go-to-market in one seamless pass. Auto-installs marketing-skills if it is missing, runs a short GTM deep-dive that reuses the approved end state, lets marketing-skills pick the skills that apply to the repo, runs them back to back, and ends with a readiness scorecard of what is ready and what blocks launch. Use when the user says go to market, launch readiness, gtm, or wants positioning, SEO, page and copy review, and launch planning for a repo.
+description: Take a product through go-to-market in one pass: installs marketing-skills if missing, runs a short GTM deep-dive and the skills that apply, and ends with a launch-readiness scorecard. Use for go to market, launch readiness, gtm, or SEO review.
 ---
 
 # GTM — one seamless pass
@@ -15,6 +15,7 @@ This command never hard-stops. If something is missing it installs it, falls bac
 
 Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/ensure-ignored.py" <repo>`.
 Dispatch `dts2-harness:scout` for the marketing-surface list; without `.harness/end-state.md`, say so and continue with scout's output only.
+A scout report whose first line is `PARTIAL: hit turn cap at <step>` is not the surface list: re-dispatch the scout with a narrower scope or a fresh agent, inside the fix-loop cap.
 
 ## 2. GTM deep-dive
 Before the pipeline, run a short deep-dive.
