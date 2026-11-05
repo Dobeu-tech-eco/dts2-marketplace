@@ -89,8 +89,8 @@ class VerifierAgentTests(TextContractMixin):
             "The caller supplies the run stamp", "date +%Y%m%d-%H%M%S",
         ])
 
-    def test_inherits_all_tools(self) -> None:
-        self.assert_absent(self.PATH, ["tools:"])
+    def test_pins_least_privilege_tools(self) -> None:
+        self.assert_contains(self.PATH, ["tools: Read, Grep, Glob, Bash"])
 
     def test_head_guard(self) -> None:
         self.assert_contains(self.PATH, [
