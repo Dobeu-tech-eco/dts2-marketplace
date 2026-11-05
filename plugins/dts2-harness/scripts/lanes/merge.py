@@ -231,6 +231,9 @@ def merge_go(manifest: dict[str, Any], runs_dir: Path, lane_id: str, head: str, 
         return {"ok": False, "lane": lane_id, "detail": "--base must be a commit sha"}
     if sha is None:
         return {"ok": False, "lane": lane_id, "detail": f"cannot read origin/{state['target']}; fetch it or pass --base"}
+    gate: str | None = merge_gate_refusal(runs_dir, stamp, lane_id, state["target"], sha, cwd)
+    if gate:
+        return {"ok": False, "lane": lane_id, "detail": gate}
     audit: dict[str, Any] = lane_audit(manifest, lane_id, head, sha, cwd)
     if not audit["ok"]:
         outside: list[str] = [str(v.get("detail", "")) for v in audit["violations"]] or [str(audit.get("detail", "audit failed"))]
@@ -238,6 +241,13 @@ def merge_go(manifest: dict[str, Any], runs_dir: Path, lane_id: str, head: str, 
                 "violations": audit["violations"]}
     with merge_lock(runs_dir / stamp / MERGE_ORDER_NAME):
         return grant_merge(manifest, runs_dir, lane_id, head, state["target"], sha)
+
+
+def merge_gate_refusal(runs_dir: Path, stamp: str, lane_id: str, target: str, sha: str, cwd: Path) -> str | None:
+    """G-78: why a grant waits. A recorded base-health result that is red or stale, or another lane holding the repo-wide
+    merge mutex. Neither record exists until the head takes them (`base-health`, `merge-mutex`), so a run that skips them is unchanged."""
+    from .mergecomp import health_refusal, mutex_refusal  # noqa: PLC0415 - mergecomp imports this module lazily
+    return health_refusal(runs_dir, stamp, target, sha) or mutex_refusal(cwd, stamp, lane_id)
 
 
 def merge_go_step(runs_dir: Path, stamp: str, step: str, head: str, cwd: Path, base: str | None = None) -> dict[str, Any]:
