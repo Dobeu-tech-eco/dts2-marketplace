@@ -175,8 +175,9 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(ReleaseContract.VERSION, VERSION)
         self.assertEqual(RELEASE, VERSION)
         readme: str = (PLUGIN_ROOT / "README.md").read_text(encoding="utf-8")
-        self.assertIn(f"- {VERSION} —", readme)
-        self.assertLess(readme.index(f"- {VERSION} —"), readme.index("- 3.8.0 —"))
+        changelog: str = (PLUGIN_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")  # released sections moved here (D3)
+        self.assertIn(f"## [{VERSION}]", changelog)
+        self.assertLess(changelog.index(f"## [{VERSION}]"), changelog.index("## [3.8.0]"))
         onboard: str = (PLUGIN_ROOT / "skills" / "onboard" / "SKILL.md").read_text(encoding="utf-8")
         for skill in NEW_SKILLS:
             self.assertTrue((PLUGIN_ROOT / "skills" / skill / "SKILL.md").is_file(), skill)
