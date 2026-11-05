@@ -17,10 +17,10 @@ from state_io import atomic_write
 
 from .common import PHASE_ALIASES, REASON_STATUS_VERSION, REASON_UNREADABLE, STATUS_VERSION, MESSAGE_VERSION, binary, BUDGET_NAME, DEFAULT_TIMEOUT_MIN, LANE_SECTIONS, LEASE_NAME, LEDGER_NAME, LEDGER_ROW, LaneError, MAX_DIFF_BYTES, MAX_SEND_BACKS, PHASE_BLOCKED, PHASE_INCOMPLETE, PHASE_PR_OPEN, PID_KEYS, REASON_STALLED, RESERVED_KEY, RUN_SECTIONS, SECONDS_PER_MINUTE, SEND_BACK_GLOB, SEND_BACK_NAME, SETTLED_PHASES, STATUS_CLOSED, STATUS_NAME, TERMINAL_PHASES, TIMEOUT_FIELD, UNREPORTED_KEY, WILDCARD_LANE, norm, run
 from .leases import busy, epoch_refusal, lease_epoch, read_lease, stale_epoch
-from .journal import done_groups, group_key, note_fold_plan
+from .journal import done_groups, group_key, mark_superseded, note_fold_plan
 from .phases import heartbeat, transition  # noqa: F401 - heartbeat is re-exported for callers of this module
 from .planner import read_checkin, read_setting
-from .records import append_ledger, lane_lock, read_json_object  # noqa: F401 - read_json_object is re-exported
+from .records import append_ledger, inside_son, lane_lock, read_json_object, son_refusal  # noqa: F401 - read_json_object is re-exported
 
 
 def unreadable_row(path: Path, reason: str) -> dict[str, Any]:
@@ -203,15 +203,19 @@ def add_to_group(group: dict[str, Any], data: dict[str, Any], files: set[str], p
     group["blocked_by"] = sorted(set(group["blocked_by"]) | {str(i) for i in data.get("blocked_by", [])})
     if isinstance(data.get("pr"), int):
         group["prs"].append(data["pr"])
+        group["originals"].append({"lane": str(data.get("lane")), "pr": data["pr"]})
     if path is not None:
         group["checkpoints"][str(data.get("lane"))] = checkpoints_from_git(path, data)
     group["_files"] |= files
 
 
-def fold(runs_dir: Path, stamp: str) -> dict[str, Any]:
+def fold(runs_dir: Path, stamp: str, apply: str | None = None, new_pr: int | None = None) -> dict[str, Any]:
     """Group blocked lanes with disjoint files (read from their lease files) so they ship on the fewest PRs; never splits a
     lane. Each group carries a stable `key`, the lanes' checkpoints rebuilt from `git log`, and whether `fold-done` already
-    recorded its PR, so a fold run again after a crash resumes with the rest."""
+    recorded its PR, so a fold run again after a crash resumes with the rest. G-79: `apply` (a group key) with `new_pr` records
+    `superseded_by` and the new PR on each original PR of that group (`fold-close` then closes them)."""
+    if apply is not None and inside_son():
+        return son_refusal("fold --apply")
     groups: list[dict[str, Any]] = []
     for path, data in read_status_files(runs_dir, stamp):
         if data.get("status") != PHASE_BLOCKED:
@@ -219,7 +223,7 @@ def fold(runs_dir: Path, stamp: str) -> dict[str, Any]:
         files: set[str] = lease_files(path, data)
         target: dict[str, Any] | None = next((g for g in groups if not (g["_files"] & files)), None)
         if target is None:
-            target = {"lanes": [], "tasks": [], "blocked_by": [], "prs": [], "checkpoints": {}, "_files": set()}
+            target = {"lanes": [], "tasks": [], "blocked_by": [], "prs": [], "originals": [], "checkpoints": {}, "_files": set()}
             groups.append(target)
         add_to_group(target, data, files, path)
     shipped: set[str] = done_groups(runs_dir, stamp)
@@ -227,8 +231,14 @@ def fold(runs_dir: Path, stamp: str) -> dict[str, Any]:
                                      "done": group_key(g["lanes"]) in shipped} for g in groups]
     if public:
         note_fold_plan(runs_dir, stamp, public)
-    return {"ok": True, "stamp": stamp, "groups": public, "open_prs": len(public),
-            "remaining": [g["key"] for g in public if not g["done"]]}
+    result: dict[str, Any] = {"ok": True, "stamp": stamp, "groups": public, "open_prs": len(public),
+                              "remaining": [g["key"] for g in public if not g["done"]]}
+    if apply is None:
+        return result
+    chosen: dict[str, Any] | None = next((g for g in public if g["key"] == apply), None)
+    if chosen is None or new_pr is None:
+        return {**result, "ok": False, "detail": "--apply needs the key of a group `fold` printed and the new PR in --pr"}
+    return {**result, "superseded": mark_superseded(runs_dir, stamp, chosen, new_pr)}
 
 
 def ledger_prs(runs_dir: Path, stamp: str) -> set[int]:

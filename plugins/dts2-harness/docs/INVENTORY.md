@@ -165,7 +165,8 @@ Stamp-keyed commands:
 | `status <stamp>` | none | Lane status, heartbeat and stall marks. | `dpp`, `autopilot` | changed |
 | `sendback <stamp>` | `--lane --reason` (required) | Send a lane back (counted atomically, at most two). | `dpp` | changed |
 | `release <stamp>` | `--lane` (required), `--epoch` | Release a lane; a stale epoch is refused. | `dpp` | changed |
-| `fold <stamp>` | none | Fold lane results into named groups, one PR each. | `dpp` | changed |
+| `fold <stamp>` | `--apply <group> --pr <n>` | Fold lane results into named groups, one PR each; `--apply` records `superseded_by` and the new PR on each original (G-79). Head only. | `dpp` | changed |
+| `fold-close <stamp>` | none | Close each superseded original with a link comment to the new PR; checks the PR state first and journals each close (G-79). Head only. | `dpp`, `autopilot` | new |
 | `fold-done <stamp>` | `--group` (required), `--pr` | Record that a fold group's PR is shipped. | none yet | new |
 | `stop-check <stamp>` | `--from-checkin` (required), `--base` | Whether fullauto may stop; items tied to a ledgered blocked PR do not count; `--base` reads the end state from the fetched `origin/<base>`. | `fullauto` | changed |
 | `approve-lane <stamp>` | `--lane` (required) | Record the user's yes for one lane (`dpp_full_ask_each_lane`); `lease` refuses a lane without it. Head only. | `dpp` | new |
@@ -188,6 +189,9 @@ Stamp-keyed commands:
 | `run-record <stamp>` | `--init`, `--kind` (run or autopilot) | Open or print the run's typed record (`run.json`). | none yet | new |
 | `builder <stamp>` | `--lane --section --branch --status` (required; status is a lane phase or merged), `--round`, `--sha`, `--pr`, `--base` | Append one builder row to `builders.jsonl`; the sha is confirmed against the branch tip and diff. | none yet | new |
 | `run-resume <stamp>` | none | What `run resume` reads: the run record and the newest row of each builder. | none yet | new |
+| `fix-attempt <stamp>` | `--lane --reason` (required) | Count a post-merge fix; past `post_merge_fix_attempts` open one revert PR (or park with the revert action item) (G-78). Head only. | `autopilot`, `dpp` | new |
+| `base-health <stamp>` | none | Is the fetched `origin/<base>` green? Records `base-health.json`; `merge-go` refuses while it is red or the base moved (G-78). Head only. | `autopilot`, `dpp` | new |
+| `merge-mutex <stamp>` | `--lane --op acquire\|release\|status` (required) | The repo-wide merge mutex, held from the rebase to the post-merge PASS; `merge-go` refuses another lane while it is held (G-78). Head only. | `autopilot`, `dpp` | new |
 | `walkthrough-failed <stamp>` | `--lane --reason` (required) | Record a failed post-merge walkthrough and file one revert action item. | none yet | new |
 | `report <stamp>` | `--repo-url` | The run as a markdown table plus run-wide sections: refusals, overrides, merge order and rebases, total spend, check-in delta, per-son CI result, merge commit and out-of-lane requests. | none yet | changed |
 | `report-check <report>` | `--lanes` (required), `--stamp` | Check the final report against lane ids; with `--stamp` also cross-check the son run records (unlisted lanes, PRs the report never names). | `dpp` | |
@@ -235,7 +239,7 @@ Stamp-keyed commands:
 
 Imported by the scripts above; none is a CLI. Responsibilities are in `ARCHITECTURE.md`.
 
-`_load.py`, `contracts.py`, `eval_stats.py` (A/B run statistics for `evals/run.py`: median, range, pass^k, verdict), `harness_skew.py` (live-lease read, son-versus-head plugin version skew, marketplace repo from `plugin.json`), `mdparse.py`, `miniyaml.py`, `model_call.py`, `ownership_audit.py`, `prep-tiers.py` (helper for `machine-prep.py`), `proc.py` (also the son lifecycle: `wrap_son`, `son.json`, `exit.json`, SIGINT-then-SIGKILL), `profiles.py`, `skill_pins.py`, `son_launch.py` (also `provider_env`, `allowed_tools`, `auth_problem`, `init_plugin_errors`), `son_stream.py` (stream-json heartbeat, `detect_stuck`, `api_retry` exhaustion), `state_ids.py`, and the modules of `scripts/lanes/` (`amend`, `common`, `conflicts`, `gitrefs`, `integration`, `journal`, `leases`, `merge`, `mergeplan`, `mergeresume`, `phases`, `planner`, `reconcile`, `records`, `runend`, `runrecord`, `runstate`, `shutdown`, `supervisor`, `waiter`).
+`_load.py`, `contracts.py`, `eval_stats.py` (A/B run statistics for `evals/run.py`: median, range, pass^k, verdict), `harness_skew.py` (live-lease read, son-versus-head plugin version skew, marketplace repo from `plugin.json`), `mdparse.py`, `miniyaml.py`, `model_call.py`, `ownership_audit.py`, `prep-tiers.py` (helper for `machine-prep.py`), `proc.py` (also the son lifecycle: `wrap_son`, `son.json`, `exit.json`, SIGINT-then-SIGKILL), `profiles.py`, `skill_pins.py`, `son_launch.py` (also `provider_env`, `allowed_tools`, `auth_problem`, `init_plugin_errors`), `son_stream.py` (stream-json heartbeat, `detect_stuck`, `api_retry` exhaustion), `state_ids.py`, and the modules of `scripts/lanes/` (`amend`, `common`, `conflicts`, `gitrefs`, `integration`, `journal`, `leases`, `merge`, `mergecomp`, `mergeplan`, `mergeresume`, `phases`, `planner`, `reconcile`, `records`, `runend`, `runrecord`, `runstate`, `shutdown`, `supervisor`, `waiter`).
 
 ## 6. Makefile targets and CI
 
@@ -276,6 +280,7 @@ Sources: `changelog.d/*.md`, the `## Unreleased` lines in `README.md`, and `git 
 |---|---|---|
 | `lanes.py check`, `lease`, `plan` | Run the plan-graph checks; owners may be `dir/` prefixes or globs; routing of lockfiles, migrations, route tables, barrels and `lanes.shared_files` to a final integration lane (a PR bundles at most 5 tasks); `lease` and `plan` fail closed without `gh`; leases carry `expires_at` and `ttl_s`, take the check and the write under one admission lock, and record `session_id`; `plan` adds spend estimates and a `graph` block | G-20, G-16, G-25, B6, G-26 to G-28, Q-22 |
 | `lanes.py release`, `sendback`, `status`, `fold` | `release` refuses a stale `--epoch`; the epoch is mandatory in the state port; send-backs are counted atomically; `status` shows heartbeat and stalls; `fold` names each group | G-11, N2, G-15 |
+| `lanes/mergecomp.py` | Base-health record and merge gate, repo-wide merge mutex, integration routing records (refusal, reason, alternative, override) printed by `status` and `report` (G-78, G-80) | G-78, G-80 |
 | `lanes/mailbox.py`, `lanes/policy.py` | The head/son mailbox and message schema (G-43 to G-45, G-48, G-49); approval and scope policy: override, ask-each-lane, frozen scope, end state from `origin/<base>` (G-46, G-48, G-50) | G-43 to G-51 |
 | `lanes.py` as a whole | Now a thin CLI over the `scripts/lanes/` package; phase writes all go through `transition` | AC-3, G-13 |
 | `council.py` | Strict verdict first line on `tally`; seats may be swapped on timeout; identical findings leave a ledger note | A9, B7 |
