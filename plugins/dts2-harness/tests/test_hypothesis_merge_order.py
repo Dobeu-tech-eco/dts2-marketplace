@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from typing import Any, Final
-from unittest import mock
+import unittest.mock as mock
 
 from helpers import PLUGIN_ROOT
 

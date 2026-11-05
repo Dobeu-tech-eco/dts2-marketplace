@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from typing import Any, Final
-from unittest import mock
+import unittest.mock as mock
 
 from helpers import PLUGIN_ROOT
 
@@ -95,6 +95,26 @@ class LaneAuditTests(AuditBase):
         with mock.patch.dict(os.environ, {"DTS2_GIT_BIN": str(self.repo / "missing-git")}):
             broken = lane_audit(self.manifest(lane("a", ["src/a/"])), "a", "HEAD", self.base, self.repo)
         self.assertFalse(broken["ok"])
+
+    def test_a_rename_out_of_an_unowned_path_is_flagged(self) -> None:
+        self.git("checkout", "-q", "main")
+        self.write("src/b/x.py", "y = 2\n")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "unowned file")
+        self.base = self.git("rev-parse", "HEAD")
+        self.git("checkout", "-q", "-B", "lane")
+        self.git("mv", "src/b/x.py", "src/a/x.py")
+        self.git("commit", "-q", "-m", "move into owned set")
+        head = self.git("rev-parse", "HEAD")
+        result = lane_audit(self.manifest(lane("a", ["src/a/"])), "a", head, self.base, self.repo)
+        self.assertFalse(result["ok"])
+        self.assertIn("src/b/x.py", result["violations"][0]["detail"])
+
+    def test_owned_paths_are_normalized(self) -> None:
+        head = self.commit("src/a/new.py")
+        for owned in (["./src/a/"], ["src\\a\\"]):
+            result = lane_audit(self.manifest(lane("a", owned)), "a", head, self.base, self.repo)
+            self.assertTrue(result["ok"], (owned, result))
 
     def test_a_base_that_is_not_a_sha_is_refused(self) -> None:
         result = lane_audit(self.manifest(lane("a", ["src/a/"])), "a", "HEAD", "--output=x", self.repo)
