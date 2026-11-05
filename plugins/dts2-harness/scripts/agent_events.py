@@ -19,6 +19,7 @@ from typing import Any, Final
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import checks  # noqa: E402
 import state_io  # noqa: E402
+from state_ids import STAMP_PATTERN  # noqa: E402
 
 PREFIX: Final[str] = "dts2-harness:"
 GATED_AGENT: Final[str] = "verifier"
@@ -30,20 +31,32 @@ REASON: Final[str] = ("dts2-harness verifier stop check: the newest run ledger h
                       "(or report the check as skipped with its reason) and send the report again.")
 
 
-def newest_ledger(cwd: Path) -> Path | None:
-    """The run ledger touched last, or None when there is no run."""
+def current_run_dir(cwd: Path) -> Path | None:
+    """The newest stamped run folder by name, or None when there is no run."""
     runs: Path = cwd / checks.RUNS_DIR
     if not runs.is_dir():
         return None
-    ledgers: list[Path] = [p / checks.LEDGER_NAME for p in runs.iterdir() if (p / checks.LEDGER_NAME).is_file()]
-    return max(ledgers, key=lambda p: p.stat().st_mtime) if ledgers else None
+    stamped: list[Path] = sorted(p for p in runs.iterdir() if p.is_dir() and STAMP_PATTERN.fullmatch(p.name))
+    return stamped[-1] if stamped else None
+
+
+def newest_ledger(cwd: Path) -> Path | None:
+    """The ledger of the current (newest-stamp) run, or None when that run has none; never an older run's ledger."""
+    run: Path | None = current_run_dir(cwd)
+    if run is None:
+        return None
+    ledger: Path = run / checks.LEDGER_NAME
+    return ledger if ledger.is_file() else None
 
 
 def missing_check_lines(cwd: Path) -> list[str]:
-    """Expected check names absent from the newest ledger; empty when there is no run to hold the verifier to."""
+    """Expected check names absent from the current run's ledger; all of them when that run has no ledger yet,
+    empty only when there is no run to hold the verifier to."""
+    if current_run_dir(cwd) is None:
+        return []
     ledger: Path | None = newest_ledger(cwd)
     if ledger is None:
-        return []
+        return list(checks.EXPECTED_CHECKS)
     present: dict[str, dict[str, Any]] = checks.latest_checks(checks.read_ledger(ledger))
     return [name for name in checks.EXPECTED_CHECKS if name not in present]
 
