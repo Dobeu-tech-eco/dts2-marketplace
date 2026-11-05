@@ -71,6 +71,7 @@ CLAUDE_AGENT_ALIASES: Final[frozenset[str]] = frozenset({"opus", "sonnet", "haik
 #   checked / maxAgeDays: when a person last confirmed the ids, and how old that may get before a warning
 DEFAULT_MAX_AGE_DAYS: Final[int] = 90
 INSTANCES_NAME: Final[str] = "instances.json"
+SEQUENCE_SUFFIX: Final[str] = "#seq"  # key suffix of the per-step instance counter in instances.json
 POSTMERGE_DIR: Final[str] = "postmerge"
 POSTMERGE_TAG: Final[str] = "@postmerge"
 # A failure that says nothing about the proposal: retry the dispatch, do not open a vote round (G-72).
@@ -479,7 +480,7 @@ def read_instances(votes_dir: Path) -> dict[str, int]:
 
 
 def next_round(votes_dir: Path, step: str, kind: str, retry: str | None = None, revote: bool = False) -> dict[str, Any]:
-    """Allocate the next ballot instance `<step>+<attempt>`. Only a complete panel opens a round; a retryable failure
+    """Allocate the next ballot instance `<step>+<n>` (n counts up per step across rounds). Only a complete panel opens a round; a retryable failure
     (`retry` names it) keeps the round and raises the attempt. A post-merge re-vote counts in its own folder."""
     base: Path = votes_dir / POSTMERGE_DIR if revote else votes_dir
     tag: str = step + (POSTMERGE_TAG if revote else "")
@@ -491,9 +492,12 @@ def next_round(votes_dir: Path, step: str, kind: str, retry: str | None = None, 
     key: str = f"{tag}:{kind}:r{round_no}"
     attempt: int = attempts.get(key, 0) + 1
     attempts[key] = attempt
+    seq_key: str = f"{tag}{SEQUENCE_SUFFIX}"
+    sequence: int = attempts.get(seq_key, 0) + 1  # monotonic per step, so a later round never reuses an earlier instance id
+    attempts[seq_key] = sequence
     base.mkdir(parents=True, exist_ok=True)
     atomic_write(votes_dir / INSTANCES_NAME, json.dumps(attempts, indent=2, sort_keys=True) + "\n")
-    return {"instance": f"{tag}+{attempt}", "step": tag, "kind": kind, "round": round_no, "attempt": attempt,
+    return {"instance": f"{tag}+{sequence}", "step": tag, "kind": kind, "round": round_no, "attempt": attempt,
             "retried": retrying, "opensRound": not retrying, "votesDir": str(base)}
 
 

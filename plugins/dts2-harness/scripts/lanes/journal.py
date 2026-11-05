@@ -146,17 +146,17 @@ def existing_revert_pr(branch: str, cwd: Path) -> dict[str, Any] | None:
 
 
 def build_revert_branch(sha: str, branch: str, target: str, folder: Path, cwd: Path) -> str | None:
-    """Revert `sha` on a fresh branch off origin/<target> in a temporary worktree and push it. None when it worked, else why not."""
+    """Revert `sha` on a fresh branch off origin/<target> (`-B` resets a branch left by an earlier failed try) in a temporary worktree and push it. None when it worked, else why not."""
     git: list[str] = binary("DTS2_GIT_BIN", "git")
     steps: list[tuple[list[str], Path]] = [([*git, "fetch", "origin", target], cwd),
-                                           ([*git, "worktree", "add", "-b", branch, str(folder), f"origin/{target}"], cwd)]
+                                           ([*git, "worktree", "add", "-B", branch, str(folder), f"origin/{target}"], cwd)]
     for cmd, where in steps:
         code, out = run(cmd, where)
         if code != 0:
             return f"{' '.join(cmd[len(git):][:2])} failed: {out.strip()[:200]}"
     code, parents = run([*git, "rev-list", "--parents", "-n", "1", sha], folder)
     mainline: list[str] = ["-m", "1"] if code == 0 and len(parents.split()) > 2 else []
-    for cmd in ([*git, "revert", "--no-edit", *mainline, sha], [*git, "push", "-u", "origin", branch]):
+    for cmd in ([*git, "revert", "--no-edit", *mainline, sha], [*git, "push", "--force-with-lease", "-u", "origin", branch]):
         code, out = run(cmd, folder)
         if code != 0:
             return f"git {cmd[len(git)]} failed: {out.strip()[:200]}"

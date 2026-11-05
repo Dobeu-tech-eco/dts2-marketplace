@@ -6,7 +6,7 @@ import json
 import re
 import time
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Final, Iterator
 
 from son_launch import merge_config
 from state_io import atomic_write
@@ -18,6 +18,8 @@ from .journal import KIND_GRANTED, KIND_MERGED, note
 from .leases import lease_epoch, read_lease
 from .records import inside_son, lane_lock, read_json_object, son_refusal
 from .runrecord import read_run, update_run
+
+REVERT_STEP_PREFIX: Final[str] = "revert-"  # the step `open_revert_pr` tells the head to grant
 
 
 def merge_needs(manifest: dict[str, Any]) -> dict[str, set[str]]:
@@ -250,6 +252,15 @@ def merge_gate_refusal(runs_dir: Path, stamp: str, lane_id: str, target: str, sh
     return health_refusal(runs_dir, stamp, target, sha) or mutex_refusal(cwd, stamp, lane_id)
 
 
+def step_gate_refusal(runs_dir: Path, stamp: str, step: str, target: str, sha: str, cwd: Path) -> str | None:
+    """The merge-go gates for an autopilot step. A `revert-<lane>` step is the repair for a red base and acts for the lane that
+    holds the mutex, so it is held to the mutex under that lane's name and not to the base-health record."""
+    if not step.startswith(REVERT_STEP_PREFIX):
+        return merge_gate_refusal(runs_dir, stamp, step, target, sha, cwd)
+    from .mergecomp import mutex_refusal  # noqa: PLC0415 - mergecomp imports this module lazily
+    return mutex_refusal(cwd, stamp, step.removeprefix(REVERT_STEP_PREFIX))
+
+
 def merge_go_step(runs_dir: Path, stamp: str, step: str, head: str, cwd: Path, base: str | None = None) -> dict[str, Any]:
     """Head-only grant for one autopilot step: the same `Verified head:` and `Base:` lines as a lane's merge-go.md, written to
     `<stamp>/<step>/merge-go.md`, with no lane order to follow. Refused inside a son, for a head that is not a commit sha, and for
@@ -267,6 +278,9 @@ def merge_go_step(runs_dir: Path, stamp: str, step: str, head: str, cwd: Path, b
     sha: str | None = base or base_tip(cwd, state["target"])
     if sha is None or not re.match(r"^[0-9a-f]{7,40}$", sha):
         return {"ok": False, "step": step, "detail": f"cannot read origin/{state['target']}; fetch it or pass a sha with --base"}
+    gate: str | None = step_gate_refusal(runs_dir, stamp, step, state["target"], sha, cwd)
+    if gate:
+        return {"ok": False, "step": step, "detail": gate}
     path: Path = runs_dir / stamp / step / MERGE_GO_NAME
     atomic_write(path, f"# Merge go for step {step}\n\nVerified head: {head}\nBase: {state['target']} {sha}\n"
                        f"Granted: {int(time.time())}\n")

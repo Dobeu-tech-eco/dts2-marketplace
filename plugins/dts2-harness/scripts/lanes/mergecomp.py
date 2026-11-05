@@ -38,13 +38,20 @@ KIND_REASONS: Final[dict[str, str]] = {
 
 
 def check_runs(sha: str, cwd: Path) -> tuple[list[dict[str, Any]] | None, str]:
-    code, out = run([*binary("DTS2_GH_BIN", "gh"), "api", f"repos/:owner/:repo/commits/{sha}/check-runs"], cwd)
+    """Every check run of a commit: `--paginate --slurp` hands back one array of pages, which are merged here."""
+    code, out = run([*binary("DTS2_GH_BIN", "gh"), "api", "--paginate", "--slurp", f"repos/:owner/:repo/commits/{sha}/check-runs"], cwd)
     try:
         data: Any = json.loads(out) if code == 0 else None
     except ValueError:
         data = None
-    runs: Any = data.get("check_runs") if isinstance(data, dict) else None
-    return (runs, "") if isinstance(runs, list) else (None, "gh could not list the check runs of the base commit")
+    pages: list[Any] = data if isinstance(data, list) else [data]
+    runs: list[dict[str, Any]] = []
+    for page in pages:
+        part: Any = page.get("check_runs") if isinstance(page, dict) else None
+        if not isinstance(part, list):
+            return None, "gh could not list the check runs of the base commit"
+        runs.extend(part)
+    return runs, ""
 
 
 def judge_checks(runs: list[dict[str, Any]]) -> tuple[list[str], list[str]]:

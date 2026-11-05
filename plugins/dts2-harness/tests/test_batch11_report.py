@@ -6,8 +6,8 @@ import re
 import sys
 import tempfile
 import unittest
+import unittest.mock as mock
 from pathlib import Path
-from unittest import mock
 
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PLUGIN_ROOT / "scripts"))
@@ -86,7 +86,7 @@ class Decisions(unittest.TestCase):
 class DoctorRows(unittest.TestCase):
     def test_rows_present_and_windows_warns(self) -> None:
         names = {c["name"] for c in doctor.run_checks()}
-        self.assertTrue({"bwrap", "socat", "auth", "platform"} <= names)
+        self.assertLessEqual({"bwrap", "socat", "auth", "platform"}, names)
         with mock.patch.object(sys, "platform", "win32"):
             row = doctor.check_platform()
         self.assertEqual(row["status"], doctor.WARN)

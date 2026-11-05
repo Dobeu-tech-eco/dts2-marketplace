@@ -301,7 +301,7 @@ def report_check(path: Path, lane_ids: list[str], runs_dir: Path | None = None, 
     records: list[dict[str, Any]] = [data for _path, data in read_status_files(runs_dir, stamp)]
     unlisted: list[str] = sorted(str(d.get("lane")) for d in records if str(d.get("lane")) not in lane_ids)
     unreferenced: list[dict[str, Any]] = [{"lane": d.get("lane"), "pr": d["pr"]} for d in records
-                                          if isinstance(d.get("pr"), int) and f"#{d['pr']}" not in text]
+                                          if isinstance(d.get("pr"), int) and not re.search(rf"#{d['pr']}(?!\d)", text)]
     return {**result, "ok": result["ok"] and not unlisted and not unreferenced, "unlisted": unlisted, "unreferenced_prs": unreferenced}
 
 

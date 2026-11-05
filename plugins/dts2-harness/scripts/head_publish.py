@@ -42,6 +42,7 @@ GOOD_CONCLUSIONS: Final[frozenset[str]] = frozenset({"SUCCESS", "NEUTRAL", "SKIP
 PENDING_STATES: Final[frozenset[str]] = frozenset({"PENDING", "QUEUED", "IN_PROGRESS", "WAITING", "EXPECTED", ""})
 WALKTHROUGH_READONLY_VAR: Final[str] = "DTS2_WALKTHROUGH_READONLY"
 SON_MARKER_VAR: Final[str] = "DTS2_SON"  # set in every son's env (son_launch.SON_MARKER)
+SON_BRANCH_PREFIX_VAR: Final[str] = "DTS2_SON_BRANCH_PREFIX"  # the other son signal; mirrors lanes.records.inside_son
 MERGE_BLOCK: Final[str] = "merge"
 DEFAULT_BRANCH_KEY: Final[str] = "default_branch"
 FALLBACK_BRANCH: Final[str] = "main"
@@ -114,7 +115,7 @@ def son_refusal(action: str) -> dict[str, Any]:
 
 
 def inside_son() -> bool:
-    return bool(os.environ.get(SON_MARKER_VAR))
+    return bool(os.environ.get(SON_MARKER_VAR) or os.environ.get(SON_BRANCH_PREFIX_VAR))
 
 
 def publish_lane(repo: Path, lane: str, branch: str, base: str, title: str, body: str, runner: Runner = run_tool) -> dict[str, Any]:
