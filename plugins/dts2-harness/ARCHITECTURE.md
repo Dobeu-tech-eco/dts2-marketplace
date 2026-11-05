@@ -117,7 +117,7 @@ Settings are read by `scripts/miniyaml.py` (one parser for `config.yaml`, `keep.
 | `scripts/lanes/amend.py` | `amend`: change one lane of a running manifest, re-check, bump the epoch, rewrite `brief.md` |
 | `scripts/lanes/runstate.py` | status and stall marks, send-backs, `fold` groups, `stop-check`, `report-check`, the budget counter and spend ledger |
 | `scripts/lanes/supervisor.py` | `preflight`, `spawn` and the son lifecycle, `model_call`, `loop`, `gc_restore` (see below) |
-| `scripts/lanes/audit.py` | `lane_audit`: the lane branch may change only the files its manifest entry owns (behind `lanes.py audit`, used by `merge.py`) |
+| `scripts/lanes/audit.py` | `lane_audit`: the lane branch may change only the files its manifest entry owns (behind `lanes.py audit`, used by `lanes/merge.py`) |
 | `scripts/lanes/mailbox.py` | the head/son mailbox: versioned question, answer, need-human and out-of-lane request files, send-backs, `merge-go.json` (`{lane, epoch, verified_head_sha, base_sha}`), deadlines (`mailbox_wait_min`) with a defined park transition, rule-file digests |
 | `scripts/lanes/policy.py` | scope and approval policy around `plan`: the owner `override`, `dpp_full_ask_each_lane` (`approve-lane`), `fullauto_freeze_scope` (`scope.json`, `pending-items.json`), the end state read from `origin/<base>`; asks `approvals.is_human_approved` and treats a missing module as not approved |
 | `scripts/lanes/mergecomp.py` | merge safety nets: the base-health record (`base-health`), the repo-wide merge mutex (`merge-mutex`) and the integration-routing records that `status` and `report` print |
