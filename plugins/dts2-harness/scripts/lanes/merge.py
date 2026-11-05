@@ -13,6 +13,7 @@ from son_launch import SON_MARKER, merge_config
 from state_io import atomic_write
 
 from .common import LaneError, MERGE_GO_NAME, MERGE_ORDER_NAME, MERGE_PENDING_NAME, PHASE_BLOCKED, PHASE_INCOMPLETE, PHASE_PR_OPEN, PROTECTED_DEFAULTS, RUN_NAME, STATUS_NAME, binary, find_lane, run
+from .integration import INTEGRATION_LANE
 from .leases import lane_lock
 from .runstate import merge_json, read_json_object
 
@@ -45,14 +46,66 @@ def unmerged_needs(manifest: dict[str, Any], lane_id: str, merged: list[str]) ->
     return [i for i in direct if i in seen and i not in merged]
 
 
+def valid_order(manifest: dict[str, Any], order: Any) -> bool:
+    """True when `order` lists every lane exactly once and puts each lane after the lanes it depends on."""
+    ids: list[str] = [str(lane["id"]) for lane in manifest["lanes"]]
+    if not isinstance(order, list) or sorted(str(i) for i in order) != sorted(ids):
+        return False
+    position: dict[str, int] = {str(i): n for n, i in enumerate(order)}
+    return all(position[str(d)] < position[str(lane["id"])]
+               for lane in manifest["lanes"] for d in (lane.get("depends_on") or []) if str(d) in position)
+
+
+def with_integration(manifest: dict[str, Any], files: list[str]) -> dict[str, Any]:
+    """The manifest plus the integration lane: it depends on every other lane, so it merges last and goes through the same
+    grant/done lifecycle (the head opens its PR, so it has no son status file)."""
+    lanes: list[dict[str, Any]] = list(manifest["lanes"])
+    if any(lane.get("id") == INTEGRATION_LANE for lane in lanes):
+        return manifest
+    integration: dict[str, Any] = {"id": INTEGRATION_LANE, "item": INTEGRATION_LANE, "tier": "standard", "ids": {},
+                                   "files": list(files), "depends_on": [str(lane["id"]) for lane in lanes]}
+    return {**manifest, "lanes": [*lanes, integration]}
+
+
+def effective_manifest(manifest: dict[str, Any], runs_dir: Path) -> dict[str, Any]:
+    """with_integration when merge-plan recorded an integration lane for this run, else the manifest itself."""
+    saved: dict[str, Any] = read_json_object(runs_dir / str(manifest["stamp"]) / MERGE_ORDER_NAME)
+    return with_integration(manifest, list(saved.get("integration_files") or [])) if saved.get("integration") else manifest
+
+
 def merge_state(runs_dir: Path, manifest: dict[str, Any]) -> dict[str, Any]:
+    """The saved order when merge-plan recorded a valid one (probe-planned), else dependency then manifest order."""
     path: Path = runs_dir / str(manifest["stamp"]) / MERGE_ORDER_NAME
     saved: dict[str, Any] = read_json_object(path)
-    return {"order": merge_sequence(manifest), "merged": list(saved.get("merged") or []),
-            "current": saved.get("current")}
+    full: dict[str, Any] = effective_manifest(manifest, runs_dir)
+    order: Any = saved.get("order")
+    return {"order": [str(i) for i in order] if valid_order(full, order) else merge_sequence(full),
+            "merged": list(saved.get("merged") or []), "current": saved.get("current"),
+            "integration": bool(saved.get("integration")), "integration_files": list(saved.get("integration_files") or [])}
+
+
+def record_plan(manifest: dict[str, Any], runs_dir: Path, planned: list[str], integration_files: list[str]) -> bool:
+    """Persist merge-plan's probe-planned order (and the integration lane, when files route to it) in merge-order.json, so
+    merge-go grants in that order. Merged lanes keep their place at the front. False when nothing was recorded."""
+    if inside_son():
+        return False
+    path: Path = runs_dir / str(manifest["stamp"]) / MERGE_ORDER_NAME
+    with merge_lock(path):
+        saved: dict[str, Any] = read_json_object(path)
+        merged: list[str] = [str(i) for i in saved.get("merged") or []]
+        full: dict[str, Any] = with_integration(manifest, integration_files) if integration_files else manifest
+        wanted: list[str] = [i for i in planned if i != INTEGRATION_LANE] + ([INTEGRATION_LANE] if integration_files else [])
+        order: list[str] = [*[i for i in merged if i in wanted], *[i for i in wanted if i not in merged]]
+        if not valid_order(full, order):
+            return False
+        save_merge_state(path, {**saved, "order": order, "merged": merged, "current": saved.get("current"),
+                                "integration": bool(integration_files), "integration_files": list(integration_files)})
+    return True
 
 
 def lane_phase(runs_dir: Path, stamp: str, lane_id: str) -> str:
+    if lane_id == INTEGRATION_LANE and not (runs_dir / stamp / lane_id / STATUS_NAME).exists():
+        return PHASE_PR_OPEN  # the head opens the integration PR after the other lanes merge; no son reports a phase for it
     return str(read_json_object(runs_dir / stamp / lane_id / STATUS_NAME).get("status", ""))
 
 
@@ -77,6 +130,7 @@ def merge_order(manifest: dict[str, Any], runs_dir: Path) -> dict[str, Any]:
     """Write merge-order.json (the order, which lanes merged, which one holds the merge) and say who is next."""
     stamp: str = str(manifest["stamp"])
     path: Path = runs_dir / stamp / MERGE_ORDER_NAME
+    manifest = effective_manifest(manifest, runs_dir)
     with merge_lock(path):
         state: dict[str, Any] = merge_state(runs_dir, manifest)
         save_merge_state(path, state)
@@ -143,6 +197,7 @@ def merge_go(manifest: dict[str, Any], runs_dir: Path, lane_id: str, head: str, 
     allowed and the base commit it was cleared against is known (recorded as `Base:` for the merge guard). A son is refused."""
     if inside_son():
         return {**son_refusal("merge-go"), "lane": lane_id}
+    manifest = effective_manifest(manifest, runs_dir)
     find_lane(manifest, lane_id)
     stamp: str = str(manifest["stamp"])
     state: dict[str, Any] = merge_target_state(runs_dir, stamp, cwd)
@@ -204,6 +259,7 @@ def grant_merge(manifest: dict[str, Any], runs_dir: Path, lane_id: str, head: st
 
 
 def merge_done(manifest: dict[str, Any], runs_dir: Path, lane_id: str) -> dict[str, Any]:
+    manifest = effective_manifest(manifest, runs_dir)
     with merge_lock(runs_dir / str(manifest["stamp"]) / MERGE_ORDER_NAME):
         return finish_merge(manifest, runs_dir, lane_id)
 
