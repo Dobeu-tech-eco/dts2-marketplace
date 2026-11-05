@@ -87,7 +87,7 @@ class ScopeCheckTests(unittest.TestCase):
     def test_none(self) -> None:
         data: dict[str, Any] = scope_of(make_tmp_home().resolve())
         self.assertEqual(data["scope"], "none")
-        self.assertIn("/dts2-harness:setup", data["advice"])
+        self.assertIn("/dts2:setup", data["advice"])
 
     def test_end_state_flag_uses_effective_root(self) -> None:
         root, member = make_workspace()

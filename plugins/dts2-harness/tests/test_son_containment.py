@@ -149,7 +149,7 @@ class EnvAndFlagTests(unittest.TestCase):
         plugin = Path(argv[argv.index("--plugin-dir") + 1])
         self.assertTrue((plugin / "skills" / "autopilot" / "SKILL.md").is_file())
         self.assertTrue((plugin / ".claude-plugin" / "plugin.json").is_file())
-        self.assertIn("/dts2-harness:autopilot --son", argv[argv.index("-p") + 1])
+        self.assertIn("/dts2:autopilot --son", argv[argv.index("-p") + 1])
 
     def test_sandbox_can_be_switched_off_in_config(self) -> None:
         argv = self.command("a", root_extra="sandbox:\n  enabled: false\n")["argv"]

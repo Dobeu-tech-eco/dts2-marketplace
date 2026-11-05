@@ -13,13 +13,13 @@ import state_io  # noqa: E402
 from state_io import atomic_write  # noqa: E402
 from profiles import PROFILE_DIR, Profiles  # noqa: E402
 
-START_MARKER: Final[str] = "<!-- dts2-harness:start -->"
-END_MARKER: Final[str] = "<!-- dts2-harness:end -->"
+START_MARKER: Final[str] = "<!-- dts2:start -->"
+END_MARKER: Final[str] = "<!-- dts2:end -->"
 DEFAULT_RULES_FILE: Final[str] = "AGENTS.md"
 DEFAULT_AGENTS: Final[str] = "claude"
 LIST_SEPARATOR: Final[str] = ","
 HANDOFF_POINTER: Final[str] = (
-    "Harness state for any agent: .harness/handoff/latest.md (resume with /dts2-harness:run resume)."
+    "Harness state for any agent: .harness/handoff/latest.md (resume with /dts2:run resume)."
 )
 
 

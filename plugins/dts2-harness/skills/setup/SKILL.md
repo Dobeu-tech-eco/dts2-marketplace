@@ -27,7 +27,7 @@ Before anything else, run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/scope-check.py
 
 If batch vs workspace is unclear, ask once. Default to batch.
 
-If `.harness/end-state.md` already exists, show its status and ask once: revise it, keep it and scaffold (only if its status is `approved`), or start over. For revise and keep-and-scaffold, read `roster` from its metadata and the decisions from its Other harnesses table, and re-run `dts2-harness:scout` for fresh `Harnesses:` and `Marketing surface:` lines. Revise resumes the interview from the file's contents; keep-and-scaffold goes straight to Part 2.
+If `.harness/end-state.md` already exists, show its status and ask once: revise it, keep it and scaffold (only if its status is `approved`), or start over. For revise and keep-and-scaffold, read `roster` from its metadata and the decisions from its Other harnesses table, and re-run `dts2:scout` for fresh `Harnesses:` and `Marketing surface:` lines. Revise resumes the interview from the file's contents; keep-and-scaffold goes straight to Part 2.
 
 ## Phase files
 Read the file for a part only when you reach it; do not read ahead. All files are in this folder.

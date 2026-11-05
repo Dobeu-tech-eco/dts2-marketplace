@@ -14,7 +14,7 @@ This command never hard-stops. If something is missing it installs it, falls bac
 - Prefer the marketing-skills skills and do not hand-reimplement them when they are available.
 
 Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/ensure-ignored.py" <repo>`.
-Dispatch `dts2-harness:scout` for the marketing-surface list; without `.harness/end-state.md`, say so and continue with scout's output only.
+Dispatch `dts2:scout` for the marketing-surface list; without `.harness/end-state.md`, say so and continue with scout's output only.
 A scout report whose first line is `PARTIAL: hit turn cap at <step>` is not the surface list: re-dispatch the scout with a narrower scope or a fresh agent, inside the fix-loop cap.
 
 ## 2. GTM deep-dive

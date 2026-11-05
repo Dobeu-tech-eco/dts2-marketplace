@@ -19,7 +19,7 @@ INSTALL: Final[str] = "npx skills add https://github.com/mattpocock/skills --ski
 MOMENTS: Final[dict[str, str]] = {
     "improve-codebase-architecture": "finalization pass before tests are written",
     "diagnosing-bugs": "hard 3-round cap, bugs still failing",
-    "loop-me": "on /dts2-harness:run trigger — check in with the user",
+    "loop-me": "on /dts2:run trigger — check in with the user",
     "setup-pre-commit": "once per repo, as the last gate before `git commit`",
     "code-review": "first contact — repo the harness has never been in",
 }

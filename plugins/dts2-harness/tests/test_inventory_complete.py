@@ -61,13 +61,13 @@ class InventoryCompleteTests(unittest.TestCase):
         text = inventory_text()
         skills = sorted(path.name for path in (PLUGIN_ROOT / "skills").iterdir() if (path / "SKILL.md").is_file())
         self.assertGreaterEqual(len(skills), 18)
-        missing = [name for name in skills if f"`/dts2-harness:{name}`" not in text]
+        missing = [name for name in skills if f"`/dts2:{name}`" not in text]
         self.assertEqual(missing, [], f"skills missing from docs/INVENTORY.md: {missing}")
 
     def test_every_agent_is_listed(self) -> None:
         text = inventory_text()
         missing = [path.stem for path in sorted((PLUGIN_ROOT / "agents").glob("*.md"))
-                   if f"`dts2-harness:{path.stem}`" not in text]
+                   if f"`dts2:{path.stem}`" not in text]
         self.assertEqual(missing, [], f"agents missing from docs/INVENTORY.md: {missing}")
 
     def test_every_registered_hook_script_is_listed(self) -> None:

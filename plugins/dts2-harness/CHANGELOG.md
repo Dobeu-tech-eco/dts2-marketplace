@@ -6,6 +6,19 @@ All notable changes to dts2-harness are recorded here, newest first, in the [Kee
 Released versions live in this file. Work that has not been released yet is listed under `## Unreleased` in `README.md` until the release step joins it here.
 Entries carry no dates: the repository holds no release tags to take them from.
 
+## [4.0.0]
+
+Plugin renamed from `dts2-harness` to `dts2` so every command reads `/dts2:<command>`.
+
+### Changed
+
+- Breaking: plugin renamed `dts2-harness` -> `dts2` (version 4.0.0); commands are now `/dts2:<command>` and agents `dts2:<agent>`. The plugin folder, the settings file `.claude/dts2-harness.local.md` and the `.harness/` state paths keep their names.
+- Migration: existing installs run `/plugin uninstall dts2-harness@dts2`, `/plugin marketplace update dts2`, `/plugin install dts2@dts2`, `/reload-plugins`; settings and `.harness/` state need no change.
+
+### Fixed
+
+- R3 (review findings): `guard.mask_literals` opens a substitution context only for an unescaped `$(`, so an escaped `\$(` or `$$(` no longer hides a following `$(printenv)`; `git commit -m '$(env)'` and the batch-22 nested-quote case are unchanged.
+
 ## [3.11.0]
 
 Round 2 hardening: head policy gate, son containment and lifecycle, mailbox, merge and fold recovery, signed receipts, eval A/B runner, report ops and agent completion gates. The optional cross-model review step was skipped for this release by decision of the maintainer; automated CI reviews ran on every PR.

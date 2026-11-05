@@ -1,12 +1,14 @@
 # dts2-harness 3.11 agent guide
 
+> Migrating from dts2-harness (old name): the plugin is now `dts2`, so commands are `/dts2:<command>`. Run `/plugin uninstall dts2-harness@dts2`, `/plugin marketplace update dts2`, `/plugin install dts2@dts2`, `/reload-plugins`; settings and `.harness/` state are unchanged.
+
 How to talk to the harness, which command to reach for, and what changed in 3.11.0 and 3.10.0. Written for an agent (or a person) who lands in a repo that uses the harness and needs to act without reading every skill file. The exhaustive reference is `INVENTORY.md` (every skill, agent, hook, script and `lanes.py` subcommand); the internals are in `../ARCHITECTURE.md`; the full release notes are in `../CHANGELOG.md`.
 
 Contents: 1 Talking to the harness, 2 Which command when, 3 The head, son and council flow, 4 Rules every agent follows, 5 Release history (3.11.0, 3.10.0), 6 Where state lives.
 
 ## 1. Talking to the harness
 
-The harness is a Claude Code plugin. Every entry point is a slash command `/dts2-harness:<skill>`; there is no other interface. Eighteen skills exist (section 2). Seven agents (`lead`, `builder`, `fixer`, `reviewer`, `verifier`, `scout`, `auditor`) are dispatched by the skills, never typed by the user; an agent that needs one calls the Agent tool with `subagent_type: dts2-harness:<name>`.
+The harness is a Claude Code plugin. Every entry point is a slash command `/dts2:<skill>`; there is no other interface. Eighteen skills exist (section 2). Seven agents (`lead`, `builder`, `fixer`, `reviewer`, `verifier`, `scout`, `auditor`) are dispatched by the skills, never typed by the user; an agent that needs one calls the Agent tool with `subagent_type: dts2:<name>`.
 
 Six skills run only when the user types them (`disable-model-invocation: true`): `dpp-full`, `fullauto`, `machine-prep`, `model`, `onboard`, `sdk`. The others may be invoked by the model when the conversation calls for them.
 
@@ -14,26 +16,26 @@ Install and update:
 
 ```
 /plugin marketplace add Dobeu-tech-eco/dts2-marketplace
-/plugin install dts2-harness@dts2
+/plugin install dts2@dts2
 /plugin marketplace update dts2      # then /reload-plugins
 ```
 
 Arguments go after the command name, separated by spaces. Quote a task that contains spaces. Examples:
 
 ```
-/dts2-harness:run add rate limiting to the public API
-/dts2-harness:run section 4
-/dts2-harness:run resume
-/dts2-harness:run add secret STRIPE_KEY
-/dts2-harness:run review-pr 52
-/dts2-harness:autopilot 3-5
-/dts2-harness:autopilot feature "export orders to CSV"
-/dts2-harness:autopilot --son 20261105T0412/lane-b
-/dts2-harness:dpp dry-run
-/dts2-harness:ship dev
-/dts2-harness:feature "nightly report emailer"
-/dts2-harness:action-items done S-3
-/dts2-harness:learn promote L-012
+/dts2:run add rate limiting to the public API
+/dts2:run section 4
+/dts2:run resume
+/dts2:run add secret STRIPE_KEY
+/dts2:run review-pr 52
+/dts2:autopilot 3-5
+/dts2:autopilot feature "export orders to CSV"
+/dts2:autopilot --son 20261105T0412/lane-b
+/dts2:dpp dry-run
+/dts2:ship dev
+/dts2:feature "nightly report emailer"
+/dts2:action-items done S-3
+/dts2:learn promote L-012
 ```
 
 Scripts are never typed by the user. Skills call them as `python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/<name>.py" <subcommand> ...`; each prints one JSON object on stdout. `INVENTORY.md` section 4 lists every script and flag.
@@ -42,8 +44,8 @@ The harness answers in a fixed shape:
 
 - A run ends with a receipt (`.harness/receipts/<stamp>.md`) and a PR link, or a parked state with the reason.
 - A checkpoint is a question with the plan or the ship summary and the words `approve`, `edit` or `stop`. Under `run` the user answers; under `autopilot` three frontier providers vote and Fable 5.1 breaks a tie.
-- Anything that needs a person is an action item (`/dts2-harness:action-items`): a missing secret, a decision, a handoff, a deploy step. The item names the command that resolves it.
-- Progress is always readable without side effects: `/dts2-harness:check-in`.
+- Anything that needs a person is an action item (`/dts2:action-items`): a missing secret, a decision, a handoff, a deploy step. The item names the command that resolves it.
+- Progress is always readable without side effects: `/dts2:check-in`.
 
 ## 2. Which command when
 

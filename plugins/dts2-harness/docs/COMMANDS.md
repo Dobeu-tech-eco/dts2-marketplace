@@ -1,5 +1,7 @@
 # dts2-harness command reference
 
+> Migrating from dts2-harness (old name): the plugin is now `dts2`, so commands are `/dts2:<command>`. Run `/plugin uninstall dts2-harness@dts2`, `/plugin marketplace update dts2`, `/plugin install dts2@dts2`, `/reload-plugins`; settings and `.harness/` state are unchanged.
+
 The one page an agent (Claude Code, Codex, Cursor or any other) reads to learn every command in this plugin and exactly how to call it. It is built from the code: `scripts/lanes.py` and every `scripts/*.py` argparse definition, `skills/*/SKILL.md`, `agents/*.md` and `hooks/hooks.json`. For the reasons behind a command read `GUIDE.md`; for the long-form table of every command with its callers read `INVENTORY.md`; for internals read `../ARCHITECTURE.md`. What changed in each release is in the last section.
 
 Contents: 1 How to run a command, 2 `lanes.py` subcommands, 3 Standalone scripts, 4 Skills (slash commands), 5 Agents, 6 Hooks, 7 Common flows, 8 Changelogs.
@@ -8,8 +10,8 @@ Contents: 1 How to run a command, 2 `lanes.py` subcommands, 3 Standalone scripts
 
 - Scripts: `python3 -I "$CLAUDE_PLUGIN_ROOT/scripts/<name>.py" <args>`. `CLAUDE_PLUGIN_ROOT` is set inside Claude Code; from a shell, use the installed plugin path (the folder holding `scripts/`, `skills/` and `hooks/`). Every script prints one JSON object on stdout unless a row says otherwise. Exit codes: 0 ok, 1 a violation or refusal, 2 a failed result (`lanes.py`, `walkthrough_fallback.py`).
 - `lanes.py` takes global flags before the subcommand: `--runs-dir DIR`, `--cwd DIR`, `--no-prs` (skip the open-PR check on purpose). Every `lanes.py` invocation below is written without the prefix `python3 -I "$CLAUDE_PLUGIN_ROOT/scripts/lanes.py"`; add it. `<stamp>` is the run stamp, `<manifest>` the lane manifest `lanes.json` in the run folder (`.harness/runs/<stamp>/`), `a` a lane id.
-- Skills are slash commands typed in Claude Code: `/dts2-harness:<name> [args]`. Quote a task that has spaces.
-- Agents are dispatched with the Agent tool, `subagent_type: dts2-harness:<name>`. Hooks are run by Claude Code on events; an agent never calls a hook.
+- Skills are slash commands typed in Claude Code: `/dts2:<name> [args]`. Quote a task that has spaces.
+- Agents are dispatched with the Agent tool, `subagent_type: dts2:<name>`. Hooks are run by Claude Code on events; an agent never calls a hook.
 - Ask any script for its flags with `--help`; ask `lanes.py <subcommand> --help` for one subcommand.
 
 **Roles.** The *head* is the Claude session that runs `dpp` (or a single `autopilot`): it plans lanes, grants merges, pushes and opens PRs, and is the only party that talks to the user. A *son* is a headless `autopilot --son <stamp>/<lane>` in its own worktree: it builds inside its owned files, commits a branch, heartbeats, asks the head through the mailbox, and never pushes, merges or starts another son. The Role column says who may run a command: `head`, `son`, `either`, `owner` (needs the human approval channel), `hook` (called by Claude Code, not by an agent), `user` (typed by a person), `maintainer` (release and repo upkeep).
@@ -143,28 +145,28 @@ Library modules, not invoked directly (15): `_load.py`, `contracts.py`, `eval_st
 
 ## 4. Skills (18 slash commands)
 
-Typed as `/dts2-harness:<name>`. `user only` means `disable-model-invocation: true`: the model never starts it, a person must type it.
+Typed as `/dts2:<name>`. `user only` means `disable-model-invocation: true`: the model never starts it, a person must type it.
 
 | Command | Role | What it does | Exact invocation | Writes / side effects |
 |---|---|---|---|---|
-| `/dts2-harness:onboard` | user only | Explain the harness and recommend where to start. Changes nothing. | `/dts2-harness:onboard` | none |
-| `/dts2-harness:machine-prep` | user only | Audit this computer's agent tooling and prune to the blueprint (once per machine). | `/dts2-harness:machine-prep` | plugin settings (with backup) |
-| `/dts2-harness:setup` | user or model | Interview to an approved end state, then scaffold harness config in one repo, many repos or a workspace. | `/dts2-harness:setup [path ...] [--scaffold-only]` | end-state file, config, CI, gitignore |
-| `/dts2-harness:run` | user or model | Plan, build, review and verify one task with a human at the two checkpoints; ends with a receipt. | `/dts2-harness:run <task> \| resume \| section <#> \| add secret NAME \| review-pr <number>` | branches, receipt, state, PR |
-| `/dts2-harness:learn` | user or model | Consolidate review findings into lessons; prune stale ones only after the user approves. | `/dts2-harness:learn [promote L-NNN]` | lessons file |
-| `/dts2-harness:sdk` | user only | Set up and run the pipeline headless with the Agent SDK (CI, cron, servers, WSL). | `/dts2-harness:sdk` | SDK runner config |
-| `/dts2-harness:evolve` | user or model | Change the harness itself in its source repo: edit, validate, test, bump, commit; push only on an explicit yes. | `/dts2-harness:evolve [deploy]` | plugin source files, version, commit |
-| `/dts2-harness:action-items` | user or model | Show open Secrets, Decisions, Handoff, Deploy and Promotions items; mark done, add, assign. | `/dts2-harness:action-items [done <id> \| add <group> <text> \| assign <id> <agent>]` | action-items file |
-| `/dts2-harness:gtm` | user or model | Go-to-market pass: installs marketing-skills if missing, ends with a readiness scorecard. | `/dts2-harness:gtm` | readiness file, gitignore |
-| `/dts2-harness:ship` | user or model | Ship the current branch as a PR: checks, secret scan, verifier and reviewer, receipt, push, open PR; then sweep stale branches. Never merges. | `/dts2-harness:ship [base]` | receipt, push, PR, branch clean-up (after a yes) |
-| `/dts2-harness:feature` | user or model | Add a feature to the roadmap: clarity score, interview, end state updated, plan PR. Plans only. | `/dts2-harness:feature <description>` | end-state file, plan PR |
-| `/dts2-harness:autopilot` | user or model (a son runs it with `--son`) | Run harness steps unattended; a three-provider gate and a council replace the checkpoints. One branch and PR per step. | `/dts2-harness:autopilot <steps> \| resume \| status \| --son <stamp>/<lane>` | branches, PRs, receipts, council record |
-| `/dts2-harness:dpp` | head | Run several autopilot lanes in parallel as headless sons under a head that plans, supervises and serialises merges. | `/dts2-harness:dpp [dry-run] [--full] [resume]` | run folder, lane worktrees, PRs, report |
-| `/dts2-harness:dpp-full` | user only | `dpp --full`: also fills lanes from a delegation scan and keeps dispatching. | `/dts2-harness:dpp-full` | as `dpp` |
-| `/dts2-harness:fullauto` | user only | `dpp-full` with autopilot forced on, looping check-in until nothing is outstanding. | `/dts2-harness:fullauto` | as `dpp` |
-| `/dts2-harness:check-in` | user or model | Read-only progress against the approved end state: `N of M complete`. | `/dts2-harness:check-in` | none |
-| `/dts2-harness:model` | user only | Choose which agent provider fills the lead, advisory and sign-off seats; records `lead_provider`. | `/dts2-harness:model` | settings file |
-| `/dts2-harness:find-skills` | user or model | Rescan the repo, ask up to three questions, suggest ranked skills, add to the keep list on a yes. | `/dts2-harness:find-skills` | keep list (on a yes) |
+| `/dts2:onboard` | user only | Explain the harness and recommend where to start. Changes nothing. | `/dts2:onboard` | none |
+| `/dts2:machine-prep` | user only | Audit this computer's agent tooling and prune to the blueprint (once per machine). | `/dts2:machine-prep` | plugin settings (with backup) |
+| `/dts2:setup` | user or model | Interview to an approved end state, then scaffold harness config in one repo, many repos or a workspace. | `/dts2:setup [path ...] [--scaffold-only]` | end-state file, config, CI, gitignore |
+| `/dts2:run` | user or model | Plan, build, review and verify one task with a human at the two checkpoints; ends with a receipt. | `/dts2:run <task> \| resume \| section <#> \| add secret NAME \| review-pr <number>` | branches, receipt, state, PR |
+| `/dts2:learn` | user or model | Consolidate review findings into lessons; prune stale ones only after the user approves. | `/dts2:learn [promote L-NNN]` | lessons file |
+| `/dts2:sdk` | user only | Set up and run the pipeline headless with the Agent SDK (CI, cron, servers, WSL). | `/dts2:sdk` | SDK runner config |
+| `/dts2:evolve` | user or model | Change the harness itself in its source repo: edit, validate, test, bump, commit; push only on an explicit yes. | `/dts2:evolve [deploy]` | plugin source files, version, commit |
+| `/dts2:action-items` | user or model | Show open Secrets, Decisions, Handoff, Deploy and Promotions items; mark done, add, assign. | `/dts2:action-items [done <id> \| add <group> <text> \| assign <id> <agent>]` | action-items file |
+| `/dts2:gtm` | user or model | Go-to-market pass: installs marketing-skills if missing, ends with a readiness scorecard. | `/dts2:gtm` | readiness file, gitignore |
+| `/dts2:ship` | user or model | Ship the current branch as a PR: checks, secret scan, verifier and reviewer, receipt, push, open PR; then sweep stale branches. Never merges. | `/dts2:ship [base]` | receipt, push, PR, branch clean-up (after a yes) |
+| `/dts2:feature` | user or model | Add a feature to the roadmap: clarity score, interview, end state updated, plan PR. Plans only. | `/dts2:feature <description>` | end-state file, plan PR |
+| `/dts2:autopilot` | user or model (a son runs it with `--son`) | Run harness steps unattended; a three-provider gate and a council replace the checkpoints. One branch and PR per step. | `/dts2:autopilot <steps> \| resume \| status \| --son <stamp>/<lane>` | branches, PRs, receipts, council record |
+| `/dts2:dpp` | head | Run several autopilot lanes in parallel as headless sons under a head that plans, supervises and serialises merges. | `/dts2:dpp [dry-run] [--full] [resume]` | run folder, lane worktrees, PRs, report |
+| `/dts2:dpp-full` | user only | `dpp --full`: also fills lanes from a delegation scan and keeps dispatching. | `/dts2:dpp-full` | as `dpp` |
+| `/dts2:fullauto` | user only | `dpp-full` with autopilot forced on, looping check-in until nothing is outstanding. | `/dts2:fullauto` | as `dpp` |
+| `/dts2:check-in` | user or model | Read-only progress against the approved end state: `N of M complete`. | `/dts2:check-in` | none |
+| `/dts2:model` | user only | Choose which agent provider fills the lead, advisory and sign-off seats; records `lead_provider`. | `/dts2:model` | settings file |
+| `/dts2:find-skills` | user or model | Rescan the repo, ask up to three questions, suggest ranked skills, add to the keep list on a yes. | `/dts2:find-skills` | keep list (on a yes) |
 
 ## 5. Agents (7)
 
@@ -172,13 +174,13 @@ Dispatched by the skills with the Agent tool; nobody types them.
 
 | Agent | Read-only or writer | What it does | When the head spawns it | Exact invocation |
 |---|---|---|---|---|
-| `dts2-harness:lead` | read-only | Slices the end state into a DAG of tasks with exclusive file ownership and picks reviewer axes. Never writes code. | At the start of `run` and `autopilot`, after the scout, to produce the plan. | `Agent(subagent_type: dts2-harness:lead)` |
-| `dts2-harness:builder` | writer | Implements exactly one builder section inside its owned file set; does not review its own work. | After the plan is approved, one per section, in parallel on disjoint files. | `Agent(subagent_type: dts2-harness:builder)` |
-| `dts2-harness:fixer` | writer | Fresh-context fix for round 2 on the same failure: applies the one hypothesis the lead picked. | When a fix round 1 failed on the same finding. | `Agent(subagent_type: dts2-harness:fixer)` |
-| `dts2-harness:reviewer` | read-only | Reviews a diff on one or all axes and returns severity-rated findings and a verdict. | After builders finish; one per axis or per diff slice. | `Agent(subagent_type: dts2-harness:reviewer)` |
-| `dts2-harness:verifier` | read-only (Bash for checks; cannot write files) | Runs configured build, type, lint and test commands, checks for stubs, walks screens when asked. Evidence only. | After review, before the Ship checkpoint. | `Agent(subagent_type: dts2-harness:verifier)` |
-| `dts2-harness:scout` | read-only (Bash for configured commands) | Measures a repo, detects other harnesses and a marketing surface, recommends team tier, builder count and reviewer axes. | First, before planning. | `Agent(subagent_type: dts2-harness:scout)` |
-| `dts2-harness:auditor` | read-only (Bash) | Inventories installed agent tooling against a blueprint profile and proposes keep, disable and setup. Never changes anything. | From `machine-prep`. | `Agent(subagent_type: dts2-harness:auditor)` |
+| `dts2:lead` | read-only | Slices the end state into a DAG of tasks with exclusive file ownership and picks reviewer axes. Never writes code. | At the start of `run` and `autopilot`, after the scout, to produce the plan. | `Agent(subagent_type: dts2:lead)` |
+| `dts2:builder` | writer | Implements exactly one builder section inside its owned file set; does not review its own work. | After the plan is approved, one per section, in parallel on disjoint files. | `Agent(subagent_type: dts2:builder)` |
+| `dts2:fixer` | writer | Fresh-context fix for round 2 on the same failure: applies the one hypothesis the lead picked. | When a fix round 1 failed on the same finding. | `Agent(subagent_type: dts2:fixer)` |
+| `dts2:reviewer` | read-only | Reviews a diff on one or all axes and returns severity-rated findings and a verdict. | After builders finish; one per axis or per diff slice. | `Agent(subagent_type: dts2:reviewer)` |
+| `dts2:verifier` | read-only (Bash for checks; cannot write files) | Runs configured build, type, lint and test commands, checks for stubs, walks screens when asked. Evidence only. | After review, before the Ship checkpoint. | `Agent(subagent_type: dts2:verifier)` |
+| `dts2:scout` | read-only (Bash for configured commands) | Measures a repo, detects other harnesses and a marketing surface, recommends team tier, builder count and reviewer axes. | First, before planning. | `Agent(subagent_type: dts2:scout)` |
+| `dts2:auditor` | read-only (Bash) | Inventories installed agent tooling against a blueprint profile and proposes keep, disable and setup. Never changes anything. | From `machine-prep`. | `Agent(subagent_type: dts2:auditor)` |
 
 ## 6. Hooks (13 rows, 18 registrations in `hooks/hooks.json`)
 

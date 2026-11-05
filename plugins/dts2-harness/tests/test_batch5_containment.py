@@ -72,11 +72,11 @@ class SonLaunchChecks(unittest.TestCase):
 
     def test_g60_plugin_errors_in_the_init_event_are_found(self) -> None:
         stream = "\n".join([
-            json.dumps({"type": "system", "subtype": "init", "plugin_errors": ["dts2-harness: hooks.json invalid"]}),
+            json.dumps({"type": "system", "subtype": "init", "plugin_errors": ["dts2: hooks.json invalid"]}),
             json.dumps({"type": "system", "subtype": "other", "plugin_errors": ["ignored"]}), "not json",
             json.dumps({"type": "system", "subtype": "init", "plugin_errors": []}),
         ])
-        self.assertEqual(son_launch.init_plugin_errors(stream), ["dts2-harness: hooks.json invalid"])
+        self.assertEqual(son_launch.init_plugin_errors(stream), ["dts2: hooks.json invalid"])
         self.assertEqual(son_launch.init_plugin_errors(json.dumps({"type": "system", "subtype": "init"})), [])
 
     def test_g60_auth_status_preflight_uses_the_fake_binary(self) -> None:

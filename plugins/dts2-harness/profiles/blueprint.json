@@ -1,7 +1,7 @@
 {
   "name": "agent-startup-blueprint",
   "source": "https://origin.cursor.com/dobeu/agent-startup-blueprint (commit a62a599)",
-  "note": "dts2-harness@dts2 replaces harness@harness. Enable one, not both. Tiers (machine-prep --tier, default claude.defaultTier): light disables only plugins with no use in the usage window; standard keeps the marketplace keep-set plus the top keepSyncedTopN used synced plugins plus keepSyncedPlugins; strict also sets syncClaudeAiPlugins and syncClaudeAiSkills to false. requiredByHarness ids (glob) are never disabled. claude.ai and Cowork keep their plugins in every tier.",
+  "note": "dts2@dts2 replaces harness@harness. Enable one, not both. Tiers (machine-prep --tier, default claude.defaultTier): light disables only plugins with no use in the usage window; standard keeps the marketplace keep-set plus the top keepSyncedTopN used synced plugins plus keepSyncedPlugins; strict also sets syncClaudeAiPlugins and syncClaudeAiSkills to false. requiredByHarness ids (glob) are never disabled. claude.ai and Cowork keep their plugins in every tier.",
   "requiredByHarness": ["marketing-skills@synced", "impeccable@*"],
   "budget": {
     "claudeEnabledPlugins": 6,
@@ -14,7 +14,7 @@
   },
   "claude": {
     "enabledPlugins": [
-      "dts2-harness@dts2",
+      "dts2@dts2",
       "composio@composio",
       "gitkraken-hooks@gitkraken",
       "terminal-title@2389-research"
