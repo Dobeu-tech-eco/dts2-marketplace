@@ -10,6 +10,7 @@ from typing import Any, Final
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import miniyaml  # noqa: E402
 import state_io  # noqa: E402
+from state_io import atomic_write  # noqa: E402
 from profiles import PROFILE_DIR, Profiles  # noqa: E402
 
 START_MARKER: Final[str] = "<!-- dts2-harness:start -->"
@@ -50,13 +51,13 @@ def sync_file(path: Path, project_name: str) -> str:
     """Create the file, append the managed block once, or leave it alone. Returns the action taken."""
     block: str = managed_block(project_name)
     if not path.exists():
-        path.write_text(block, encoding="utf-8")
+        atomic_write(path, block)
         return "wrote"
     text: str = path.read_text(encoding="utf-8")
     if START_MARKER in text:
         return "unchanged"
     separator: str = "" if not text or text.endswith("\n\n") else ("\n" if text.endswith("\n") else "\n\n")
-    path.write_text(text + separator + block, encoding="utf-8")
+    atomic_write(path, text + separator + block)
     return "updated"
 
 

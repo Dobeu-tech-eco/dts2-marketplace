@@ -96,7 +96,7 @@ is_son() { [[ -n "${DTS2_SON:-}" || -n "${DTS2_SON_BRANCH_PREFIX:-}" ]]; }
 run_eslint() {
   local changed=() file eslint_bin="node_modules/.bin/eslint"
   [[ -x "$eslint_bin" ]] || return 0
-  ls .eslintrc* eslint.config.* >/dev/null 2>&1 || return 0
+  compgen -G '.eslintrc*' >/dev/null || compgen -G 'eslint.config.*' >/dev/null || return 0
   while IFS= read -r file; do  # while-read, not mapfile: macOS ships bash 3.2
     [[ -n "$file" ]] && changed+=("$file")
   done < <(git diff --name-only --diff-filter=ACMR HEAD 2>/dev/null | grep -E '\.(ts|tsx|js|jsx)$' || true)

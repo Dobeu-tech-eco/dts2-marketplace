@@ -27,6 +27,7 @@ from typing import Final
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _load  # noqa: E402
 import state_io  # noqa: E402
+from state_io import atomic_write  # noqa: E402
 
 SCRIPT_DIR: Final[Path] = Path(__file__).resolve().parent
 DEFAULT_DAYS: Final[int] = 30
@@ -279,7 +280,7 @@ def run_change(args: argparse.Namespace, claude_home: Path, profile: dict, apply
         return 0
     saved: str = str(backup(path)) if path.exists() else "none (no settings.json existed)"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(planned, indent=2) + "\n", encoding="utf-8")
+    atomic_write(path, json.dumps(planned, indent=2) + "\n")
     print(f"Applied. Backup: {saved}. Restart Claude Code to load the change.")
     return 0
 

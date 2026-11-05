@@ -16,7 +16,7 @@ Second-generation Dobeu Tech Solutions agent harness. It supersedes `harness@har
 ## Components
 - Agents: lead, builder, fixer, reviewer, verifier, scout, auditor
 - Skills: onboard, machine-prep, setup, run, learn, evolve, gtm, sdk, action-items, model, find-skills, check-in, ship, feature, autopilot, dpp, dpp-full, fullauto
-- Hooks: SessionStart (lessons), Stop (typecheck and lint)
+- Hooks: SessionStart (lessons), PreCompact (handoff), Stop (typecheck and lint), PreToolUse (merge guard, spawn dry-run), PostToolUse and PostToolBatch (PR receipt, context guard, subagent report), SubagentStop (report check), SessionEnd (lease release)
 - Settings: `.claude/dts2-harness.local.md` (template in `templates/`)
 
 ## Parallel autopilot
@@ -49,7 +49,7 @@ Frontier-tier models are reserved for advice and sign-off: the lead (planning), 
 The provider that fills the lead, advisory and sign-off seats is selectable with `/dts2-harness:model` (default Claude); the rule holds whichever provider leads. If the lead hits a usage or token limit or stalls, the harness writes the handoff and fails over to the next eligible provider (`scripts/failover.py`). The pre-check before every run command (`scripts/skills-check.py`) keeps companion and keep-list skills installed and current, refreshes marketplaces, and upgrades the harness in place when a newer version is published (handoff first; the next run finishes the upgrade). `/dts2-harness:find-skills` is available any time to rescan the repo and suggest skills. Every detected agent gets a seeded project memory file (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`) at scaffold.
 
 ## Settings
-Copy `templates/dts2-harness.local.md` to `<repo>/.claude/dts2-harness.local.md`. Keys: `enabled`, `stop_checks`, `lessons_inject`, `lessons_max`, `auto_scale`, `max_builders`, `max_reviewers`, `use_worktrees`, `second_opinion`, `profile`, `max_execution_effort`, `delegation_strict`, `lead_provider`. Restart Claude Code after editing.
+Copy `templates/dts2-harness.local.md` to `<repo>/.claude/dts2-harness.local.md`. Keys: `enabled`, `stop_checks`, `stop_checks_block`, `lessons_inject`, `lessons_max`, `pr_receipt_template_push`, `auto_scale`, `max_builders`, `max_reviewers`, `continuous_dispatch`, `builder_timeout_min`, `son_permission_mode`, `use_worktrees`, `second_opinion`, `profile`, `end_state_threshold`, `auto_learn`, `context_guard`, `context_guard_tool_calls`, `context_guard_mb`, `context_guard_stop`, `max_execution_effort`, `delegation_strict`, `lead_provider`. Restart Claude Code after editing.
 
 ## Known limits
 - Login state for gemini, grok, muse, and opencode is self-reported by you; the harness cannot verify it.
