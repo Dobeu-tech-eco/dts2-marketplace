@@ -70,6 +70,10 @@ State writes from the scripts go through `scripts/state_io.py` (`atomic_write`, 
 | PreToolUse (Bash) | `hooks/merge-guard.sh` | refuses a force-push, and a merge or push to a protected branch unless a lane's `merge-go.md` allows it |
 | PostToolUse (Bash) | `hooks/pr-receipt.sh` | on `gh pr create` or `edit`, makes sure the PR body carries the change receipt |
 | PostToolUse (all tools) | `hooks/context-guard.sh` | stops a run on a context spike before the plan checkpoint |
+| SubagentStop (builder, reviewer, verifier) | `hooks/subagent-report.sh stop` | checks the final report for its required `## ` sections with `contracts.parse_report` (`scripts/subagent_report.py`); blocks once, naming the missing sections; skips when `stop_hook_active`; a turn-cap partial report passes |
+| PostToolUse (SubagentHandback) | `hooks/subagent-report.sh handback` | the same check for agents that finish through `SubagentHandback`, on `tool_input.message`; blocks once per agent |
+| SessionEnd (logout, prompt_input_exit, other) | `hooks/session-end.sh` | releases only the leases stamped with this session's id (`scripts/session_end.py`, through `state_io`), then runs `handoff-write.py`; best effort, lease expiry is the guarantee |
+| PreToolUse (Bash `lanes.py spawn --dry-run`, Agent) | `hooks/spawn-dry-run.sh` | prints the exact son command, env names, byte counts and the son `brief.md` (`scripts/spawn_dry_run.py`, on `briefs.dry_run`) and refuses the call so nothing starts; for Agent only when `spawn_dry_run: true` |
 
 Hooks read settings from `.claude/dts2-harness.local.md` through `hooks/lib-settings.sh`.
 
@@ -80,6 +84,8 @@ Hooks read settings from `.claude/dts2-harness.local.md` through `hooks/lib-sett
 `skills/autopilot/` and `skills/setup/` are short routers (`SKILL.md`) that point to phase files read on demand (`phase-*.md`, `son-mode.md`); the text is the same as before, moved, a son reads its brief and `son-mode.md` first, then phase files on demand.
 
 `briefs.py` (briefs and the cached prefix; `son-brief` fills `templates/son-brief.md`, the ~4 KB brief a son reads as `brief.md`; `lead-brief` turns the task, roster, probe and check ledger into one page for the lead; `prefix` is the fixed-order cached prefix of discipline, roster and probe that `son_launch.launch_flags` hands every son with `--append-system-prompt`; `dry-run` prints the exact son command, env names and byte counts without starting a session).
+
+Hook entry points (each is called by one `hooks/*.sh`, reads the hook JSON on stdin, exits 0): `subagent_report.py` (Q-8 report check), `session_end.py` (Q-16 lease release), `spawn_dry_run.py` (spawn dry-run printout).
 
 Imported by the scripts above; none is a hook entry point.
 
