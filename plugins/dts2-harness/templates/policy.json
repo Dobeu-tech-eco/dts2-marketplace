@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "_comment": "Declarative policy for hooks/policy-gate.sh (head and sons). cmd = command word(s) after wrappers, runners and shell -c are unwrapped; sub = positional words that must appear in order; flags = exact flags (--flag=value also matches); short_flags = single letters that may be bundled (-fu); abbrev = long flags may be shortened to 5+ characters; plus_refspec = a push refspec starting with +; bare_cmd = the command with no operand dumps data.",
+  "deny": [
+    {"id": "force-push", "cmd": ["git"], "sub": ["push"], "flags": ["--force", "--force-with-lease", "--force-if-includes", "--mirror"],
+     "short_flags": ["f"], "abbrev": true, "plus_refspec": true, "reason": "force-push is denied; add a normal commit instead"},
+    {"id": "admin-flag", "cmd": ["gh"], "flags": ["--admin"], "reason": "--admin skips branch protection and is denied"},
+    {"id": "deploy-vercel", "cmd": ["vercel"], "sub": ["deploy"], "reason": "deploy CLIs run only from a person's shell"},
+    {"id": "deploy-vercel-prod", "cmd": ["vercel"], "flags": ["--prod", "--prebuilt"], "reason": "deploy CLIs run only from a person's shell"},
+    {"id": "deploy-wrangler", "cmd": ["wrangler"], "sub": ["deploy"], "reason": "deploy CLIs run only from a person's shell"},
+    {"id": "deploy-wrangler-publish", "cmd": ["wrangler"], "sub": ["publish"], "reason": "deploy CLIs run only from a person's shell"},
+    {"id": "deploy-fly", "cmd": ["fly", "flyctl"], "sub": ["deploy"], "reason": "deploy CLIs run only from a person's shell"},
+    {"id": "deploy-netlify", "cmd": ["netlify", "ntl"], "sub": ["deploy"], "reason": "deploy CLIs run only from a person's shell"},
+    {"id": "deploy-supabase", "cmd": ["supabase"], "sub": ["db", "push"], "reason": "a database push runs only from a person's shell"},
+    {"id": "gh-secret", "cmd": ["gh"], "sub": ["secret"], "reason": "gh secret reads or writes repository secrets and is denied"},
+    {"id": "vercel-env", "cmd": ["vercel"], "sub": ["env"], "reason": "vercel env reads or writes project secrets and is denied"},
+    {"id": "gh-repo-delete", "cmd": ["gh"], "sub": ["repo", "delete"], "reason": "deleting a repository is denied"},
+    {"id": "env-dump", "bare_cmd": ["env", "printenv"], "reason": "dumping the whole environment would print secrets; name the one variable"}
+  ],
+  "require_approval": [
+    {"id": "pr-merge", "kind": "merge", "cmd": ["gh"], "sub": ["pr", "merge"], "key": "pr",
+     "reason": "gh pr merge needs the person's approval: add the PR number under dts2_approvals.merge in .claude/settings.local.json"},
+    {"id": "push-default", "kind": "merge", "cmd": ["git"], "sub": ["push"], "key": "branch",
+     "reason": "a push to the default branch needs the person's approval: add the branch name under dts2_approvals.merge in .claude/settings.local.json"}
+  ],
+  "scanner_required": [
+    {"id": "add-all", "cmd": ["git"], "sub": ["add"], "flags": ["-A", "--all"], "operands": ["."],
+     "reason": "no secret scanner (gitleaks or trufflehog) is installed, so an unattended run may not stage everything"}
+  ]
+}

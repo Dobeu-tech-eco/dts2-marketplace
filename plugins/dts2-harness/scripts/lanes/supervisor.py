@@ -16,7 +16,7 @@ from model_call import (
 )
 from proc import RESUME_ENV, cli_version, clear_exit, reap_old_group, record_son_start, set_option, son_session, version_problem, wrap_son, write_exit
 from son_stream import SonWatcher
-from son_launch import cli_too_old, launch_flags, prepare_lane, sandbox_config, son_env
+from son_launch import auth_problem, cli_too_old, init_plugin_errors, launch_flags, prepare_lane, provider_env, sandbox_config, son_env
 from state_io import atomic_write
 
 from .common import BUDGET_NAME, COST_CLAUDE, COST_NONE, DEFAULT_PERMISSION_MODE, LaneError, PERMISSION_FIELD, PHASE_INCOMPLETE, PHASE_PR_OPEN, PHASE_STARTING, PID_KEYS, PLUGIN_ROOT, PREFLIGHT_TIMEOUT_S, REASON_BUDGET, REASON_ERROR, REASON_LOOPS, REASON_MAX_TURNS, REASON_NO_STATUS, REASON_OVERLOAD, REASON_PREFLIGHT, REASON_RUNNING, REASON_SANDBOX, REASON_SHUTDOWN, REASON_SKEW, REASON_SLOT, REASON_STALLED, REASON_TIMEOUT, RUN_NAME, SECONDS_PER_MINUTE, SETTLED_PHASES, SON_MODEL, STATUS_NAME, SUBTYPE_MAX_BUDGET, SUBTYPE_MAX_TURNS, TERMINAL_PHASES, TIMEOUT_S, binary, find_lane, run, son_model
@@ -27,6 +27,9 @@ from .planner import read_setting, son_command
 from .records import append_ledger, lane_lock, ledger_emitter, merge_json, read_json_object
 from .runrecord import read_run, update_run
 from .runstate import attempt_usages, budget_refusal, lane_alive, pid_alive, read_status_files, record_attempts, record_unreported, release_share, reserve_share, spend_state, start_clock
+
+
+PROBE_REF: Final[str] = "dts2-preflight-probe"
 
 
 def claude_version(cwd: Path) -> str | None:
@@ -47,6 +50,18 @@ def push_access_problem(cwd: Path, env: dict[str, str]) -> str | None:
             "(for example GH_TOKEN, or SSH_AUTH_SOCK for ssh remotes) with DTS2_SON_ENV_PASS")
 
 
+def head_push_problem(cwd: Path) -> str | None:
+    """Why the head (the one that publishes, ruling Q1) cannot push: `git push --dry-run` to origin under the head's own env."""
+    try:
+        done = subprocess.run([*binary("DTS2_GIT_BIN", "git"), "push", "--dry-run", "origin", f"HEAD:refs/heads/{PROBE_REF}"], cwd=str(cwd),
+                              capture_output=True, text=True, timeout=TIMEOUT_S, stdin=subprocess.DEVNULL, check=False)
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        return f"`git push --dry-run origin` could not run under the head env: {exc}"
+    if done.returncode == 0:
+        return None
+    return "`git push --dry-run origin` fails under the head env, so the head cannot publish a lane; fix the head's push access"
+
+
 def preflight(runs_dir: Path, stamp: str, cwd: Path) -> dict[str, Any]:
     """Pin `claude --version` in the run's run.json and prove the real son launch answers within 30 s: `claude -p ok` with
     the son's flags, settings and env, so auth, the sandbox (bwrap with failIfUnavailable) and the flags fail once here and
@@ -59,7 +74,7 @@ def preflight(runs_dir: Path, stamp: str, cwd: Path) -> dict[str, Any]:
     mode: str = read_setting(cwd, PERMISSION_FIELD, DEFAULT_PERMISSION_MODE)
     env: dict[str, str] = son_env(probe, "preflight", cwd)
     argv: list[str] = [*binary("DTS2_CLAUDE_BIN", "claude"), "-p", "ok", *launch_flags(cwd, mode, probe, "preflight", cwd),
-                       "--plugin-dir", str(PLUGIN_ROOT), "--output-format", "json"]
+                       "--plugin-dir", str(PLUGIN_ROOT), "--output-format", "stream-json", "--verbose"]
     call: dict[str, Any] = invoke(argv, cwd, PREFLIGHT_TIMEOUT_S, "preflight", emit, env=env)
     parsed: dict[str, Any] | None = parse_result(call["stdout"])
     problems: list[str] = []
@@ -69,9 +84,12 @@ def preflight(runs_dir: Path, stamp: str, cwd: Path) -> dict[str, Any]:
     if call["code"] != 0 or parsed is None or parsed["is_error"]:
         problems.append(f"`claude -p ok` with the son launch flags failed (exit {call['code']}); check auth, the sandbox "
                         "(bwrap) and the flags")
-    access: str | None = push_access_problem(cwd, env)
-    if access is not None:
-        problems.append(access)
+        login: str | None = auth_problem(cwd, env)  # a probe that answered proves the login; only a failed one asks why
+        problems += [login] if login is not None else []
+    plugin_errors: list[str] = init_plugin_errors(call["stdout"])
+    if plugin_errors:
+        problems.append(f"a plugin failed to load in the son launch ({'; '.join(plugin_errors)[:300]}), so the guard hooks may not run")
+    problems += [p for p in (push_access_problem(cwd, env), head_push_problem(cwd)) if p is not None]
     ok: bool = not problems
     record: dict[str, Any] = {"claude_version": pinned if isinstance(pinned, str) else version, "preflight_ok": ok,
                               "checked": int(time.time()), "problems": problems}
@@ -345,9 +363,11 @@ def model_call(runs_dir: Path, stamp: str, cwd: Path, label: str, argv: list[str
         append_ledger(runs_dir, stamp, {"lane": label, "event": "refused", "reason": why})
         return {"ok": False, "label": label, "reason": REASON_BUDGET, "detail": why}
     prompt: str | None = read_prompt(prompt_file)
-    call: dict[str, Any] = invoke(argv, cwd, timeout_s, label, ledger_emitter(runs_dir, stamp, label), stdin_text=prompt)
+    source: str = cost_source or default_cost_source(argv)
+    env: dict[str, str] = provider_env(dict(os.environ), claude=source == COST_CLAUDE)  # no GH_TOKEN, cloud keys or Anthropic key for a third-party CLI
+    call: dict[str, Any] = invoke(argv, cwd, timeout_s, label, ledger_emitter(runs_dir, stamp, label), stdin_text=prompt, env=env)
     parsed: dict[str, Any] | None = parse_result(call["stdout"])
-    if (cost_source or default_cost_source(argv)) == COST_NONE:
+    if source == COST_NONE:
         record_unreported(runs_dir, stamp, f"call:{label}")
         charged, all_known = None, False
     else:

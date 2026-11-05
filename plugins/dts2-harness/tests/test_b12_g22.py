@@ -127,7 +127,7 @@ class SettingsCacheTests(unittest.TestCase):
         self.assertEqual(s["budget"]["max_rounds"], settings_cache.DEFAULTS["budget"]["max_rounds"])
         self.assertEqual(s["supervisor"]["retry_max"], settings_cache.DEFAULTS["supervisor"]["retry_max"])
         self.assertEqual(s["local"]["max_builders"], 3)
-        self.assertEqual(s["local"]["son_permission_mode"], "bypassPermissions")
+        self.assertEqual(s["local"]["son_permission_mode"], "dontAsk")
 
     def test_cache_file_is_private_and_reused_until_a_source_changes(self) -> None:
         settings_cache.load(self.repo)

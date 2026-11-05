@@ -38,6 +38,8 @@ SECRET_ASSIGNMENT: Final[re.Pattern[str]] = re.compile(r"\b([A-Z][A-Z0-9_]{2,})=
 FALLBACK_HANDOFF: Final[str] = "open .harness/handoff/"
 # User-input items that came out of an onboard task carry its id: TASK_<task id>_<item id>-<title>.
 TASK_PREFIX: Final[str] = "TASK_"
+EVENT_KIND: Final[str] = "action-item-add"
+EVENTS_NAME: Final[str] = "action-items.events.jsonl"
 TASK_TITLE: Final[re.Pattern[str]] = re.compile(r"^TASK_([^_\s]+)_([A-Z]\d+)-")
 
 
@@ -317,6 +319,12 @@ def link_task(lines: list[str], result: dict[str, Any], task: str | None, text: 
     return result
 
 
+def first_add(path: Path, stamp: str, step: str, attempt: int) -> bool:
+    """G-54: False when this (stamp, step, attempt) already added its row; the event ledger sits beside the items file."""
+    event = state_io.make_event(EVENT_KIND, id=state_io.event_id(stamp, step, EVENT_KIND, attempt), step=step, attempt=attempt)
+    return state_io.append_event_at(path.with_name(EVENTS_NAME), event)
+
+
 def mutate(path: Path, args: argparse.Namespace, today: date) -> dict[str, Any]:
     lines: list[str] = read_lines(path)
     if args.command == "done":
@@ -332,6 +340,8 @@ def mutate(path: Path, args: argparse.Namespace, today: date) -> dict[str, Any]:
         result = release_rows(lines, args.holder)
     elif args.command == "fold":
         result = fold_rows(lines, read_lines(Path(args.lane_file)), args.holder, today)
+    elif args.command == "add" and args.stamp and not first_add(path, args.stamp, args.step or "", args.attempt):
+        return {"duplicate": True, "group": args.group}
     elif args.id:
         result = link_task(lines, fill_reserved(lines, args.id, " ".join(args.text), args.holder), args.task, " ".join(args.text))
     else:
@@ -351,6 +361,9 @@ def build_parser() -> argparse.ArgumentParser:
     add.add_argument("text", nargs="+")
     add.add_argument("--id", default=None, help="fill a reserved id instead of appending")
     add.add_argument("--holder", default=None, help="lane that reserved --id")
+    add.add_argument("--stamp", default=None, help="with --step: a retried add of the same (stamp, step, attempt) adds no second row")
+    add.add_argument("--step", default=None)
+    add.add_argument("--attempt", type=int, default=1)
     add.add_argument("--task", default=None, help="onboard task id this item blocks; titles the row TASK_<task>_<id>-<text>")
     assign: argparse.ArgumentParser = sub.add_parser("assign")
     assign.add_argument("row")

@@ -176,7 +176,7 @@ class PreflightTests(SupervisorBase):
         self.assertEqual(self.json_file("run.json")["claude_version"], VERSION)
         probe = self.calls()[0]
         self.assertEqual(probe[probe.index("-p") + 1], "ok")
-        self.assertEqual(probe[probe.index("--output-format") + 1], "json")
+        self.assertEqual(probe[probe.index("--output-format") + 1], "stream-json")  # G-60: the init event carries plugin_errors
 
     def test_spawn_refuses_without_preflight(self) -> None:
         result = self.spawn()
