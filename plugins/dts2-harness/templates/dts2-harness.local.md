@@ -31,6 +31,8 @@ context_guard: true              # stop the run and re-run setup on a context sp
 context_guard_tool_calls: 250    # tool calls in this session before the guard fires
 context_guard_mb: 12             # transcript size in MB before the guard fires
 context_guard_stop: false        # true = the guard also ends the turn (continue:false) instead of only advising
+# Policy gate (PreToolUse hook; rules in the plugin's templates/policy.json)
+policy_gate: true                # deny force-push, --admin, deploy CLIs, gh secret, vercel env, a bare env; merges need a human approval
 # Delegation (Rule 9): frontier is for advice and sign-off only; builders never run a frontier model
 max_execution_effort: high   # cap builder effort (low|medium|high|max); the lead never gives a builder a frontier model
 delegation_strict: true   # block ship if any builder ran a frontier model
