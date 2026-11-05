@@ -7,11 +7,12 @@ import os
 import re
 import subprocess
 import sys
+import threading
 import unittest
+import unittest.mock
 from contextlib import redirect_stdout
 from pathlib import Path
 from typing import Any, Final
-from unittest import mock
 
 from helpers import PLUGIN_ROOT, make_tmp_home
 
@@ -212,11 +213,95 @@ class HookModeTests(unittest.TestCase):
             self.assertEqual((result.stdout, result.returncode), ("", 0), payload)
 
     def test_silent_when_the_write_fails(self) -> None:
-        with mock.patch.object(intake, "add_item", side_effect=OSError("disk")), mock.patch("sys.stdin", io.StringIO(json.dumps({"prompt": CLEAR}))):
+        with unittest.mock.patch.object(intake, "save_items", side_effect=OSError("disk")), unittest.mock.patch("sys.stdin", io.StringIO(json.dumps({"prompt": CLEAR}))):
             buffer = io.StringIO()
             with redirect_stdout(buffer):
                 code: int = intake.main(["hook", "--root", str(self.root)])
         self.assertEqual((code, buffer.getvalue()), (0, ""))
+
+
+class HookReplyTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.root: Path = project()
+        intake.add_item(self.root, "scrap the current approach and rebuild the parser", "hook")
+
+    def hook(self, prompt: str) -> str:
+        return cli(self.root, "hook", stdin=json.dumps({"prompt": prompt})).stdout
+
+    def test_short_reply_answers_the_open_clarify_item(self) -> None:
+        out: str = self.hook("yes")
+        items: list[dict[str, Any]] = intake.load_items(self.root)
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["answers"], ["yes"])
+        self.assertIn("in-1", out)
+
+    def test_unclear_reply_answers_even_when_long_enough(self) -> None:
+        self.hook("only add to it")
+        items: list[dict[str, Any]] = intake.load_items(self.root)
+        self.assertEqual((len(items), items[0]["answers"]), (1, ["only add to it"]))
+
+    def test_long_clear_prompt_is_a_new_item(self) -> None:
+        self.hook(CLEAR + " and document the new query parameters in the API reference")
+        items: list[dict[str, Any]] = intake.load_items(self.root)
+        self.assertEqual([i["id"] for i in items], ["in-1", "in-2"])
+        self.assertEqual(items[0]["answers"], [])
+
+    def test_clear_twelve_word_prompt_is_a_new_item(self) -> None:
+        self.hook(CLEAR)
+        items: list[dict[str, Any]] = intake.load_items(self.root)
+        self.assertEqual([i["id"] for i in items], ["in-1", "in-2"])
+        self.assertEqual(items[0]["answers"], [])
+
+    def test_steer_is_always_a_new_item(self) -> None:
+        self.hook("/dts2:steer yes")
+        items: list[dict[str, Any]] = intake.load_items(self.root)
+        self.assertEqual([i["kind"] for i in items], [intake.CLARIFY, intake.STEER])
+
+    def test_no_open_clarify_means_a_new_item(self) -> None:
+        intake.resolve_item(self.root, "in-1", intake.DONE)
+        self.hook("yes")
+        self.assertEqual(len(intake.load_items(self.root)), 2)
+
+
+class LockTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.root: Path = project()
+
+    def test_concurrent_adds_get_unique_ids(self) -> None:
+        errors: list[BaseException] = []
+
+        def worker() -> None:
+            try:
+                intake.add_item(self.root, CLEAR)
+            except BaseException as error:  # noqa: BLE001
+                errors.append(error)
+
+        threads: list[threading.Thread] = [threading.Thread(target=worker) for _ in range(10)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        self.assertEqual(errors, [])
+        ids: list[str] = [i["id"] for i in intake.load_items(self.root)]
+        self.assertEqual(len(ids), 10)
+        self.assertEqual(len(set(ids)), 10)
+        self.assertEqual(len(intake.intake_path(self.root).read_text(encoding=state_io.ENCODING).splitlines()), 10)
+
+    def test_hook_with_busy_lock_exits_zero_and_adds_nothing(self) -> None:
+        store = state_io.FileStore(self.root, sleep=lambda _: None)
+        real = state_io.FileStore
+        with store.lock(state_io.INTAKE_REL), unittest.mock.patch.object(
+                state_io, "FileStore", lambda root: real(root, sleep=lambda _: None)), unittest.mock.patch(
+                "sys.stdin", io.StringIO(json.dumps({"prompt": CLEAR}))):
+            buffer = io.StringIO()
+            with redirect_stdout(buffer):
+                code: int = intake.main(["hook", "--root", str(self.root)])
+        self.assertEqual((code, buffer.getvalue()), (0, ""))
+        self.assertEqual(intake.load_items(self.root), [])
+
+    def test_unknown_kind_is_rejected(self) -> None:
+        with self.assertRaises(ValueError):
+            intake.build_record("in-1", "bogus", "text", "cli", 60, 2)
 
 
 class ShellHookTests(unittest.TestCase):
