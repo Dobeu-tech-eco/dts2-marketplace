@@ -349,6 +349,23 @@ class DetectTests(unittest.TestCase):
         result = self.det("429 rate limit exceeded, retry after 60 seconds")
         self.assertTrue(result["transient"])  # type: ignore[index]
 
+    def test_plain_rate_limit_without_reset_is_transient(self) -> None:
+        for text in ("HTTP 429 Too Many Requests", '{"type":"rate_limit_error"}', "rate limit exceeded", "too many requests"):
+            with self.subTest(text=text):
+                result = self.det(text)
+                self.assertIsNone(result["reset_at"])  # type: ignore[index]
+                self.assertTrue(result["transient"])  # type: ignore[index]
+
+    def test_quota_wording_without_reset_is_not_transient(self) -> None:
+        for text in ("429 insufficient_quota", "429 monthly spending limit", "Error 429: out of credits", "usage limit"):
+            with self.subTest(text=text):
+                self.assertFalse(self.det(text)["transient"])  # type: ignore[index]
+
+    def test_429_with_long_reset_is_not_transient(self) -> None:
+        result = self.det("HTTP 429 rate limit exceeded, retry after 2 hours")
+        self.assertEqual(result["reset_at"], "2026-11-05T14:00:00Z")  # type: ignore[index]
+        self.assertFalse(result["transient"])  # type: ignore[index]
+
     def test_boundary_is_not_transient(self) -> None:
         self.assertFalse(self.det("usage limit, try again in 15 minutes")["transient"])  # type: ignore[index]
         self.assertTrue(self.det("usage limit, try again in 14 minutes")["transient"])  # type: ignore[index]
@@ -375,6 +392,12 @@ class RecordDetectionTests(TempStatus):
         entry = cooldowns.record_detection(det, "tester", self.path, NOW)  # type: ignore[arg-type]
         self.assertTrue(entry["needs_date"])  # type: ignore[index]
         self.assertEqual(entry["source"], "assumed")  # type: ignore[index]
+
+    def test_plain_429_not_recorded_but_quota_429_is(self) -> None:
+        plain = cooldowns.detect("HTTP 429 Too Many Requests", 1, "grok", now=NOW)
+        self.assertIsNone(cooldowns.record_detection(plain, "t", self.path, NOW))  # type: ignore[arg-type]
+        quota = cooldowns.detect("HTTP 429 insufficient_quota", 1, "grok", now=NOW)
+        self.assertTrue(cooldowns.record_detection(quota, "t", self.path, NOW)["needs_date"])  # type: ignore[arg-type,index]
 
     def test_transient_is_not_recorded(self) -> None:
         det = cooldowns.detect("rate limit exceeded, retry after 30 seconds", 1, "grok", now=NOW)

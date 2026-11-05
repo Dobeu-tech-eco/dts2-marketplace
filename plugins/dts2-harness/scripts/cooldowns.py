@@ -34,6 +34,9 @@ NAME_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$"
 ISO_FORMAT: Final[str] = "%Y-%m-%dT%H:%M:%SZ"
 UTC_NOTE_FORMAT: Final[str] = "%Y-%m-%d %H:%M UTC"
 LOCAL_NOTE_FORMAT: Final[str] = "%Y-%m-%d %H:%M %Z"
+PLAIN_RATE_REASONS: Final[frozenset[str]] = frozenset({
+    "Anthropic API rate limit", "Rate limit exceeded", "HTTP 429 rate limit",
+})
 TAIL_CHARS: Final[int] = 800
 REASON_MAX: Final[int] = 120
 EXIT_OK: Final[int] = 0
@@ -340,15 +343,21 @@ def detect(
     transcript that merely discusses limits is not mistaken for one."""
     moment: datetime = (now or utc_now()).astimezone(timezone.utc)
     haystack: str = text[-TAIL_CHARS:] if exit_code == 0 else text
-    for pattern, pattern_provider, reason in LIMIT_PATTERNS:
-        if pattern.search(haystack):
-            reset: datetime | None = parse_reset(haystack, moment)
-            return {
-                "agent": agent, "provider": provider or pattern_provider,
-                "reset_at": to_iso(reset) if reset else None, "reason": short(reason),
-                "transient": reset is not None and reset - moment < MIN_COOLDOWN,
-            }
-    return None
+    hits: list[tuple[str | None, str]] = [
+        (pattern_provider, reason) for pattern, pattern_provider, reason in LIMIT_PATTERNS if pattern.search(haystack)
+    ]
+    if not hits:
+        return None
+    pattern_provider, reason = hits[0]
+    plain_rate: bool = all(hit_reason in PLAIN_RATE_REASONS for _, hit_reason in hits)
+    reset: datetime | None = parse_reset(haystack, moment)
+    short_wait: bool = reset is not None and reset - moment < MIN_COOLDOWN
+    return {
+        "agent": agent, "provider": provider or pattern_provider,
+        "reset_at": to_iso(reset) if reset else None, "reason": short(reason),
+        # a plain rate limit with no known reset is ordinary backoff, never a cooldown
+        "transient": short_wait or (plain_rate and reset is None),
+    }
 
 
 def record_detection(
