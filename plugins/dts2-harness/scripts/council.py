@@ -296,7 +296,8 @@ def blind_ballots(proposals_dir: Path, out: Path, voters: list[str], seed: str, 
         out.mkdir(parents=True, exist_ok=True)
         atomic_write(out / f"ballot-{voter}.md", "".join(parts))
     key: dict[str, dict[str, str]] = {v: {OPTION_LABELS[s]: names[i] for s, i in enumerate(o)} for v, o in orders.items()}
-    record: dict[str, Any] = {"kind": "ballot", "seed": seed, "voters": voters,
+    record: dict[str, Any] = {"kind": "ballot", "id": state_io.event_id("ballot", seed, ",".join(voters), ",".join(names)),
+                              "seed": seed, "voters": voters,
                               "order": {v: [names[i] for i in o] for v, o in orders.items()}}
     atomic_write(out / "blind-key.json", json.dumps({"seed": seed, "key": key}, sort_keys=True))
     if ledger is not None:

@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import fnmatch
+import hashlib
 import json
 import os
 import sys
@@ -591,6 +592,32 @@ def migrate_all(store: Store) -> dict[str, Any]:
     return report
 
 
+# --- G-23: one event shape ---------------------------------------------------------------------------------------
+NO_SCOPE: Final[str] = "-"  # the run or lane field of an event that belongs to no particular run or lane
+EVENT_KEYS: Final[tuple[str, ...]] = ("v", "ts", "run", "lane", "kind", "id")
+GENERATED_PREFIX: Final[str] = "u-"  # ids made by make_event; they identify nothing, so they are never deduped
+
+
+def event_id(*parts: object) -> str:
+    """A stable id from the parts that identify an event, so writing it twice is recognised: same parts, same id."""
+    joined: str = "\x1f".join(str(p) for p in parts)
+    return hashlib.sha256(joined.encode(ENCODING)).hexdigest()[:16]
+
+
+def scope_of(value: Any, parse: Callable[[Any], Any]) -> str:
+    return NO_SCOPE if value in (None, "", NO_SCOPE) else str(parse(value))
+
+
+def make_event(kind: str, *, run: Any = None, lane: Any = None, id: str | None = None, ts: int | None = None,
+               **fields: Any) -> dict[str, Any]:
+    """An event row: {v, ts, run, lane, kind, id} plus the caller's fields. The six keys cannot be overridden by fields.
+    `run` and `lane` are validated (InvalidId) or "-" for none. Without `id` the event gets a unique `u-` one and is never
+    treated as a duplicate; pass `event_id(...)` of what identifies it to make writing it twice a no-op."""
+    return {**fields, "v": RECORD_VERSION, "ts": int(time.time()) if ts is None else ts,
+            "run": scope_of(run, Stamp.parse), "lane": scope_of(lane, LaneId.parse), "kind": kind,
+            "id": id or GENERATED_PREFIX + uuid.uuid4().hex}
+
+
 class State:
     """Typed reads and writes over a Store. Records are JSON objects; rows are one JSON object per line."""
 
@@ -627,6 +654,25 @@ class State:
 
     def append_row(self, path: str, row: dict[str, Any]) -> None:
         self.store.append_text(path, json.dumps(stamped(row), sort_keys=True) + "\n")
+
+    def append_event(self, path: str, event: dict[str, Any]) -> bool:
+        """Append one event row (a single O_APPEND write). False when an event with the same caller-chosen id is already
+        there. Only caller-chosen ids are checked (under the file's lock); generated ones (prefix `u-`) skip the read, so
+        busy ledgers stay cheap and never block."""
+        row: dict[str, Any] = stamped(event)
+        line: str = json.dumps(row, sort_keys=True) + "\n"
+        if str(row.get("id", GENERATED_PREFIX)).startswith(GENERATED_PREFIX):
+            self.store.append_text(path, line)
+            return True
+        with self.store.lock(path):
+            if any(existing.get("id") == row["id"] for existing in self.read_rows(path)):
+                return False
+            self.store.append_text(path, line)
+            return True
+
+    def events(self, path: str, kind: str | None = None, lane: str | None = None) -> list[dict[str, Any]]:
+        return [row for row in self.read_rows(path)
+                if (kind is None or row.get("kind") == kind) and (lane is None or row.get("lane") == lane)]
 
     def lease(self, stamp: object, lane: object) -> dict[str, Any] | None:
         return self.read_record(lane_rel(stamp, lane, LEASE_NAME))
@@ -679,6 +725,12 @@ class State:
 
     def lanes(self, stamp: object) -> list[str]:
         return [p.rsplit("/", 1)[-1] for p in self.store.dirs(run_rel(stamp))]
+
+
+def append_event_at(path: Path | str, event: dict[str, Any]) -> bool:
+    """append_event for a plain filesystem path (a ledger a script was handed on its command line)."""
+    target: Path = Path(path)
+    return State(FileStore(target.parent)).append_event(target.name, event)
 
 
 def main(argv: list[str] | None = None) -> int:

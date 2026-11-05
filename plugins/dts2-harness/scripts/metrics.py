@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from state_io import append_text  # noqa: E402
 import state_io  # noqa: E402
 
 METRICS_PATH: Final[str] = state_io.METRICS_REL
@@ -24,9 +23,16 @@ def parse_failures(text: str) -> dict[str, int]:
     return {name.strip(): int(count) for name, count in pairs if name.strip()}
 
 
-def append_row(repo: Path, row: dict[str, Any]) -> None:
-    path: Path = repo / METRICS_PATH
-    append_text(path, json.dumps(row, separators=(",", ":")) + "\n")
+def append_row(repo: Path, row: dict[str, Any]) -> bool:
+    """Write one run as an event; the same stamp twice is one row. False when it was already recorded."""
+    stamp: str = str(row.get("stamp", ""))
+    try:
+        run: str | None = str(state_io.Stamp.parse(stamp))
+    except state_io.InvalidId:
+        run = None
+    fields: dict[str, Any] = {k: v for k, v in row.items() if k not in state_io.EVENT_KEYS}
+    event: dict[str, Any] = state_io.make_event("metrics", run=run, id=state_io.event_id("metrics", stamp), **fields)
+    return state_io.append_event_at(repo / METRICS_PATH, event)
 
 
 def parse_line(line: str) -> dict[str, Any] | None:

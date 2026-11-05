@@ -28,7 +28,7 @@ from typing import Any, Final
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import miniyaml  # noqa: E402
 import state_io  # noqa: E402
-from state_io import append_text, atomic_write  # noqa: E402
+from state_io import atomic_write  # noqa: E402
 
 RUNS_DIR: Final[str] = state_io.RUNS_REL
 LEDGER_NAME: Final[str] = "ledger.jsonl"
@@ -100,9 +100,27 @@ def read_ledger(path: Path) -> list[dict[str, Any]]:
     return records
 
 
-def append_ledger(path: Path, record: dict[str, Any]) -> None:
-    """Append one record in a single O_APPEND write, so lanes sharing a stamp never drop each other's lines."""
-    append_text(path, json.dumps(record, sort_keys=True) + "\n")
+def ledger_run(path: Path) -> str | None:
+    """The run stamp a ledger belongs to: the name of its folder when that is a stamp."""
+    try:
+        return str(state_io.Stamp.parse(path.parent.name))
+    except state_io.InvalidId:
+        return None
+
+
+def append_ledger(path: Path, record: dict[str, Any]) -> bool:
+    """Append one record as an event ({v, ts, run, lane, kind, id} plus the record's own fields) in a single O_APPEND write,
+    so lanes sharing a stamp never drop each other's lines. A record that carries its own `id` is written once; False
+    means that id was already in the ledger."""
+    fields: dict[str, Any] = {k: v for k, v in record.items() if k not in ("kind", "id", "lane", "run", "v", "ts")}
+    lane: Any = record.get("lane")
+    try:
+        event: dict[str, Any] = state_io.make_event(
+            str(record.get("kind", "event")), run=ledger_run(path), lane=lane, id=record.get("id"), **fields)
+    except state_io.InvalidId:
+        event = state_io.make_event(str(record.get("kind", "event")), run=ledger_run(path), id=record.get("id"),
+                                    **fields, lane_label=str(lane))
+    return state_io.append_event_at(path, event)
 
 
 def latest_checks(records: list[dict[str, Any]], head: str | None = None) -> dict[str, dict[str, Any]]:
