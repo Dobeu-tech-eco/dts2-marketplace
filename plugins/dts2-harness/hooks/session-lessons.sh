@@ -5,6 +5,7 @@ set -uo pipefail
 source "$(dirname "$0")/lib-settings.sh"
 MAX_LESSONS_DEFAULT=5
 MAX_OPEN_ITEMS=5
+STAMP_DIR_RE='^[0-9]{8}-[0-9]{1,6}$'  # same shape as state_ids.STAMP_PATTERN
 LESSONS=".harness/lessons.md"
 STATE=".harness/state.md"
 ACTION_ITEMS=".harness/action-items.md"
@@ -60,7 +61,7 @@ run_phase() {
 }
 print_compact_pointer() {
   local run="" stamp="none" epoch="none" lane="none" phase="none" lease
-  run="$(find .harness/runs -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort | tail -n 1)"
+  run="$(find .harness/runs -mindepth 1 -maxdepth 1 -type d 2>/dev/null | grep -E "/${STAMP_DIR_RE:1}" | sort | tail -n 1)"
   if [[ -n "$run" ]]; then
     stamp="$(basename "$run")"
     phase="$(run_phase "$run")"
@@ -71,7 +72,7 @@ print_compact_pointer() {
     fi
   fi
   echo "dts2-harness resume pointer (context was compacted): stamp $stamp, epoch $epoch, lane $lane, phase $phase."
-  echo "Next: read .harness/handoff.md (the rewritten handoff, .harness/handoff/latest.md) before acting."
+  echo "Next: read .harness/handoff/latest.md (the rewritten handoff) before acting."
   echo "rule 1: define done first (outcome plus check method) before planning."
   echo "rule 2: end every run with a receipt listing tests, verdict and rollback point."
   echo "rule 3: cap fix rounds at three, then escalate with what failed."
