@@ -144,7 +144,7 @@ Also outside `scripts/`: `sdk/dts2-run.py <task> [--repo R] [--yes] [--api-key-e
 
 Library modules, not invoked directly (15): `_load.py`, `contracts.py`, `eval_stats.py`, `harness_skew.py`, `mdparse.py`, `miniyaml.py`, `model_call.py`, `ownership_audit.py`, `prep-tiers.py`, `proc.py`, `profiles.py`, `skill_pins.py`, `son_launch.py`, `son_stream.py`, `state_ids.py`. The modules of `scripts/lanes/` are libraries behind `lanes.py` and have no command line either.
 
-## 4. Skills (19 slash commands)
+## 4. Skills (20 slash commands)
 
 Typed as `/dts2:<name>`. `user only` means `disable-model-invocation: true`: the model never starts it, a person must type it.
 
@@ -167,6 +167,7 @@ Typed as `/dts2:<name>`. `user only` means `disable-model-invocation: true`: the
 | `/dts2:fullauto` | user only | `dpp-full` with autopilot forced on, looping check-in until nothing is outstanding. | `/dts2:fullauto` | as `dpp` |
 | `/dts2:check-in` | user or model | Read-only progress against the approved end state: `N of M complete`. | `/dts2:check-in` | none |
 | `/dts2:model` | user only | Choose which agent provider fills the lead, advisory and sign-off seats; records `lead_provider`. | `/dts2:model` | settings file |
+| `/dts2:cooldown` | user only | Pause an agent that hit a usage limit until its reset date, resume it, or list what is paused. | `/dts2:cooldown set <agent> <date or duration> [reason] \| clear <agent> \| list` | agent status file |
 | `/dts2:find-skills` | user or model | Rescan the repo, ask up to three questions, suggest ranked skills, add to the keep list on a yes. | `/dts2:find-skills` | keep list (on a yes) |
 | `/dts2:steer` | user or model | Stop running work and redirect it. Finishes the current atomic step, dispatches nothing new, checkpoints a handoff, reviews open intake items, re-plans to the new direction, confirms in one short message and resumes. | `/dts2:steer <new direction>` | handoff file, intake queue, plan |
 
@@ -184,13 +185,14 @@ Dispatched by the skills with the Agent tool; nobody types them.
 | `dts2:scout` | read-only (Bash for configured commands) | Measures a repo, detects other harnesses and a marketing surface, recommends team tier, builder count and reviewer axes. | First, before planning. | `Agent(subagent_type: dts2:scout)` |
 | `dts2:auditor` | read-only (Bash) | Inventories installed agent tooling against a blueprint profile and proposes keep, disable and setup. Never changes anything. | From `machine-prep`. | `Agent(subagent_type: dts2:auditor)` |
 
-## 6. Hooks (14 rows, 19 registrations in `hooks/hooks.json`)
+## 6. Hooks (15 rows, 20 registrations in `hooks/hooks.json`)
 
 Registered in `hooks/hooks.json` and run by Claude Code. Agents do not call hooks; they only meet their effect (a denial, a blocked stop, a context note). Every hook honours the `enabled` setting in `.claude/dts2-harness.local.md`.
 
 | Event (matcher) | Script | Blocks or allows |
 |---|---|---|
 | SessionStart | `hooks/session-lessons.sh` | Allows. Puts recent lessons, open state and action items into context (inside the untrusted-content fence, capped at 4000 characters). |
+| SessionStart | `hooks/session-cooldowns.sh` | Allows. Prints which agents are cooling down after a usage limit and which just came back (`cooldowns.py session-note`); silent when none. |
 | Stop | `hooks/stop-checks.sh` | Allows by default; with `stop_checks_block: true` a red check blocks the stop once. Quick typecheck and lint on changed files; skipped in a son. |
 | PostToolUse (`Bash`: `gh pr create`, `gh pr edit`, `gh api`) | `hooks/pr-receipt.sh` | Never blocks. Makes sure a PR body has a `## Change receipt`; does nothing in a son. |
 | PostToolUse (`Bash\|Edit\|Write\|Agent`) and PostToolBatch | `hooks/context-guard.sh` | Advises, or with `context_guard_stop: true` ends the turn, on a context spike before the plan checkpoint; parks a son. |
