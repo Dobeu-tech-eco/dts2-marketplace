@@ -179,11 +179,26 @@ def promote(repo: Path, lesson: str, lives_at: str | None, today: date) -> dict[
     return rewrite(repo, edit_line)
 
 
-def first_regress(repo: Path, lesson: str, stamp: str, step: str, attempt: int) -> bool:
-    """G-54: False when this (stamp, step, attempt) already counted a regression for the lesson, so a retry never counts twice."""
-    event = state_io.make_event(EVENT_KIND, id=state_io.event_id(stamp, step, f"{EVENT_KIND}:{lesson}", attempt),
-                                step=step, attempt=attempt, lesson=lesson)
-    return state_io.append_event_at(repo / rel(EVENTS_NAME), event)
+def regress_event(lesson: str, stamp: str, step: str, attempt: int) -> dict[str, Any]:
+    return state_io.make_event(EVENT_KIND, id=state_io.event_id(stamp, step, f"{EVENT_KIND}:{lesson}", attempt),
+                               step=step, attempt=attempt, lesson=lesson)
+
+
+def regress_once(repo: Path, lesson: str, stamp: str, step: str, attempt: int) -> dict[str, Any]:
+    """G-54: regress, counting this (stamp, step, attempt) once. The dedupe row is kept only when the regression was written, so a
+    failed first attempt (no such lesson, not promoted) leaves the retry free to count."""
+    event: dict[str, Any] = regress_event(lesson, stamp, step, attempt)
+    ledger: Path = repo / rel(EVENTS_NAME)
+    if not state_io.append_event_at(ledger, event):
+        return {"ok": True, "id": lesson, "duplicate": True}
+    try:
+        result: dict[str, Any] = regress(repo, lesson)
+    except BaseException:
+        state_io.forget_event_at(ledger, event["id"])
+        raise
+    if not result.get("ok"):
+        state_io.forget_event_at(ledger, event["id"])
+    return result
 
 
 def regress(repo: Path, lesson: str) -> dict[str, Any]:
@@ -256,8 +271,8 @@ def main() -> int:
         if not result.get("ok"):
             result = {"ok": False, "id": args.lesson, "detail": "no such lesson"}
     elif args.command == "regress":
-        fresh: bool = not args.stamp or first_regress(repo, args.lesson, args.stamp, args.step or "", args.attempt)
-        result = regress(repo, args.lesson) if fresh else {"ok": True, "id": args.lesson, "duplicate": True}
+        result = (regress_once(repo, args.lesson, args.stamp, args.step or "", args.attempt) if args.stamp
+                  else regress(repo, args.lesson))
     elif args.command == "prune":
         result = prune(repo, today, args.stale_days)
     else:

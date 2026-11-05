@@ -355,16 +355,27 @@ def seat_block(path: Path) -> str:
     return "\n".join(lines) + "\n"
 
 
-def first_write(out: Path, stamp: str, step: str, attempt: int) -> bool:
-    """G-54: False when the council ledger already took this (stamp, step, attempt), so a retried append writes nothing twice."""
-    event = state_io.make_event(EVENT_KIND, id=state_io.event_id(stamp, step, EVENT_KIND, attempt), step=step, attempt=attempt)
-    return state_io.append_event_at(out.with_name(out.name + EVENTS_SUFFIX), event)
+def ledger_event(stamp: str, step: str, attempt: int) -> dict[str, Any]:
+    return state_io.make_event(EVENT_KIND, id=state_io.event_id(stamp, step, EVENT_KIND, attempt), step=step, attempt=attempt)
 
 
 def write_ledger(ballots_dir: Path, tally_result: dict[str, Any], decision_path: Path,
                  step: str, stamp: str, out: Path, attempt: int = 1) -> dict[str, Any]:
-    if not first_write(out, stamp, step, attempt):
+    """G-54: append the council record once per (stamp, step, attempt). The dedupe row goes in first and comes out again when the
+    append fails, so a retry after a failed first attempt still writes."""
+    event: dict[str, Any] = ledger_event(stamp, step, attempt)
+    events: Path = out.with_name(out.name + EVENTS_SUFFIX)
+    if not state_io.append_event_at(events, event):
         return {"ok": True, "duplicate": True, "out": str(out)}
+    try:
+        return append_record(ballots_dir, tally_result, decision_path, step, stamp, out)
+    except BaseException:
+        state_io.forget_event_at(events, event["id"])
+        raise
+
+
+def append_record(ballots_dir: Path, tally_result: dict[str, Any], decision_path: Path,
+                  step: str, stamp: str, out: Path) -> dict[str, Any]:
     text: str = decision_path.read_text(encoding="utf-8")
     match = DECISION_LINE.match(first_line(text))
     decision: str = match.group(1) if match else "NONE"
@@ -497,13 +508,14 @@ def next_round(votes_dir: Path, step: str, kind: str, retry: str | None = None, 
     held: list[dict[str, Any]] = [r for r in round_outcomes(base) if r["kind"] == kind] if base.is_dir() else []
     complete: int = sum(1 for r in held if r["complete"])
     attempts: dict[str, int] = read_instances(votes_dir)
+    allocated: int = sum(count for name, count in attempts.items() if name.startswith(f"{tag}:"))  # one instance per attempt so far
     retrying: bool = retry is not None and is_retryable(retry)
     round_no: int = complete + 1
     key: str = f"{tag}:{kind}:r{round_no}"
     attempt: int = attempts.get(key, 0) + 1
     attempts[key] = attempt
     seq_key: str = f"{tag}{SEQUENCE_SUFFIX}"
-    sequence: int = attempts.get(seq_key, 0) + 1  # monotonic per step, so a later round never reuses an earlier instance id
+    sequence: int = max(attempts.get(seq_key, 0), allocated) + 1  # monotonic per step, seeded from earlier allocations (resume)
     attempts[seq_key] = sequence
     base.mkdir(parents=True, exist_ok=True)
     atomic_write(votes_dir / INSTANCES_NAME, json.dumps(attempts, indent=2, sort_keys=True) + "\n")
