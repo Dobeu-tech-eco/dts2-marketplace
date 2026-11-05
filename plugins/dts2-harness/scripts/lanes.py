@@ -4,7 +4,8 @@ and the dpp head's helpers: plan (admission, spend, feasibility, --full selectio
 stop-check and report-check. It is the only writer of lane state: leases, status.json fields the head owns (heartbeat,
 session id, park reason), send-backs, the budget counter, the model-call ledger and merge order. Its supervisor commands:
 preflight (pin the CLI version), spawn (start a son under every cap), call (any other model call behind the shared
-limit), heartbeat, budget, loop, merge-order, merge-plan, merge-go, merge-go-step and merge-done."""
+limit), heartbeat, budget, loop, merge-order, merge-plan, merge-go, merge-go-step and merge-done. `amend` changes one lane of a
+running manifest; check, lease and plan also run the graph checks of plan_graph.py (contracts, owners, cycles, critical path)."""
 from __future__ import annotations
 
 import argparse
@@ -16,14 +17,14 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from lanes.common import COST_SOURCES, DEFAULT_CALL_TIMEOUT_S, HEARTBEAT_PHASES, LaneError, RUNS_DIR, load_manifest  # noqa: E402
-from lanes.conflicts import check  # noqa: E402
 from lanes.gitrefs import branch_check  # noqa: E402
-from lanes.leases import lease  # noqa: E402
+from lanes.amend import amend_lane, split_list  # noqa: E402
 from lanes.mergeplan import merge_plan  # noqa: E402
 from lanes.merge import merge_done, merge_go, merge_go_step, merge_order, set_merge_target  # noqa: E402
 from lanes.planner import load_draft, plan, read_checkin, son_command  # noqa: E402
 from lanes.runstate import budget_report, fold, heartbeat, release, report_check, sendback, spend_state, status, stop_check  # noqa: E402
 from lanes.supervisor import gc_restore, loop, model_call, preflight, spawn  # noqa: E402
+from plan_graph import annotate_plan, graph_check as check, graph_lease as lease  # noqa: E402
 
 
 def split_ids(raw: str) -> list[str]:
@@ -120,6 +121,11 @@ def build_parser() -> argparse.ArgumentParser:
     lease_p.add_argument("manifest")
     lease_p.add_argument("--lane", required=True)
     lease_p.add_argument("--epoch", type=int, default=None, help="refuse when older than the stored lease epoch")
+    amend_p = sub.add_parser("amend", help="change one lane's files or contracts, re-check, bump the epoch, rewrite brief.md")
+    amend_p.add_argument("manifest")
+    amend_p.add_argument("--lane", required=True)
+    for flag in ("set-files", "add-files", "remove-files", "depends-on", "provides", "consumes", "stubbed-on", "merge-after"):
+        amend_p.add_argument(f"--{flag}", default=None, help="comma separated")
     branch_p = sub.add_parser("branch-check")
     branch_p.add_argument("stamp")
     branch_p.add_argument("--lanes", required=True, help="comma-separated lane ids")
@@ -131,12 +137,17 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def amend_changes(args: argparse.Namespace) -> dict[str, list[str] | None]:
+    return {name: split_list(getattr(args, name)) for name in ("set_files", "add_files", "remove_files", "depends_on", "provides",
+                                                              "consumes", "stubbed_on", "merge_after")}
+
+
 def dispatch_plan(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> dict[str, Any]:
     draft: dict[str, Any] = load_draft(Path(args.draft))
     if args.stamp:
         draft = {**draft, "stamp": args.stamp}
-    return plan(draft, read_checkin(Path(args.from_checkin)), args.outside, args.full, args.max or len(draft["lanes"]), runs_dir, cwd,
-                not args.no_prs)
+    return annotate_plan(plan(draft, read_checkin(Path(args.from_checkin)), args.outside, args.full, args.max or len(draft["lanes"]),
+                              runs_dir, cwd, not args.no_prs), cwd)
 
 
 def dispatch_run(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> dict[str, Any] | None:
@@ -191,6 +202,8 @@ def dispatch(args: argparse.Namespace) -> dict[str, Any]:
     manifest: dict[str, Any] = load_manifest(Path(args.manifest))
     if args.command == "lease":
         return lease(manifest, args.lane, runs_dir, cwd, not args.no_prs, args.epoch)
+    if args.command == "amend":
+        return amend_lane(Path(args.manifest), args.lane, runs_dir, cwd, not args.no_prs, amend_changes(args))
     if args.command == "son-command":
         remaining: float | None = spend_state(runs_dir, str(manifest["stamp"]), cwd)["remaining_usd"]
         return son_command(manifest, args.lane, Path(args.worktree), cwd, remaining)

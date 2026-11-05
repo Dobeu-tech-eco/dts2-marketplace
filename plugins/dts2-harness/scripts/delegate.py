@@ -15,10 +15,12 @@ EFFORT_LEVELS: Final[tuple[str, ...]] = ("low", "medium", "high", "xhigh", "max"
 HIGH: Final[str] = "high"
 COMPLEXITY_ORDER: Final[tuple[str, ...]] = ("mechanical", "normal", "design")
 DEFAULT_COMPLEXITY: Final[str] = "normal"
-SEATS: Final[tuple[str, ...]] = ("execution", "advisory", "signoff")
+SEATS: Final[tuple[str, ...]] = ("execution", "advisory", "signoff", "escalation")
+OWN_PROFILE_SEATS: Final[tuple[str, ...]] = ("execution", "escalation")  # these never follow the lead provider
 BUDGETS: Final[tuple[str, ...]] = ("ok", "low", "exhausted")
 EXECUTION_EFFORT: Final[dict[str, str]] = {"mechanical": "low", "normal": "medium", "design": "high"}
 ADVISORY_EFFORT: Final[dict[str, str]] = {"mechanical": "low", "normal": "medium", "design": "high"}
+ESCALATION_EFFORT: Final[dict[str, str]] = {"mechanical": "high", "normal": "high", "design": "high"}  # the fixer at fix round 2 (AA-4)
 SIGNOFF_EFFORT: Final[dict[str, str]] = {"mechanical": "medium", "normal": "high", "design": "max"}
 ADVISORY_TIER: Final[dict[str, str]] = {"mechanical": "standard", "normal": "standard", "design": "frontier"}
 FRONTIER: Final[str] = "frontier"
@@ -31,7 +33,7 @@ DEFAULT_LEAD: Final[str] = "claude"
 # Roles that make a provider able to give advice: a reviewer, or an independent second opinion.
 ADVISORY_ROLES: Final[tuple[str, ...]] = ("reviewer", "second-opinion")
 SEAT_EFFORT: Final[dict[str, dict[str, str]]] = {
-    "execution": EXECUTION_EFFORT, "advisory": ADVISORY_EFFORT, "signoff": SIGNOFF_EFFORT,
+    "execution": EXECUTION_EFFORT, "advisory": ADVISORY_EFFORT, "signoff": SIGNOFF_EFFORT, "escalation": ESCALATION_EFFORT,
 }
 
 
@@ -161,8 +163,8 @@ def pick_profile(
     profile: dict[str, Any], seat: str, lead_provider: str | None,
     profiles: dict[str, dict[str, Any]] | None,
 ) -> dict[str, Any]:
-    """Advisory and sign-off seats follow the chosen lead provider; execution never does."""
-    if seat == "execution" or lead_provider is None:
+    """Advisory and sign-off seats follow the chosen lead provider; execution and escalation never do."""
+    if seat in OWN_PROFILE_SEATS or lead_provider is None:
         return profile
     pool: dict[str, dict[str, Any]] = profiles if profiles is not None else load_profiles(PROFILE_DIR)
     chosen: str = signoff_agent(pool, lead_provider)

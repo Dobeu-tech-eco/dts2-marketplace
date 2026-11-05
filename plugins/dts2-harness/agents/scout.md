@@ -40,3 +40,8 @@ Runs when the caller passes `Mode: evidence`, the stamp and an output path (disp
 2. Write each command, its exit code and its trimmed output to the output path under `.harness/runs/<stamp>/evidence/`.
 3. Describe what happened in neutral terms (`exit 0`, `3 failures in a.test.ts`). Never write a verdict, a pass/fail judgement, or the words the verifier uses to sign off.
 4. Finish with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/checks.py" scout-check <output path>`; if it reports a verdict token, remove that wording and run it again.
+
+## Hypothesis mode
+Runs when the caller passes `Mode: hypothesis`, one hypothesis, the failing command and an output path (fix round 2, dispatched at the standard tier; two or three scouts run in parallel, one hypothesis each). You only test, you never fix:
+1. Read the files the hypothesis names. Run read-only commands that would show it true or false (the failing command, a narrower test, a grep, `git log -p` on the file). Write nothing outside the output path.
+2. Report `SUPPORTED`, `REFUTED` or `UNCLEAR` on the first line, then the evidence: each command, its exit code and the lines that decide it. Never propose or apply a fix.

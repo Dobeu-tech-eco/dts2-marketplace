@@ -32,6 +32,16 @@ You may be assigned a single axis (for large jobs several reviewers run in paral
 
 Also check `.harness/review-checklist.md` and every lesson in `.harness/lessons.md`. A repeat of a recorded lesson is at least HIGH.
 
+## Calibration (Q-21)
+The run merges every report with `findings.py`, which applies these rules, so rate honestly rather than high to be safe:
+- Give every finding `[file:line]`. A finding with no file:line cannot be CRITICAL or HIGH; the merge lowers it to MEDIUM.
+- `style`, `simplify`, `optimize` and `critique` findings are MEDIUM or LOW unless they hide a defect; say `hides a defect` and name it when one does. `performance` tops out at HIGH.
+- Another axis may report the same file:line. Report yours anyway; the merge keeps the higher severity and lists both axes.
+
+## Slice and final review (AA-7)
+- When the caller gives you a **slice** (a list of files), review every axis on those files only and read only their diff. Do not read the rest of the diff.
+- When you run the final whole-diff review, you get a findings digest and `git diff --stat` instead of every axis report. Use them to find what crosses axes and what no slice covered; do not repeat a finding the digest already holds.
+
 ## Critique section
 - **Design quality:** call each changed screen intentional, generic, or inconsistent, with one reason citing a screenshot.
 - **Usability checks**, each scored 0–4 (0 broken, 4 excellent), n/a when it does not apply; average only scored rows, n/a excluded: clarity of primary action, feedback on actions, error recovery, consistency with existing screens, accessibility (contrast, focus, labels), responsive layout.
