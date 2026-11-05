@@ -194,7 +194,9 @@ Stamp-keyed commands:
 
 | Script | Subcommands and positionals | Key flags | Purpose | Called by | Since |
 |---|---|---|---|---|---|
-| `doctor.py` | none | `--json` | Preflight checks for this machine. | `make doctor` | new |
+| `doctor.py` | none | `--json` | Preflight checks for this machine: python, git, claude, sandbox, bwrap, socat, auth method (named, never the value), platform. On native Windows the platform row warns that dpp parks (`windows-native`); exit codes by runtime are in `docs/RUNTIMES.md`. | `make doctor` | changed |
+| `plugin_options.py` | `show`, `get KEY [--default V]`, `data-dir` | none | Per-user knobs from `CLAUDE_PLUGIN_OPTION_<KEY>` (plugin `userConfig`) and the non-repo cache directory `CLAUDE_PLUGIN_DATA`; per-repo settings stay in `.claude`. | none yet | new |
+| `receipts_sign.py` | `append JOURNAL BODY`, `verify JOURNAL`, `sign FILE`, `check FILE SIG` | none | Hash-chained journal and HMAC-signed receipts (hashlib, hmac); the key file is named by `DTS2_PR_RECEIPT_KEY_FILE`, which sons never receive. | none yet | new |
 | `machine-prep.py` | `audit`, `plan`, `apply` | `--profile`, `--home`, `--claude-home`, `--tier`, `--days`, `--project` | Audit a machine against a blueprint profile; `apply` prunes plugins by disabling them (reversible). | `machine-prep`; `auditor` agent | |
 | `usage-scan.py` | none | `--claude-home` (required), `--days` | Count Skill, Agent and MCP tool uses in recent transcripts; read-only. | `machine-prep.py` (in-process) | |
 | `context-tax.py` | none | `--root`, `--budget`, `--max-description` | Measure always-loaded skill and agent metadata; exit 1 over budget. | CI `metadata` job | new |
