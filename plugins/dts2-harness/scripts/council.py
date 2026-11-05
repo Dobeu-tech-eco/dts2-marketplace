@@ -31,6 +31,8 @@ from typing import Any, Final
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from checks import append_ledger, gate as checks_gate, read_ledger  # noqa: E402
 from profiles import PROFILE_DIR, Profiles  # noqa: E402
+import contracts  # noqa: E402
+import mdparse  # noqa: E402
 import state_io  # noqa: E402
 from state_io import append_text, atomic_write  # noqa: E402
 
@@ -59,26 +61,20 @@ DEFAULT_MAX_AGE_DAYS: Final[int] = 90
 
 
 def first_line(text: str) -> str:
-    lines: list[str] = [line.strip() for line in text.splitlines() if line.strip()]
-    return lines[0] if lines else ""
+    return mdparse.first_line(text)
 
 
 def section(text: str, heading: str) -> str:
-    """Body under a `## ` heading up to the next `## ` heading (### subheadings stay inside)."""
-    start: int = text.find(heading + "\n")
-    if start < 0:
-        return ""
-    body: str = text[start + len(heading) + 1:]
-    match = re.search(r"^## ", body, re.MULTILINE)
-    return (body[:match.start()] if match else body).strip()
+    """Body under a `## ` heading up to the next `## ` heading (### subheadings stay inside); fenced code is not scanned."""
+    return mdparse.section(text, heading)
 
 
 def parse_entry(path: Path) -> dict[str, Any]:
-    match = ENTRY_NAME.match(path.name)
-    if not match:
+    parsed = contracts.parse_entry_name(path.name)
+    if isinstance(parsed, contracts.Invalid):
         return {"file": path.name, "recognized": False}
-    order, kind, rnd, seat = match.groups()
-    return {"file": path.name, "recognized": True, "order": int(order), "kind": kind, "round": int(rnd), "seat": seat}
+    return {"file": path.name, "recognized": True, "order": parsed.order, "kind": parsed.kind, "round": parsed.round,
+            "seat": parsed.seat}
 
 
 def round_outcomes(votes_dir: Path) -> list[dict[str, Any]]:
@@ -152,11 +148,14 @@ def build_dossier(votes_dir: Path, out: Path) -> dict[str, Any]:
             "unrecognized": unrecognized, "eligible": gate["eligible"], "eligibility": gate["reason"], "out": str(out)}
 
 
+def ballot_of(text: str, seat: str) -> contracts.Ballot:
+    parsed = contracts.parse_ballot(text, seat)
+    return parsed if isinstance(parsed, contracts.Ballot) else parsed.partial
+
+
 def read_ballot(path: Path) -> dict[str, Any]:
-    text: str = path.read_text(encoding="utf-8")
-    match = VOTE_LINE.match(first_line(text))
-    seat: str = path.stem
-    return {"seat": seat, "vote": match.group(1) if match else None, "brief": bool(section(text, BRIEF_HEADING))}
+    ballot = ballot_of(path.read_text(encoding="utf-8"), path.stem)
+    return {"seat": ballot.seat, "vote": ballot.vote, "brief": ballot.has_brief}
 
 
 def tally(paths: list[Path]) -> dict[str, Any]:
@@ -178,31 +177,29 @@ def tally(paths: list[Path]) -> dict[str, Any]:
 
 
 def dissent_problems(text: str, dissenters: list[str]) -> list[str]:
-    responses: str = section(text, "## Dissent responses")
+    parsed = contracts.parse_decision(text)
+    responses: dict[str, str] = (parsed if isinstance(parsed, contracts.Decision) else parsed.partial).responses
     problems: list[str] = []
     for seat in dissenters:
-        block = re.search(rf"^### {re.escape(seat)}\s*$(.*?)(?=^### |\Z)", responses, re.MULTILINE | re.DOTALL)
-        if not block:
+        if seat not in responses:
             problems.append(f"no response to dissenter {seat}")
-        elif not re.search(r"^\s*-?\s*Update:\s*\S", block.group(1), re.MULTILINE):
+        elif not contracts.has_update(responses[seat]):
             problems.append(f"response to {seat} has no 'Update:' line")
     return problems
 
 
 def check_decision(path: Path, tally_result: dict[str, Any], entries: int, red: list[str] | None = None,
                    gate: dict[str, Any] | None = None) -> dict[str, Any]:
-    text: str = path.read_text(encoding="utf-8")
-    match = DECISION_LINE.match(first_line(text))
-    decision: str | None = match.group(1) if match else None
-    problems: list[str] = [] if decision else ["first line is not 'DECISION: APPROVE|FIX|STRIKE'"]
-    if not section(text, HEAD_BRIEF):
-        problems.append(f"no '{HEAD_BRIEF}'")
-    seen = ENTRIES_LINE.search(section(text, "## History considered"))
-    if not seen or int(seen.group(1)) != entries:
+    parsed = contracts.parse_decision(path.read_text(encoding="utf-8"))
+    decision_record = parsed if isinstance(parsed, contracts.Decision) else parsed.partial
+    decision: str | None = decision_record.decision
+    problems: list[str] = list(parsed.reasons) if isinstance(parsed, contracts.Invalid) else []
+    if decision_record.entries_reviewed != entries:
         problems.append(f"'## History considered' must say 'Entries reviewed: {entries}'")
-    problems += dissent_problems(text, list(tally_result.get("dissenters", [])))
+    problems += dissent_problems(path.read_text(encoding="utf-8"), list(tally_result.get("dissenters", [])))
     heading: str | None = REQUIRED_LIST.get(decision or "")
-    if heading and not re.search(r"^\s*- \S", section(text, heading), re.MULTILINE):
+    listed = decision_record.fixes if decision == "FIX" else decision_record.struck
+    if heading and not listed:
         problems.append(f"{decision} needs at least one item under '{heading}'")
     if decision == "APPROVE" and red:
         problems.append(f"APPROVE over red deterministic checks ({', '.join(red)}); a vote cannot override a red check")
@@ -305,18 +302,11 @@ def blind_ballots(proposals_dir: Path, out: Path, voters: list[str], seed: str, 
     return {"ok": True, "seed": seed, "voters": voters, "options": len(paths), "out": str(out), "key": str(out / "blind-key.json")}
 
 
-def reasons(text: str) -> str:
-    """A ballot's findings and notes: everything after the VOTE line, minus the dissent brief."""
-    body: str = text.strip().split("\n", 1)[1] if "\n" in text.strip() else ""
-    cut: int = body.find(BRIEF_HEADING)
-    return (body[:cut] if cut >= 0 else body).strip() or "(no findings given)"
-
-
 def seat_block(path: Path) -> str:
     text: str = path.read_text(encoding="utf-8")
-    ballot: dict[str, Any] = read_ballot(path)
+    ballot = ballot_of(text, path.stem)
     brief: str = section(text, BRIEF_HEADING)
-    lines: list[str] = [f"#### {ballot['seat']}: {ballot['vote'] or 'NO VALID VOTE'}", "", "Reasons:", "", reasons(text)]
+    lines: list[str] = [f"#### {ballot.seat}: {ballot.vote or 'NO VALID VOTE'}", "", "Reasons:", "", ballot.reasons]
     if brief:
         lines += ["", "Dissent brief:", "", brief]
     return "\n".join(lines) + "\n"

@@ -87,3 +87,5 @@ Imported by the scripts above; none is a hook entry point.
 | `scripts/profiles.py` | `Profiles`: loads `profiles/agents/*.json`, `model`, `token_burn`, `lead_eligible`; tests inject a dict |
 | `scripts/state_io.py` | the state port: `atomic_write`, `append_text`, `.harness/` path names, `Store` with `FileStore` and `MemoryStore`, typed `State` reads |
 | `scripts/state_ids.py` | `Stamp` and `LaneId` value objects; the only way a run stamp or lane id reaches a path |
+| `scripts/mdparse.py` | the one Markdown tokenizer (headings, bullets, checkboxes, table rows; skips fenced code) |
+| `scripts/contracts.py` | text-contract parsers on mdparse: vote entry, ballot, decision, sections, acceptance, report; a dataclass or `Invalid` |
