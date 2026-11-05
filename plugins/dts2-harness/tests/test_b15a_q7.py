@@ -63,7 +63,7 @@ class CompactPointerTests(unittest.TestCase):
 
     def test_compact_prints_pointer_with_stamp_epoch_lane_phase(self) -> None:
         out: str = run_hook("session-lessons.sh", self.repo, '{"source":"compact"}').stdout
-        for needle in (STAMP, "epoch 3", "lane-a", "review", "read .harness/handoff.md"):
+        for needle in (STAMP, "epoch 3", "lane-a", "review", "read .harness/handoff/latest.md"):
             self.assertIn(needle, out)
 
     def test_compact_pointer_is_short_with_three_rules_and_no_digest(self) -> None:
@@ -77,12 +77,12 @@ class CompactPointerTests(unittest.TestCase):
         for payload in ('{"source":"startup"}', '{"source":"resume"}', ""):
             out: str = run_hook("session-lessons.sh", self.repo, payload).stdout
             self.assertIn("Validate input", out, payload)
-            self.assertNotIn("read .harness/handoff.md", out, payload)
+            self.assertNotIn("read .harness/handoff/latest.md", out, payload)
 
     def test_compact_without_a_run_still_prints_a_pointer(self) -> None:
         repo: Path = make_repo()
         out: str = run_hook("session-lessons.sh", repo, '{"source":"compact"}').stdout
-        self.assertIn("read .harness/handoff.md", out)
+        self.assertIn("read .harness/handoff/latest.md", out)
         self.assertIn("stamp none", out)
 
 

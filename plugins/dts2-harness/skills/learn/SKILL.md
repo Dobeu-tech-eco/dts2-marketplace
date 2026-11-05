@@ -21,8 +21,9 @@ Lessons live in the repo, so they travel with the code and every agent and machi
    Rules start with a verb, name the specific thing, and avoid "be careful".
    A lesson tied to part of the repo ends with `{paths: src/api/**, *.ts}` (comma-separated globs; `**` crosses directories, `*` stays in one). Session start and `scope-check.py --lessons` print it only when a changed file or an active lane file matches, newest 5. A lesson with no `{paths: ...}` always prints.
    A lesson seen twice (same normalized text, or same file and rule) is offered for promotion: a line in `.harness/checks.sh` (sourced by the Stop hook), a test skeleton in the repo's test directory, or a `review-checklist.md` entry. Record `lives at <path>` on the lesson.
-4. Keep the list short: at most 40 lessons. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lessons.py" <repo> prune` first: it drops unpromoted lessons last seen more than 90 days ago (`--stale-days N` changes the limit) and prints the dropped ids; tell the user which. Past 40, drop the oldest single-occurrence lessons too.
-5. Show the diff of `lessons.md` and wait for approval before writing (interactive use). In auto mode, skip the wait; see Auto mode.
+4. Keep the list short: at most 40 lessons. Do not prune yet. List the unpromoted lessons last seen more than 90 days ago (and, past 40, the oldest single-occurrence ones) as the proposed drops.
+5. Show the diff of `lessons.md` together with the proposed drops and wait for approval before writing (interactive use). In auto mode, skip the wait; see Auto mode.
+5a. Only after approval, run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lessons.py" <repo> prune` (`--stale-days N` changes the limit). It drops the unpromoted lessons last seen more than 90 days ago and prints the dropped ids; tell the user which. Past 40, drop the oldest single-occurrence lessons too.
 6. After writing, clear the processed entries from the inbox.
 
 ## Harness lessons
