@@ -35,7 +35,8 @@ parse_api_payload() {
   printf '%s' "$1" | python3 -I -c '
 import json, re, sys
 API = re.compile(r"(?:^|[;&|\n])[ \t]*gh api\b[^;&|\n]*?/pulls(?:[ \t\x27\"]|$)[^;&|\n]*")
-POST = re.compile(r"(?:-X|--method)[ =]?POST\b")
+METHOD = re.compile(r"(?:-X|--method)[ =]?([A-Za-z]+)")
+BODY = re.compile(r"(?<!\S)(?:-[fF]\S*|--(?:field|raw-field|input)\b\S*)")
 URL = re.compile(r"https://[^\s\"]+/pull/\d+")
 try:
     data = json.load(sys.stdin)
@@ -44,7 +45,11 @@ except ValueError:
 tool_input = data.get("tool_input") if isinstance(data, dict) else None
 command = str(tool_input.get("command", "")) if isinstance(tool_input, dict) else ""
 match = API.search(command) if isinstance(data, dict) and data.get("tool_name") == "Bash" else None
-if not match or not POST.search(match.group(0)):
+if not match:
+    sys.exit(1)
+named = METHOD.search(match.group(0))
+creates = named.group(1).upper() == "POST" if named else bool(BODY.search(match.group(0)))  # body flags imply POST
+if not creates:
     sys.exit(1)
 response = data.get("tool_response")
 text = response.get("stdout", "") if isinstance(response, dict) else (response or "")

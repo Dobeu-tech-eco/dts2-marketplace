@@ -27,7 +27,8 @@ GIT_DIR_ENTRIES: Final[tuple[str, ...]] = ("config", "info/**", "hooks/**", "mod
 WORKFLOW_GLOB: Final[str] = ".github/workflows/**"
 ATTRIBUTES_GLOB: Final[str] = "**/.gitattributes"
 CODEOWNERS_GLOBS: Final[tuple[str, ...]] = ("CODEOWNERS", ".github/CODEOWNERS", "docs/CODEOWNERS")
-HOOKS_GLOB: Final[str] = "hooks/**"
+HOOKS_GLOB: Final[str] = "**/hooks/**"  # a hooks folder at any depth, the repo root included
+APPROVAL_GLOB: Final[str] = ".claude/settings.local.json"  # holds the human-only approval key
 MERGE_GO_GLOB: Final[str] = "**/merge-go.md"
 HEAD_ONLY_RECORDS: Final[tuple[str, ...]] = (
     state_io.STATE_MD_REL, state_io.ACTION_ITEMS_REL, state_io.END_STATE_REL, state_io.HANDOFF_LATEST_REL,
@@ -39,7 +40,7 @@ SHOWN_PATHS: Final[int] = 5
 
 def repo_globs() -> list[str]:
     """Repo-relative globs, `**` crossing folders, `*` staying inside one."""
-    return [ATTRIBUTES_GLOB, WORKFLOW_GLOB, state_io.CHECKS_SH_REL, *CODEOWNERS_GLOBS, HOOKS_GLOB,
+    return [ATTRIBUTES_GLOB, WORKFLOW_GLOB, state_io.CHECKS_SH_REL, *CODEOWNERS_GLOBS, HOOKS_GLOB, APPROVAL_GLOB,
             *HEAD_ONLY_RECORDS, MERGE_GO_GLOB]
 
 

@@ -22,6 +22,7 @@ BYTES_PER_MB: Final[int] = 1048576
 SESSION_UNSAFE: Final[re.Pattern[str]] = re.compile(r"[^A-Za-z0-9_-]")
 TOOL_USE: Final[re.Pattern[bytes]] = re.compile(rb'"type": ?"tool_use"')
 NEWLINE: Final[bytes] = b"\n"
+ACTIVE_BRANCH: Final[re.Pattern[str]] = re.compile(r"^ref: refs/heads/dts2/([A-Za-z0-9._-]+)/")
 MISPLACED: Final[str] = "workspace-member"
 MESSAGE: Final[str] = (
     "dts2-harness CONTEXT GUARD (%s): %s. STOP: do not dispatch or continue any agent. "
@@ -62,8 +63,29 @@ def fire(marker_dir: Path, session: str, trigger: str, details: str, stop: bool 
     print(json.dumps(output))
 
 
-def current_run(effective: Path) -> Path | None:
-    """The run this session is in: newest stamped run folder by name, else the most recently touched folder."""
+def head_ref(repo: Path) -> str:
+    """The branch ref `.git/HEAD` names (follows a worktree's `.git` file); empty when it cannot be read."""
+    git: Path = repo / ".git"
+    try:
+        if git.is_file():
+            pointer: str = git.read_text(encoding="utf-8").strip()
+            git = (repo / pointer.removeprefix("gitdir:").strip()) if pointer.startswith("gitdir:") else git
+        return (git / "HEAD").read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def active_stamp(repo: Path) -> str | None:
+    """The run stamp in a `dts2/<stamp>/...` branch name: the run this session is on (new or resumed), or None."""
+    match: re.Match[str] | None = ACTIVE_BRANCH.match(head_ref(repo))
+    return match.group(1) if match else None
+
+
+def current_run(effective: Path, active: str | None = None) -> Path | None:
+    """The run this session is in: the active run (stamp in the `dts2/<stamp>/` branch name) when its folder exists, else the
+    newest stamped run folder by name, else the most recently touched folder."""
+    if active is not None and (effective / state_io.RUNS_REL / active).is_dir():
+        return effective / state_io.RUNS_REL / active
     runs: list[Path] = [p for p in (effective / state_io.RUNS_REL).glob("*") if p.is_dir()]
     stamped: list[Path] = sorted(p for p in runs if STAMP_PATTERN.fullmatch(p.name))
     if stamped:
@@ -71,9 +93,9 @@ def current_run(effective: Path) -> Path | None:
     return max(runs, key=lambda p: p.stat().st_mtime) if runs else None
 
 
-def has_plan(effective: Path) -> bool:
+def has_plan(effective: Path, active: str | None = None) -> bool:
     """True when the current run (not any older run) has reached its plan checkpoint."""
-    run: Path | None = current_run(effective)
+    run: Path | None = current_run(effective, active)
     return run is not None and (run / "plan.md").is_file()
 
 
@@ -119,7 +141,8 @@ def run(tool_calls: int, mb: int, stop: bool) -> None:
     if scope.get("scope") == MISPLACED:
         fire(marker_dir, session, "misplaced", f"cwd {cwd} is a member repo of workspace {scope.get('workspaceRoot')}", stop, event)
         return
-    if has_plan(Path(scope.get("workspaceRoot") or cwd)):
+    effective: Path = Path(scope.get("workspaceRoot") or cwd)
+    if has_plan(effective, active_stamp(Path(cwd))):
         return
     transcript: Path = Path(str(payload.get("transcript_path") or ""))
     if not transcript.is_file():

@@ -159,14 +159,20 @@ def select_lanes(draft: dict[str, Any], candidates: list[dict[str, Any]], source
 
 
 def plan(draft: dict[str, Any], outstanding: set[str], outside: str, full: bool, cap: int, runs_dir: Path, cwd: Path,
-         with_prs: bool) -> dict[str, Any]:
+         with_prs: bool, frozen: set[str] | None = None) -> dict[str, Any]:
+    """`frozen` is the fullauto scope: a lane whose item is not in it is left out before the cap and conflict selection, so
+    an out-of-scope lane never takes a place from an in-scope one; its item is returned in `out_of_scope` (recorded as pending)."""
     stamp: str = str(draft.get("stamp"))
     sources, prs_checked = external_sources(runs_dir, stamp, cwd, with_prs)
     sources = sources + active_lease_files(runs_dir, stamp)
     candidates: list[dict[str, Any]] = []
     refused: list[dict[str, Any]] = []
     held: dict[str, str] = held_items(runs_dir)
+    out_of_scope: list[str] = []
     for lane in draft["lanes"]:
+        if frozen is not None and str(lane.get("item", "")) not in frozen:
+            out_of_scope.append(str(lane.get("item", "")))
+            continue
         holder: str | None = held.get(str(lane.get("item", "")))
         if holder is not None and holder != f"{stamp}/{lane.get('id')}":  # G-47: another live lease already holds this item
             refused.append({"lane": lane.get("id"), "item": lane.get("item"), "reason": f"item held by the live lease of lane {holder}"})
@@ -178,6 +184,8 @@ def plan(draft: dict[str, Any], outstanding: set[str], outside: str, full: bool,
     feasibility: dict[str, Any] = assess(manifest, sources, prs_checked, shared_patterns(cwd))
     result: dict[str, Any] = {"ok": bool(selected) and not refused and feasibility["ok"], "stamp": stamp,
                               "manifest": manifest, "feasibility": feasibility, "refused": refused, "reported": reported}
+    if out_of_scope:
+        result["out_of_scope"] = out_of_scope
     if with_prs and not prs_checked:  # fail closed: without gh the open-PR overlap check did not happen
         result = {**result, "ok": False, "detail": gh_down("plan")}
     if full and len(selected) < cap:

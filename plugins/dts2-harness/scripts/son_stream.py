@@ -9,6 +9,7 @@ Three small, pure parts:
 Model output is untrusted: only a few typed fields are read."""
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 from collections import deque
@@ -19,7 +20,6 @@ STUCK_ERROR: Final[int] = 3  # the same action failing, in a row
 STUCK_PING_PONG: Final[int] = 6  # two actions taking turns (A, B, A, B, A, B)
 KEEP_EVENTS: Final[int] = 400
 HEARTBEAT_EVERY_S: Final[float] = 5.0
-OBSERVATION_CHARS: Final[int] = 2000
 SUBTYPE_API_RETRY: Final[str] = "api_retry"
 
 Step = tuple[str, str, bool]  # (action, observation, is_error)
@@ -32,12 +32,16 @@ def content_blocks(event: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def observation_text(content: Any) -> str:
+    """The full text of a tool result, not a prefix: two long results differing only late must not look identical."""
     if isinstance(content, str):
-        return content[:OBSERVATION_CHARS]
+        return content
     if isinstance(content, list):
-        parts: list[str] = [str(b.get("text", "")) for b in content if isinstance(b, dict)]
-        return "".join(parts)[:OBSERVATION_CHARS]
+        return "".join(str(b.get("text", "")) for b in content if isinstance(b, dict))
     return ""
+
+
+def observation_digest(content: Any) -> str:
+    return hashlib.sha256(observation_text(content).encode("utf-8", errors="replace")).hexdigest()
 
 
 def action_key(block: dict[str, Any]) -> str:
@@ -58,7 +62,7 @@ def steps(events: list[dict[str, Any]]) -> list[Step]:
             if kind == "tool_use" and isinstance(block.get("id"), str):
                 pending[block["id"]] = action_key(block)
             elif kind == "tool_result" and block.get("tool_use_id") in pending:
-                found.append((pending.pop(block["tool_use_id"]), observation_text(block.get("content")),
+                found.append((pending.pop(block["tool_use_id"]), observation_digest(block.get("content")),
                               block.get("is_error") is True))
     return found
 

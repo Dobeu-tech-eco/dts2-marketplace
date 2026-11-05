@@ -9,7 +9,13 @@ MB_DEFAULT=12
 [[ "$(setting enabled true)" == "true" ]] || exit 0
 [[ "$(setting context_guard true)" == "true" ]] || exit 0
 command -v python3 >/dev/null 2>&1 || exit 0
-number_or() { [[ "$1" =~ ^[0-9]+$ ]] && echo "$1" || echo "$2"; }
+number_or() {
+  if [[ "$1" =~ ^[0-9]+$ ]]; then
+    echo "$1"
+  else
+    echo "$2"
+  fi
+}
 TOOL_LIMIT="$(number_or "$(setting context_guard_tool_calls "$TOOL_CALLS_DEFAULT")" "$TOOL_CALLS_DEFAULT")"
 MB_LIMIT="$(number_or "$(setting context_guard_mb "$MB_DEFAULT")" "$MB_DEFAULT")"
 STOP_FLAG=()

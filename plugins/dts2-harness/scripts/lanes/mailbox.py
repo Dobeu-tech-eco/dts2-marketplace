@@ -30,6 +30,7 @@ ID_PREFIX: Final[dict[str, str]] = {KIND_QUESTION: "q", KIND_NEED_HUMAN: "h"}
 STATE_ANSWERED: Final[str] = "answered"
 STATE_WAITING: Final[str] = "waiting"
 STATE_EXPIRED: Final[str] = "expired"
+STATE_STALE: Final[str] = "stale"
 POLL_S: Final[float] = 2.0
 REASON_MAILBOX_TIMEOUT: Final[str] = "mailbox-timeout"
 # Why a son parks itself (G-45): the pool of agent seats collapsed, the context guard fired, a walkthrough needs a browser
@@ -121,8 +122,11 @@ def check(runs_dir: Path, stamp: str, lane_id: str, qid: str, *, now: int | None
     clock: int = int(time.time()) if now is None else now
     if clock < int(question.get("deadline", 0)):
         return {"ok": True, "lane": lane_id, "id": qid, "state": STATE_WAITING, "left_s": int(question["deadline"]) - clock}
+    asked_at: Any = question.get("epoch")
     moved: dict[str, Any] = transition(runs_dir, stamp, lane_id, PHASE_INCOMPLETE, reason=REASON_MAILBOX_TIMEOUT,
-                                       extra={"waiting_on": qid}, now=clock)
+                                       extra={"waiting_on": qid}, now=clock, epoch=int(asked_at) if asked_at is not None else None)
+    if moved.get("stale"):
+        return {"ok": True, "lane": lane_id, "id": qid, "state": STATE_STALE, "parked": False, "detail": moved.get("detail")}
     return {"ok": True, "lane": lane_id, "id": qid, "state": STATE_EXPIRED, "parked": bool(moved.get("ok")),
             "reason": REASON_MAILBOX_TIMEOUT}
 
