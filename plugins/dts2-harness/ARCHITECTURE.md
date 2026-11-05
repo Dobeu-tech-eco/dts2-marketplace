@@ -86,3 +86,4 @@ Imported by the scripts above; none is a hook entry point.
 | `scripts/settings_cache.py` | schema plus defaults for budget, supervisor and local settings, cached in `.harness/settings.cache.json` (gitignored, mode 600) |
 | `scripts/profiles.py` | `Profiles`: loads `profiles/agents/*.json`, `model`, `token_burn`, `lead_eligible`; tests inject a dict |
 | `scripts/state_io.py` | the state port: `atomic_write`, `append_text`, `.harness/` path names, `Store` with `FileStore` and `MemoryStore`, typed `State` reads |
+| `scripts/state_ids.py` | `Stamp` and `LaneId` value objects; the only way a run stamp or lane id reaches a path |

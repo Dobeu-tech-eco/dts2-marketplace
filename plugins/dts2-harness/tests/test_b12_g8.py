@@ -133,13 +133,13 @@ class TypedStateTests(unittest.TestCase):
         self.assertEqual(self.state.read_rows(".harness/l.jsonl")[-1], {"c": 3, "v": 1})
 
     def test_named_records_and_listing(self) -> None:
-        self.state.write_record(state_io.lane_rel("s1", "a", "lease.json"), {"epoch": 1})
-        self.state.write_record(state_io.lane_rel("s1", "a", "status.json"), {"status": "pr-open"})
-        self.assertEqual(self.state.lease("s1", "a")["epoch"], 1)
-        self.assertEqual(self.state.status("s1", "a")["status"], "pr-open")
-        self.assertIsNone(self.state.lease("s1", "zz"))
-        self.assertEqual(self.state.runs(), ["s1"])
-        self.assertEqual(self.state.lanes("s1"), ["a"])
+        self.state.write_record(state_io.lane_rel("20261104-1", "a", "lease.json"), {"epoch": 1})
+        self.state.write_record(state_io.lane_rel("20261104-1", "a", "status.json"), {"status": "pr-open"})
+        self.assertEqual(self.state.lease("20261104-1", "a")["epoch"], 1)
+        self.assertEqual(self.state.status("20261104-1", "a")["status"], "pr-open")
+        self.assertIsNone(self.state.lease("20261104-1", "zz"))
+        self.assertEqual(self.state.runs(), ["20261104-1"])
+        self.assertEqual(self.state.lanes("20261104-1"), ["a"])
 
 
 if __name__ == "__main__":

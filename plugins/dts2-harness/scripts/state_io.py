@@ -16,6 +16,9 @@ import threading
 from pathlib import Path
 from typing import Any, Callable, Final
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from state_ids import InvalidId, LaneId, Stamp  # noqa: E402,F401
+
 TEMP_PREFIX: Final[str] = ".tmp-"
 ENCODING: Final[str] = "utf-8"
 DEFAULT_MODE: Final[int] = 0o666
@@ -120,11 +123,11 @@ def rel(*parts: str) -> str:
 
 
 def run_rel(stamp: object, *parts: str) -> str:
-    return rel(RUNS, str(stamp), *parts)
+    return rel(RUNS, str(Stamp.coerce(stamp)), *parts)
 
 
 def lane_rel(stamp: object, lane: object, *parts: str) -> str:
-    return run_rel(stamp, str(lane), *parts)
+    return run_rel(stamp, str(LaneId.coerce(lane)), *parts)
 
 
 def harness_path(repo: Path | str, *parts: str) -> Path:
