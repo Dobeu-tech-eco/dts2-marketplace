@@ -119,23 +119,24 @@ class TypedStateTests(unittest.TestCase):
         self.store.write_text(".harness/r.json", "{torn")
         self.assertIsNone(self.state.read_record(".harness/r.json"))
         self.state.write_record(".harness/r.json", {"a": 1})
-        self.assertEqual(self.state.read_record(".harness/r.json"), {"a": 1})
+        self.assertEqual(self.state.read_record(".harness/r.json"), {"a": 1, "v": state_io.RECORD_VERSION})
 
     def test_merge_record(self) -> None:
         self.state.write_record(".harness/r.json", {"a": 1, "b": 2})
-        self.assertEqual(self.state.merge_record(".harness/r.json", {"b": 3, "c": 4}), {"a": 1, "b": 3, "c": 4})
+        merged = self.state.merge_record(".harness/r.json", {"b": 3, "c": 4})
+        self.assertEqual({k: merged[k] for k in "abc"}, {"a": 1, "b": 3, "c": 4})
 
     def test_rows_skip_torn_and_non_object_lines(self) -> None:
         self.store.write_text(".harness/l.jsonl", '{"a": 1}\n{torn\n[1]\n{"b": 2}\n')
         self.assertEqual(self.state.read_rows(".harness/l.jsonl"), [{"a": 1}, {"b": 2}])
         self.state.append_row(".harness/l.jsonl", {"c": 3})
-        self.assertEqual(self.state.read_rows(".harness/l.jsonl")[-1], {"c": 3})
+        self.assertEqual(self.state.read_rows(".harness/l.jsonl")[-1], {"c": 3, "v": 1})
 
     def test_named_records_and_listing(self) -> None:
         self.state.write_record(state_io.lane_rel("s1", "a", "lease.json"), {"epoch": 1})
         self.state.write_record(state_io.lane_rel("s1", "a", "status.json"), {"status": "pr-open"})
-        self.assertEqual(self.state.lease("s1", "a"), {"epoch": 1})
-        self.assertEqual(self.state.status("s1", "a"), {"status": "pr-open"})
+        self.assertEqual(self.state.lease("s1", "a")["epoch"], 1)
+        self.assertEqual(self.state.status("s1", "a")["status"], "pr-open")
         self.assertIsNone(self.state.lease("s1", "zz"))
         self.assertEqual(self.state.runs(), ["s1"])
         self.assertEqual(self.state.lanes("s1"), ["a"])

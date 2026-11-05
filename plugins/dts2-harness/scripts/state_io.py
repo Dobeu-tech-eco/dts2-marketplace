@@ -6,13 +6,15 @@ A crash mid-write leaves either the old file or the new one, never a torn file. 
 tests run scripts under `python3 -I`, which leaves the script's own folder off sys.path."""
 from __future__ import annotations
 
+import argparse
 import fnmatch
 import json
 import os
+import sys
 import tempfile
 import threading
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, Callable, Final
 
 TEMP_PREFIX: Final[str] = ".tmp-"
 ENCODING: Final[str] = "utf-8"
@@ -274,6 +276,117 @@ def parse_object(text: str | None) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
+# --- G-9: record versions ---------------------------------------------------------------------------------------
+RECORD_VERSION: Final[int] = 1
+VERSION_KEY: Final[str] = "v"
+Migration = Callable[[dict[str, Any]], dict[str, Any]]
+# File name -> record kind. Lanes' own supervisor files are registered by lanes.py (register_kind), not named here.
+RECORD_KINDS: Final[dict[str, str]] = {LEASE_NAME: "lease", STATUS_NAME: "status"}
+ROW_FILES: Final[set[str]] = {LEDGER_NAME}
+
+
+def stamped(record: dict[str, Any]) -> dict[str, Any]:
+    """A copy carrying the current version; a record that already says which version it is keeps it."""
+    return record if VERSION_KEY in record else {**record, VERSION_KEY: RECORD_VERSION}
+
+
+def to_current(record: dict[str, Any]) -> dict[str, Any]:
+    return {**record, VERSION_KEY: RECORD_VERSION}
+
+
+# kind -> {from_version: upgrade}. Each upgrade returns the record at the next version. Version 0 is "no v field".
+MIGRATIONS: Final[dict[str, dict[int, Migration]]] = {"lease": {0: to_current}, "status": {0: to_current}}
+
+
+def register_kind(filename: str, kind: str) -> None:
+    """Teach the port that `filename` holds records of `kind`; unregistered kinds without a table entry upgrade by stamping."""
+    RECORD_KINDS[filename] = kind
+    MIGRATIONS.setdefault(kind, {0: to_current})
+
+
+def register_rows(filename: str) -> None:
+    """Teach migrate_all that `filename` is a JSONL file whose rows carry `v`."""
+    ROW_FILES.add(filename)
+
+
+def kind_of(path: str) -> str | None:
+    return RECORD_KINDS.get(path.rsplit("/", 1)[-1])
+
+
+def version_of(record: dict[str, Any]) -> int:
+    value: Any = record.get(VERSION_KEY)
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
+
+
+def migrate(kind: str | None, record: dict[str, Any], table: dict[str, dict[int, Migration]] | None = None,
+            target: int | None = None) -> dict[str, Any]:
+    """Upgrade `record` of `kind` to the target version, one table step at a time. Never mutates the input.
+    A record newer than the target, or a missing step, raises StateError; an unknown kind passes through."""
+    steps: dict[int, Migration] | None = (table if table is not None else MIGRATIONS).get(kind or "")
+    goal: int = RECORD_VERSION if target is None else target
+    current: dict[str, Any] = dict(record)
+    if steps is None:
+        return current
+    if version_of(current) > goal:
+        raise StateError(f"{kind} record is version {version_of(current)}, newer than this harness ({goal})")
+    while version_of(current) < goal:
+        have: int = version_of(current)
+        step: Migration | None = steps.get(have)
+        if step is None:
+            raise StateError(f"no migration for {kind} from version {have}")
+        current = step(dict(current))
+        if version_of(current) <= have:
+            raise StateError(f"migration for {kind} from version {have} did not advance the version")
+    return current
+
+
+def rows_to_current(text: str) -> str:
+    """JSONL text with every well-formed object row stamped; torn and foreign lines are kept as they are."""
+    out: list[str] = []
+    for line in text.splitlines():
+        row: dict[str, Any] | None = parse_object(line)
+        out.append(json.dumps(stamped(row), sort_keys=True) if row is not None and VERSION_KEY not in row else line)
+    return "\n".join(out) + ("\n" if text.endswith("\n") else "")
+
+
+def migrate_file(store: Store, path: str, report: dict[str, Any]) -> None:
+    name: str = path.rsplit("/", 1)[-1]
+    text: str | None = store.read_text(path)
+    if text is None:
+        return
+    if name in ROW_FILES:
+        updated: str = rows_to_current(text)
+        if updated != text:
+            store.write_text(path, updated)
+            report["migrated"].append(path)
+        return
+    record: dict[str, Any] | None = parse_object(text)
+    kind: str | None = kind_of(path)
+    if record is None or kind is None:
+        report["skipped"].append(path)
+        return
+    try:
+        upgraded: dict[str, Any] = migrate(kind, record)
+    except StateError as error:
+        report["errors"].append({"path": path, "error": str(error)})
+        return
+    if upgraded != record:
+        store.write_text(path, json.dumps(upgraded, indent=2, sort_keys=True) + "\n")
+        report["migrated"].append(path)
+
+
+def migrate_all(store: Store) -> dict[str, Any]:
+    """Upgrade every known record and JSONL file under .harness/runs/ to the current version. Safe to repeat."""
+    report: dict[str, Any] = {"migrated": [], "skipped": [], "errors": []}
+    for run in store.dirs(RUNS_REL):
+        folders: list[str] = [run, *store.dirs(run)]
+        for folder in folders:
+            for path in store.list(folder):
+                if path.rsplit("/", 1)[-1] in {*RECORD_KINDS, *ROW_FILES}:
+                    migrate_file(store, path, report)
+    return report
+
+
 class State:
     """Typed reads and writes over a Store. Records are JSON objects; rows are one JSON object per line."""
 
@@ -281,10 +394,13 @@ class State:
         self.store: Store = store
 
     def read_record(self, path: str) -> dict[str, Any] | None:
-        return parse_object(self.store.read_text(path))
+        """The record as an object, upgraded in memory to the current version when its file name has a registered kind."""
+        record: dict[str, Any] | None = parse_object(self.store.read_text(path))
+        kind: str | None = kind_of(path)
+        return migrate(kind, record) if record is not None and kind is not None else record
 
     def write_record(self, path: str, record: dict[str, Any]) -> None:
-        self.store.write_text(path, json.dumps(record, indent=2, sort_keys=True) + "\n")
+        self.store.write_text(path, json.dumps(stamped(record), indent=2, sort_keys=True) + "\n")
 
     def merge_record(self, path: str, changes: dict[str, Any]) -> dict[str, Any]:
         merged: dict[str, Any] = {**(self.read_record(path) or {}), **changes}
@@ -301,7 +417,7 @@ class State:
         return rows
 
     def append_row(self, path: str, row: dict[str, Any]) -> None:
-        self.store.append_text(path, json.dumps(row, sort_keys=True) + "\n")
+        self.store.append_text(path, json.dumps(stamped(row), sort_keys=True) + "\n")
 
     def lease(self, stamp: object, lane: object) -> dict[str, Any] | None:
         return self.read_record(lane_rel(stamp, lane, LEASE_NAME))
@@ -314,3 +430,19 @@ class State:
 
     def lanes(self, stamp: object) -> list[str]:
         return [p.rsplit("/", 1)[-1] for p in self.store.dirs(run_rel(stamp))]
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="State port tools.")
+    sub = parser.add_subparsers(dest="command", required=True)
+    migrate_parser = sub.add_parser("migrate-all", help="upgrade every record under .harness/runs/ to the current version")
+    migrate_parser.add_argument("repo", nargs="?", default=".")
+    args = parser.parse_args(argv)
+    if args.command == "migrate-all":
+        json.dump(migrate_all(FileStore(args.repo)), sys.stdout)
+        sys.stdout.write("\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
