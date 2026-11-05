@@ -69,7 +69,7 @@ Only agents detected on this machine join the roster; handoff agents get a writt
 5. CI, cron, or a second machine without the desktop app → `sdk`.
 6. Changing the harness itself → `evolve`. Launching a product → `gtm`.
 7. Optional Claude Code hooks (command guard, auto-format, tests on stop, notifications) → the Hooks step below.
-8. Database tooling: `/dts2-harness:find-skills` suggests database MCP servers and skills for your stack.
+8. Database tooling: `/dts2:find-skills` suggests database MCP servers and skills for your stack.
 
 ## Tiers the run skill picks automatically
 | Tier | Typical size | Builders | Reviewers |

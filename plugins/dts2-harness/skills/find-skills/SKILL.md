@@ -35,7 +35,7 @@ On the user's yes, handle only the picked items, per category:
 - **mcp**: run `claude mcp add --scope project ...` only for the picked servers. Tokens go in environment variables the user sets; never type them into args or files.
 - **permissions**: show the exact lines first, back up `.claude/settings.json`, then append to `permissions.allow` or `permissions.deny`. Never remove entries. Remove a broad allow entry only when the user picks that item.
 - **commands and subagents**: write one short new file under `.claude/commands` or `.claude/agents`. Never overwrite an existing file.
-- **ci, pr template, dependabot**: copy the plugin template onto a new branch and hand off to `/dts2-harness:ship`. Never commit to main.
+- **ci, pr template, dependabot**: copy the plugin template onto a new branch and hand off to `/dts2:ship`. Never commit to main.
 - **docs**: run `/init`.
 
 ## 5. Report

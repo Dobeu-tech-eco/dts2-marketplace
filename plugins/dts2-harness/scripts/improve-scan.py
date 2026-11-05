@@ -366,7 +366,7 @@ def simple_recs(state: dict[str, Any], facts: dict[str, bool], inventory: dict[s
                         "Write a short file under .claude/commands for each script you run often.", 3))
     if not state["agents"] and facts["has_tests"]:
         recs.append(rec("subagents", "add-test-runner-agent", "Add a test-runner subagent",
-                        "The repo has tests; a subagent keeps test output out of the main chat (dts2-harness:verifier already exists).",
+                        "The repo has tests; a subagent keeps test output out of the main chat (dts2:verifier already exists).",
                         "Write a short file under .claude/agents that runs the test command and reports failures.", 3))
     if not state["has_agent_docs"]:
         recs.append(rec("docs", "add-agent-docs", "Add CLAUDE.md or AGENTS.md",
