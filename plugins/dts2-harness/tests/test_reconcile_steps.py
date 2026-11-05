@@ -19,6 +19,10 @@ if str(SCRIPTS) not in sys.path:
 
 from lanes.reconcile import reconcile_step  # noqa: E402
 
+# The package exports a `reconcile` function that shadows the submodule name, and
+# Python 3.10's mock.patch resolves dotted strings through it; patch the module object.
+RECONCILE_MODULE = sys.modules["lanes.reconcile"]
+
 CLI: Final[Path] = SCRIPTS / "lanes.py"
 STAMP: Final[str] = "20261105-7"
 FAKE_GH: Final[str] = """#!/usr/bin/env python3
@@ -74,7 +78,7 @@ class StepReconcileTests(unittest.TestCase):
             self.go("../x")
 
     def test_a_son_is_refused(self) -> None:
-        with mock.patch("lanes.reconcile.inside_son", return_value=True):
+        with mock.patch.object(RECONCILE_MODULE, "inside_son", return_value=True):
             out = self.go()
         self.assertFalse(out["ok"])
         self.assertEqual(self.asked, [])
