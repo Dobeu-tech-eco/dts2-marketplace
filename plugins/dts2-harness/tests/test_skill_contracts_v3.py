@@ -27,7 +27,7 @@ class EvolveContract(TextContractMixin):
         self.assert_contains(SKILLS / "evolve" / "SKILL.md", [
             "name: evolve", "plugins/cache", "plugins/synced", "claude plugin validate plugins/dts2-harness",
             "claude plugin validate .", "git remote -v | grep dts2-marketplace", "~/.dts2/marketplace",
-            "https://github.com/Dobeu-tech-eco/dts2-marketplace.git", "explicit yes",
+            "`repository` field", "plugin.json", "explicit yes",
             "/plugin marketplace update dts2", "restart", "python3 -m unittest discover -s plugins/dts2-harness/tests",
         ])
 

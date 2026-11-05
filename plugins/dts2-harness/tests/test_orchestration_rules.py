@@ -17,7 +17,10 @@ PERSONAL_STRINGS: Final[tuple[str, ...]] = (
     "Jeremy", "Neptune", "07753", "Composio", "Baldor", "Unique Staffing", "Dobeu Tech Solutions LLC",
 )
 # Prose and rule files only: profiles/blueprint.json names the third-party Composio plugin as data.
-SUFFIXES: Final[frozenset[str]] = frozenset({".md"})
+SUFFIXES: Final[frozenset[str]] = frozenset({".md", ".py", ".sh"})  # G-77: scripts and hooks are scanned too
+# Scripts, hooks and skills must not hard-code the org that owns the marketplace; they read it from plugin.json or the git remote.
+ORG_STRINGS: Final[tuple[str, ...]] = ("Dobeu-tech-eco",)
+ORG_SUFFIXES: Final[frozenset[str]] = frozenset({".py", ".sh"})
 
 
 def _read(path: Path) -> str:
@@ -55,8 +58,21 @@ class OrchestrationRulesTests(unittest.TestCase):
         for path in PLUGIN_ROOT.rglob("*"):
             if not path.is_file() or path.suffix not in SUFFIXES or path.name == Path(__file__).name:
                 continue
+            if path.suffix != ".md" and "tests" in path.relative_to(PLUGIN_ROOT).parts[:1]:
+                continue  # test code names the strings it checks for; shipped scripts and hooks may not
             text: str = path.read_text(encoding="utf-8", errors="ignore")
             for needle in PERSONAL_STRINGS:
+                self.assertNotIn(needle, text, f"{path} contains {needle}")
+
+    def test_no_hard_coded_org_in_code_or_skills(self) -> None:
+        for path in PLUGIN_ROOT.rglob("*"):
+            if not path.is_file() or path.name == Path(__file__).name or "tests" in path.relative_to(PLUGIN_ROOT).parts[:1]:
+                continue
+            in_skills: bool = path.suffix == ".md" and "skills" in path.relative_to(PLUGIN_ROOT).parts[:1]
+            if path.suffix not in ORG_SUFFIXES and not in_skills:
+                continue
+            text: str = path.read_text(encoding="utf-8", errors="ignore")
+            for needle in ORG_STRINGS:
                 self.assertNotIn(needle, text, f"{path} contains {needle}")
 
 

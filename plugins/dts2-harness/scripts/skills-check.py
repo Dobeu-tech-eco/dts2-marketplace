@@ -15,6 +15,7 @@ import os
 import re
 import shutil
 import sys
+import time
 from datetime import date
 from pathlib import Path
 from types import ModuleType
@@ -26,6 +27,7 @@ import skill_pins as pins  # noqa: E402
 import proc  # noqa: E402
 import _load  # noqa: E402
 import state_io  # noqa: E402
+import harness_skew  # noqa: E402
 
 SCRIPTS: Final[Path] = Path(__file__).resolve().parent
 PLUGIN_ROOT: Final[Path] = SCRIPTS.parent
@@ -53,6 +55,9 @@ RETIRED: Final[dict[str, str]] = {
 INSTALL_FLAGS: Final[tuple[str, ...]] = ("-a", "claude-code", "--copy", "-y")
 HARNESS_PLUGIN: Final[str] = "dts2-harness@dts2"
 TIMEOUT_S: Final[int] = 120
+# G-76: the `skills` npm CLI is pinned. A moving `latest` could change flags or lock-file shape under a run; raise this
+# constant in a reviewed commit, with the tests, when a newer CLI is wanted.
+SKILLS_CLI_VERSION: Final[str] = "1.7.6"
 TIMED_OUT: Final[int] = 124
 NOT_FOUND: Final[int] = 127
 RUNNER: proc.Runner | None = None  # tests set a proc.FakeRunner; None starts real processes
@@ -104,7 +109,7 @@ def run(cmd: list[str], cwd: Path) -> tuple[int, str]:
 
 
 def npx(*args: str) -> list[str]:
-    return [*binary("DTS2_NPX_BIN", "npx"), "-y", "skills", *args]
+    return [*binary("DTS2_NPX_BIN", "npx"), "--yes", f"skills@{SKILLS_CLI_VERSION}", *args]
 
 
 def parse_ref(ref: str) -> tuple[str, str] | None:
@@ -659,7 +664,7 @@ def marketplaces(plugins: list[str]) -> list[str]:
     return list(dict.fromkeys(names))
 
 
-def published_version(home: Path, cwd: Path, allow_remote: bool) -> str | None:
+def published_version(home: Path, cwd: Path, allow_remote: bool, plugin_root: Path = PLUGIN_ROOT) -> str | None:
     local: Path = home / ".claude" / "plugins" / "marketplaces" / "dts2" / "plugins" / "dts2-harness" / ".claude-plugin" / "plugin.json"
     if local.is_file():
         try:
@@ -668,8 +673,11 @@ def published_version(home: Path, cwd: Path, allow_remote: bool) -> str | None:
             pass
     if not allow_remote:
         return None  # the local marketplace clone is the cheap, every-call source
+    source: str | None = harness_skew.marketplace_repo(plugin_root)  # G-77: named by the plugin, never hard-coded here
+    if source is None:
+        return None
     code, out = run([*binary("DTS2_GH_BIN", "gh"), "api",
-                     "repos/Dobeu-tech-eco/dts2-marketplace/contents/plugins/dts2-harness/.claude-plugin/plugin.json",
+                     f"repos/{source}/contents/plugins/dts2-harness/.claude-plugin/plugin.json",
                      "-H", "Accept: application/vnd.github.raw"], cwd)
     if code != 0:
         return None
@@ -685,7 +693,7 @@ def check_harness(repo: Path, home: Path, plugin_root: Path, fix: bool, daily: b
     installed_v: str = upgrade.read_version(plugin_json)
     marker: Path = state_io.harness_path(repo, "upgrade-from.txt")
     result: dict[str, Any] = {"installed": installed_v, "published": None, "upgrade_available": False,
-                              "upgrade_started": False, "upgrade_failed": None, "resume_upgrade": None,
+                              "upgrade_started": False, "upgrade_deferred": None, "upgrade_failed": None, "resume_upgrade": None,
                               "marketplaces": {}, "plugins_updated": [], "restart_required": False}
     if marker.is_file():
         result["resume_upgrade"] = upgrade.check(marker, plugin_json)
@@ -698,10 +706,14 @@ def check_harness(repo: Path, home: Path, plugin_root: Path, fix: bool, daily: b
             code, _ = run([*claude, "plugin", "marketplace", "update", name], repo)
             result["marketplaces"][name] = "updated" if code == 0 else "failed"
     # The local clone is read every call (cheap); the gh fallback is a daily-only network call.
-    published = published_version(home, repo, allow_remote=daily)
+    published = published_version(home, repo, allow_remote=daily, plugin_root=plugin_root)
     result["published"] = published
     result["upgrade_available"] = published is not None and upgrade.ordering(installed_v, published) < 0
     if not fix:
+        return result
+    held: list[str] = harness_skew.live_leases(repo, int(time.time()))
+    if held:  # G-76: a plugin update swaps files under running sons; wait until no lane lease is live
+        result["upgrade_deferred"] = f"live lane leases: {', '.join(held)}"
         return result
     if result["upgrade_available"]:
         run([sys.executable, str(SCRIPTS / "handoff-write.py"), str(repo)], repo)
@@ -731,6 +743,8 @@ def main() -> int:
     parser.add_argument("--no-upstream", action="store_true", help="skip the gone-upstream check")
     parser.add_argument("--force-full", action="store_true",
                         help="run the freshness sweep now even if it already ran today")
+    parser.add_argument("--son-root", default=None, metavar="PATH",
+                        help="a son's plugin root; reports `skew` (park reason version-skew) when its version differs from the head's")
     parser.add_argument("--home", default=str(Path.home()))
     parser.add_argument("--plugin-root", default=os.environ.get("CLAUDE_PLUGIN_ROOT", str(PLUGIN_ROOT)))
     args = parser.parse_args()
@@ -745,7 +759,11 @@ def main() -> int:
     # not when npx was missing so nothing could be refreshed.
     if args.fix and daily and not harness["upgrade_started"] and skills.get("npx") == "ok":
         mark_checked(repo)
-    print(json.dumps({"harness": harness, "skills": skills}, indent=2))
+    out: dict[str, Any] = {"harness": harness, "skills": skills}
+    if args.son_root:
+        problem = harness_skew.skew_problem(root, Path(args.son_root))
+        out["skew"] = {"ok": problem is None, "reason": None if problem is None else harness_skew.REASON_SKEW, "detail": problem}
+    print(json.dumps(out, indent=2))
     return 0
 
 

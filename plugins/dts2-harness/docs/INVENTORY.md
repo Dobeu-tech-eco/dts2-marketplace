@@ -104,7 +104,7 @@ Run as `python3 -I "$P/scripts/<x>.py" ...`. Hook-driven and internal scripts ar
 | `agent-memory.py` | none | `--write` (required), `--agents`, `--project` | Give each detected agent a project memory file from one shared source. | `setup`, `run`, `dpp` | |
 | `skill-suggest.py` | none | `--facts` | Ranked candidate skill slugs from repo facts. | `find-skills` | |
 | `marketing-select.py` | none | `--facts` | Ordered `marketing-skills` subset for the GTM pass. | `gtm` | |
-| `skills-check.py` | `<repo>` | `--fix`, `--swap OLD=REF`, `--apply-update NAME=SHA`, `--no-upstream`, `--force-full`, `--home`, `--plugin-root` | Pre-run check of harness version, marketplaces, companion and keep-list skills, with commit pins and proposal-only updates. | `run`, `ship` | changed |
+| `skills-check.py` | `<repo>` | `--fix`, `--swap OLD=REF`, `--apply-update NAME=SHA`, `--no-upstream`, `--force-full`, `--son-root`, `--home`, `--plugin-root` | Pre-run check of harness version, marketplaces, companion and keep-list skills, with commit pins and proposal-only updates; the `skills` CLI is pinned (`SKILLS_CLI_VERSION`), a self-upgrade waits while a lane lease is live, and `--son-root` reports version skew. | `run`, `ship` | changed |
 | `upgrade-check.py` | none | `--from-file` (required), `--plugin-json` | Compare the pre-upgrade version with the installed one. | `skills-check.py` (in-process); by hand | |
 | `companion-gate.py` | `check`, `record` | `--repo`, `--skill` (required), `check`: `--base` | Run-count gates for two costly companion skills. | `run` | new |
 | `env-detect.py` | none (no flags) | none | Report OS, WSL status, which Claude home is live and which agent CLIs are on PATH. Read-only. | `find-skills`, `machine-prep`; `auditor` agent | |
@@ -223,13 +223,13 @@ Stamp-keyed commands:
 | `provider_report.py` | `footer`, `check <file\|->` | | Provider-neutral brief footer and validator for the fenced JSON report every non-Claude seat ends with. | `run`, `autopilot` | new |
 | `ballot_dispatch.py` | `dispatch --seat --model --prompt-file --out-dir [--provider] [-- argv]` | | Runs one council seat through the shared call limit and writes the ballot with its `.dispatch.json` record (argv, model, session id, sha256); Claude seats use `--json-schema` and `--restricted`. | `autopilot` council | new |
 | `sdk/dts2-run.py` | `<task>`; `--repo`, `--yes`, `--api-key-env`, `--second-opinion none\|codex\|gemini`, `--ship`, `--live-only` | Headless pipeline on the Agent SDK. | `sdk` | |
-| `evals/run.py` | `--fixture` (repeatable), `--baseline`, `--results-dir`, `--update-baseline` | Run the smoke-eval fixtures against the baseline. | by hand | new |
+| `evals/run.py` | `--fixture` (repeatable), `--baseline`, `--results-dir`, `--update-baseline`, `--runs`, `--arm-b-env` | Run the smoke-eval fixtures against the baseline; with `--arm-b-env` run k >= 5 alternating A/B runs and report median, range, pass^k and a verdict. | by hand | changed |
 
 ## 5. Library modules (no command line)
 
 Imported by the scripts above; none is a CLI. Responsibilities are in `ARCHITECTURE.md`.
 
-`_load.py`, `contracts.py`, `mdparse.py`, `miniyaml.py`, `model_call.py`, `ownership_audit.py`, `prep-tiers.py` (helper for `machine-prep.py`), `proc.py` (also the son lifecycle: `wrap_son`, `son.json`, `exit.json`, SIGINT-then-SIGKILL), `profiles.py`, `skill_pins.py`, `son_launch.py` (also `provider_env`, `allowed_tools`, `auth_problem`, `init_plugin_errors`), `son_stream.py` (stream-json heartbeat, `detect_stuck`, `api_retry` exhaustion), `state_ids.py`, and the modules of `scripts/lanes/` (`amend`, `common`, `conflicts`, `gitrefs`, `integration`, `journal`, `leases`, `merge`, `mergeplan`, `mergeresume`, `phases`, `planner`, `reconcile`, `records`, `runend`, `runrecord`, `runstate`, `shutdown`, `supervisor`, `waiter`).
+`_load.py`, `contracts.py`, `eval_stats.py` (A/B run statistics for `evals/run.py`: median, range, pass^k, verdict), `harness_skew.py` (live-lease read, son-versus-head plugin version skew, marketplace repo from `plugin.json`), `mdparse.py`, `miniyaml.py`, `model_call.py`, `ownership_audit.py`, `prep-tiers.py` (helper for `machine-prep.py`), `proc.py` (also the son lifecycle: `wrap_son`, `son.json`, `exit.json`, SIGINT-then-SIGKILL), `profiles.py`, `skill_pins.py`, `son_launch.py` (also `provider_env`, `allowed_tools`, `auth_problem`, `init_plugin_errors`), `son_stream.py` (stream-json heartbeat, `detect_stuck`, `api_retry` exhaustion), `state_ids.py`, and the modules of `scripts/lanes/` (`amend`, `common`, `conflicts`, `gitrefs`, `integration`, `journal`, `leases`, `merge`, `mergeplan`, `mergeresume`, `phases`, `planner`, `reconcile`, `records`, `runend`, `runrecord`, `runstate`, `shutdown`, `supervisor`, `waiter`).
 
 ## 6. Makefile targets and CI
 
