@@ -812,8 +812,8 @@ def merge_bash_denial(words: list[str], cwd: Path, line_watched: bool = False) -
         return None
     if head == "git":
         sub, args, _ = git_subcommand(words)
-        if line_watched and git_alias_config(words):
-            return "git -c alias.* / --config-env on a line naming push or merge can hide the command; the merge gate denies it"
+        if git_alias_config(words):
+            return "git -c alias.* / --config-env can define an alias that hides a push or merge; the merge gate denies it"
         if line_watched and sub is not None and sub not in GIT_BUILTINS:
             return f"git {sub} is not a built-in subcommand and may be an alias for push or merge; the merge gate denies it"
         if sub != "push":

@@ -56,7 +56,8 @@ class MergeR3Tests(unittest.TestCase):
 
     def test_alias_and_config(self) -> None:
         self.assert_denied("git -c alias.p=push p origin main", "git -calias.p=push p origin main",
-                           "git --config-env=alias.p=X p origin main; echo push", "git p origin main; echo push")
+                           "git --config-env=alias.p=X p origin main; echo push", "git p origin main; echo push",
+                           "git --config-env=alias.p=X p origin main", "git -c alias.p=X p origin main")
 
     def test_xargs(self) -> None:
         self.assert_denied("echo main | xargs git push origin", "echo 3 | xargs gh pr merge", "xargs -n1 git push origin")
