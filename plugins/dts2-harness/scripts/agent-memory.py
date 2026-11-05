@@ -15,6 +15,8 @@ from profiles import PROFILE_DIR, Profiles  # noqa: E402
 
 START_MARKER: Final[str] = "<!-- dts2:start -->"
 END_MARKER: Final[str] = "<!-- dts2:end -->"
+LEGACY_START_MARKER: Final[str] = "<!-- dts2-harness:start -->"
+LEGACY_END_MARKER: Final[str] = "<!-- dts2-harness:end -->"
 DEFAULT_RULES_FILE: Final[str] = "AGENTS.md"
 DEFAULT_AGENTS: Final[str] = "claude"
 LIST_SEPARATOR: Final[str] = ","
@@ -47,8 +49,19 @@ def managed_block(project_name: str) -> str:
     return f"{START_MARKER}\n{memory_seed(project_name)}\n{END_MARKER}\n"
 
 
+def migrate_legacy(text: str, block: str) -> str | None:
+    """Replace a pre-4.0 managed block (start through end marker) with `block`; None when there is no closed one."""
+    start: int = text.find(LEGACY_START_MARKER)
+    if start < 0:
+        return None
+    end: int = text.find(LEGACY_END_MARKER, start + len(LEGACY_START_MARKER))
+    if end < 0:
+        return None
+    return text[:start] + block.rstrip("\n") + text[end + len(LEGACY_END_MARKER):]
+
+
 def sync_file(path: Path, project_name: str) -> str:
-    """Create the file, append the managed block once, or leave it alone. Returns the action taken."""
+    """Create the file, append the managed block once, migrate a pre-4.0 block, or leave it alone. Returns the action taken."""
     block: str = managed_block(project_name)
     if not path.exists():
         atomic_write(path, block)
@@ -56,6 +69,12 @@ def sync_file(path: Path, project_name: str) -> str:
     text: str = path.read_text(encoding="utf-8")
     if START_MARKER in text:
         return "unchanged"
+    if LEGACY_START_MARKER in text:
+        migrated: str | None = migrate_legacy(text, block)
+        if migrated is None:
+            return "unchanged"
+        atomic_write(path, migrated)
+        return "migrated"
     separator: str = "" if not text or text.endswith("\n\n") else ("\n" if text.endswith("\n") else "\n\n")
     atomic_write(path, text + separator + block)
     return "updated"
