@@ -10,6 +10,7 @@ from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import state_io  # noqa: E402
+from lessons import matching_lessons  # noqa: E402
 
 MANIFEST_NAME: Final[str] = ".harness-workspace.yaml"
 REPO_CONFIG: Final[str] = state_io.CONFIG_REL
@@ -65,11 +66,16 @@ def detect(path: Path) -> dict[str, Any]:
 def main() -> int:
     parser: argparse.ArgumentParser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("path", nargs="?", default=".", help="folder to inspect")
+    parser.add_argument("--lessons", action="store_true", help="add the lessons whose paths: globs match the changed files (newest 5)")
+    parser.add_argument("--files", help="with --lessons: comma-separated files to match instead of the git changes")
     args: argparse.Namespace = parser.parse_args()
     try:
-        json.dump(detect(Path(args.path)), sys.stdout)
+        result: dict[str, Any] = detect(Path(args.path))
     except OSError:
-        json.dump(build("none", Path(args.path), None, ADVICE_NONE), sys.stdout)
+        result = build("none", Path(args.path), None, ADVICE_NONE)
+    if args.lessons:
+        result["lessons"] = matching_lessons(Path(args.path).resolve(), args.files.split(",") if args.files else None)
+    json.dump(result, sys.stdout)
     sys.stdout.write("\n")
     return 0
 
