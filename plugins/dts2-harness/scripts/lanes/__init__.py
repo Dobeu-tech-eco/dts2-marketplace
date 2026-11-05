@@ -1,5 +1,6 @@
-"""Lane tools as a package: conflicts, leases, gitrefs, planner, runstate, supervisor and merge. scripts/lanes.py is the CLI;
-the names it uses are re-exported here (explicitly, so no module's private helpers leak into the package namespace)."""
+"""Lane tools as a package: conflicts, leases, gitrefs, planner, runstate, supervisor and merge, plus the lifecycle modules
+(phases, shutdown, reconcile, runrecord, journal, mergeresume, runend). scripts/lanes.py is the CLI; the names it uses are
+re-exported here (explicitly, so no module's private helpers leak into the package namespace)."""
 from __future__ import annotations
 
 import sys
@@ -16,6 +17,13 @@ from .mergeplan import merge_plan  # noqa: E402
 from .planner import load_draft, plan, read_checkin, son_command  # noqa: E402
 from .runstate import budget_report, fold, heartbeat, release, report_check, sendback, spend_state, status, stop_check  # noqa: E402
 from .supervisor import gc_restore, loop, model_call, preflight, spawn  # noqa: E402
+from .phases import LEGAL, transition  # noqa: E402
+from .shutdown import shutdown  # noqa: E402
+from .reconcile import reconcile  # noqa: E402
+from .runrecord import RunRecord, init_run, read_run, record_builder, resume_view, update_run  # noqa: E402
+from .journal import fold_done, walkthrough_failed  # noqa: E402
+from .mergeresume import merge_resume  # noqa: E402
+from .runend import record_run_end, run_report_view, warn_thin_plan  # noqa: E402
 
 __all__ = [
     "COST_SOURCES", "DEFAULT_CALL_TIMEOUT_S", "HEARTBEAT_PHASES", "LaneError", "RUNS_DIR", "load_manifest",
@@ -23,4 +31,6 @@ __all__ = [
     "merge_plan", "load_draft", "plan", "read_checkin", "son_command",
     "budget_report", "fold", "heartbeat", "release", "report_check", "sendback", "spend_state", "status", "stop_check",
     "gc_restore", "loop", "model_call", "preflight", "spawn",
+    "LEGAL", "transition", "shutdown", "reconcile", "RunRecord", "init_run", "read_run", "record_builder", "resume_view",
+    "update_run", "fold_done", "walkthrough_failed", "merge_resume", "record_run_end", "run_report_view", "warn_thin_plan",
 ]

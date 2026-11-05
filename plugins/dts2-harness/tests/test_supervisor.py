@@ -44,7 +44,17 @@ cost = float(os.environ.get("FAKE_COST", "0.5"))
 result = {"type": "result", "subtype": "success", "is_error": False, "session_id": session, "num_turns": 3,
           "total_cost_usd": cost}
 status_file = os.environ.get("FAKE_STATUS_FILE")
-if status_file and "-p" in argv and argv[argv.index("-p") + 1] != "ok":
+
+
+def spawned_by_supervisor(path):
+    """Only `lanes spawn` claims the lane (spawn_pid) before starting a son; `lanes call` and the probe never do."""
+    try:
+        return bool(json.loads(Path(path).read_text()).get("spawn_pid"))
+    except (OSError, ValueError):
+        return False
+
+
+if status_file and "-p" in argv and argv[argv.index("-p") + 1] != "ok" and spawned_by_supervisor(status_file):
     # The supervisor records son_pid in status.json right after it spawns us, as a locked read-merge-write. Write
     # only once that has landed, and replace the file atomically, or our write can be lost to (or tear under) it.
     deadline = time.time() + 10
