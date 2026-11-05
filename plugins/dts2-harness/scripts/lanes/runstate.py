@@ -20,7 +20,7 @@ from .leases import busy, epoch_refusal, lease_epoch, stale_epoch
 from .journal import done_groups, group_key, note_fold_plan
 from .phases import heartbeat, transition  # noqa: F401 - heartbeat is re-exported for callers of this module
 from .planner import read_checkin, read_setting
-from .records import append_ledger, lane_lock, ledger_emitter, merge_json, read_json_object  # noqa: F401 - re-exported
+from .records import append_ledger, lane_lock, read_json_object  # noqa: F401 - read_json_object is re-exported
 
 
 def read_status_files(runs_dir: Path, stamp: str) -> list[tuple[Path, dict[str, Any]]]:
