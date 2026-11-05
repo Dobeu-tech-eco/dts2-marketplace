@@ -62,7 +62,7 @@ PR_URL: Final[re.Pattern[str]] = re.compile(r"^https://[^\s]+/pull/\d+$")
 API_MERGE_PATH: Final[re.Pattern[str]] = re.compile(r"/pulls/(\d+)/merge/?(?:[?#].*)?$")
 API_REPO_PATH: Final[re.Pattern[str]] = re.compile(r"(?:^|/)repos/([A-Za-z0-9._-]+)/([A-Za-z0-9._-]+)/pulls/")
 API_FILE_FIELD: Final[re.Pattern[str]] = re.compile(r"^[^=\s]+=@")
-GRANT_COMMANDS: Final[frozenset[str]] = frozenset({"merge-go", "merge-go-step", "merge-target", "gc-restore"})
+GRANT_COMMANDS: Final[frozenset[str]] = frozenset({"merge-go", "merge-go-step", "merge-target", "gc-restore", "publish"})
 BODY_VALUE_FLAGS: Final[frozenset[str]] = frozenset({"-b", "--body", "-F", "--body-file", "-t", "--subject", "-A", "--author-email"})
 STATUS_NAME: Final[str] = "status.json"
 PENDING_NAME: Final[str] = "merge-pending.txt"
@@ -494,7 +494,7 @@ def son_bash_denial(words: list[str], prefix: str) -> str | None:
             return gh_api_denial(rest[1:])
     for i, word in enumerate(words):
         if Path(word).name == "lanes.py" and any(w in GRANT_COMMANDS for w in words[i + 1:]):
-            return "merge-go, merge-target and gc-restore are the head's alone"
+            return "merge-go, merge-target, gc-restore and publish are the head's alone"
     return None
 
 

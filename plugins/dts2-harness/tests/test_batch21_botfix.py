@@ -134,5 +134,36 @@ class HeadProbeSkipsHooks(unittest.TestCase):
         self.assertIn("--dry-run", argv)
 
 
+class PublishIsHeadOnly(unittest.TestCase):
+    def test_F8_son_deny_lists_name_publish(self) -> None:
+        import son_launch
+        self.assertIn("Bash(*lanes.py publish*)", son_launch.DISALLOWED)
+        self.assertIsNotNone(guard.son_bash_denial(["python3", "scripts/lanes.py", "publish", "20261105-1", "--lane", "a"], "dts2/x/lane-a"))
+
+    def test_F8_call_refuses_to_wrap_a_son_marker_change(self) -> None:
+        from lanes import supervisor
+        work = Path(tempfile.mkdtemp(prefix="dts2-b21-"))
+        for argv in (["env", "-u", "DTS2_SON", "python3", "x.py"], ["env", "DTS2_SON=", "python3", "x.py"],
+                     ["env", "-iu", "DTS2_SON_BRANCH_PREFIX", "python3", "x.py"], ["DTS2_SON=0", "python3", "x.py"],
+                     ["env", "--unset=DTS2_SON", "python3", "x.py"]):
+            result = supervisor.model_call(work / "runs", "20261105-1", work, "t", argv, 5, None, None, "none")
+            self.assertFalse(result["ok"], argv)
+            self.assertIn("DTS2_SON", result["detail"])
+
+    def test_F8_publish_is_refused_for_a_son_role_without_env_markers(self) -> None:
+        import lanes as lanes_cli  # noqa: F401  (the package; the CLI module is loaded below)
+        spec = importlib.util.spec_from_file_location("lanes_cli_b21", SCRIPTS / "lanes.py")
+        assert spec is not None and spec.loader is not None
+        cli = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cli)
+        args = cli.build_parser().parse_args(["publish", "20261105-1", "--lane", "a"])
+        env = {k: v for k, v in os.environ.items() if k not in ("DTS2_SON", "DTS2_SON_BRANCH_PREFIX")}
+        for role in ("son", "vote", "council"):
+            with mock.patch.dict(os.environ, {**env, "DTS2_ROLE": role}, clear=True), \
+                    mock.patch.object(cli, "publish_lane", return_value={"ok": True}) as publish:
+                self.assertFalse(cli.publish_command(args, Path(tempfile.mkdtemp()))["ok"], role)
+                publish.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()
