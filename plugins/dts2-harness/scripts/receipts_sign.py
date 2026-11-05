@@ -24,16 +24,23 @@ GENESIS: Final[str] = "0" * 64
 EXIT_BAD: Final[int] = 1
 
 
+class KeyUnreadable(Exception):
+    """A key file is configured (DTS2_PR_RECEIPT_KEY_FILE is set) but cannot be read or is empty."""
+
+
 def read_key(env: dict[str, str] | None = None) -> bytes | None:
-    """The head's signing key, or None when no key file is configured or readable."""
+    """The head's signing key; None only when no key file is configured (unsigned mode).
+    Raises KeyUnreadable when one is configured but missing, unreadable or empty, so a broken key never falls back to unsigned."""
     path: str | None = (dict(os.environ) if env is None else env).get(KEY_FILE_VAR)
     if not path:
         return None
     try:
         key: bytes = Path(path).read_bytes().strip()
-    except OSError:
-        return None
-    return key or None
+    except OSError as exc:
+        raise KeyUnreadable(f"{KEY_FILE_VAR} names a key file that cannot be read: {exc.strerror or exc}") from exc
+    if not key:
+        raise KeyUnreadable(f"{KEY_FILE_VAR} names an empty key file")
+    return key
 
 
 def canonical(body: Any) -> str:
@@ -115,7 +122,11 @@ def main() -> int:
     check_p.add_argument("file")
     check_p.add_argument("sig")
     args = parser.parse_args()
-    key: bytes | None = read_key()
+    try:
+        key: bytes | None = read_key()
+    except KeyUnreadable as exc:
+        print(str(exc), file=sys.stderr)
+        return EXIT_BAD
     if args.command == "append":
         print(json.dumps(append(Path(args.journal), json.loads(args.body), key)))
         return 0
