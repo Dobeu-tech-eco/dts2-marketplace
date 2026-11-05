@@ -95,3 +95,10 @@ class DependencyUpdateTemplateTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CiDevRequirementsTests(unittest.TestCase):
+    def test_ci_installs_dev_requirements_so_property_tests_run(self) -> None:
+        workflow: Path = PLUGIN_ROOT.parent.parent / ".github" / "workflows" / "test.yml"
+        text: str = workflow.read_text(encoding="utf-8")
+        self.assertIn("pip install -r requirements-dev.txt", text)
