@@ -3,6 +3,7 @@
 Skipped unless hypothesis is importable (pip install -r requirements-dev.txt)."""
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sys
@@ -38,6 +39,8 @@ def tally(ballots: list[tuple[str | None, bool]]) -> dict[str, Any]:
         head = f"VOTE: {vote}\n" if vote else "no vote line here\n"
         path = folder / f"seat{index}.md"
         path.write_text(head + "- HIGH a.ts:1 — x — y\n" + (BRIEF if brief else ""), encoding="utf-8")
+        record = {"argv": ["fake-seat"], "model": "m", "session_id": None, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+        path.with_name(path.name + ".dispatch.json").write_text(json.dumps(record), encoding="utf-8")
         paths.append(str(path))
     done = subprocess.run([sys.executable, "-I", str(SCRIPT), "tally", *paths], capture_output=True, text=True,
                           check=True)

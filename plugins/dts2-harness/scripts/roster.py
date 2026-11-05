@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import miniyaml  # noqa: E402
 import state_io  # noqa: E402
 from profiles import PROFILE_DIR, Profiles  # noqa: E402
+from son_launch import provider_env  # noqa: E402
 
 DEFAULT_ROSTER: Final[list[dict[str, Any]]] = [{"name": "claude"}]
 COPILOT_TIMEOUT_SECONDS: Final[int] = 10
@@ -511,9 +512,17 @@ def prompt_values(prompt_file: Path, workspace: Path) -> dict[str, str]:
     }
 
 
-def shell_line(argv: list[str], stdin: str | None, env: dict[str, str] | None = None) -> str:
-    """One quoted command line: `env K=V ...` for the profile env, then argv, then the redirect."""
-    prefix: list[str] = ["env", *(f"{k}={v}" for k, v in sorted(env.items()))] if env else []
+def clean_env(profile: dict[str, Any]) -> dict[str, str]:
+    """What a dispatched agent CLI may see (G-67): the son allowlist, the profile's own API-key variable and its `env`.
+    No GH_TOKEN, SSH_AUTH_SOCK, cloud credentials or other providers' keys."""
+    base: dict[str, str] = provider_env(dict(os.environ), profile.get("apiKeyEnv"), claude=profile.get("name") == "claude")
+    return {**base, **{str(k): str(v) for k, v in (profile.get("env") or {}).items()}}
+
+
+def shell_line(argv: list[str], stdin: str | None, env: dict[str, str] | None = None, scrub: bool = False) -> str:
+    """One quoted command line: `env K=V ...` for the profile env (`env -i K=V ...` with `scrub`, which starts from an empty
+    environment), then argv, then the redirect."""
+    prefix: list[str] = ["env", *(["-i"] if scrub else []), *(f"{k}={v}" for k, v in sorted(env.items()))] if env else []
     line: str = shlex.join([*prefix, *argv])
     return f"{line} < {shlex.quote(stdin)}" if stdin else line
 
@@ -534,13 +543,14 @@ def resolve_command(
         "effort": chosen_effort, "argv": argv, "stdin": stdin,
         "binary": resolve_binary(argv[0], probe_env(), search_paths_of(profile)),
         "env": dict(profile.get("env") or {}),
+        "clean_env": clean_env(profile),
         "notes": list(profile.get("notes") or []),
     }
     if prompt_file is not None:
         values: dict[str, str] = prompt_values(prompt_file, workspace or Path.cwd())
         argv = [values.get(part, part) for part in argv]
         stdin = values.get(stdin, stdin) if stdin else None
-        result.update({"argv": argv, "stdin": stdin, "shell": shell_line(argv, stdin, result["env"])})
+        result.update({"argv": argv, "stdin": stdin, "shell": shell_line(argv, stdin, result["clean_env"], scrub=True)})
     return result
 
 

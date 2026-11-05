@@ -21,7 +21,7 @@ from .records import inside_son, son_refusal
 
 SCOPE_NAME: Final[str] = "scope.json"
 PENDING_NAME: Final[str] = "pending-items.json"
-OVERRIDE_KIND: Final[str] = "override"
+OVERRIDE_KIND: Final[str] = "lane_override"  # the approvals.py kind the owner records in .claude/settings.local.json
 # Roles that vote or sit on the council; an override is never available to them (G-48).
 BARRED_ROLES: Final[frozenset[str]] = frozenset({"vote", "voter", "council"})
 ROLE_ENV: Final[str] = "DTS2_ROLE"
