@@ -119,6 +119,8 @@ Round 2 hardening: head policy gate, son containment and lifecycle, mailbox, mer
 - `council.py next-round` seeds the instance counter from earlier allocations in `instances.json`, so a resumed run never reuses an instance id.
 - Preflight head push probe runs `git -c core.hooksPath=/dev/null push --dry-run --no-verify`, so the repo's `pre-push` hook never runs during the probe.
 - `lanes.py publish` is head-only: denied in a son's Bash (guard and launch deny list), refused for a son, voter or council role even without env markers, and `lanes.py call` refuses a wrapped command that sets or unsets `DTS2_SON*`.
+- Policy gate: `mask_literals` keeps a quote stack, so a single quote inside a nested `$(...)` within double quotes is literal and `echo "$(echo "'$(printenv)'")"` is denied again as an environment dump; `git commit -m '$(env)'` stays allowed (review findings).
+- Policy gate: `sub_slack` skips each leading `--name value` flag value, so `vercel --token x --scope y env ls` matches the `vercel-env` deny rule again; `gh pr create --title secret` stays allowed (review findings).
 
 ## [3.10.0]
 
