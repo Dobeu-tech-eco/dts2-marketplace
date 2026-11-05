@@ -33,6 +33,7 @@ Invoke as `/dts2:<name>`. Skills with `disable-model-invocation: true` in their 
 | `/dts2:model` | Choose which agent provider fills the lead, advisory and sign-off seats; records `lead_provider`. Builders are unaffected. | no arguments | `roster.py`, `delegate.py`, `failover.py` | none |
 | `/dts2:cooldown` | Pause an agent that hit a usage limit until its reset date, resume it, or list what is paused. | `set <agent> <date or duration> [reason]`, `clear <agent>`, `list` | `cooldowns.py` | none |
 | `/dts2:find-skills` | Rescan the repo, ask one to three questions, suggest ranked skills, and on a yes add them to the keep list. | no arguments | `env-detect.py`, `repo-size.py`, `scope-check.py`, `skill-suggest.py` | none |
+| `/dts2:steer` | Stop running work and redirect it: the only command that stops a run. Finishes the current atomic step, dispatches nothing new, checkpoints a handoff, reviews open intake items, re-plans to the new direction, confirms in one short message, then resumes. | `<new direction>` (required; quote it when it has spaces) | `intake.py`, `handoff-write.py` | `run`, `autopilot` |
 
 Source for each row: the `description` frontmatter and the usage line in the skill's own `SKILL.md`. The `run` skill also reads `skills/run/modes.md` for `add secret`, `review-pr` and the status lines.
 
@@ -73,6 +74,7 @@ Registered in `hooks/hooks.json`. Every hook script honours the `enabled` settin
 | StopFailure | `hooks/stop-failure.sh` | Appends a Handoff action item naming the API error that ended the turn (rate limit, overload, auth, billing); deduplicated. | `agent_events.py stop-failure` | new |
 | PermissionDenied | `hooks/permission-denied.sh` | Appends a Handoff action item naming the denied tool and reason; deduplicated. | `agent_events.py permission-denied` | new |
 | SessionEnd | `hooks/session-end.sh` | Releases only the lane leases this session took (reasons `logout`, `prompt_input_exit`, `other`), then refreshes the handoff. Lease expiry stays the guarantee. | `session_end.py`, `handoff-write.py` | new |
+| UserPromptSubmit | `hooks/prompt-intake.sh` | Never blocks. Appends each prompt typed while the harness works to the intake queue (`.harness/intake.jsonl`), classifies it as fold, clarify or steer, and injects a one-line instruction for the agent. Timeout 10 s. Off with `intake: false` in `.claude/dts2-harness.local.md`. | `intake.py hook` | new |
 
 `hooks/lib-settings.sh` is a shared helper (`setting <field> <default>`), not a registered hook. The son-side deny list is `scripts/guard.py --mode son`, wired into headless sons by `lanes.py spawn`, not through `hooks.json`.
 
@@ -226,6 +228,7 @@ Stamp-keyed commands:
 | `spawn_dry_run.py` | `--agent-dry-run`; hook JSON on stdin | Print the composed brief and command, start nothing. | spawn-dry-run hook | new |
 | `session_end.py` | hook JSON on stdin (no flags) | Release the lane leases this session took. | session-end hook | new |
 | `pr_payload.py` | `parse`, `view --body-out`, `body --body-file --receipt-file`, `decisions --ledger`, `payload [pairs...]` | Payload helpers for the PR-receipt hook; `decisions` prints the "Decisions and declined findings" PR section from the ledger. | pr-receipt hook, ship | changed |
+| `intake.py` | `add [--text T] [--source hook\|cli]`; `list [--status S] [--json]`; `resolve <id> --as fold\|clarify\|steer\|done [--note N]`; `answer <id> --text T`; `status`; `hook`; global `--root DIR`, `--threshold N` (default 60), `--budget N` (default 2) | | Prompt intake queue: records each prompt typed while the harness works in `.harness/intake.jsonl`, scores its clarity (0-100), classifies it as fold, clarify or steer, and renders `.harness/intake.md`. `hook` is the `UserPromptSubmit` entry point and never blocks a prompt. | prompt-intake hook (`hook`); `/dts2:steer` and the agent (`list`, `resolve`, `answer`) | new |
 
 ### 4.8 Other entry points
 
