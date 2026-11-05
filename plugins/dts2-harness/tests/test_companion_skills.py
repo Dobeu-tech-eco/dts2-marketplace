@@ -5,6 +5,7 @@ import unittest
 from typing import Final
 
 from helpers import PLUGIN_ROOT, read_run_skill
+from skill_text import read_rel
 
 INSTALL_PATTERN: Final[str] = "`npx skills add https://github.com/mattpocock/skills --skill <name>`"
 SKILLS: Final[tuple[str, ...]] = (
@@ -38,7 +39,7 @@ RUN_PHRASES: Final[tuple[str, ...]] = (
 
 
 def read(relative: str) -> str:
-    return (PLUGIN_ROOT / relative).read_text(encoding="utf-8")
+    return read_rel(relative)
 
 
 class CompanionSkills(unittest.TestCase):

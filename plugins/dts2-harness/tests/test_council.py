@@ -9,7 +9,7 @@ from typing import Any, Final
 from helpers import PLUGIN_ROOT, make_tmp_home, run_script
 from test_text_contracts import TextContractMixin
 
-SKILL: Final[Path] = PLUGIN_ROOT / "skills" / "autopilot" / "SKILL.md"
+SKILL: Final[Path] = PLUGIN_ROOT / "skills" / "autopilot"
 BRIEF: Final[str] = "\n## Dissent brief\nRound 2 showed the race in queue.ts; add a lock.\n"
 
 

@@ -13,14 +13,14 @@ from typing import Any, Final
 
 from helpers import PLUGIN_ROOT
 from test_lanes import FAKE_GH, FAKE_GIT, lane, manifest
-from test_son_mode import RULE_SOURCES, SON_HEADING, _read, windows
+from test_son_mode import RULE_SOURCES, _read, autopilot_sections_0_to_5, windows
 from test_text_contracts import TextContractMixin
 
 SCRIPT: Final[Path] = PLUGIN_ROOT / "scripts" / "lanes.py"
 DPP: Final[Path] = PLUGIN_ROOT / "skills" / "dpp" / "SKILL.md"
 DPP_FULL: Final[Path] = PLUGIN_ROOT / "skills" / "dpp-full" / "SKILL.md"
 FULLAUTO: Final[Path] = PLUGIN_ROOT / "skills" / "fullauto" / "SKILL.md"
-AUTOPILOT: Final[Path] = PLUGIN_ROOT / "skills" / "autopilot" / "SKILL.md"
+AUTOPILOT: Final[Path] = PLUGIN_ROOT / "skills" / "autopilot"
 DPP_SECTIONS: Final[tuple[str, ...]] = (
     "## 0. Pre-check", "## 1. Lane sources", "## 2. Lane plan and feasibility", "## 3. Approval",
     "## 4. Start sons", "## 5. Supervise", "## 6. Merge order", "## 7. Lessons and memory roll-up",
@@ -42,8 +42,7 @@ def body_lines(path: Path) -> list[str]:
 
 
 def autopilot_before_son_mode() -> str:
-    text: str = _read(AUTOPILOT)
-    return text[: text.index(SON_HEADING)]
+    return autopilot_sections_0_to_5()
 
 
 class DppSkillTextTests(TextContractMixin):

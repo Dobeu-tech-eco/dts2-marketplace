@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Final
 
 from helpers import PLUGIN_ROOT, _write, run_script
+from skill_text import read_skill
 
 SCAFFOLD: Final[Path] = PLUGIN_ROOT / "scripts" / "prod-scaffold.py"
 
@@ -46,7 +47,7 @@ class DroppedCommandTests(unittest.TestCase):
         self.assertTrue(out["dropped"][0]["reason"])
 
     def test_setup_reports_dropped(self) -> None:
-        text: str = (PLUGIN_ROOT / "skills" / "setup" / "SKILL.md").read_text(encoding="utf-8")
+        text: str = read_skill("setup")
         self.assertIn("`dropped`", text)
 
 

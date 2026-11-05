@@ -14,7 +14,8 @@ from typing import Any, Final
 from helpers import PLUGIN_ROOT
 from test_text_contracts import TextContractMixin
 
-AUTOPILOT: Final[Path] = PLUGIN_ROOT / "skills" / "autopilot" / "SKILL.md"
+AUTOPILOT: Final[Path] = PLUGIN_ROOT / "skills" / "autopilot"
+SON_FILE: Final[Path] = AUTOPILOT / "son-mode.md"
 VERIFIER: Final[Path] = PLUGIN_ROOT / "agents" / "verifier.md"
 LOCAL_TEMPLATE: Final[Path] = PLUGIN_ROOT / "templates" / "dts2-harness.local.md"
 LANES: Final[Path] = PLUGIN_ROOT / "scripts" / "lanes.py"
@@ -24,7 +25,6 @@ RULE_SOURCES: Final[tuple[Path, ...]] = (
     PLUGIN_ROOT / "skills" / "ship" / "SKILL.md",
 )
 SON_HEADING: Final[str] = "## 6. Son mode"
-GUARDRAILS_HEADING: Final[str] = "## Guardrails"
 # A run of this many consecutive words shared with a rule source is a copied rule, not a reference.
 COPY_WINDOW: Final[int] = 12
 FAKE_CLAUDE: Final[str] = "#!/usr/bin/env python3\nprint('fake claude')\n"
@@ -35,11 +35,14 @@ def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def autopilot_sections_0_to_5() -> str:
+    """Autopilot's phase files (sections 0 to 5a): everything but the router, the guardrails and the son file."""
+    return "\n".join(_read(f) for f in sorted(AUTOPILOT.glob("phase-*.md")))
+
+
 def son_section() -> str:
-    text: str = _read(AUTOPILOT)
-    start: int = text.index(SON_HEADING)
-    end: int = text.index(GUARDRAILS_HEADING, start)
-    return text[start:end]
+    text: str = _read(SON_FILE)
+    return text[text.index(SON_HEADING):]
 
 
 def words(text: str) -> list[str]:
@@ -66,7 +69,7 @@ class SonModeTextTests(TextContractMixin):
         for source in RULE_SOURCES:
             shared = own & windows(_read(source))
             self.assertEqual(shared, set(), f"son mode restates a rule from {source.name}: {sorted(shared)[:1]}")
-        earlier: str = _read(AUTOPILOT)[: _read(AUTOPILOT).index(SON_HEADING)]
+        earlier: str = autopilot_sections_0_to_5()
         shared_self = own & windows(earlier)
         self.assertEqual(shared_self, set(), f"son mode restates an autopilot rule: {sorted(shared_self)[:1]}")
 

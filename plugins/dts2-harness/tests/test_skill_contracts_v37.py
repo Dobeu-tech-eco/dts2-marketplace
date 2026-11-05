@@ -32,7 +32,7 @@ class NewSkillsContract(TextContractMixin):
 
     def test_every_entry_point_runs_the_precheck(self) -> None:
         for name in ("ship", "feature", "autopilot"):
-            self.assert_contains(SKILLS / name / "SKILL.md", [PRECHECK])
+            self.assert_contains(SKILLS / name, [PRECHECK])
 
     def test_ship(self) -> None:
         self.assert_contains(SKILLS / "ship" / "SKILL.md", [
@@ -53,7 +53,7 @@ class NewSkillsContract(TextContractMixin):
         ])
 
     def test_autopilot(self) -> None:
-        self.assert_contains(SKILLS / "autopilot" / "SKILL.md", [
+        self.assert_contains(SKILLS / "autopilot", [
             "three frontier", "model: fable", "Fable 5.1", "tiebreaker", "never sits on the panel",
             "Falling back to the normal human checkpoints", "VOTE: APPROVE", "VOTE: REJECT",
             "3-0 APPROVE", "2-1 APPROVE", "Split", "roster.py command", "--tier frontier",
@@ -61,7 +61,7 @@ class NewSkillsContract(TextContractMixin):
             "gh pr comment", ".harness/autopilot/latest.md", "autopilot resume", "park",
             "Never build on a previous step's unmerged branch", "3-round cap",
         ])
-        self.assert_absent(SKILLS / "autopilot" / "SKILL.md", ["--merge --admin", "force-push to"])
+        self.assert_absent(SKILLS / "autopilot", ["--merge --admin", "force-push to"])
 
 
 class WiringContract(TextContractMixin):

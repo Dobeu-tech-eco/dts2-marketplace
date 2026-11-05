@@ -8,7 +8,7 @@ from typing import Final
 from helpers import PLUGIN_ROOT
 
 RUN: Final[Path] = PLUGIN_ROOT / "skills" / "run"
-SETUP: Final[Path] = PLUGIN_ROOT / "skills" / "setup" / "SKILL.md"
+SETUP: Final[Path] = PLUGIN_ROOT / "skills" / "setup"
 
 
 def read(path: Path) -> str:

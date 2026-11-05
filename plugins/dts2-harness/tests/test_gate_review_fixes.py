@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Final
 
 from helpers import PLUGIN_ROOT
+from skill_text import read_rel
 from test_deterministic_gates import FAKE_KEY, GREEN, SCRIPTS, call, fake_git, repo
 
 SETUP_DEFAULTS: Final[str] = "do_not_touch:\n  - .env\n  - .env.*\n  - secrets/**\n  - \"**/credentials*\"\n"
@@ -48,7 +49,7 @@ def scope_status(config_extra: str, files: str) -> str:
 
 class PlanBallotLedgerText(unittest.TestCase):
     def test_autopilot_scopes_ledger_to_build_ballot(self) -> None:
-        text = (PLUGIN_ROOT / "skills/autopilot/SKILL.md").read_text(encoding="utf-8")
+        text = read_rel("skills/autopilot/SKILL.md")
         step = next(line for line in text.splitlines() if line.startswith("5. **Check the record.**"))
         self.assertIn("only when the council sits on the build ballot", step)
         self.assertIn("plan-ballot council omits", step)
@@ -60,7 +61,7 @@ class PlanBallotLedgerText(unittest.TestCase):
 
     def test_fix_round_rechecks_are_described(self) -> None:
         for rel in ("skills/autopilot/SKILL.md", "skills/run/phase-3-review.md", "skills/dpp/SKILL.md"):
-            text = (PLUGIN_ROOT / rel).read_text(encoding="utf-8")
+            text = read_rel(rel)
             self.assertIn("council.py", text, rel)
             self.assertRegex(text, r"(?s)fix round.{0,400}(checks\.py\W+run|re-run the checks)", rel)
             self.assertIn("route --ledger", text, rel)
