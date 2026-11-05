@@ -185,8 +185,8 @@ Stamp-keyed commands:
 | `builder <stamp>` | `--lane --section --branch --status` (required; status is a lane phase or merged), `--round`, `--sha`, `--pr`, `--base` | Append one builder row to `builders.jsonl`; the sha is confirmed against the branch tip and diff. | none yet | new |
 | `run-resume <stamp>` | none | What `run resume` reads: the run record and the newest row of each builder. | none yet | new |
 | `walkthrough-failed <stamp>` | `--lane --reason` (required) | Record a failed post-merge walkthrough and file one revert action item. | none yet | new |
-| `report <stamp>` | `--repo-url` | The run as a markdown table. | none yet | new |
-| `report-check <report>` | `--lanes` (required) | Check the final report against lane ids. | `dpp` | |
+| `report <stamp>` | `--repo-url` | The run as a markdown table plus run-wide sections: refusals, overrides, merge order and rebases, total spend, check-in delta, per-son CI result, merge commit and out-of-lane requests. | none yet | changed |
+| `report-check <report>` | `--lanes` (required), `--stamp` | Check the final report against lane ids; with `--stamp` also cross-check the son run records (unlisted lanes, PRs the report never names). | `dpp` | |
 
 "None yet" means no skill or hook text calls the command in 3.10.0: the head can run it by hand, and the lifecycle commands are the API a later skill change is meant to wire in.
 

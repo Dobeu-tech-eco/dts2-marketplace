@@ -274,7 +274,10 @@ def stop_check(runs_dir: Path, stamp: str, checkin: Path, outstanding_override: 
 MISSING_ROW: Final[re.Pattern[str]] = re.compile(r"^(?:lane (\S+)|run): missing '(.+)'$")
 
 
-def report_check(path: Path, lane_ids: list[str]) -> dict[str, Any]:
+def report_check(path: Path, lane_ids: list[str], runs_dir: Path | None = None, stamp: str | None = None) -> dict[str, Any]:
+    """Every wanted section present. With a run (`runs_dir` and `stamp`) it also cross-checks the son run records (G-82): a lane
+    with a status file that the report does not list is `unlisted`; a lane whose PR number the report never mentions is
+    `unreferenced_prs`."""
     try:
         text: str = path.read_text(encoding="utf-8")
     except OSError as exc:
@@ -282,7 +285,14 @@ def report_check(path: Path, lane_ids: list[str]) -> dict[str, Any]:
     parsed = parse_report(text, lane_ids, LANE_SECTIONS, RUN_SECTIONS)
     rows = [MISSING_ROW.match(m) for m in (parsed.reasons if isinstance(parsed, Invalid) else ())]
     missing: list[dict[str, str]] = [{"lane": row.group(1) or WILDCARD_LANE, "section": row.group(2)} for row in rows if row]
-    return {"ok": not missing, "report": str(path), "missing": missing}
+    result: dict[str, Any] = {"ok": not missing, "report": str(path), "missing": missing}
+    if runs_dir is None or stamp is None:
+        return result
+    records: list[dict[str, Any]] = [data for _path, data in read_status_files(runs_dir, stamp)]
+    unlisted: list[str] = sorted(str(d.get("lane")) for d in records if str(d.get("lane")) not in lane_ids)
+    unreferenced: list[dict[str, Any]] = [{"lane": d.get("lane"), "pr": d["pr"]} for d in records
+                                          if isinstance(d.get("pr"), int) and f"#{d['pr']}" not in text]
+    return {**result, "ok": result["ok"] and not unlisted and not unreferenced, "unlisted": unlisted, "unreferenced_prs": unreferenced}
 
 
 def new_budget(now: int) -> dict[str, Any]:
