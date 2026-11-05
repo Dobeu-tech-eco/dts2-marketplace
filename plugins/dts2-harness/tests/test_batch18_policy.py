@@ -326,7 +326,8 @@ class LeadWiringTests(unittest.TestCase):
     def test_override_kind_maps_to_the_approvals_channel_name(self) -> None:
         from lanes import policy
         approve(self.repo, "lane_override", "b")
-        with mock.patch.dict(os.environ, {}), mock.patch("os.getcwd", return_value=str(self.repo)):
+        # Patch Path.cwd, not os.getcwd: Python 3.10's pathlib binds os.getcwd at import time.
+        with mock.patch.dict(os.environ, {}), mock.patch.object(Path, "cwd", return_value=self.repo):
             self.assertTrue(policy.human_approved("override", "b"))
             self.assertFalse(policy.human_approved("override", "c"))
             self.assertFalse(policy.human_approved("no-such-kind", "b"))
