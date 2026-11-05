@@ -10,7 +10,7 @@ max_builders: 4
 max_reviewers: 4
 continuous_dispatch: true     # keep max_builders in flight while ready sections exist; park stalled builders and move on
 builder_timeout_min: 20       # minutes without a builder report before it is parked
-son_permission_mode: dontAsk   # claude -p permission mode for dpp sons (with a tool allowlist, deny list and guard hook)
+son_permission_mode: dontAsk   # claude -p permission mode for dpp sons: dontAsk | acceptEdits | plan | default (bypassPermissions is refused); sons commit only, the head pushes
 mailbox_wait_min: 30           # minutes a son waits for the head's answer or a merge-go before it parks as incomplete (mailbox-timeout)
 dpp_full_ask_each_lane: true   # dpp-full outside autopilot asks the user before each new lane is leased
 fullauto_freeze_scope: true    # fullauto freezes the approved item set at its first plan; new check-in items wait in a pending list
@@ -33,6 +33,7 @@ max_execution_effort: high   # cap builder effort (low|medium|high|max); the lea
 delegation_strict: true   # block ship if any builder ran a frontier model
 lead_provider: claude   # agent that fills the lead/advisory/sign-off seats; execution still uses the cheapest capable per delegate.py
 # tokenBurn and effortLevels in profiles/agents/*.json are relative, user-editable weights, NOT prices or quotas: tokenBurn only ranks agents for a seat (lower = cheaper to run).
+# Human approvals (merge, lane_override, ...) are not set here: add {"dts2_approvals": {"merge": ["<pr>"]}} to .claude/settings.local.json yourself; no son can write that file
 # roster: see .harness/config.yaml (agent roster lives there, not here)
 # budget, supervisor: run caps, call limit, stall_minutes and fallback model for dpp live in .harness/config.yaml (see templates/config-supervisor.yaml)
 # dev_server: command to start the app for walkthrough review, set in .harness/config.yaml
