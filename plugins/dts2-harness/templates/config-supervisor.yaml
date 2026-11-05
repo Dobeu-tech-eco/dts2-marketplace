@@ -24,3 +24,7 @@ merge:
   default_branch: main     # merging a run into this branch needs `lanes.py merge-target <stamp> --yes-default-branch` first
 lanes:
   port_base: 4000          # lane N gets PORT = port_base + 10 * N, plus its own COMPOSE_PROJECT_NAME and DTS2_DB_NAME
+  # shared_files: src/app.config.ts,config/*.json   # comma-separated globs owned by the final integration lane, not by any one lane
+  # (lockfiles, migrations, route tables and barrel index.ts already route there without this)
+walkthrough:
+  # allowed_hosts: app.example.com,*.preview.example.com   # the only hosts scripts/walkthrough_fallback.py may open; empty means it skips

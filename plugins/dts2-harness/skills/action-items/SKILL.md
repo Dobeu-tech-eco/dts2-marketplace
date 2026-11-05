@@ -1,6 +1,6 @@
 ---
 name: action-items
-description: Show the open action items for this repo grouped as Secrets, Decisions, Handoff, Deploy and Promotions, each with its age, owner and the exact command that resolves it, and mark items done, add items, or assign an owner. Use when the user asks what is left for them, what is blocked on them, what the open action items are, or says action items, to-do, what do I still owe, mark that done, or hand this to another agent.
+description: Show open action items (Secrets, Decisions, Handoff, Deploy, Promotions) with age, owner and resolving command; mark done, add, or assign. Use when asked what is left, what is blocked on me, action items, or to hand this to another agent.
 ---
 
 # Action items — what is still open and who owns it
