@@ -1,6 +1,6 @@
 ---
 name: find-skills
-description: Rescan the repo at any time, ask one to three clarifying questions, suggest a ranked set of useful skills, and on a yes add them to the project keep list and the run workflow so they persist across a setup re-run. Runnable any time, not only during the setup interview. Use when the user says find skills, what skills should I use, suggest skills for this repo, or wants to add skills to the workflow mid-project.
+description: Rescan the repo, ask one to three questions, suggest a ranked set of skills, and on a yes add them to the keep list and run workflow. Runnable any time. Use when the user says find skills, suggest skills for this repo, or what skills should I use.
 ---
 
 # Find skills — rescan, ask, suggest, wire in

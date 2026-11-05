@@ -1,6 +1,7 @@
 ---
 name: sdk
-description: Set up and run the dts2 pipeline headless with the Claude Agent SDK (Python) for CI, cron, servers, WSL, or machines without the desktop app — with authentication from an environment API key, a user-supplied key command such as an Anthropic CLI, or the existing Claude Code login — and optional Codex or Gemini second-opinion review. Use when the user asks to run the harness headless, in CI, from a script, with the Agent SDK, with an API key, or with another coding agent.
+description: Set up and run the dts2 pipeline headless with the Claude Agent SDK (Python) for CI, cron, servers or WSL, with an API key, key command or existing login, plus optional Codex or Gemini review. Use to run the harness headless, in CI, or with a key.
+disable-model-invocation: true
 ---
 
 # SDK — headless runner

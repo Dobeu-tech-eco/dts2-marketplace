@@ -7,6 +7,8 @@
 - Section / roadmap item: <end-state section # and name, feature slug, or "none">
 - Action items closed: <ids from .harness/action-items.md, or "none">
 - Supersedes / folds: <PR numbers this one replaces or absorbs, or "none">
+- Follows: <the PR this one builds on, as #<n>, or "none">
+- Merge: merge commit only (no squash, no rebase)
 
 ## Type
 

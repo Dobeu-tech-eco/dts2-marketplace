@@ -66,6 +66,7 @@ State writes from the scripts go through `scripts/state_io.py` (`atomic_write`, 
 | --- | --- | --- |
 | SessionStart | `hooks/session-lessons.sh` | puts recent lessons, open state items and open action items into context |
 | Stop | `hooks/stop-checks.sh` | refreshes `handoff/latest.md`, runs quick typecheck and lint on changed files; warns, never blocks |
+| PreToolUse (Bash) | `hooks/merge-guard.sh` | refuses a force-push, and a merge or push to a protected branch unless a lane's `merge-go.md` allows it |
 | PostToolUse (Bash) | `hooks/pr-receipt.sh` | on `gh pr create` or `edit`, makes sure the PR body carries the change receipt |
 | PostToolUse (all tools) | `hooks/context-guard.sh` | stops a run on a context spike before the plan checkpoint |
 
@@ -73,7 +74,7 @@ Hooks read settings from `.claude/dts2-harness.local.md` through `hooks/lib-sett
 
 ## Scripts worth knowing
 
-`checks.py` (deterministic gate), `council.py` (dossier, tally, blind ballots, seats), `lanes.py` (lane leases and supervision), `roster.py` and `delegate.py` (which agent and model for which seat), `prod-scaffold.py` (CI and ops files for a target app), `doctor.py` (preflight table, `make doctor`).
+`checks.py` (deterministic gate), `council.py` (dossier, tally, blind ballots, seats), `lanes.py` (thin CLI over the `scripts/lanes/` package: `conflicts`, `leases`, `gitrefs`, `planner`, `runstate`, `supervisor`, `merge`, shared `common`; `integration` routes lockfiles, migrations, route tables, barrels and `lanes.shared_files` to a final integration lane and caps a PR at 5 tasks; `mergeplan` is the merge-queue or serial rebase-test-merge plan with the `git merge-tree --write-tree` probe), `seat_swap.py` (swaps a timed-out council seat for the next bench provider and notes identical findings in the run ledger), `walkthrough_fallback.py` (optional Playwright post-merge walkthrough: sandbox only, host allowlist, no `file://`, screenshots in the report), `roster.py` and `delegate.py` (which agent and model for which seat), `prod-scaffold.py` (CI and ops files for a target app), `doctor.py` (preflight table, `make doctor`).
 
 ## Shared modules
 

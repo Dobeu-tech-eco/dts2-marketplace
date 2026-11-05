@@ -16,68 +16,9 @@ GH="${DTS2_GH_BIN:-gh}"
 
 warn() { echo "dts2-harness pr-receipt: $*" >&2; }
 
-# Prints three lines: session id, PR selector (may be empty), PR URL from the tool response (may be empty).
-# Prints nothing (exit 1) when the payload is not a Bash `gh pr create|edit` command.
+# Prints two lines: session id, PR selector (may be empty). Exit 1 when the payload is not a Bash `gh pr create|edit`.
 parse_payload() {
-  printf '%s' "$1" | python3 -c '
-import json, re, shlex, sys
-PR_CMD = re.compile(r"(?:^|[;&|\n])[ \t]*gh pr (create|edit)\b([^;&|\n]*)")
-VALUE_FLAGS = {"--title", "-t", "--body", "-b", "--body-file", "-F", "--base", "-B", "--head", "-H",
-               "--label", "-l", "--assignee", "-a", "--reviewer", "-r", "--milestone", "-m",
-               "--project", "-p", "--template", "-T", "--add-label", "--remove-label", "--add-assignee",
-               "--remove-assignee", "--add-reviewer", "--remove-reviewer", "--add-project",
-               "--remove-project"}
-SELECTOR = re.compile(r"^[A-Za-z0-9._/#:@%~+-]+$")
-try:
-    data = json.load(sys.stdin)
-except ValueError:
-    sys.exit(1)
-command = (data.get("tool_input") or {}).get("command", "")
-match = PR_CMD.search(command) if data.get("tool_name") == "Bash" else None
-if not match:
-    sys.exit(1)
-try:
-    tokens = shlex.split(match.group(2))
-except ValueError:
-    tokens = []
-selector, skip = "", False
-for token in tokens:
-    if skip:
-        skip = False
-        if match.group(1) == "create" and prev in ("--head", "-H"):
-            selector = token
-        continue
-    if token.startswith("-"):
-        prev = token
-        skip = "=" not in token and token in VALUE_FLAGS
-        if token.startswith("--head=") and match.group(1) == "create":
-            selector = token.split("=", 1)[1]
-        continue
-    if match.group(1) == "edit" and not selector:
-        selector = token
-if not SELECTOR.match(selector):
-    selector = ""
-response = data.get("tool_response")
-text = response.get("stdout", "") if isinstance(response, dict) else (response or "")
-url = re.search(r"https://[^\s]+/pull/\d+", str(text))
-if match.group(1) == "create" and not selector and url:
-    selector = url.group(0)
-session = re.sub(r"[^A-Za-z0-9_-]", "", str(data.get("session_id", "")))
-print(session or "nosession")
-print(selector)
-' 2>/dev/null
-}
-
-# pr_field <json> <field>: prints the field, or nothing when the JSON does not parse.
-pr_field() {
-  printf '%s' "$1" | python3 -c '
-import json, sys
-try:
-    value = json.load(sys.stdin).get(sys.argv[1], "")
-except (ValueError, AttributeError):
-    value = ""
-print(str(value).lower() if isinstance(value, bool) else value)
-' "$2" 2>/dev/null
+  printf '%s' "$1" | python3 -I "$PLUGIN_DIR/scripts/pr_payload.py" parse 2>/dev/null
 }
 
 latest_run_receipt() {
@@ -105,7 +46,12 @@ build_receipt() {
 add_receipt_to_pr() {
   local number="$1" body="$2" file
   file=$(mktemp "${TMPDIR:-/tmp}/dts2-pr-body.XXXXXX") || { warn "cannot create temp file"; return 0; }
-  { [[ -n "$body" ]] && printf '%s\n\n' "$body"; build_receipt; } > "$file"
+  local body_in receipt_in
+  body_in=$(mktemp "${TMPDIR:-/tmp}/dts2-pr-in.XXXXXX") || { warn "cannot create temp file"; return 0; }
+  receipt_in=$(mktemp "${TMPDIR:-/tmp}/dts2-pr-rc.XXXXXX") || { rm -f "$body_in"; warn "cannot create temp file"; return 0; }
+  printf '%s' "$body" > "$body_in"; build_receipt > "$receipt_in"
+  python3 -I "$PLUGIN_DIR/scripts/pr_payload.py" body --body-file "$body_in" --receipt-file "$receipt_in" > "$file"
+  rm -f "$body_in" "$receipt_in"
   "$GH" pr edit "$number" --body-file "$file" >/dev/null || warn "gh pr edit failed for PR #$number"
   rm -f "$file"
 }
@@ -178,7 +124,7 @@ ensure_template() {
 }
 
 main() {
-  local payload parsed session selector view number body branch cross
+  local payload parsed session selector view number body branch cross body_file fields
   payload=$(cat)
   # Cheap prefilter: skip python3 unless the payload mentions `gh pr ` or `gh api ` with `/pulls`.
   [[ "$payload" == *"gh pr "* || ( "$payload" == *"gh api "* && "$payload" == *"/pulls"* ) ]] || return 0
@@ -187,11 +133,11 @@ main() {
   session=$(sed -n 1p <<<"$parsed"); selector=$(sed -n 2p <<<"$parsed")
   command -v "$GH" >/dev/null 2>&1 || { warn "gh not found ($GH); skipping"; return 0; }
   view=$("$GH" pr view ${selector:+"$selector"} --json "$VIEW_FIELDS") || { warn "gh pr view failed"; return 0; }
-  number=$(pr_field "$view" number)
+  body_file=$(mktemp "${TMPDIR:-/tmp}/dts2-pr-view.XXXXXX") || { warn "cannot create temp file"; return 0; }
+  fields=$(printf '%s' "$view" | python3 -I "$PLUGIN_DIR/scripts/pr_payload.py" view --body-out "$body_file" 2>/dev/null)
+  body=$(cat "$body_file"); rm -f "$body_file"
+  number=$(sed -n 1p <<<"$fields"); branch=$(sed -n 2p <<<"$fields"); cross=$(sed -n 3p <<<"$fields")
   [[ -n "$number" ]] || { warn "could not parse gh pr view output; leaving PR untouched"; return 0; }
-  body=$(pr_field "$view" body)
-  branch=$(pr_field "$view" headRefName)
-  cross=$(pr_field "$view" isCrossRepository)
   if [[ "$body" != *"$RECEIPT_MARKER"* ]]; then add_receipt_to_pr "$number" "$body"; fi
   ensure_template "$session" "$branch" "$cross"
 }

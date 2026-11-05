@@ -2,6 +2,7 @@
 
 ## Phase 1 — Plan (lead)
 Dispatch `dts2-harness:lead` (seat: sign-off, tier `frontier`) with `model` = claude `frontier` (`opus`). Give it: the task verbatim, `.harness/config.yaml`, `.harness/end-state.md`, `.harness/discipline.md`, `.harness/lessons.md`, the scout report, the roster JSON, the probe JSON, and the workspace manifest if present. Tell it:
+A lead report whose first line is `PARTIAL: hit turn cap at <step>` is not a plan: do not open the checkpoint; re-dispatch the lead with a narrower scope or a fresh agent, inside the fix-loop cap.
 - Assign only agents in the probe's `usable` list. Builders are execution seats at every complexity: the cheapest capable agent by profile `tokenBurn.standard` (ties broken by `costTier`), never a frontier model. Axis reviews are advisory seats: the cheapest available agent whose roles include the seat. The strongest agent holds the sign-off seats: the plan, the verifier, and the final review (the `lead_provider` setting picks which provider, default claude).
 - Rate every `### Builder N` with `complexity: mechanical|normal|design`.
 - Plan from the `## Sections` table and end the plan with `## Ready queue` for sections that are ready but beyond the builder cap.

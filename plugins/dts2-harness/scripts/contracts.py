@@ -3,6 +3,7 @@ best-effort reading exists, `partial`), so a caller cannot use half a contract b
 mdparse.py: no regex of its own touches Markdown structure."""
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from typing import Any, Final, Union
@@ -10,6 +11,9 @@ from typing import Any, Final, Union
 import mdparse
 
 VOTE_LINE: Final[re.Pattern[str]] = re.compile(r"^VOTE:\s*(APPROVE|REJECT)\s*$")
+SEAT_NAME: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+VERDICTS: Final[frozenset[str]] = frozenset({"APPROVE", "REJECT"})
+VERDICT_KEY: Final[str] = "verdict"
 DECISION_LINE: Final[re.Pattern[str]] = re.compile(r"^DECISION:\s*(APPROVE|FIX|STRIKE)\s*$")
 ENTRIES_LINE: Final[re.Pattern[str]] = re.compile(r"^Entries reviewed:\s*(\d+)\s*$", re.MULTILINE)
 UPDATE_LINE: Final[re.Pattern[str]] = re.compile(r"^\s*-?\s*Update:\s*\S", re.MULTILINE)
@@ -91,14 +95,32 @@ def parse_entry_name(name: str) -> VoteEntry | Invalid:
     return VoteEntry(int(order), kind, int(rnd), seat)
 
 
+def verdict_of(line: str) -> str | None:
+    """APPROVE or REJECT from a strict line: a JSON object with exactly the key "verdict", or `VOTE: X`. Else None."""
+    stripped = line.strip()
+    if stripped.startswith("{"):
+        try:
+            data: Any = json.loads(stripped)
+        except ValueError:
+            return None
+        ok = isinstance(data, dict) and set(data) == {VERDICT_KEY} and data[VERDICT_KEY] in VERDICTS
+        return str(data[VERDICT_KEY]) if ok else None
+    match = VOTE_LINE.match(stripped)
+    return match.group(1) if match else None
+
+
 def parse_ballot(text: str, seat: str) -> Ballot | Invalid:
-    vote = VOTE_LINE.match(mdparse.first_line(text))
+    """A ballot counts only when its first line is a strict verdict, its seat name is plain, and no later line casts a
+    second, possibly conflicting, verdict (text quoted from a proposal cannot add one)."""
+    vote = verdict_of(mdparse.first_line(text)) if SEAT_NAME.match(seat) else None
     body = text.strip().split("\n", 1)[1] if "\n" in text.strip() else ""
+    if vote is not None and any(verdict_of(line) is not None for line in body.split("\n")):
+        vote = None
     brief = mdparse.section(text, BRIEF_HEADING)
     cut = body.find(BRIEF_HEADING)
     reasons = (body[:cut] if cut >= 0 else body).strip() or "(no findings given)"
-    ballot = Ballot(seat, vote.group(1) if vote else None, bool(brief), reasons)
-    return ballot if vote else Invalid(("first line is not 'VOTE: APPROVE|REJECT'",), ballot)
+    ballot = Ballot(seat, vote, bool(brief), reasons)
+    return ballot if vote else Invalid(("no strict verdict on the first line, or a plain seat name is missing, or a second verdict follows",), ballot)
 
 
 def parse_decision(text: str) -> Decision | Invalid:

@@ -24,7 +24,7 @@ TIERS: Final[dict[str, dict[str, object]]] = {
     "S": {"builders": 1, "reviewers": ["all"], "worktrees": False},
     "M": {"builders": 2, "reviewers": ["correctness", "security"], "worktrees": False},
     "L": {"builders": 4, "reviewers": ["correctness", "security", "performance"], "worktrees": True},
-    "XL": {"builders": 6, "reviewers": ["correctness", "security", "performance", "style"], "worktrees": True},
+    "XL": {"builders": 4, "reviewers": ["correctness", "security", "performance", "style"], "worktrees": True},
 }
 
 
@@ -71,7 +71,7 @@ def size_repo(repo: Path, max_builders: int) -> dict[str, object]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("repos", nargs="*", default=["."])
-    parser.add_argument("--max-builders", type=int, default=6)
+    parser.add_argument("--max-builders", type=int, default=4)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
     reports: list[dict[str, object]] = [size_repo(Path(r).resolve(), args.max_builders) for r in args.repos]

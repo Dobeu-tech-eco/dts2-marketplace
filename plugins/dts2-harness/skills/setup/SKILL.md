@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Interviews the user to an approved end state (.harness/end-state.md), then scaffolds dts2 harness config (.harness/ and .claude/dts2-harness.local.md) in one repo, many repos in parallel, or a linked multi-repo workspace. Use when the user asks to set up, init, or configure the harness, onboard a repo, run the interview, define or revise the end state, or link repos into a workspace. `--scaffold-only` skips the interview.
+description: Interview the user to an approved end state (.harness/end-state.md), then scaffold dts2 config in one repo, many repos or a workspace. Use to set up, init or configure the harness, run the interview, or revise the end state. --scaffold-only skips it.
 ---
 
 # Setup — interview to an end state, then scaffold
@@ -40,6 +40,7 @@ Rules for the whole interview:
 
 1. Look at the repo root. **Greenfield** if there is no source code yet (empty, or only README, LICENSE, `.gitignore`, config stubs). Otherwise **brownfield**.
 2. Brownfield: dispatch the `dts2-harness:scout` agent on the repo and keep its output. You need its `Harnesses:` line, its `Marketing surface:` line, and the stack and modules it reports. Also read any existing `.harness/` files (config, lessons, state) for context.
+   A scout report whose first line is `PARTIAL: hit turn cap at <step>` is incomplete: re-dispatch the scout with a narrower scope or a fresh agent before using its output.
 3. Tell the user in one line what you found, for example: `Brownfield: TypeScript monorepo, 4 packages, marketing site found.`
 
 ### Round 2 — Repos
@@ -190,6 +191,7 @@ Gate: `.harness/end-state.md` has `status: approved`, or the user passed `--scaf
 
 ### Single
 1. Confirm the repo root and that `.git` exists (warn if not). With `--scaffold-only`, dispatch `dts2-harness:scout` now for its `Harnesses:` and `Marketing surface:` lines; every harness it finds is treated as `coexist`.
+   A scout report whose first line is `PARTIAL: hit turn cap at <step>` is incomplete: re-dispatch the scout with a narrower scope or a fresh agent before using its output.
 2. If `.harness/config.yaml` exists, ask: back up `.harness/` to `.harness.bak-<timestamp>/` and rewrite, merge missing keys only, or abort. (`end-state.md` is never overwritten here.)
 3. Detect the stack from root files (`package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `Gemfile`, `composer.json`, workspace markers such as `pnpm-workspace.yaml`, `turbo.json`, `nx.json`, `go.work`).
 4. For each harness the user chose to retire: move it to `.harness.bak-<stamp>/<folder>`. Leave `coexist` folders untouched.
@@ -214,6 +216,7 @@ Gate: `.harness/end-state.md` has `status: approved`, or the user passed `--scaf
    - `ci.yml` is written from the commands at scaffold time; after `config.yaml` commands change, ask before regenerating, and do not overwrite a hand-edited file.
 8d. Dependency updates (optional offer, target app only). Skip this step silently when the repo has no package manifest from step 3 (`package.json`, `pyproject.toml`, `requirements*.txt`, `Cargo.toml`, `go.mod`, `Gemfile`, `composer.json`), when `.github/dependabot.yml`, `.github/dependabot.yaml` or a Renovate config (`renovate.json`, `.renovaterc`, `.github/renovate.json`) already exists, and in batch or `--scaffold-only` runs (list it as an open item instead). Otherwise ask once, default yes: `Add automated dependency update PRs? Dependabot (GitHub-native, default) or Renovate (needs the Renovate app installed) or no?`. On Dependabot, copy `${CLAUDE_PLUGIN_ROOT}/templates/dependabot.yml` to `.github/dependabot.yml`, write one `updates` entry per manifest found (its ecosystem and directory, never a guess), and keep the `github-actions` entry only when `.github/workflows/` exists. On Renovate, copy `${CLAUDE_PLUGIN_ROOT}/templates/renovate.json` to `renovate.json` and add a Decisions action item to install the Renovate app on the repo. Never overwrite a file, never touch branch protection, and tell the user to review the file before committing.
 9. Create `AGENTS.md` if absent and append this line once if it is not already there: `Harness state for any agent: .harness/handoff/latest.md (resume with /dts2-harness:run resume).` Change nothing else in the file.
+9b. Offer two optional project-settings additions, each as its own yes/no, and write nothing without a yes. Both go in the project's `.claude/settings.json` (merge, never overwrite). (a) Belt and braces for the merge guard hook: `permissions.deny` rules `Bash(gh pr merge *)`, `Bash(git push --force *)` and `Bash(git push -f *)`; say that the first one also stops the head's own approved merges, so the user would merge by hand or drop it before a run. (b) When lanes or autopilot are on: `"subagentPromptCacheTtl": "1h"`, which keeps the prompt cache warm across long subagent turns.
 10. Show the detected commands once and let the user correct them. Tell the user `config.yaml`, `review-checklist.md`, `lessons.md`, `discipline.md`, `state.md` and `end-state.md` are meant to be committed.
 
 ### Batch (parallel, scaffold-only)
