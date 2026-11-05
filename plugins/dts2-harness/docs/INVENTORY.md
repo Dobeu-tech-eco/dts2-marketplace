@@ -141,6 +141,7 @@ Run as `python3 "$P/scripts/<x>.py" ...`. The hook-driven and internal-only scri
 | `merge-order <manifest>` | none | Print merge order. |
 | `merge-plan <manifest>` | `--base` | Probe lanes against the merge target. |
 | `merge-go <manifest>` | `--lane --head` (required), `--base` | Write `merge-go.md` for a verified head (head only). |
+| `audit <manifest> <lane>` | `--head` (required), `--base` | List files the lane branch changed outside its owned set; the same check `merge-go` runs before it grants a merge. |
 | `merge-target <stamp>` | `--set`, `--yes-default-branch` | Record the branch the run merges into. |
 | `merge-go-step <stamp>` | `--step --head` (required), `--base` | Merge clearance for an autopilot step (head only). |
 | `merge-done <manifest>` | `--lane` (required) | Mark a lane merged and restore `gc.auto`. |
