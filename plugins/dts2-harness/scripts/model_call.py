@@ -23,6 +23,7 @@ except ImportError:  # pragma: no cover - non-POSIX: the limit is skipped and th
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import miniyaml  # noqa: E402
+import son_stream  # noqa: E402
 import state_io  # noqa: E402
 from proc import (  # noqa: E402,F401  (re-exported: lanes.py and the tests import these names from here)
     EXIT_TERMINATED, KILL_GRACE_S, OVERLOAD, SIGNALS_TERMINATED, backoff_delay, cli_version, is_terminated, run_once,
@@ -42,7 +43,9 @@ POLL_S: Final[float] = 0.2
 SESSION_ID: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 MODEL_NAME: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9._:/\[\]-]{1,100}$")
 MAX_COST_USD: Final[float] = 1_000_000.0
+RESULT_TEXT_CHARS: Final[int] = 300
 Event = Callable[[dict[str, Any]], None]
+LineHook = Callable[[str], bool]
 
 
 def read_block(cwd: Path, block: str) -> dict[str, str]:
@@ -130,8 +133,11 @@ def release_slot(handle: Any) -> None:
 
 
 def is_overload(code: int, stdout: str, stderr: str) -> bool:
-    """A failed call whose output names a 429, an overload or a rate limit. A clean exit is never retried."""
+    """A failed call whose output names a 429, an overload or a rate limit. A clean exit is never retried. When the stream
+    shows the CLI's own `api_retry` loop still running, the call is not retried here: only after the CLI gave up (G-56)."""
     if code == 0 and not (parse_result(stdout) or {}).get("is_error"):
+        return False
+    if son_stream.api_retries_exhausted(stdout) is False:
         return False
     return OVERLOAD.search(f"{stdout}\n{stderr}") is not None
 
@@ -145,13 +151,14 @@ def invoke(argv: list[str], cwd: Path, timeout_s: float, label: str, on_event: E
            env: dict[str, str] | None = None, sleep: Callable[[float], None] = time.sleep,
            rng: random.Random | None = None, root: Path | None = None, stdin_text: str | None = None,
            halt_on_session: bool = False, clock: Callable[[], float] = time.monotonic,
-           on_start: Callable[[int], None] | None = None) -> dict[str, Any]:
+           on_start: Callable[[int], None] | None = None, on_line: LineHook | None = None) -> dict[str, Any]:
     """The only way harness scripts start a model: slot, run, retry overloads with backoff, report each retry.
     `cwd` is where the process runs (a lane worktree); `root` is the repo whose config and slot files apply.
     One deadline covers the wait for a slot and every attempt. The result lists every attempt's code and stdout under
     `results`. With `halt_on_session`, a failed attempt that reports a session id ends the retries (`halted_overload`):
     rerunning the whole command would start over, so the caller resumes that session instead. `on_start` is called with the
-    pid of every process started (a retry starts a new one)."""
+    pid of every process started (a retry starts a new one). `on_line` gets every stdout line as it arrives (a stream-json
+    son) and stops the process by returning True."""
     base: Path = root or cwd
     settings: dict[str, Any] = read_supervisor(base)
     emit: Event = on_event or (lambda _event: None)
@@ -166,7 +173,7 @@ def invoke(argv: list[str], cwd: Path, timeout_s: float, label: str, on_event: E
             emit({"event": "slot-timeout", "label": label, "limit": settings["max_model_calls"], "late": True})
             return timeout_result(EXIT_TERMINATED, "wall-clock time ran out waiting for a model-call slot")
         return retry_loop(argv, cwd, left, label, settings, emit, env, sleep, rng, stdin_text, halt_on_session, clock,
-                          on_start)
+                          on_start, on_line)
     finally:
         release_slot(handle)
 
@@ -175,14 +182,15 @@ def retry_loop(argv: list[str], cwd: Path, timeout_s: float, label: str, setting
                env: dict[str, str] | None, sleep: Callable[[float], None], rng: random.Random | None,
                stdin_text: str | None = None, halt_on_session: bool = False,
                clock: Callable[[], float] = time.monotonic,
-               on_start: Callable[[int], None] | None = None) -> dict[str, Any]:
+               on_start: Callable[[int], None] | None = None, on_line: LineHook | None = None) -> dict[str, Any]:
     def attempt(left: float) -> dict[str, Any]:
-        return run_once(argv, cwd, left, env, stdin_text, **({"on_start": on_start} if on_start else {}))
+        extra: dict[str, Any] = {**({"on_start": on_start} if on_start else {}), **({"on_line": on_line} if on_line else {})}
+        return run_once(argv, cwd, left, env, stdin_text, **extra)
 
     return proc.run_retrying(
         attempt, timeout_s, retry_max=settings["retry_max"], base_s=settings["backoff_base_s"],
         cap_s=settings["backoff_cap_s"],
-        retriable=lambda r: is_overload(r["code"], r["stdout"], r["stderr"]),
+        retriable=lambda r: not r.get("stopped") and is_overload(r["code"], r["stdout"], r["stderr"]),
         halt=(lambda r: bool((parse_result(r["stdout"]) or {}).get("session_id"))) if halt_on_session else None,
         sleep=sleep, rng=rng, clock=clock, emit=emit, label=label, stderr_chars=RESULT_STDERR_CHARS)
 
@@ -215,7 +223,9 @@ def parse_result(stdout: str) -> dict[str, Any] | None:
                         and 0 < cost <= MAX_COST_USD)
     turns: Any = final.get("num_turns")
     usage: Any = final.get("modelUsage")
+    text: Any = final.get("result")
     return {
+        "result_text": text[:RESULT_TEXT_CHARS] if isinstance(text, str) else "",
         "session_id": session if isinstance(session, str) and SESSION_ID.match(session) else None,
         "cost_usd": float(cost) if valid_cost else None,
         "num_turns": turns if isinstance(turns, int) and not isinstance(turns, bool) and turns >= 0 else None,

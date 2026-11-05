@@ -11,7 +11,7 @@ from typing import Any, Final, Iterator
 from model_call import read_budget
 from state_io import StaleEpoch, atomic_write, epoch_of, require_epoch
 
-from .common import LEASE_NAME, LEASE_TTL_FACTOR, SECONDS_PER_MINUTE, STATUS_ACTIVE, find_lane, lane_files, lane_ids, lease_live
+from .common import LEASE_NAME, LEASE_TTL_FACTOR, PID_KEYS, SECONDS_PER_MINUTE, STATUS_ACTIVE, STATUS_CLOSED, STATUS_NAME, find_lane, lane_files, lane_ids, lease_live
 from .conflicts import check
 from .gitrefs import gh_down
 from .records import lane_lock
@@ -155,3 +155,42 @@ def renew_lease(path: Path, now: int) -> bool:
             return False
         atomic_write(path, json.dumps({**record, "expires_at": now + ttl}, indent=2) + "\n")
     return True
+
+
+def process_running(pid: Any) -> bool:
+    if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
+def expired_orphan(path: Path, now: int) -> bool:
+    """An active lease past its expiry whose lane has no running spawn or son: the mark a crashed run leaves."""
+    record: dict[str, Any] | None = read_lease(path)
+    if record is None or record.get("status") != STATUS_ACTIVE or lease_live(record, now):
+        return False
+    status: dict[str, Any] = read_lease(path.parent / STATUS_NAME) or {}
+    return not any(process_running(status.get(key)) for key in PID_KEYS)
+
+
+def gc_leases(runs_dir: Path, now: int) -> list[str]:
+    """G-55: close every expired lease of a lane nobody is running (a crashed run's), in every run under `runs_dir`. A live
+    lease, a lease with no expiry and a lease whose lane still has a process are left alone. The `stamp/lane` closed."""
+    closed: list[str] = []
+    for path in sorted(runs_dir.glob(f"*/*/{LEASE_NAME}")):
+        if not expired_orphan(path, now):
+            continue
+        with lane_lock(path) as held:
+            record: dict[str, Any] | None = read_lease(path)
+            if not held or record is None or not expired_orphan(path, now):
+                continue
+            atomic_write(path, json.dumps({**record, "status": STATUS_CLOSED, "released": now, "gc": True}, indent=2) + "\n")
+        closed.append(f"{path.parent.parent.name}/{path.parent.name}")
+    return closed
