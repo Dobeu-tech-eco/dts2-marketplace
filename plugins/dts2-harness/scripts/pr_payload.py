@@ -6,6 +6,8 @@ parse           hook payload on stdin -> session id and PR selector, one per lin
 view            `gh pr view --json` output on stdin -> number, head branch, cross-repo flag, one per line; the body goes to
                 --body-out
 body            --body-file and --receipt-file -> the PR body with the receipt appended, on stdout
+decisions       --ledger FILE -> the "Decisions and declined findings" PR section, built from the ledger's decision and
+                declined-finding records (G-84)
 payload         JSON object for `gh api --input -` from key=value arguments (one builder, so quoting lives in one place)"""
 from __future__ import annotations
 
@@ -27,6 +29,10 @@ SELECTOR: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9._/#:@%~+-]+$")
 PR_URL: Final[re.Pattern[str]] = re.compile(r"https://[^\s]+/pull/\d+")
 SESSION_UNSAFE: Final[re.Pattern[str]] = re.compile(r"[^A-Za-z0-9_-]")
 NO_SESSION: Final[str] = "nosession"
+DECISIONS_HEADING: Final[str] = "## Decisions and declined findings"
+DECISION_KINDS: Final[frozenset[str]] = frozenset({"decision", "finding", "council"})
+DECLINED_STATUSES: Final[frozenset[str]] = frozenset({"declined", "rejected", "wontfix", "dissent", "decided"})
+NO_DECISIONS: Final[str] = "none"
 
 
 def selector_from(kind: str, argument_text: str) -> str:
@@ -98,6 +104,23 @@ def api_payload(pairs: list[str]) -> str:
     return json.dumps(fields)
 
 
+def decision_lines(records: list[dict[str, Any]]) -> list[str]:
+    """One bullet per decision or declined finding in the ledger: `- <status>: <summary> (<reason>)`."""
+    lines: list[str] = []
+    for record in records:
+        status: str = str(record.get("status") or record.get("outcome") or "")
+        if record.get("kind") not in DECISION_KINDS or status not in DECLINED_STATUSES:
+            continue
+        summary: str = str(record.get("summary") or record.get("title") or record.get("finding") or record.get("id") or "")
+        reason: str = str(record.get("reason") or record.get("rationale") or "")
+        lines.append(f"- {status}: {summary}" + (f" ({reason})" if reason else ""))
+    return lines
+
+
+def decisions_section(records: list[dict[str, Any]]) -> str:
+    return DECISIONS_HEADING + "\n\n" + "\n".join(decision_lines(records) or [NO_DECISIONS]) + "\n"
+
+
 def load(text: str) -> Any:
     try:
         return json.loads(text)
@@ -114,8 +137,13 @@ def main() -> int:
     body_p = sub.add_parser("body")
     body_p.add_argument("--body-file", required=True)
     body_p.add_argument("--receipt-file", required=True)
+    sub.add_parser("decisions").add_argument("--ledger", required=True)
     sub.add_parser("payload").add_argument("pairs", nargs="*")
     args = parser.parse_args()
+    if args.command == "decisions":
+        from checks import read_ledger  # noqa: PLC0415 - only this verb needs it; the hook verbs stay fast
+        sys.stdout.write(decisions_section(read_ledger(Path(args.ledger))))
+        return 0
     if args.command == "parse":
         parsed = parse_payload(load(sys.stdin.read()))
         if parsed is None:

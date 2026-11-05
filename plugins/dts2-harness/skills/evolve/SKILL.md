@@ -20,7 +20,7 @@ The run skill invokes this mode automatically after every ship (and the plan che
 State which checkout you are using. Work on a branch, not the default branch.
 
 ## 2. Make the change
-Edit under `plugins/dts2-harness/`. Add or change a test first when behavior or required text changes. Keep one concern per change.
+Climb the hardening ladder: when a lesson or failure asks for a rule, first propose a hook, then a test, then a check in `checks.sh` or `scripts/`; write prose in a skill only when none of those can enforce it, and say in the proposal why. Edit under `plugins/dts2-harness/`. Add or change a test first when behavior or required text changes. Keep one concern per change.
 
 ## 3. Validate and test
 Run all three; stop on any failure and fix before continuing:

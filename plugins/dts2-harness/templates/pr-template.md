@@ -32,6 +32,10 @@
 
 <three frontier verdicts per round and the tiebreak; if the step went to council, the council tally, the head of council's decision, its rationale and its response to each dissent; or "n/a: human approved">
 
+## Decisions and declined findings
+
+<generated from the ledger: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/pr_payload.py" decisions --ledger <ledger>`; each decision and each finding the builder declined, with the reason, or "none">
+
 ## Screenshots / walkthrough
 
 <changed screens, or "n/a">

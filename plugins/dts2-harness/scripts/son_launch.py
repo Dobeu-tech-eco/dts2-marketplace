@@ -26,7 +26,7 @@ ENV_ALLOW: Final[frozenset[str]] = frozenset({
     "HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY", "https_proxy", "http_proxy", "no_proxy",
     "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE",
 })
-ENV_ALLOW_PREFIXES: Final[tuple[str, ...]] = ("LC_", "DTS2_", "CLAUDE_CODE_", "XDG_")
+ENV_ALLOW_PREFIXES: Final[tuple[str, ...]] = ("LC_", "DTS2_", "CLAUDE_CODE_", "XDG_", "OTEL_")  # OTEL_*: telemetry export only, no tagging (Q8)
 ENV_DENY_PREFIXES: Final[tuple[str, ...]] = ("DTS2_PR_",)
 PASS_VAR: Final[str] = "DTS2_SON_ENV_PASS"  # comma-separated name patterns the owner chooses to hand a son
 CACHE_TTL_VAR: Final[str] = "CLAUDE_CODE_PROMPT_CACHE_TTL"

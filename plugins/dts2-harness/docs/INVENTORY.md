@@ -185,8 +185,8 @@ Stamp-keyed commands:
 | `builder <stamp>` | `--lane --section --branch --status` (required; status is a lane phase or merged), `--round`, `--sha`, `--pr`, `--base` | Append one builder row to `builders.jsonl`; the sha is confirmed against the branch tip and diff. | none yet | new |
 | `run-resume <stamp>` | none | What `run resume` reads: the run record and the newest row of each builder. | none yet | new |
 | `walkthrough-failed <stamp>` | `--lane --reason` (required) | Record a failed post-merge walkthrough and file one revert action item. | none yet | new |
-| `report <stamp>` | `--repo-url` | The run as a markdown table. | none yet | new |
-| `report-check <report>` | `--lanes` (required) | Check the final report against lane ids. | `dpp` | |
+| `report <stamp>` | `--repo-url` | The run as a markdown table plus run-wide sections: refusals, overrides, merge order and rebases, total spend, check-in delta, per-son CI result, merge commit and out-of-lane requests. | none yet | changed |
+| `report-check <report>` | `--lanes` (required), `--stamp` | Check the final report against lane ids; with `--stamp` also cross-check the son run records (unlisted lanes, PRs the report never names). | `dpp` | |
 
 "None yet" means no skill or hook text calls the command in 3.10.0: the head can run it by hand, and the lifecycle commands are the API a later skill change is meant to wire in.
 
@@ -194,7 +194,9 @@ Stamp-keyed commands:
 
 | Script | Subcommands and positionals | Key flags | Purpose | Called by | Since |
 |---|---|---|---|---|---|
-| `doctor.py` | none | `--json` | Preflight checks for this machine. | `make doctor` | new |
+| `doctor.py` | none | `--json` | Preflight checks for this machine: python, git, claude, sandbox, bwrap, socat, auth method (named, never the value), platform. On native Windows the platform row warns that dpp parks (`windows-native`); exit codes by runtime are in `docs/RUNTIMES.md`. | `make doctor` | changed |
+| `plugin_options.py` | `show`, `get KEY [--default V]`, `data-dir` | none | Per-user knobs from `CLAUDE_PLUGIN_OPTION_<KEY>` (plugin `userConfig`) and the non-repo cache directory `CLAUDE_PLUGIN_DATA`; per-repo settings stay in `.claude`. | none yet | new |
+| `receipts_sign.py` | `append JOURNAL BODY`, `verify JOURNAL`, `sign FILE`, `check FILE SIG` | none | Hash-chained journal and HMAC-signed receipts (hashlib, hmac); the key file is named by `DTS2_PR_RECEIPT_KEY_FILE`, which sons never receive. | none yet | new |
 | `machine-prep.py` | `audit`, `plan`, `apply` | `--profile`, `--home`, `--claude-home`, `--tier`, `--days`, `--project` | Audit a machine against a blueprint profile; `apply` prunes plugins by disabling them (reversible). | `machine-prep`; `auditor` agent | |
 | `usage-scan.py` | none | `--claude-home` (required), `--days` | Count Skill, Agent and MCP tool uses in recent transcripts; read-only. | `machine-prep.py` (in-process) | |
 | `context-tax.py` | none | `--root`, `--budget`, `--max-description` | Measure always-loaded skill and agent metadata; exit 1 over budget. | CI `metadata` job | new |
@@ -210,7 +212,7 @@ Stamp-keyed commands:
 | `subagent_report.py` | `--event stop\|handback` (required); hook JSON on stdin | Report-section check. | subagent-report hook | new |
 | `spawn_dry_run.py` | `--agent-dry-run`; hook JSON on stdin | Print the composed brief and command, start nothing. | spawn-dry-run hook | new |
 | `session_end.py` | hook JSON on stdin (no flags) | Release the lane leases this session took. | session-end hook | new |
-| `pr_payload.py` | `parse`, `view --body-out`, `body --body-file --receipt-file`, `payload [pairs...]` | Payload helpers for the PR-receipt hook. | pr-receipt hook | new |
+| `pr_payload.py` | `parse`, `view --body-out`, `body --body-file --receipt-file`, `decisions --ledger`, `payload [pairs...]` | Payload helpers for the PR-receipt hook; `decisions` prints the "Decisions and declined findings" PR section from the ledger. | pr-receipt hook, ship | changed |
 
 ### 4.8 Other entry points
 

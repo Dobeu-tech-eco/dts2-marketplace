@@ -29,6 +29,19 @@ FAKE_BIN_VARS: Final[tuple[str, ...]] = ("DTS2_CLAUDE_BIN", "DTS2_GH_BIN", "DTS2
                                          "DTS2_GITLEAKS_BIN", "DTS2_TRUFFLEHOG_BIN")
 SANDBOX_TOOLS: Final[dict[str, str]] = {"linux": "bwrap", "darwin": "sandbox-exec"}
 SANDBOX_OVERRIDE: Final[str] = "DTS2_SANDBOX_BIN"
+SOCAT_TOOL: Final[str] = "socat"  # the sandbox's network proxy helper on Linux
+WINDOWS_PLATFORM: Final[str] = "win32"
+WINDOWS_PARK_REASON: Final[str] = "windows-native"  # why dpp parks on native Windows (ruling Q6)
+# Exit codes a son or a check can end with, by runtime. Mirrored in docs/RUNTIMES.md; a test keeps the two in step.
+EXIT_TIMEOUT: Final[int] = 124  # GNU `timeout` (WSL, Docker)
+EXIT_KILLED: Final[int] = 137  # SIGKILL: the OOM killer, `docker stop` after its grace period
+EXIT_TERMINATED: Final[int] = 143  # SIGTERM: `docker stop`, a clean shutdown
+TIMEOUT_MAPPING: Final[dict[str, dict[str, int]]] = {
+    "wsl": {"timeout": EXIT_TIMEOUT, "killed": EXIT_KILLED, "terminated": EXIT_TERMINATED},
+    "docker": {"timeout": EXIT_TIMEOUT, "killed": EXIT_KILLED, "terminated": EXIT_TERMINATED},
+}
+AUTH_ENV: Final[tuple[tuple[str, str], ...]] = (
+    ("ANTHROPIC_API_KEY", "api-key"), ("ANTHROPIC_AUTH_TOKEN", "auth-token"), ("CLAUDE_CODE_OAUTH_TOKEN", "oauth-token"))
 
 
 def check(name: str, status: str, detail: str) -> dict[str, str]:
@@ -104,6 +117,31 @@ def check_sandbox() -> dict[str, str]:
     return check("sandbox", WARN, f"{tool} not found; sandboxed runs are unavailable here")
 
 
+def check_helper_tools() -> list[dict[str, str]]:
+    """bwrap and socat on Linux (the sandbox needs both); other platforms have neither requirement."""
+    if sys.platform != "linux":
+        return [check("bwrap", PASS, f"not needed on {sys.platform}"), check("socat", PASS, f"not needed on {sys.platform}")]
+    rows: list[dict[str, str]] = []
+    for tool in ("bwrap", SOCAT_TOOL):
+        found: str | None = shutil.which(tool)
+        rows.append(check(tool, PASS, found) if found else check(tool, WARN, f"{tool} not found; the sandbox needs it on Linux"))
+    return rows
+
+
+def check_auth() -> dict[str, str]:
+    """Which credential the harness would use, named, never its value."""
+    for name, label in AUTH_ENV:
+        if os.environ.get(name):
+            return check("auth", PASS, f"{label} (from {name})")
+    return check("auth", PASS, "login (subscription) or none set; run `claude auth status` to confirm")
+
+
+def check_platform() -> dict[str, str]:
+    if sys.platform == WINDOWS_PLATFORM:
+        return check("platform", WARN, f"native Windows: dpp parks with reason {WINDOWS_PARK_REASON}; use WSL or Docker (docs/RUNTIMES.md)")
+    return check("platform", PASS, sys.platform)
+
+
 def check_fake_env() -> dict[str, str]:
     active: list[str] = [name for name in FAKE_BIN_VARS if os.environ.get(name)]
     if active:
@@ -112,7 +150,7 @@ def check_fake_env() -> dict[str, str]:
 
 
 def run_checks() -> list[dict[str, str]]:
-    return [check_python(), check_git(), check_claude(), check_sandbox(), check_fake_env()]
+    return [check_python(), check_git(), check_claude(), check_sandbox(), *check_helper_tools(), check_auth(), check_platform(), check_fake_env()]
 
 
 def render_table(checks: list[dict[str, str]]) -> str:

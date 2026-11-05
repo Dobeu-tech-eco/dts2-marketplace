@@ -210,6 +210,7 @@ def add_run_parsers(sub: Any) -> None:
     report_p = sub.add_parser("report-check")
     report_p.add_argument("report")
     report_p.add_argument("--lanes", required=True, help="comma-separated lane ids")
+    report_p.add_argument("--stamp", default=None, help="also cross-check the report against this run's son records")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -304,7 +305,7 @@ def dispatch_run(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> dict[st
     if args.command == "mailbox":
         return dispatch_mailbox(args, runs_dir, cwd)
     if args.command == "report-check":
-        return report_check(Path(args.report), split_ids(args.lanes))
+        return report_check(Path(args.report), split_ids(args.lanes), runs_dir if args.stamp else None, args.stamp)
     if args.command == "branch-check":
         return branch_check(args.stamp, split_ids(args.lanes), cwd)
     return dispatch_supervisor(args, runs_dir, cwd)
@@ -363,7 +364,7 @@ def dispatch_lifecycle(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> d
     if args.command == "walkthrough-failed":
         return walkthrough_failed(runs_dir, args.stamp, args.lane, args.reason, cwd)
     if args.command == "report":
-        return run_report_view(runs_dir, args.stamp, args.repo_url)
+        return run_report_view(runs_dir, args.stamp, args.repo_url, cwd)
     return None
 
 
