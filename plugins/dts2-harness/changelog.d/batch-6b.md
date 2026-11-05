@@ -1,0 +1,4 @@
+- Batch 6 (round 2), agent privilege and completion gates: retryable dispatch failures, least-privilege agent tools, event hooks.
+- G-72: `council.py next-round` allocates ballot instances `<step>+<attempt>`; a dispatch error, malformed ballot, HTTP 429 or timeout is retryable (same round, attempt + 1, no vote round); the post-merge re-vote gets its own instance and `postmerge/` folder. Council trigger unchanged (after 3 failed rounds).
+- G-73: verifier `tools: Read, Grep, Glob, Bash`; reviewer loses Bash (hook matchers filter by tool name, not agent type, so Bash cannot be scoped). No council or tiebreaker agent files exist. Test pins every agent's tools line.
+- G-74: `hooks/subagent-stop.sh` blocks a verifier stop while the newest run ledger lacks a check line (N3); `stop-failure.sh` and `permission-denied.sh` append Handoff action items; PreCompact already runs handoff-write.
