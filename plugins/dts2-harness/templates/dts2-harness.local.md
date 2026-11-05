@@ -3,7 +3,7 @@ enabled: true
 # Hooks
 stop_checks: true
 lessons_inject: true
-lessons_max: 10
+lessons_max: 5
 # Team scaling for the run skill
 auto_scale: true
 max_builders: 4
