@@ -1,0 +1,3 @@
+commands:
+  test: "true"
+do_not_touch: [".env"]

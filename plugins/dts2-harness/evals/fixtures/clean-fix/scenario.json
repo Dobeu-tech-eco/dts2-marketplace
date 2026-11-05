@@ -1,0 +1,3 @@
+{"lanes": [{"id": "a", "item": "Fix add", "files": ["src/add.py"], "ids": {}, "depends_on": [], "tier": "standard"}],
+ "rounds": [{"check": "pass", "tokens_in": 1200, "tokens_out": 400, "cost_usd": 0.02}],
+ "votes": ["APPROVE", "APPROVE", "APPROVE"]}
