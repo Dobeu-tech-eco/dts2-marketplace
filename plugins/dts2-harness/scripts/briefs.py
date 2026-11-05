@@ -2,6 +2,8 @@
 """Briefs and the cached prompt prefix for sons and the lead (B1, N5, Q-11). Nothing here starts a process.
 
   son-brief  <manifest> --lane L --epoch N [--max-bundle K] [--out FILE]   the ~4 KB son brief (templates/son-brief.md)
+  lead-brief --stamp S [--cwd D] [--task-file F] [--roster-json F] [--probe-json F]
+                                                                           one page for the lead instead of raw JSON dumps
 """
 from __future__ import annotations
 
@@ -18,6 +20,12 @@ DISCIPLINE_TEMPLATE: Final[Path] = PLUGIN_ROOT / "templates" / "discipline.md"
 DEFAULT_MAX_BUNDLE: Final[int] = 5
 PLACEHOLDER: Final[re.Pattern[str]] = re.compile(r"\{\{(\w+)\}\}")
 NONE_TEXT: Final[str] = "none"
+PROBE_NAME: Final[str] = "probe.json"
+
+
+def canonical(value: Any) -> str:
+    """Stable JSON text: sorted keys, fixed separators, one trailing newline."""
+    return json.dumps(value, sort_keys=True, indent=1, ensure_ascii=False) + "\n"
 
 
 class BriefError(Exception):
@@ -68,11 +76,81 @@ def son_brief(manifest: dict[str, Any], lane_id: str, epoch: int, max_bundle: in
     return PLACEHOLDER.sub(lambda m: values.get(m.group(1), m.group(0)), read_text(SON_TEMPLATE))
 
 
+def role_lines(roster: dict[str, Any]) -> list[str]:
+    lines: list[str] = [f"- {role}: {', '.join(names)}" for role, names in sorted((roster.get("assignments") or {}).items())]
+    for key in ("handoff", "live"):
+        if roster.get(key):
+            lines.append(f"- {key}: {', '.join(roster[key])}")
+    if roster.get("costOrder"):
+        lines.append(f"- cheapest first: {', '.join(roster['costOrder'])}")
+    return lines or ["- no agents configured"]
+
+
+def probe_lines(probe: dict[str, Any]) -> list[str]:
+    lines: list[str] = [f"- usable: {', '.join(probe.get('usable') or []) or NONE_TEXT}"]
+    dropped: list[str] = [f"{d.get('name')} ({d.get('reason')})" for d in probe.get("dropped") or []]
+    if dropped:
+        lines.append(f"- dropped: {', '.join(dropped)}")
+    for name, agent in sorted((probe.get("agents") or {}).items()):
+        if agent.get("available") and agent.get("budget") not in (None, "ok"):
+            lines.append(f"- {name}: budget {agent['budget']}, roles {', '.join(agent.get('roles') or []) or NONE_TEXT}")
+    return lines
+
+
+def check_lines(ledger: list[dict[str, Any]]) -> list[str]:
+    import checks  # lazy: checks.py reads the ledger format it also writes
+    if not any(r.get("kind") == "check" for r in ledger):
+        return ["no checks recorded yet"]
+    return checks.summary(ledger).rstrip("\n").splitlines()
+
+
+def lead_brief(task: str, roster: dict[str, Any], probe: dict[str, Any], ledger: list[dict[str, Any]], stamp: str) -> str:
+    """One page for the lead: the task verbatim, the roster and probe in a few lines, the deterministic check results, and
+    pointers to the files it reads itself. The caller no longer pastes roster, probe and ledger JSON."""
+    lines: list[str] = [
+        f"# Lead brief - run {stamp}", "", "## Task (verbatim)", task.strip(), "", "## Roster (assign roles only to these)",
+        *role_lines(roster), "", "## Probe", *probe_lines(probe), "", "## Deterministic checks", *check_lines(ledger), "",
+        "## Read yourself (not inlined)",
+        "- `.harness/end-state.md` - the slice, `## Sections`, acceptance criteria",
+        "- `.harness/discipline.md` - rules you follow; the plan defines done first",
+        "- `.harness/config.yaml` - commands, paths, `do_not_touch`",
+        "- `.harness/lessons.md` - apply every matching lesson and say which",
+        "- the scout report, when the caller supplies one",
+        "", "Handoff agents get a written brief in the plan, never a live dispatch. Builders never run on a frontier model.",
+    ]
+    return "\n".join(lines) + "\n"
+
+
 def load_json(path: Path) -> Any:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         raise BriefError(f"cannot read JSON {path}: {exc}") from exc
+
+
+def run_lead(args: argparse.Namespace) -> dict[str, Any]:
+    cwd: Path = Path(args.cwd).resolve()
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import checks
+    roster: dict[str, Any]
+    probe: dict[str, Any]
+    if args.roster_json and args.probe_json:
+        roster, probe = load_json(Path(args.roster_json)), load_json(Path(args.probe_json))
+    else:
+        import roster as roster_mod
+        config: Path = cwd / ".harness" / "config.yaml"
+        profiles = roster_mod.load_profiles()
+        entries = roster_mod.read_roster(config)
+        roster = load_json(Path(args.roster_json)) if args.roster_json else roster_mod.resolve(entries, profiles)
+        probe = load_json(Path(args.probe_json)) if args.probe_json else roster_mod.probe(entries, profiles, roster_mod.read_budget(config))
+    run_dir: Path = cwd / ".harness" / "runs" / args.stamp
+    run_dir.mkdir(parents=True, exist_ok=True)
+    probe_file: Path = run_dir / PROBE_NAME
+    if not probe_file.exists():
+        probe_file.write_text(canonical(probe), encoding="utf-8")
+    task: str = Path(args.task_file).read_text(encoding="utf-8") if args.task_file else sys.stdin.read()
+    sys.stdout.write(lead_brief(task, roster, probe, checks.read_ledger(checks.ledger_path(cwd, args.stamp)), args.stamp))
+    return {"ok": True}
 
 
 def run_main(args: argparse.Namespace) -> dict[str, Any]:
@@ -84,6 +162,8 @@ def run_main(args: argparse.Namespace) -> dict[str, Any]:
         else:
             sys.stdout.write(text)
         return {"ok": True, "bytes": len(text.encode("utf-8")), "out": args.out}
+    if args.command == "lead-brief":
+        return run_lead(args)
     raise BriefError(f"unknown command {args.command}")
 
 
@@ -96,6 +176,12 @@ def build_parser() -> argparse.ArgumentParser:
     son_p.add_argument("--epoch", type=int, required=True)
     son_p.add_argument("--max-bundle", type=int, default=DEFAULT_MAX_BUNDLE)
     son_p.add_argument("--out", default=None)
+    lead_p = sub.add_parser("lead-brief")
+    lead_p.add_argument("--cwd", default=".")
+    lead_p.add_argument("--stamp", required=True)
+    lead_p.add_argument("--task-file", default=None, help="the task text; stdin when omitted")
+    lead_p.add_argument("--roster-json", default=None, help="saved `roster.py resolve` output")
+    lead_p.add_argument("--probe-json", default=None, help="saved `roster.py probe` output")
     return parser
 
 
@@ -106,7 +192,7 @@ def main() -> int:
     except BriefError as exc:
         print(json.dumps({"ok": False, "error": str(exc)}))
         return 1
-    if args.out or args.command != "son-brief":
+    if args.command == "son-brief" and args.out:
         print(json.dumps(result))
     return 0
 
