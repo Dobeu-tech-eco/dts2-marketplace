@@ -128,6 +128,8 @@ def assumption_for(text: str) -> str:
 
 
 def build_record(item_id: str, kind: str, text: str, source: str, threshold: int, budget: int) -> dict[str, Any]:
+    if kind not in KINDS:
+        raise ValueError(f"unknown intake kind: {kind!r}")
     text = text[:MAX_TEXT_CHARS]
     score: int = SCORE_MAX if kind == STEER else clarity_score(text)
     questions: list[str] = [] if kind == STEER else make_questions(kind, score, threshold, budget)
@@ -179,15 +181,25 @@ def next_id(items: list[dict[str, Any]]) -> str:
     return f"{ID_PREFIX}{max(numbers, default=0) + 1}"
 
 
+def locked(root: Path) -> Any:
+    """The intake ledger lock. Not re-entrant: callers hold it once and use the `*_in` helpers below."""
+    return state_io.FileStore(root).lock(state_io.INTAKE_REL)
+
+
+def append_in(root: Path, items: list[dict[str, Any]], classified: tuple[str, str], source: str, threshold: int,
+              budget: int) -> dict[str, Any]:
+    """Append a new item to the already-loaded `items`. The caller holds the lock."""
+    record: dict[str, Any] = build_record(next_id(items), classified[0], classified[1], source, threshold, budget)
+    save_items(root, [*items, record])
+    return record
+
+
 def add_item(root: Path, prompt: str, source: str = "cli", threshold: int = CLARITY_THRESHOLD, budget: int = QUESTION_BUDGET) -> dict[str, Any] | None:
     classified: tuple[str, str] | None = classify(prompt)
     if classified is None:
         return None
-    items: list[dict[str, Any]] = load_items(root)
-    record: dict[str, Any] = build_record(next_id(items), classified[0], classified[1], source, threshold, budget)
-    state_io.append_text(intake_path(root), json.dumps(record, ensure_ascii=False) + "\n")
-    render_md(root, [*items, record])
-    return record
+    with locked(root):
+        return append_in(root, load_items(root), classified, source, threshold, budget)
 
 
 def find_item(items: list[dict[str, Any]], item_id: str) -> dict[str, Any]:
@@ -197,8 +209,8 @@ def find_item(items: list[dict[str, Any]], item_id: str) -> dict[str, Any]:
     raise KeyError(f"no intake item {item_id}")
 
 
-def answer_item(root: Path, item_id: str, text: str, threshold: int = CLARITY_THRESHOLD, budget: int = QUESTION_BUDGET) -> dict[str, Any]:
-    items: list[dict[str, Any]] = load_items(root)
+def answer_in(root: Path, items: list[dict[str, Any]], item_id: str, text: str, threshold: int, budget: int) -> dict[str, Any]:
+    """Attach an answer to an item of the already-loaded `items`. The caller holds the lock."""
     item: dict[str, Any] = find_item(items, item_id)
     item.setdefault("answers", []).append(text[:MAX_TEXT_CHARS])
     item["score"] = clarity_score(combined_text(item))
@@ -211,18 +223,24 @@ def answer_item(root: Path, item_id: str, text: str, threshold: int = CLARITY_TH
     return item
 
 
+def answer_item(root: Path, item_id: str, text: str, threshold: int = CLARITY_THRESHOLD, budget: int = QUESTION_BUDGET) -> dict[str, Any]:
+    with locked(root):
+        return answer_in(root, load_items(root), item_id, text, threshold, budget)
+
+
 def resolve_item(root: Path, item_id: str, target: str, note: str | None = None) -> dict[str, Any]:
-    items: list[dict[str, Any]] = load_items(root)
-    item: dict[str, Any] = find_item(items, item_id)
-    if target == DONE:
-        item["status"] = DONE
-    else:
-        item["kind"] = target
-        item["status"] = {FOLD: SET, STEER: STEERED, CLARIFY: OPEN}[target]
-    if note:
-        item["note"] = note
-    save_items(root, items)
-    return item
+    with locked(root):
+        items: list[dict[str, Any]] = load_items(root)
+        item: dict[str, Any] = find_item(items, item_id)
+        if target == DONE:
+            item["status"] = DONE
+        else:
+            item["kind"] = target
+            item["status"] = {FOLD: SET, STEER: STEERED, CLARIFY: OPEN}[target]
+        if note:
+            item["note"] = note
+        save_items(root, items)
+        return item
 
 
 def counts(items: list[dict[str, Any]]) -> dict[str, int]:
@@ -262,12 +280,38 @@ def prompt_from_stdin() -> str:
     return value if isinstance(value, str) else ""
 
 
+def open_clarify(items: list[dict[str, Any]], budget: int) -> dict[str, Any] | None:
+    """The most recent item when it is an open clarify item still waiting on answers, else None."""
+    if not items:
+        return None
+    last: dict[str, Any] = items[-1]
+    waiting: bool = bool(last.get("questions")) and len(last.get("answers", [])) < budget
+    return last if last.get("kind") == CLARIFY and last.get("status") == OPEN and waiting else None
+
+
+def is_reply(text: str, threshold: int) -> bool:
+    return len(words_of(text)) <= SHORT_WORDS * 2 or clarity_score(text) < threshold
+
+
+def record_hook_prompt(root: Path, prompt: str, threshold: int, budget: int) -> dict[str, Any] | None:
+    """Record a hook prompt under one lock. A short or unclear non-steer reply to an open clarify item answers it."""
+    classified: tuple[str, str] | None = classify(prompt)
+    if classified is None:
+        return None
+    with locked(root):
+        items: list[dict[str, Any]] = load_items(root)
+        target: dict[str, Any] | None = open_clarify(items, budget)
+        if target is not None and classified[0] != STEER and is_reply(classified[1], threshold):
+            return answer_in(root, items, target["id"], classified[1], threshold, budget)
+        return append_in(root, items, classified, "hook", threshold, budget)
+
+
 def cmd_hook(root: Path, args: argparse.Namespace) -> int:
     try:
-        record: dict[str, Any] | None = add_item(root, prompt_from_stdin(), "hook", args.threshold, args.budget)
+        record: dict[str, Any] | None = record_hook_prompt(root, prompt_from_stdin(), args.threshold, args.budget)
         if record is not None:
             print(context_text(record, args.budget))
-    except Exception:  # noqa: BLE001 - a hook must never fail the prompt
+    except Exception:  # noqa: BLE001 - a hook must never fail the prompt (LockBusy and StateError land here too)
         return 0
     return 0
 
