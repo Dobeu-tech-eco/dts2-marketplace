@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import re
 import sys
@@ -14,11 +13,11 @@ from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from state_io import atomic_write  # noqa: E402
+import _load  # noqa: E402
 
 HARNESS: Final[str] = ".harness"
 OUTPUT: Final[str] = ".harness/handoff/latest.md"
 TEMPLATE: Final[Path] = Path(__file__).resolve().parent.parent / "templates" / "handoff-latest.md"
-ACTION_ITEMS_SCRIPT: Final[Path] = Path(__file__).resolve().parent / "action-items.py"
 RECEIPT_PLACEHOLDER: Final[str] = "(filled at the ship checkpoint)"
 RESUME_COMMAND: Final[str] = "/dts2-harness:run resume"
 NEW_TASK: Final[str] = "No open items. Start a new task with `/dts2-harness:run <task>`."
@@ -44,12 +43,7 @@ RUN_STAMP: Final[re.Pattern[str]] = re.compile(r"^\d{8}-\d{6}$")
 
 
 def load_action_items() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("action_items", ACTION_ITEMS_SCRIPT)
-    assert spec is not None and spec.loader is not None
-    module: ModuleType = importlib.util.module_from_spec(spec)
-    sys.modules["action_items"] = module
-    spec.loader.exec_module(module)
-    return module
+    return _load.load("action-items")
 
 
 def redact(text: str) -> str:

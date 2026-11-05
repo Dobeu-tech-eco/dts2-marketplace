@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import argparse
-import re
 import sys
 from pathlib import Path
 from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import miniyaml  # noqa: E402
 from delegate import PROFILE_DIR, load_profiles  # noqa: E402
 
 START_MARKER: Final[str] = "<!-- dts2-harness:start -->"
@@ -16,7 +16,6 @@ END_MARKER: Final[str] = "<!-- dts2-harness:end -->"
 DEFAULT_RULES_FILE: Final[str] = "AGENTS.md"
 DEFAULT_AGENTS: Final[str] = "claude"
 LIST_SEPARATOR: Final[str] = ","
-PROJECT_LINE: Final[re.Pattern[str]] = re.compile(r"^project:\s*(.+?)\s*$", re.MULTILINE)
 HANDOFF_POINTER: Final[str] = (
     "Harness state for any agent: .harness/handoff/latest.md (resume with /dts2-harness:run resume)."
 )
@@ -63,9 +62,9 @@ def sync_file(path: Path, project_name: str) -> str:
 def project_name_for(directory: Path) -> str:
     config: Path = directory / ".harness" / "config.yaml"
     if config.is_file():
-        match = PROJECT_LINE.search(config.read_text(encoding="utf-8"))
-        if match:
-            return match.group(1).strip("\"'")
+        name: str = miniyaml.get_str(miniyaml.parse(config.read_text(encoding="utf-8")), "project")
+        if name:
+            return name
     return directory.resolve().name
 
 

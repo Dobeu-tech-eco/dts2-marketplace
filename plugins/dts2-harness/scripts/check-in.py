@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import re
 import sys
@@ -11,7 +10,9 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Final
 
-HANDOFF_SCRIPT: Final[Path] = Path(__file__).resolve().parent / "handoff-write.py"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _load  # noqa: E402
+
 COMPLETE: Final[str] = "complete"
 OUTSTANDING: Final[str] = "outstanding"
 STATUSES: Final[tuple[str, ...]] = (COMPLETE, OUTSTANDING)
@@ -26,12 +27,7 @@ EXIT_USAGE: Final[int] = 2
 
 
 def load_handoff() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("handoff_write_for_check_in", HANDOFF_SCRIPT)
-    assert spec is not None and spec.loader is not None
-    module: ModuleType = importlib.util.module_from_spec(spec)
-    sys.modules["handoff_write_for_check_in"] = module
-    spec.loader.exec_module(module)
-    return module
+    return _load.load("handoff-write")
 
 
 def validate(item: Any) -> dict[str, str]:

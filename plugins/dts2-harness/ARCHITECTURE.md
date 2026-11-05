@@ -74,3 +74,13 @@ Hooks read settings from `.claude/dts2-harness.local.md` through `hooks/lib-sett
 ## Scripts worth knowing
 
 `checks.py` (deterministic gate), `council.py` (dossier, tally, blind ballots, seats), `lanes.py` (lane leases and supervision), `roster.py` and `delegate.py` (which agent and model for which seat), `prod-scaffold.py` (CI and ops files for a target app), `doctor.py` (preflight table, `make doctor`).
+
+## Shared modules
+
+Imported by the scripts above; none is a hook entry point.
+
+| Module | Holds |
+| --- | --- |
+| `scripts/miniyaml.py` | the one reader for `.harness/config.yaml`, `keep.yaml` and the settings frontmatter; typed accessors with defaults |
+| `scripts/_load.py` | loads a hyphenated CLI script by hyphenated or underscore name, cached in `sys.modules` |
+| `scripts/settings_cache.py` | schema plus defaults for budget, supervisor and local settings, cached in `.harness/settings.cache.json` (gitignored, mode 600) |

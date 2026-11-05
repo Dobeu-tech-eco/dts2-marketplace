@@ -14,6 +14,7 @@ import random
 import re
 import signal
 import subprocess
+import sys
 import time
 from pathlib import Path
 from typing import Any, Callable, Final, Iterator
@@ -22,6 +23,9 @@ try:
     import fcntl
 except ImportError:  # pragma: no cover - non-POSIX: the limit is skipped and the wall-clock cap still applies
     fcntl = None  # type: ignore[assignment]
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import miniyaml  # noqa: E402
 
 CONFIG_FILE: Final[str] = ".harness/config.yaml"
 RESULT_STDERR_CHARS: Final[int] = 4000
@@ -45,21 +49,15 @@ Event = Callable[[dict[str, Any]], None]
 
 
 def read_block(cwd: Path, block: str) -> dict[str, str]:
-    """`key: value` lines under a top-level `block:` of .harness/config.yaml. Comments and other blocks are skipped."""
+    """`key: value` lines under a top-level `block:` of .harness/config.yaml (parsed by miniyaml). Nested values are skipped."""
     try:
         text: str = (cwd / CONFIG_FILE).read_text(encoding="utf-8")
     except OSError:
         return {}
-    found: dict[str, str] = {}
-    inside: bool = False
-    for line in text.splitlines():
-        if line and not line[0].isspace() and not line.startswith("#"):
-            inside = line.split("#", 1)[0].strip() == f"{block}:"
-            continue
-        match = re.match(r"^\s+([a-z_]+):\s*(.*?)\s*(#.*)?$", line) if inside else None
-        if match:
-            found[match.group(1)] = match.group(2).strip("\"'")
-    return found
+    section: Any = miniyaml.parse(text).get(block)
+    if not isinstance(section, dict):
+        return {}
+    return {key: value for key, value in section.items() if isinstance(value, str) and re.fullmatch(r"[a-z_]+", key)}
 
 
 def as_int(raw: str | None, default: int) -> int:

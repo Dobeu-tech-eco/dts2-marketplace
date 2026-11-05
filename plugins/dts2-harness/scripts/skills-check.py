@@ -10,7 +10,6 @@ deletes or overwrites a git-tracked file: tracked skills are skipped and reporte
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import os
 import re
@@ -25,6 +24,7 @@ from typing import Any, Final
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from state_io import atomic_write  # noqa: E402
 import skill_pins as pins  # noqa: E402
+import _load  # noqa: E402
 
 SCRIPTS: Final[Path] = Path(__file__).resolve().parent
 PLUGIN_ROOT: Final[Path] = SCRIPTS.parent
@@ -89,11 +89,7 @@ ANSI: Final[re.Pattern[str]] = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 
 
 def load_upgrade_check() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("upgrade_check", SCRIPTS / "upgrade-check.py")
-    assert spec is not None and spec.loader is not None
-    module: ModuleType = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return _load.load("upgrade-check")
 
 
 def binary(name: str, default: str) -> list[str]:

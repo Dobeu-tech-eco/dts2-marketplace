@@ -15,7 +15,6 @@ Never deletes plugins, agents, skills, or credentials. Every change is reversibl
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import os
 import shutil
@@ -24,6 +23,9 @@ import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Final
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _load  # noqa: E402
 
 SCRIPT_DIR: Final[Path] = Path(__file__).resolve().parent
 DEFAULT_DAYS: Final[int] = 30
@@ -35,11 +37,7 @@ INSTALL_RECORDS: Final[str] = "installed_plugins.json"
 
 
 def load_tiers() -> object:
-    spec = importlib.util.spec_from_file_location("prep_tiers", SCRIPT_DIR / "prep-tiers.py")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules["prep_tiers"] = module
-    spec.loader.exec_module(module)
-    return module
+    return _load.load("prep-tiers")
 
 
 tiers = load_tiers()

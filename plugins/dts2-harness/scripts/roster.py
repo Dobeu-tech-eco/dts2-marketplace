@@ -13,6 +13,9 @@ import sys
 from pathlib import Path
 from typing import Any, Final
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import miniyaml  # noqa: E402
+
 PROFILE_DIR: Final[Path] = Path(__file__).resolve().parent.parent / "profiles" / "agents"
 DEFAULT_ROSTER: Final[list[dict[str, Any]]] = [{"name": "claude"}]
 COPILOT_TIMEOUT_SECONDS: Final[int] = 10
@@ -97,8 +100,24 @@ def parse_roles(value: str) -> list[str]:
     return [part.strip() for part in inner.split(",") if part.strip()]
 
 
+def roster_entry(item: Any) -> dict[str, Any] | None:
+    if not isinstance(item, dict) or not isinstance(item.get("name"), str) or not item["name"]:
+        return None
+    entry: dict[str, Any] = {"name": item["name"]}
+    roles: Any = item.get("roles")
+    if isinstance(roles, list):
+        entry["roles"] = [str(role) for role in roles]
+    elif isinstance(roles, str):
+        entry["roles"] = parse_roles(roles)
+    if isinstance(item.get("auth"), str):
+        entry["auth"] = item["auth"]
+    if isinstance(item.get("included"), str):
+        entry["included"] = item["included"].strip().lower() != "false"
+    return entry
+
+
 def parse_roster(text: str) -> list[dict[str, Any]]:
-    """Minimal parser for exactly this shape (no general YAML support):
+    """Read the top-level `roster:` list (through miniyaml):
 
         roster:
           - name: claude
@@ -107,26 +126,11 @@ def parse_roster(text: str) -> list[dict[str, Any]]:
             auth: api-key
             included: false
 
-    Only a top-level `roster:` block is read; each item is `- name: X` optionally
-    followed by `roles: [a, b]`, `auth: <mode>` (`subscription` or `api-key`) and `included: true|false`. Anything else is ignored. Missing block -> default.
+    Each item is `- name: X` optionally followed by `roles: [a, b]`, `auth: <mode>` (`subscription` or `api-key`)
+    and `included: true|false`. Anything else is ignored. Missing block -> default.
     """
-    entries: list[dict[str, Any]] = []
-    in_block: bool = False
-    for raw in text.splitlines():
-        line: str = raw.strip()
-        if not raw.startswith((" ", "\t")) and line:
-            in_block = line == "roster:"
-            continue
-        if not in_block or not line or line.startswith("#"):
-            continue
-        if line.startswith(ITEM_PREFIX):
-            entries.append({"name": line[len(ITEM_PREFIX):].strip()})
-        elif line.startswith("roles:") and entries:
-            entries[-1]["roles"] = parse_roles(line[len("roles:"):])
-        elif line.startswith(AUTH_PREFIX) and entries:
-            entries[-1]["auth"] = line[len(AUTH_PREFIX):].strip()
-        elif line.startswith(INCLUDED_PREFIX) and entries:
-            entries[-1]["included"] = line[len(INCLUDED_PREFIX):].strip().lower() != "false"
+    block: Any = miniyaml.parse(text).get("roster")
+    entries: list[dict[str, Any]] = [e for e in map(roster_entry, block) if e] if isinstance(block, list) else []
     return entries or [dict(item) for item in DEFAULT_ROSTER]
 
 

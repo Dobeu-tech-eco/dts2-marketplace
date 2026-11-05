@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import miniyaml  # noqa: E402
 from state_io import append_text, atomic_write  # noqa: E402
 
 RUNS_DIR: Final[str] = ".harness/runs"
@@ -125,42 +126,19 @@ def current_head(cwd: Path) -> str | None:
     return lines[0] if lines else None
 
 
-def inline_list(value: str) -> list[str] | None:
-    """Read a one-line flow list such as [".env", "secrets/**"]; None when the text is not one."""
-    if not (value.startswith("[") and value.endswith("]")):
-        return None
-    return [item.strip().strip("\"'") for item in value[1:-1].split(",") if item.strip()]
-
-
 def parse_config(text: str) -> dict[str, Any]:
-    """Read the `commands:` block (key: value) and the `do_not_touch:` list (block or inline) from .harness/config.yaml.
+    """Read the `commands:` block (key: value) and the `do_not_touch:` list (block or inline) from .harness/config.yaml,
+    through miniyaml.
 
     `unreadable` is true when `do_not_touch` has a value this parser cannot read, so the scope check fails closed."""
-    commands: dict[str, str] = {}
-    forbidden: list[str] = []
-    unreadable: bool = False
-    block: str = ""
-    for raw in text.splitlines():
-        if raw.lstrip().startswith("#"):
-            continue
-        line: str = raw.rstrip()
-        if line and not line.startswith((" ", "\t", "-")):
-            block, _, rest = line.partition(":")
-            block = block.strip()
-            value: str = rest.split(" #", 1)[0].strip()
-            if block == "do_not_touch" and value and not value.startswith("#"):
-                items: list[str] | None = inline_list(value)
-                if items is None:
-                    unreadable = True
-                else:
-                    forbidden += items
-            continue
-        body: str = line.strip()
-        if block == "commands" and ":" in body:
-            key, value = body.split(":", 1)
-            commands[key.strip()] = value.strip().strip("\"'")
-        elif block == "do_not_touch" and body.startswith("- "):
-            forbidden.append(body[2:].strip().strip("\"'"))
+    data: dict[str, Any] = miniyaml.parse(text)
+    block: Any = data.get("commands")
+    commands: dict[str, str] = (
+        {key: value for key, value in block.items() if isinstance(value, str)} if isinstance(block, dict) else {}
+    )
+    listed: Any = data.get("do_not_touch")
+    forbidden: list[str] = [item for item in listed if isinstance(item, str)] if isinstance(listed, list) else []
+    unreadable: bool = isinstance(listed, dict) or (isinstance(listed, str) and bool(listed))
     return {"commands": commands, "do_not_touch": forbidden, "unreadable": unreadable}
 
 

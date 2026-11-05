@@ -7,7 +7,6 @@ blocking item ids up in .harness/action-items.md, writes .harness/runs/<stamp>/t
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import os
 import subprocess
@@ -19,12 +18,12 @@ from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from state_io import atomic_write  # noqa: E402
+import _load  # noqa: E402
 
 RUNS_DIR: Final[str] = ".harness/runs"
 ITEMS_PATH: Final[str] = ".harness/action-items.md"
 STATUS_NAME: Final[str] = "status.json"
 LEDGER_NAME: Final[str] = "task-ledger.md"
-ACTION_ITEMS_SCRIPT: Final[Path] = Path(__file__).resolve().parent / "action-items.py"
 GH_PR_FIELDS: Final[str] = "number,headRefName"
 TIMEOUT_S: Final[int] = 30
 STATUS_DONE: Final[str] = "done"
@@ -42,13 +41,10 @@ def binary(name: str, default: str) -> list[str]:
 
 
 def load_action_items() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("action_items", ACTION_ITEMS_SCRIPT)
-    if spec is None or spec.loader is None:
-        raise LedgerError(f"cannot load {ACTION_ITEMS_SCRIPT}")
-    module: ModuleType = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module  # dataclasses in the script resolve their module namespace through sys.modules
-    spec.loader.exec_module(module)
-    return module
+    try:
+        return _load.load("action-items")
+    except _load.ScriptNotFound as exc:
+        raise LedgerError(str(exc)) from exc
 
 
 def read_items(cwd: Path, today: date) -> dict[str, dict[str, Any]]:
