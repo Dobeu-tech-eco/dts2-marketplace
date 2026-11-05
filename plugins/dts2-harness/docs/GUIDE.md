@@ -94,6 +94,15 @@ Decision shortcuts:
 - Something is stuck: `check-in` first, then `action-items`, then `run resume` or `autopilot resume`.
 - Never run `dpp`, `setup` or `onboard` inside a son (section 3).
 
+### When a model runs out of usage
+
+Usage limits belong to the account, so the harness keeps one shared list of paused agents (`~/.dts2/agent-status.json`).
+
+- The first agent that hits a limit is recorded automatically. If the message carries no reset date, the harness asks you once and uses a five-hour pause until you answer.
+- A paused agent is skipped by the roster probe and by lead failover, and is never re-probed; it comes back by itself when the time passes.
+- Each new session starts with a one-line note of who is paused and until when.
+- Set or lift a pause by hand with `/dts2:cooldown set <agent> <date or duration>`, `clear <agent>` and `list`.
+
 ## 3. The head, son and council flow
 
 Three roles appear in 3.10.0 and the words are used consistently across the skills.
