@@ -7,9 +7,9 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock as mock
 from pathlib import Path
 from typing import Any, Final
-from unittest import mock
 
 PLUGIN_ROOT: Final[Path] = Path(__file__).resolve().parent.parent
 SCRIPTS: Final[Path] = PLUGIN_ROOT / "scripts"

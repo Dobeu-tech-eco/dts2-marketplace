@@ -1,11 +1,16 @@
 """Batch 19: regression tests for the bot-review findings on the lifecycle and mailbox rounds."""
 from __future__ import annotations
 
+import hashlib
 import importlib.util
+import json
+import os
+import subprocess
 import sys
 import tempfile
 import time
 import unittest
+import unittest.mock
 from pathlib import Path
 from typing import Any, Final
 
@@ -16,6 +21,9 @@ if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
 import proc  # noqa: E402
+import head_publish  # noqa: E402
+import protected  # noqa: E402
+import son_launch  # noqa: E402
 import son_stream  # noqa: E402
 from lanes import mailbox, planner, policy  # noqa: E402
 from lanes.leases import lease_epoch, read_lease, write_lease  # noqa: E402
@@ -189,12 +197,124 @@ class ActiveRunPlanTests(unittest.TestCase):
 
 class SonApprovalKeyTests(LaneCase):
     def test_a_son_may_not_write_the_human_approval_file(self) -> None:
-        import son_launch
         worktree = self.repo / "wt"
         worktree.mkdir()
         _allow, deny = son_launch.write_scope({"stamp": STAMP}, "a", self.repo, worktree)
         self.assertIn(str(self.repo.resolve() / ".claude" / "settings.local.json"), deny)
         self.assertIn(str(worktree.resolve() / ".claude" / "settings.local.json"), deny)
+
+
+GIT_ENV: Final[dict[str, str]] = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid",
+                                  "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.invalid"}
+
+
+def sh(repo: Path, *argv: str) -> None:
+    subprocess.run(argv, cwd=repo, check=True, capture_output=True, env={**os.environ, **GIT_ENV})
+
+
+class PublishCase(unittest.TestCase):
+    def setUp(self) -> None:
+        self.repo = Path(tempfile.mkdtemp(prefix="dts2-b19p-"))
+        self.calls: list[list[str]] = []
+        self.answers: dict[str, tuple[int, str]] = {}
+        self.names: list[str] = ["src/a.py"]
+
+    def runner(self, argv: list[str], cwd: Path) -> tuple[int, str]:
+        self.calls.append(argv)
+        if argv[1:2] == ["diff"]:
+            return 0, "\n".join(self.names)
+        for prefix, answer in self.answers.items():
+            if " ".join(argv[1:4]).startswith(prefix):
+                return answer
+        return 0, ""
+
+    def publish(self) -> dict[str, Any]:
+        return head_publish.publish_lane(self.repo, "a", "dts2/s/lane-a", "main", "t", "b", self.runner)
+
+
+class PublishRefusalTests(PublishCase):
+    def test_a_son_cannot_publish_or_merge(self) -> None:
+        old = os.environ.get("DTS2_SON")
+        os.environ["DTS2_SON"] = "1"
+        try:
+            self.assertFalse(self.publish()["ok"])
+            self.assertFalse(head_publish.merge_pr(self.repo, "5", True, "main", False, self.runner)["merged"])
+        finally:
+            os.environ.pop("DTS2_SON", None) if old is None else os.environ.update(DTS2_SON=old)
+        self.assertEqual(self.calls, [])
+
+    def test_the_diff_is_read_without_rename_detection(self) -> None:
+        self.publish()
+        self.assertIn("--no-renames", next(c for c in self.calls if c[1:2] == ["diff"]))
+
+    def test_a_protected_file_renamed_out_of_its_folder_is_still_refused(self) -> None:
+        sh(self.repo, "git", "init", "-q", "-b", "main")
+        (self.repo / ".github" / "workflows").mkdir(parents=True)
+        (self.repo / ".github" / "workflows" / "ci.yml").write_text("on: push\n" * 20, encoding="utf-8")
+        sh(self.repo, "git", "add", "."), sh(self.repo, "git", "commit", "-q", "-m", "base")
+        sh(self.repo, "git", "checkout", "-q", "-b", "lane")
+        (self.repo / "docs").mkdir()
+        sh(self.repo, "git", "mv", ".github/workflows/ci.yml", "docs/ci.yml"), sh(self.repo, "git", "commit", "-q", "-m", "mv")
+        names = head_publish.diff_names(self.repo, "main", "lane")
+        self.assertIn(".github/workflows/ci.yml", names or [])
+        self.assertEqual(protected.diff_touches_protected(names or [], self.repo), [".github/workflows/ci.yml"])
+
+    def test_the_approval_file_and_hooks_at_any_depth_are_protected(self) -> None:
+        for name in (".claude/settings.local.json", "hooks/x.sh", "plugins/p/hooks/hooks.json", "a/b/hooks/y.sh"):
+            self.assertTrue(protected.is_protected(name, self.repo), name)
+        self.assertFalse(protected.is_protected("src/a.py", self.repo))
+
+    def test_publish_refuses_a_diff_touching_the_approval_file(self) -> None:
+        self.names = ["src/a.py", ".claude/settings.local.json"]
+        self.assertFalse(self.publish()["ok"])
+        self.assertFalse(any(c[1:2] == ["push"] for c in self.calls))
+
+
+class PublishPrTests(PublishCase):
+    def test_a_closed_pr_is_not_adopted(self) -> None:
+        self.answers["pr list"] = (0, json.dumps([{"number": 3, "state": "CLOSED"}]))
+        self.answers["pr create"] = (0, "https://github.com/o/r/pull/8\n")
+        result = self.publish()
+        self.assertEqual((result["pr"], result["adopted"]), ("8", False))
+        self.assertIn("open", next(c for c in self.calls if c[1:3] == ["pr", "list"]))
+
+    def test_the_default_branch_comes_from_the_merge_setting(self) -> None:
+        (self.repo / ".harness").mkdir()
+        (self.repo / ".harness" / "config.yaml").write_text("merge:\n  default_branch: trunk\n", encoding="utf-8")
+        self.assertEqual(head_publish.default_branch_of(self.repo), "trunk")
+        facts = {"base": "trunk", "checks": [{"conclusion": "SUCCESS"}], "required_checks": False, "review": None, "head": "abc", "readable": True}
+        with unittest.mock.patch.object(head_publish, "pr_facts", return_value=facts):
+            done = head_publish.merge_pr(self.repo, "5", True, None, False, self.runner)
+        self.assertFalse(done["merged"])
+        self.assertIn("trunk needs required checks", done["blockers"][0])
+
+    def test_the_default_branch_falls_back_to_main(self) -> None:
+        self.assertEqual(head_publish.default_branch_of(self.repo), "main")
+
+    def test_a_same_size_lockfile_change_changes_the_stamp(self) -> None:
+        (self.repo / "package-lock.json").write_text("aaaa", encoding="utf-8")
+        before = head_publish.lockfile_stamp(self.repo)
+        (self.repo / "package-lock.json").write_text("bbbb", encoding="utf-8")
+        self.assertNotEqual(before, head_publish.lockfile_stamp(self.repo))
+        self.assertIn(hashlib.sha256(b"bbbb").hexdigest(), head_publish.lockfile_stamp(self.repo))
+
+
+class SonAllowlistTests(unittest.TestCase):
+    def test_a_son_may_run_only_the_plugins_own_scripts(self) -> None:
+        rules = son_launch.HARNESS_ALLOWED
+        self.assertNotIn("Bash(python3 -I *scripts/*)", rules)
+        self.assertIn(f"Bash(python3 -I {SCRIPTS}/*)", rules)
+
+    def test_a_son_may_not_reach_head_publish(self) -> None:
+        self.assertIn("Bash(*head_publish.py*)", son_launch.DISALLOWED)
+
+
+class CouncilDispatchDocsTests(unittest.TestCase):
+    def test_both_autopilot_docs_name_the_provenance_dispatcher(self) -> None:
+        for name in ("phase-0-preflight.md", "phase-1-gate.md"):
+            text = (PLUGIN_ROOT / "skills" / "autopilot" / name).read_text(encoding="utf-8")
+            self.assertIn("ballot_dispatch.py", text, name)
+            self.assertIn(".dispatch.json", text, name)
 
 
 if __name__ == "__main__":

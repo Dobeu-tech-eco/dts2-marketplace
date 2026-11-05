@@ -16,6 +16,7 @@ after such a merge the walkthrough is read-only (`DTS2_WALKTHROUGH_READONLY=1`).
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -40,7 +41,11 @@ EXIT_START_FAILED: Final[int] = 127
 GOOD_CONCLUSIONS: Final[frozenset[str]] = frozenset({"SUCCESS", "NEUTRAL", "SKIPPED"})
 PENDING_STATES: Final[frozenset[str]] = frozenset({"PENDING", "QUEUED", "IN_PROGRESS", "WAITING", "EXPECTED", ""})
 WALKTHROUGH_READONLY_VAR: Final[str] = "DTS2_WALKTHROUGH_READONLY"
+SON_MARKER_VAR: Final[str] = "DTS2_SON"  # set in every son's env (son_launch.SON_MARKER)
 MERGE_BLOCK: Final[str] = "merge"
+DEFAULT_BRANCH_KEY: Final[str] = "default_branch"
+FALLBACK_BRANCH: Final[str] = "main"
+STATE_OPEN: Final[str] = "OPEN"
 DEPLOYS_KEY: Final[str] = "deploys_production"
 SECRET_NAME: Final[re.Pattern[str]] = re.compile(
     r"(KEY|TOKEN|SECRET|PASSWORD|PASSWD|PASS|CREDENTIAL|PRIVATE|CERT|DSN|AUTH|SALT|SIGNING|WEBHOOK|CONN|DATABASE_URL)", re.I)
@@ -89,19 +94,33 @@ def json_of(text: str) -> Any:
 
 def diff_names(repo: Path, base: str, branch: str, runner: Runner = run_tool) -> list[str] | None:
     """File names the lane branch changes against its base; None when git cannot say (the caller parks, never pushes blind)."""
-    code, out = git(repo, "diff", "--name-only", f"{base}...{branch}", runner=runner)
+    code, out = git(repo, "diff", "--name-only", "--no-renames", f"{base}...{branch}", runner=runner)
     return [line for line in out.splitlines() if line.strip()] if code == 0 else None
 
 
 def lane_pr(repo: Path, branch: str, runner: Runner = run_tool) -> dict[str, Any] | None:
-    """The PR already open (or merged) for this lane branch, so a retried publish never opens a second one."""
-    code, out = gh(repo, "pr", "list", "--head", branch, "--state", "all", "--json", "number,state", runner=runner)
+    """The PR still open for this lane branch, so a retried publish never opens a second one. A closed or merged PR is not adopted."""
+    code, out = gh(repo, "pr", "list", "--head", branch, "--state", "open", "--json", "number,state", runner=runner)
     rows: Any = json_of(out) if code == 0 else None
-    return rows[0] if isinstance(rows, list) and rows and isinstance(rows[0], dict) else None
+    open_rows: list[dict[str, Any]] = [r for r in rows if isinstance(r, dict) and str(r.get("state", STATE_OPEN)).upper() == STATE_OPEN] \
+        if isinstance(rows, list) else []
+    return open_rows[0] if open_rows else None
+
+
+def son_refusal(action: str) -> dict[str, Any]:
+    """Only the head publishes or merges: inside a son's process the answer is a refusal, whatever the allowlist says."""
+    return {"ok": False, "merged": False, "reason": f"{action} is the head's step; a son only commits a branch",
+            "blockers": [f"{action} refused inside a son"]}
+
+
+def inside_son() -> bool:
+    return bool(os.environ.get(SON_MARKER_VAR))
 
 
 def publish_lane(repo: Path, lane: str, branch: str, base: str, title: str, body: str, runner: Runner = run_tool) -> dict[str, Any]:
     """Protected-file check, push, one PR per lane. A protected path parks the lane as a Decisions item and pushes nothing."""
+    if inside_son():
+        return son_refusal("publishing")
     names: list[str] | None = diff_names(repo, base, branch, runner)
     if names is None:
         return {"ok": False, "reason": f"cannot read the diff {base}...{branch}; nothing was pushed"}
@@ -177,11 +196,19 @@ def deploys_production(repo: Path) -> bool:
     return read_block(repo, MERGE_BLOCK).get(DEPLOYS_KEY, "false").lower() == "true"
 
 
-def merge_pr(repo: Path, pr: str, verifier_ok: bool, default_branch: str = "main", production: bool | None = None,
+def default_branch_of(repo: Path) -> str:
+    """`merge: default_branch:` from .harness/config.yaml, as deploys_production reads it; "main" when unset."""
+    return read_block(repo, MERGE_BLOCK).get(DEFAULT_BRANCH_KEY) or FALLBACK_BRANCH
+
+
+def merge_pr(repo: Path, pr: str, verifier_ok: bool, default_branch: str | None = None, production: bool | None = None,
              runner: Runner = run_tool) -> dict[str, Any]:
     """Merge after the verifier passed and every precondition holds. Anything else returns the reasons and merges nothing."""
+    if inside_son():
+        return son_refusal("merging")
     if not verifier_ok:
         return {"ok": False, "merged": False, "blockers": ["the verifier has not passed on this head"]}
+    default_branch = default_branch or default_branch_of(repo)
     facts: dict[str, Any] = pr_facts(repo, pr, runner)
     if not facts["readable"]:
         return {"ok": False, "merged": False, "blockers": [f"cannot read PR {pr}; failing closed"]}
@@ -209,8 +236,8 @@ def install_command(worktree: Path) -> list[str] | None:
 
 
 def lockfile_stamp(worktree: Path) -> str:
-    """Names and sizes of the lockfiles; the install step is skipped while this is unchanged."""
-    return ";".join(f"{n}:{(worktree / n).stat().st_size}" for n in LOCKFILES if (worktree / n).is_file())
+    """Names and content hashes of the lockfiles; the install step is skipped while this is unchanged (a same-size edit counts)."""
+    return ";".join(f"{n}:{hashlib.sha256((worktree / n).read_bytes()).hexdigest()}" for n in LOCKFILES if (worktree / n).is_file())
 
 
 def env_example(worktree: Path) -> str:
@@ -303,7 +330,7 @@ def main(argv: list[str] | None = None) -> int:
     mrg = sub.add_parser("merge")
     mrg.add_argument("pr")
     mrg.add_argument("--verifier-ok", action="store_true", help="the verifier passed on the PR head")
-    mrg.add_argument("--default-branch", default="main")
+    mrg.add_argument("--default-branch", default=None, help="overrides merge.default_branch from the config")
     mrg.add_argument("--deploys-production", action="store_true", default=None)
     boot = sub.add_parser("bootstrap")
     boot.add_argument("--stamp", required=True)

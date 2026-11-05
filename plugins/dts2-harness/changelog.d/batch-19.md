@@ -7,5 +7,12 @@
 - Review F: `plan` filters by the frozen fullauto scope before the cap and conflict selection; excluded items are recorded as pending.
 - Review G: the no-phase heartbeat checks the epoch under the status lock and does not renew a lease when stale.
 - Review K: the context guard resolves the active run from the `dts2/<stamp>/` branch before looking for a plan.
-- Review P (partial): sons cannot write `.claude/settings.local.json` (sandbox write deny).
-- Review M: `test_batch17_mailbox.py` uses `import unittest.mock as mock`.
+- Review P: sons cannot write `.claude/settings.local.json` (sandbox write deny) and `protected.py` refuses a publish diff that touches it.
+- Review M: `test_batch17_mailbox.py` and `test_batch5_containment.py` use `import unittest.mock as mock`.
+- Review H: the autopilot gate and preflight docs dispatch council seats through `ballot_dispatch.py`, so ballots carry their `.dispatch.json` record.
+- Review I: `head_publish.py` refuses publish and merge when `DTS2_SON` is set; the lockfile stamp hashes file contents (sha256).
+- Review J: the protected hooks glob matches a `hooks/` folder at any depth, the repo root included.
+- Review N: the publish diff is read with `--no-renames`, so a renamed protected file is seen at its source path.
+- Review O: the son Bash allowlist covers the plugin's own scripts directory only, and `head_publish.py` is denied.
+- Review Q: publish adopts only an open PR; a closed or merged PR is ignored and a new one is opened.
+- Review R: the merge default branch comes from `merge.default_branch` in the config, falling back to `main`.

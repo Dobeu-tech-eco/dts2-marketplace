@@ -53,13 +53,13 @@ GIT_ALLOWED: Final[tuple[str, ...]] = (  # G-64: add and commit, never push; the
     "Bash(git rev-parse*)", "Bash(git branch*)", "Bash(git checkout*)", "Bash(git switch*)", "Bash(git merge*)",
     "Bash(git worktree*)", "Bash(git ls-files*)", "Bash(git stash*)",
 )
-HARNESS_ALLOWED: Final[tuple[str, ...]] = ("Bash(python3 -I *scripts/*)", f"Bash(bash {CHECKS_SH_REL}*)")
+HARNESS_ALLOWED: Final[tuple[str, ...]] = (f"Bash(python3 -I {PLUGIN_ROOT / 'scripts'}/*)", f"Bash(bash {CHECKS_SH_REL}*)")
 CHECK_BLOCK: Final[str] = "commands"  # `commands:` in .harness/config.yaml: test, typecheck, lint
 RULE_UNSAFE: Final[re.Pattern[str]] = re.compile(r"[()\n]")
 HANDOVER_DENY: Final[tuple[str, ...]] = ("Bash(git push*)", "Bash(gh pr*)", "Bash(gh api*)")  # G-64: a son hands over a branch
 DISALLOWED: Final[tuple[str, ...]] = (
     *HANDOVER_DENY,
-    "Bash(gh pr merge *)", "Bash(*lanes.py merge-go*)", "Bash(*lanes.py merge-target*)", "Bash(gh repo delete *)", "Bash(git -c *)", "Bash(git push --force *)",
+    "Bash(gh pr merge *)", "Bash(*head_publish.py*)", "Bash(*lanes.py merge-go*)", "Bash(*lanes.py merge-target*)", "Bash(gh repo delete *)", "Bash(git -c *)", "Bash(git push --force *)",
     "Bash(git push -f *)", "Read(~/.ssh/**)", "Read(**/.env)", "Read(**/.env.*)", "Read(~/.aws/**)",
     "Read(~/.config/gcloud/**)", "Edit(.claude/**)", "Write(.claude/**)", "Edit(.mcp.json)", "Write(.mcp.json)",
     "Edit(.git/hooks/**)", "Write(.git/hooks/**)",
