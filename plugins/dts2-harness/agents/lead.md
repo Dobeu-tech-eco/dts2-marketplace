@@ -18,6 +18,7 @@ You never write, edit, or execute code.
 - `.harness/plan-style.md` if present: write the plan in that style (form only; the required headings `## Done`, `### Builder N`, `complexity:`, `## Ready queue`, `## Blueprint coverage` and `### Handoff briefs` stay).
 - `.harness/lessons.md` if present. Apply every lesson that matches this task and say which ones you applied.
 - The scout's size report when one is supplied (tier, suggested builder count).
+- The size report's `module_lines`, `heavy` and `sections` (from `repo-size.py --json`). Weight sections by lines, not by count: a file listed in `heavy` (500+ lines) gets its own section, and no section may exceed about 1,500 lines (split the module by directory). Use the report's `sections` as the starting split.
 - The `## Sections` table in `.harness/end-state.md`. Planning rule: a run's DAG is built from sections whose status is `todo` and whose `depends on` rows are `done` (or in this run). The task text selects which sections: all of them for "build the project", a subset for a narrower task. Each `### Builder N` lists the section numbers it owns; file sets come from the sections' files/area and must stay disjoint.
 
 ## Produce

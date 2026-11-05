@@ -20,6 +20,9 @@ TEXT_SUFFIXES: Final[frozenset[str]] = frozenset({
     ".ts", ".tsx", ".js", ".jsx", ".mjs", ".py", ".go", ".rs", ".rb", ".php", ".java",
     ".kt", ".cs", ".swift", ".sql", ".css", ".scss", ".html", ".vue", ".svelte", ".md",
 })
+HEAVY_FILE_LINES: Final[int] = 500
+SECTION_CAP_LINES: Final[int] = 1_500
+ROOT_MODULE: Final[str] = "."
 TIERS: Final[dict[str, dict[str, object]]] = {
     "S": {"builders": 1, "reviewers": ["all"], "worktrees": False},
     "M": {"builders": 2, "reviewers": ["correctness", "security"], "worktrees": False},
@@ -49,6 +52,36 @@ def module_count(files: list[Path], repo: Path) -> int:
     return len(tops)
 
 
+def module_of(rel: Path) -> str:
+    return rel.parts[0] if len(rel.parts) > 1 else ROOT_MODULE
+
+
+def build_sections(per_file: dict[str, int], heavy_lines: int = HEAVY_FILE_LINES, cap: int = SECTION_CAP_LINES) -> list[dict[str, object]]:
+    """Suggest builder sections: every heavy file (heavy_lines+) alone, the rest of a module packed up to `cap` lines."""
+    sections: list[dict[str, object]] = []
+    by_module: dict[str, list[tuple[str, int]]] = {}
+    for path, count in sorted(per_file.items()):
+        if count <= 0:
+            continue
+        module: str = module_of(Path(path))
+        if count >= heavy_lines:
+            sections.append({"area": module, "files": [path], "lines": count, "heavy": True})
+        else:
+            by_module.setdefault(module, []).append((path, count))
+    for module, entries in by_module.items():
+        current: list[str] = []
+        total: int = 0
+        for path, count in entries:
+            if current and total + count > cap:
+                sections.append({"area": module, "files": current, "lines": total, "heavy": False})
+                current, total = [], 0
+            current.append(path)
+            total += count
+        if current:
+            sections.append({"area": module, "files": current, "lines": total, "heavy": False})
+    return sorted(sections, key=lambda s: (str(s["area"]), not s["heavy"], str(s["files"][0])))  # type: ignore[index]
+
+
 def tier_for(loc: int, monorepo: bool) -> str:
     if loc < TIER_S_LOC and not monorepo:
         return "S"
@@ -60,12 +93,23 @@ def tier_for(loc: int, monorepo: bool) -> str:
 def size_repo(repo: Path, max_builders: int) -> dict[str, object]:
     files: list[Path] = tracked_files(repo)
     loc: int = sum(count_lines(f) for f in files)
+    per_file: dict[str, int] = {str(f.relative_to(repo)): count_lines(f) for f in files}
+    module_lines: dict[str, int] = {}
+    for rel, count in per_file.items():
+        key: str = module_of(Path(rel))
+        module_lines[key] = module_lines.get(key, 0) + count
+    heavy: list[dict[str, object]] = [
+        {"path": rel, "lines": count} for rel, count in sorted(per_file.items()) if count >= HEAVY_FILE_LINES
+    ]
     monorepo: bool = any((repo / marker).exists() for marker in MONOREPO_MARKERS)
     tier: str = tier_for(loc, monorepo)
     team: dict[str, object] = dict(TIERS[tier])
     team["builders"] = min(int(team["builders"]), max_builders)
     return {"repo": str(repo), "files": len(files), "loc": loc,
-            "modules": module_count(files, repo), "monorepo": monorepo, "tier": tier, **team}
+            "modules": module_count(files, repo), "monorepo": monorepo, "tier": tier, **team,
+            "module_lines": {k: v for k, v in sorted(module_lines.items()) if v},
+            "heavy": heavy, "heavy_threshold": HEAVY_FILE_LINES, "section_cap": SECTION_CAP_LINES,
+            "sections": build_sections(per_file)}
 
 
 def main() -> int:
