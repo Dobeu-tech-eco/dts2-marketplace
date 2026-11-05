@@ -100,6 +100,8 @@ FAKE_GIT: Final[str] = """#!/usr/bin/env python3
 import sys
 if "--version" in sys.argv:
     print("git version 2.40.0")
+elif "--name-only" in sys.argv:
+    pass  # the lane ownership audit: no changed files
 else:
     print("diff --git a/x b/x\\n+changed")
 """

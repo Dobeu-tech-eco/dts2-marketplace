@@ -4,7 +4,7 @@ and the dpp head's helpers: plan (admission, spend, feasibility, --full selectio
 stop-check and report-check. It is the only writer of lane state: leases, status.json fields the head owns (heartbeat,
 session id, park reason), send-backs, the budget counter, the model-call ledger and merge order. Its supervisor commands:
 preflight (pin the CLI version), spawn (start a son under every cap), call (any other model call behind the shared
-limit), heartbeat, budget, loop, merge-order, merge-plan, merge-go, merge-go-step and merge-done. Its lifecycle commands:
+limit), heartbeat, budget, loop, merge-order, merge-plan, merge-go, audit (the ownership check merge-go runs), merge-go-step and merge-done. Its lifecycle commands:
 transition (the one writer of a lane's phase, against a table of legal moves), shutdown (the graceful end of a run),
 reconcile (ask GitHub before creating, merging or resuming), run-record, builder and run-resume (the typed run record and
 builders.jsonl), fold-done, merge-resume and walkthrough-failed (the merge journal) and report (the run as a table).
@@ -25,7 +25,7 @@ from lanes.gitrefs import branch_check  # noqa: E402
 from lanes.amend import amend_lane, split_list  # noqa: E402
 from lanes.journal import fold_done, walkthrough_failed  # noqa: E402
 from lanes.mergeplan import merge_plan  # noqa: E402
-from lanes.merge import merge_done, merge_go, merge_go_step, merge_order, set_merge_target  # noqa: E402
+from lanes.merge import audit_lane, merge_done, merge_go, merge_go_step, merge_order, set_merge_target  # noqa: E402
 from lanes.mergeresume import merge_resume  # noqa: E402
 from lanes.phases import ALL_PHASES, transition  # noqa: E402
 from lanes.planner import load_draft, plan, read_checkin, son_command  # noqa: E402
@@ -77,6 +77,11 @@ def add_supervisor_parsers(sub: Any) -> None:
     go_p.add_argument("--lane", required=True)
     go_p.add_argument("--head", required=True, help="the verified HEAD sha the merge is cleared for")
     go_p.add_argument("--base", default=None, help="the base commit approved against; default origin/<target> now")
+    audit_p = sub.add_parser("audit", help="list files a lane changed outside its owned set (what merge-go checks)")
+    audit_p.add_argument("manifest")
+    audit_p.add_argument("lane")
+    audit_p.add_argument("--head", required=True, help="the lane branch HEAD sha")
+    audit_p.add_argument("--base", default=None, help="the base commit; default origin/<merge target> now")
     target_p = sub.add_parser("merge-target")
     target_p.add_argument("stamp")
     target_p.add_argument("--set", default=None, help="record the branch this run merges into (default: dev)")
@@ -303,6 +308,8 @@ def dispatch(args: argparse.Namespace) -> dict[str, Any]:
         return merge_plan(manifest, runs_dir, cwd, args.base)
     if args.command == "merge-go":
         return merge_go(manifest, runs_dir, args.lane, args.head, cwd, args.base)
+    if args.command == "audit":
+        return audit_lane(manifest, runs_dir, args.lane, args.head, cwd, args.base)
     if args.command == "merge-resume":
         return merge_resume(manifest, runs_dir, cwd)
     if args.command == "merge-done":

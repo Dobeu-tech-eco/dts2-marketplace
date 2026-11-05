@@ -146,6 +146,7 @@ Manifest-keyed commands:
 | `merge-order <manifest>` | none | Print merge order and who is next. | `dpp` | new |
 | `merge-plan <manifest>` | `--base` | Merge queue or serial rebase-test-merge plan; `git merge-tree --write-tree` probe of every lane; integration lane last. Merges nothing. | `run`, `dpp` | new |
 | `merge-go <manifest>` | `--lane --head` (required), `--base` | Write `merge-go.md` for a verified head and base commit (head only). | `dpp`, `autopilot` | new |
+| `audit <manifest> <lane>` | `--head` (required), `--base` | List files the lane branch changed outside its owned set; the same ownership check `merge-go` runs before it grants a merge. Read-only. | `dpp`, `autopilot` | new |
 | `merge-resume <manifest>` | none | Settle a merge a dead head left half done, by asking GitHub. | none yet | new |
 | `merge-done <manifest>` | `--lane` (required) | Mark a lane merged; when all are merged restore `gc.auto` and record the run end. | `dpp` | new |
 

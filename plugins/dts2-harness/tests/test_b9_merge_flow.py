@@ -40,8 +40,8 @@ class Base(unittest.TestCase):
         self.fake.mkdir()
         (self.fake / "gh.py").write_text(FAKE_GH, encoding="utf-8")
 
-    def run_cmd(self, *args: str, rules: str = "[]") -> dict[str, Any]:
-        env = {**os.environ, "DTS2_GH_BIN": str(self.fake / "gh.py"), "FAKE_RULES": rules}
+    def run_cmd(self, *args: str, rules: str = "[]", extra_env: dict[str, str] | None = None) -> dict[str, Any]:
+        env = {**os.environ, "DTS2_GH_BIN": str(self.fake / "gh.py"), "FAKE_RULES": rules, **(extra_env or {})}
         done = subprocess.run([sys.executable, "-I", str(SCRIPT), "--cwd", str(self.repo), *args],
                               capture_output=True, text=True, env=env, check=False)
         parsed: dict[str, Any] = json.loads(done.stdout)

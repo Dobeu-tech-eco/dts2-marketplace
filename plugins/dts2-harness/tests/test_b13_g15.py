@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from typing import Any, Final
+from unittest import mock
 
 from helpers import PLUGIN_ROOT
 
@@ -31,6 +32,9 @@ def manifest() -> dict[str, Any]:
 
 class Base(unittest.TestCase):
     def setUp(self) -> None:
+        patcher = mock.patch.object(sys.modules["lanes.merge"], "lane_audit", return_value={"ok": True, "violations": [], "changed": []})
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.repo = Path(tempfile.mkdtemp(prefix="dts2-g15-"))
         self.runs = self.repo / ".harness" / "runs"
 

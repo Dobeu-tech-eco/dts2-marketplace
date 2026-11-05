@@ -12,6 +12,7 @@ from son_launch import merge_config
 from state_io import atomic_write
 
 from .common import LaneError, MERGE_GO_NAME, MERGE_ORDER_NAME, MERGE_PENDING_NAME, PHASE_BLOCKED, PHASE_INCOMPLETE, PHASE_PR_OPEN, PROTECTED_DEFAULTS, STATUS_NAME, binary, find_lane, run
+from .audit import lane_audit
 from .integration import INTEGRATION_LANE
 from .journal import KIND_GRANTED, KIND_MERGED, note
 from .records import inside_son, lane_lock, read_json_object, son_refusal
@@ -200,10 +201,21 @@ def base_tip(cwd: Path, target: str) -> str | None:
     return out.strip() if code == 0 and re.match(r"^[0-9a-f]{7,40}$", out.strip()) else None
 
 
+def audit_lane(manifest: dict[str, Any], runs_dir: Path, lane_id: str, head: str, cwd: Path, base: str | None = None) -> dict[str, Any]:
+    """The ownership check merge-go runs, on its own: `base` defaults to the tip of the run's merge target."""
+    manifest = effective_manifest(manifest, runs_dir)
+    find_lane(manifest, lane_id)
+    sha: str | None = base or base_tip(cwd, merge_target_state(runs_dir, str(manifest["stamp"]), cwd)["target"])
+    if sha is None:
+        return {"ok": False, "lane": lane_id, "violations": [], "changed": [], "detail": "cannot read the merge target; fetch it or pass --base"}
+    return lane_audit(manifest, lane_id, head, sha, cwd)
+
+
 def merge_go(manifest: dict[str, Any], runs_dir: Path, lane_id: str, head: str, cwd: Path = Path("."),
              base: str | None = None) -> dict[str, Any]:
     """Write the lane's merge-go.md, only when it is next in order, no other merge is in flight, the run's target is
-    allowed and the base commit it was cleared against is known (recorded as `Base:` for the merge guard). A son is refused."""
+    allowed, the base commit it was cleared against is known (recorded as `Base:` for the merge guard) and the lane changed only
+    files it owns (`lane_audit`). A son is refused."""
     if inside_son():
         return {**son_refusal("merge-go"), "lane": lane_id}
     manifest = effective_manifest(manifest, runs_dir)
@@ -218,6 +230,11 @@ def merge_go(manifest: dict[str, Any], runs_dir: Path, lane_id: str, head: str, 
         return {"ok": False, "lane": lane_id, "detail": "--base must be a commit sha"}
     if sha is None:
         return {"ok": False, "lane": lane_id, "detail": f"cannot read origin/{state['target']}; fetch it or pass --base"}
+    audit: dict[str, Any] = lane_audit(manifest, lane_id, head, sha, cwd)
+    if not audit["ok"]:
+        outside: list[str] = [str(v.get("detail", "")) for v in audit["violations"]] or [str(audit.get("detail", "audit failed"))]
+        return {"ok": False, "lane": lane_id, "detail": f"lane {lane_id} changed files outside its owned set: {'; '.join(outside)}",
+                "violations": audit["violations"]}
     with merge_lock(runs_dir / stamp / MERGE_ORDER_NAME):
         return grant_merge(manifest, runs_dir, lane_id, head, state["target"], sha)
 
