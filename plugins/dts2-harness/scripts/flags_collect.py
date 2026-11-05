@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from state_io import append_text  # noqa: E402
+from state_io import RUNS_REL, append_text  # noqa: E402
 
 KINDS: Final[tuple[str, ...]] = ("SECRET", "OUTSIDE_FILE", "CONCERN", "ASSUMPTION", "SKIPPED")
 HEADER: Final[str] = "# Flags\n"
@@ -50,7 +50,7 @@ def render(builder: str, flags: list[dict[str, str]]) -> str:
 
 def collect(repo: Path, stamp: str, builder: str, report: str) -> tuple[Path, int]:
     flags: list[dict[str, str]] = parse(report)
-    path: Path = repo / ".harness" / "runs" / stamp / "flags.md"
+    path: Path = repo / RUNS_REL / stamp / "flags.md"
     append_text(path, render(builder, flags), header=HEADER)
     return path, len(flags)
 

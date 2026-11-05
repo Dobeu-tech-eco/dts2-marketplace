@@ -8,8 +8,9 @@ from pathlib import Path
 from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from state_io import RUNS_REL  # noqa: E402
 
-RUNS_DIR: Final[str] = ".harness/runs"
+RUNS_DIR: Final[str] = RUNS_REL
 HEADER: Final[tuple[str, ...]] = ("Lane", "Status", "Rounds", "Cost (USD)", "Wall-clock", "PR")
 MISSING: Final[str] = "-"
 SECONDS_PER_MINUTE: Final[int] = 60

@@ -9,6 +9,9 @@ import sys
 from pathlib import Path
 from typing import Any, Final
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import state_io  # noqa: E402
+
 PROVIDER_FILES: Final[tuple[tuple[str, tuple[str, ...], str | None], ...]] = (
     ("vercel", ("vercel.json", ".vercel/project.json"), "vercel ls --prod"),
     ("cloudflare", ("wrangler.toml", "wrangler.jsonc", "wrangler.json"), "wrangler deployments list"),
@@ -37,7 +40,7 @@ PRODUCTION_PLANS: Final[dict[str, list[str]]] = {
 WORKFLOW_GLOBS: Final[tuple[str, ...]] = ("*.yml", "*.yaml")
 WORKFLOW_DIR: Final[str] = ".github/workflows"
 WORKFLOW_CHECK: Final[str] = "gh run list --workflow {name} --limit 1"
-END_STATE_PATH: Final[str] = ".harness/end-state.md"
+END_STATE_PATH: Final[str] = state_io.END_STATE_REL
 URL_PATTERN: Final[re.Pattern[str]] = re.compile(r"^\s*(?:-\s*)?productionUrl:\s*(\S+)\s*$", re.MULTILINE)
 NULL_VALUES: Final[frozenset[str]] = frozenset({"null", "none", "<url|null>", ""})
 

@@ -14,6 +14,7 @@ from typing import Any, Final
 
 from briefs import PREFIX_FLAG, cached_prefix
 from model_call import read_block
+from state_io import CACHE_REL, RUNS_REL
 
 PLUGIN_ROOT: Final[Path] = Path(__file__).resolve().parent.parent
 GUARD: Final[Path] = PLUGIN_ROOT / "scripts" / "guard.py"
@@ -31,8 +32,8 @@ CACHE_TTL: Final[str] = "1h"
 MIN_CLI: Final[tuple[int, int, int]] = (2, 1, 242)  # CLAUDE_CODE_PROMPT_CACHE_TTL needs this release
 DEFAULT_PORT_BASE: Final[int] = 4000
 PORT_STRIDE: Final[int] = 10
-CACHE_DIR: Final[str] = ".harness/cache"
-RUNS_DIR: Final[str] = ".harness/runs"
+CACHE_DIR: Final[str] = CACHE_REL
+RUNS_DIR: Final[str] = RUNS_REL
 NAME_UNSAFE: Final[re.Pattern[str]] = re.compile(r"[^a-z0-9]+")
 BLOCK_SANDBOX: Final[str] = "sandbox"
 BLOCK_MERGE: Final[str] = "merge"

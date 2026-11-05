@@ -8,9 +8,13 @@ import sys
 from pathlib import Path
 from typing import Any, Final
 
-PROFILE_DIR: Final[Path] = Path(__file__).resolve().parent.parent / "profiles" / "agents"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from profiles import PROFILE_DIR, Profiles  # noqa: E402
+
 EFFORT_LEVELS: Final[tuple[str, ...]] = ("low", "medium", "high", "xhigh", "max", "ultra")
 HIGH: Final[str] = "high"
+COMPLEXITY_ORDER: Final[tuple[str, ...]] = ("mechanical", "normal", "design")
+DEFAULT_COMPLEXITY: Final[str] = "normal"
 SEATS: Final[tuple[str, ...]] = ("execution", "advisory", "signoff")
 BUDGETS: Final[tuple[str, ...]] = ("ok", "low", "exhausted")
 EXECUTION_EFFORT: Final[dict[str, str]] = {"mechanical": "low", "normal": "medium", "design": "high"}
@@ -68,10 +72,7 @@ def clamp_effort(desired: str, available: list[str]) -> str:
 
 def lead_eligible(profiles: dict[str, dict[str, Any]]) -> list[str]:
     """Names of profiles that can fill advisory and sign-off seats, sorted by name."""
-    return sorted(
-        name for name, profile in profiles.items()
-        if any(role in profile.get("roles", []) for role in ADVISORY_ROLES)
-    )
+    return Profiles(profiles).lead_eligible()
 
 
 def signoff_agent(profiles: dict[str, dict[str, Any]], lead_provider: str) -> str:
@@ -133,6 +134,18 @@ def execution_plan(profile: dict[str, Any], complexity: str, budget: str) -> tup
             desired = LOW_BUDGET_EFFORT_CAP
         assert_execution_not_frontier(tier)
     return tier, clamp_effort(desired, automatic_efforts(profile, model_for(profile, tier), "execution"))
+
+
+def highest_complexity(found: list[str]) -> str:
+    """The hardest known complexity in `found`; unknown words are ignored and an empty list means normal."""
+    known: list[str] = [c for c in found if c in COMPLEXITY_ORDER]
+    return max(known, key=COMPLEXITY_ORDER.index) if known else DEFAULT_COMPLEXITY
+
+
+def builder_recommendation(complexity: str, profile: dict[str, Any], budget: str = "ok") -> tuple[str, str]:
+    """(tier, effort) a builder gets for this complexity: the same call `delegate` makes for an execution seat."""
+    check_inputs("execution", complexity, budget)
+    return execution_plan(profile, complexity, budget)
 
 
 def seat_plan(profile: dict[str, Any], seat: str, complexity: str, budget: str) -> tuple[str, str]:
@@ -199,11 +212,7 @@ def receipt_line(profile: dict[str, Any], seat: str, effort: str, model: str | N
 
 
 def load_profiles(profile_dir: Path) -> dict[str, dict[str, Any]]:
-    profiles: dict[str, dict[str, Any]] = {}
-    for path in sorted(profile_dir.glob("*.json")):
-        data: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
-        profiles[data["name"]] = data
-    return profiles
+    return Profiles.load(profile_dir).as_dict()
 
 
 def build_parser() -> argparse.ArgumentParser:

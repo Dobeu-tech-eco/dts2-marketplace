@@ -3,35 +3,23 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
-import re
 import sys
 from pathlib import Path
-from types import ModuleType
 from typing import Any, Final
 
-HANDOFF_SCRIPT: Final[Path] = Path(__file__).resolve().parent / "handoff-write.py"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import contracts  # noqa: E402
+
 COMPLETE: Final[str] = "complete"
 OUTSTANDING: Final[str] = "outstanding"
 STATUSES: Final[tuple[str, ...]] = (COMPLETE, OUTSTANDING)
 DONE_STATUS: Final[str] = "done"
 PERCENT_SCALE: Final[int] = 100
-ACCEPTANCE_HEADING: Final[str] = "## Acceptance criteria"
-CHECKBOX: Final[re.Pattern[str]] = re.compile(r"^\s*-\s*\[([ xX])\]\s*(.+?)\s*$")
 PLACEHOLDER_PREFIX: Final[str] = "<"
 EMPTY_NOTE: Final[str] = "(no items found)"
 JSON_SUFFIX: Final[str] = ".json"
 EXIT_USAGE: Final[int] = 2
-
-
-def load_handoff() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("handoff_write_for_check_in", HANDOFF_SCRIPT)
-    assert spec is not None and spec.loader is not None
-    module: ModuleType = importlib.util.module_from_spec(spec)
-    sys.modules["handoff_write_for_check_in"] = module
-    spec.loader.exec_module(module)
-    return module
 
 
 def validate(item: Any) -> dict[str, str]:
@@ -70,41 +58,28 @@ def status_of(cell: str) -> str:
     return COMPLETE if cell == DONE_STATUS else OUTSTANDING
 
 
-def section_items(end_state: str, handoff: ModuleType) -> list[dict[str, str]]:
-    start: int = end_state.find(handoff.SECTIONS_HEADING)
-    if start < 0:
+def section_items(end_state: str) -> list[dict[str, str]]:
+    rows = contracts.parse_sections(end_state)
+    if isinstance(rows, contracts.Invalid):
         return []
-    body: str = end_state[start + len(handoff.SECTIONS_HEADING):]
-    end: re.Match[str] | None = handoff.SECTION_END.search(body)
-    rows: list[list[str]] = [handoff.table_cells(line) for line in (body[: end.start()] if end else body).splitlines() if line.startswith("|")]
-    real: list[list[str]] = [r for r in rows if len(r) > 1 and r[handoff.SECTION_NUMBER_COL].isdigit()]
-    return [item_from_row(r, handoff) for r in real if not r[handoff.SECTION_NAME_COL].startswith(PLACEHOLDER_PREFIX)]
-
-
-def item_from_row(row: list[str], handoff: ModuleType) -> dict[str, str]:
-    cell: str = row[handoff.SECTION_NAME_COL]
-    match: re.Match[str] | None = handoff.ACTION_ID_SUFFIX.match(cell)
-    name: str = f"section {row[handoff.SECTION_NUMBER_COL]}: {match.group(1) if match else cell}"
-    return {"name": name, "status": status_of(row[handoff.SECTION_STATUS_COL])}
-
-
-def acceptance_items(end_state: str, handoff: ModuleType) -> list[dict[str, str]]:
-    start: int = end_state.find(ACCEPTANCE_HEADING)
-    if start < 0:
-        return []
-    body: str = end_state[start + len(ACCEPTANCE_HEADING):]
-    end: re.Match[str] | None = re.search(r"^## ", body, re.MULTILINE)
-    matches: list[re.Match[str] | None] = [CHECKBOX.match(line) for line in (body[: end.start()] if end else body).splitlines()]
-    found: list[tuple[str, str]] = [(m.group(1), m.group(2)) for m in matches if m]
     return [
-        {"name": f"acceptance: {text}", "status": COMPLETE if box.lower() == "x" else OUTSTANDING}
-        for box, text in found if not text.startswith(PLACEHOLDER_PREFIX)
+        {"name": f"section {row.number}: {row.name}", "status": status_of(row.status)}
+        for row in rows if not row.name.startswith(PLACEHOLDER_PREFIX)
+    ]
+
+
+def acceptance_items(end_state: str) -> list[dict[str, str]]:
+    found = contracts.parse_acceptance(end_state)
+    if isinstance(found, contracts.Invalid):
+        return []
+    return [
+        {"name": f"acceptance: {item.text}", "status": COMPLETE if item.done else OUTSTANDING}
+        for item in found if not item.text.startswith(PLACEHOLDER_PREFIX)
     ]
 
 
 def items_from_end_state(text: str) -> list[dict[str, str]]:
-    handoff: ModuleType = load_handoff()
-    return section_items(text, handoff) + acceptance_items(text, handoff)
+    return section_items(text) + acceptance_items(text)
 
 
 def items_from_file(path: Path) -> list[dict[str, Any]]:

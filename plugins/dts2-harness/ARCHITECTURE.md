@@ -79,6 +79,20 @@ Hooks read settings from `.claude/dts2-harness.local.md` through `hooks/lib-sett
 
 `skills/autopilot/` and `skills/setup/` are short routers (`SKILL.md`) that point to phase files read on demand (`phase-*.md`, `son-mode.md`); the text is the same as before, moved, a son reads its brief and `son-mode.md` first, then phase files on demand.
 
-`briefs.py` (briefs and the cached prefix; `son-brief` fills `templates/son-brief.md`, the ~4 KB brief a son reads as `brief.md`; `lead-brief` turns the task, roster, probe and check ledger into one page for the lead; `prefix` is the fixed-order cached prefix of discipline, roster and probe that `son_launch.launch_flags` hands every son with `--append-system-prompt`; `dry-run` prints the exact son command, env names and byte counts without starting a session), `repo-size.py` (tier, per-module lines, heavy files and suggested sections).
+`briefs.py` (briefs and the cached prefix; `son-brief` fills `templates/son-brief.md`, the ~4 KB brief a son reads as `brief.md`; `lead-brief` turns the task, roster, probe and check ledger into one page for the lead; `prefix` is the fixed-order cached prefix of discipline, roster and probe that `son_launch.launch_flags` hands every son with `--append-system-prompt`; `dry-run` prints the exact son command, env names and byte counts without starting a session).
+
+Imported by the scripts above; none is a hook entry point.
+
+| Module | Holds |
+| --- | --- |
+| `scripts/miniyaml.py` | the one reader for `.harness/config.yaml`, `keep.yaml` and the settings frontmatter; typed accessors with defaults |
+| `scripts/_load.py` | loads a hyphenated CLI script by hyphenated or underscore name, cached in `sys.modules` |
+| `scripts/settings_cache.py` | schema plus defaults for budget, supervisor and local settings, cached in `.harness/settings.cache.json` (gitignored, mode 600) |
+| `scripts/profiles.py` | `Profiles`: loads `profiles/agents/*.json`, `model`, `token_burn`, `lead_eligible`; tests inject a dict |
+| `scripts/state_io.py` | the state port: `atomic_write`, `append_text`, `.harness/` path names, `Store` with `FileStore` and `MemoryStore`, typed `State` reads |
+| `scripts/state_ids.py` | `Stamp` and `LaneId` value objects; the only way a run stamp or lane id reaches a path |
+| `scripts/mdparse.py` | the one Markdown tokenizer (headings, bullets, checkboxes, table rows; skips fenced code) |
+| `scripts/contracts.py` | text-contract parsers on mdparse: vote entry, ballot, decision, sections, acceptance, report; a dataclass or `Invalid` |
+| `scripts/proc.py` | child-process seam: `Runner` (real, fake, dry-run), timeout kill (143), 429 backoff, version pin and fallback flags; model_call, skills-check and task-ledger go through it |.
 
 `ownership_audit.py` (the shared `audit(diff, owned, claimed_sha)` core) and `builder-audit.py` (its CLI: empty diff with DONE, file outside the owned set, claimed commit not HEAD). `plan-gate.py` is the plan checkpoint gate: PASS or FAIL on Foundation, exclusive ownership, model and effort per builder, with an estimated token count. `flags_collect.py` collects each builder report's `FLAGS:` block into `runs/<stamp>/flags.md`.

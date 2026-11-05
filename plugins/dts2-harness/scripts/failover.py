@@ -9,9 +9,13 @@ from pathlib import Path
 from typing import Any, Final, Iterable
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from delegate import PROFILE_DIR, lead_eligible, load_profiles  # noqa: E402
+from profiles import PROFILE_DIR, Profiles  # noqa: E402
 
 LIST_SEPARATOR: Final[str] = ","
+
+
+def lead_eligible(profiles: dict[str, dict[str, Any]]) -> list[str]:
+    return Profiles(profiles).lead_eligible()
 
 
 def rotation(eligible: list[str], current: str) -> list[str]:
@@ -53,7 +57,7 @@ def main() -> int:
     parser.add_argument("--current", required=True)
     parser.add_argument("--exclude", default="")
     args = parser.parse_args()
-    profiles: dict[str, dict[str, Any]] = load_profiles(Path(args.profile_dir))
+    profiles: dict[str, dict[str, Any]] = Profiles.load(Path(args.profile_dir)).as_dict()
     chosen: str | None = next_lead(profiles, args.current, parse_list(args.exclude))
     print(json.dumps({"current": args.current, "next": chosen}))
     return 0

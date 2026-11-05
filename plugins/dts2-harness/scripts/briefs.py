@@ -18,6 +18,9 @@ import sys
 from pathlib import Path
 from typing import Any, Final
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from state_io import CONFIG_REL, DISCIPLINE_REL, RUNS_REL  # noqa: E402
+
 PLUGIN_ROOT: Final[Path] = Path(__file__).resolve().parent.parent
 SON_TEMPLATE: Final[Path] = PLUGIN_ROOT / "templates" / "son-brief.md"
 DISCIPLINE_TEMPLATE: Final[Path] = PLUGIN_ROOT / "templates" / "discipline.md"
@@ -134,7 +137,7 @@ def lead_brief(task: str, roster: dict[str, Any], probe: dict[str, Any], ledger:
 
 def discipline_text(cwd: Path) -> str:
     """The repo's `.harness/discipline.md`, else the plugin's template. Never the run's mutable state."""
-    for path in (cwd / ".harness" / "discipline.md", DISCIPLINE_TEMPLATE):
+    for path in (cwd / DISCIPLINE_REL, DISCIPLINE_TEMPLATE):
         try:
             return path.read_text(encoding="utf-8").rstrip("\n") + "\n"
         except OSError:
@@ -146,7 +149,7 @@ def roster_text(cwd: Path) -> str:
     """The configured roster resolved to role assignments, as canonical JSON. Falls back to the raw entries."""
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import roster
-    entries: list[dict[str, Any]] = roster.read_roster(cwd / ".harness" / "config.yaml")
+    entries: list[dict[str, Any]] = roster.read_roster(cwd / CONFIG_REL)
     try:
         return canonical({"entries": entries, **roster.resolve(entries, roster.load_profiles())})
     except (roster.RosterError, OSError, ValueError, KeyError):
@@ -156,7 +159,7 @@ def roster_text(cwd: Path) -> str:
 def probe_text(cwd: Path, stamp: str) -> str:
     """The probe the lead recorded for this run (`runs/<stamp>/probe.json`), re-serialised canonically."""
     try:
-        return canonical(json.loads((cwd / ".harness" / "runs" / stamp / PROBE_NAME).read_text(encoding="utf-8")))
+        return canonical(json.loads((cwd / RUNS_REL / stamp / PROBE_NAME).read_text(encoding="utf-8")))
     except (OSError, ValueError):
         return NO_PROBE
 
@@ -203,12 +206,12 @@ def run_lead(args: argparse.Namespace) -> dict[str, Any]:
         roster, probe = load_json(Path(args.roster_json)), load_json(Path(args.probe_json))
     else:
         import roster as roster_mod
-        config: Path = cwd / ".harness" / "config.yaml"
+        config: Path = cwd / CONFIG_REL
         profiles = roster_mod.load_profiles()
         entries = roster_mod.read_roster(config)
         roster = load_json(Path(args.roster_json)) if args.roster_json else roster_mod.resolve(entries, profiles)
         probe = load_json(Path(args.probe_json)) if args.probe_json else roster_mod.probe(entries, profiles, roster_mod.read_budget(config))
-    run_dir: Path = cwd / ".harness" / "runs" / args.stamp
+    run_dir: Path = cwd / RUNS_REL / args.stamp
     run_dir.mkdir(parents=True, exist_ok=True)
     probe_file: Path = run_dir / PROBE_NAME
     if not probe_file.exists():
