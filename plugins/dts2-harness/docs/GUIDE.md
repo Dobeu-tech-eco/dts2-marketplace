@@ -47,6 +47,8 @@ The harness answers in a fixed shape:
 
 ## 2. Which command when
 
+For exact syntax (required arguments, flags, who may run it, what it writes) and one-line examples of every command, read `COMMANDS.md`; the table below only says which command to reach for.
+
 | You want to | Use | Notes |
 |---|---|---|
 | Understand the harness, pick a starting point | `onboard` | Explanation only. Changes nothing. |
@@ -129,6 +131,8 @@ Three roles appear in 3.10.0 and the words are used consistently across the skil
 - Secrets never go in chat, logs or action items: logs and items are redacted, missing env vars are recorded by name only.
 
 ## 5. Release history
+
+How to read the changelogs: `../CHANGELOG.md` holds every released version (open the `## [3.11.0]` or `## [3.10.0]` section), the `## Unreleased` section of `../README.md` holds work not yet released, and `../changelog.d/` holds one fragment per batch that the release step joins into those files. `COMMANDS.md` section 8 says how to read a section.
 
 ### 3.11.0
 
