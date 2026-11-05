@@ -4,6 +4,112 @@ All notable changes to dts2-harness are recorded here, newest first, in the [Kee
 Released versions live in this file. Work that has not been released yet is listed under `## Unreleased` in `README.md` until the release step joins it here.
 Entries carry no dates: the repository holds no release tags to take them from.
 
+## [3.11.0]
+
+Round 2 hardening: head policy gate, son containment and lifecycle, mailbox, merge and fold recovery, signed receipts, eval A/B runner, report ops and agent completion gates.
+
+### Added
+
+- Batch 18 (round 2), head policy gate and SDK runner hardening, plus the lead wiring of the wave-1 modules.
+- G-70: `scripts/policy_gate.py` + `templates/policy.json` + `hooks/policy-gate.sh` (PreToolUse, head and sons): denies force-push (`--force`, `-f`, `+refspec`, `--force-with-lease`, abbreviated flags), `--admin`, deploy CLIs (vercel, wrangler, fly, netlify, supabase db push), `gh secret`, `vercel env`, a bare `env`/`printenv`, `gh repo delete`; `gh pr merge` and a push to the default branch need `approvals.is_human_approved("merge", <pr or branch>)`; staging everything in an unattended run is red when no secret scanner is installed. Commands are unwrapped first (`bash -lc`, `eval`, `$(...)`, `env -i`, `command`, `sudo`, `npx`, `git -C`, chains, quotes); setting `policy_gate`.
+- G-71: SDK runner: per-role `tools=` and `allowed_tools` (only the verifier has Bash), `setting_sources=['user']`, turn and budget caps (settings cache, constants as fallback), a secret scan before `git add -A` (a missing scanner refuses), no Anthropic credential in a second-opinion CLI env, `claude-agent-sdk==0.2.172` pinned.
+- Lead wiring: `lanes.py publish <stamp> --lane L` (head only) calls `head_publish.publish_lane`; preflight fails on `auth_problem`, `init_plugin_errors` (stream-json init) and a `git push --dry-run` under the head env; `lanes.py call` runs under `provider_env`; `son_command` uses `son_model(cwd)` and `--wrap` (proc.wrap_son); `son_permission_mode` defaults to `dontAsk`; son brief says commit and stop, the head publishes; council, action-items and lessons `regress` appends are deduped through `state_io.append_event_at` with `event_id(stamp, step, kind, attempt)`; the context-guard hook parks a son through `lanes.py mailbox park`.
+- G-70: merge-guard `strip_wrappers` keeps the command behind `env -i`, `env VAR=x` and `env -i VAR=x`; `tests/test_guard_wrappers.py`.
+- G-43: status.json carries `"v": 1` and one lane-state enum (`parked` and `stopped` read as `incomplete` plus the old word as the reason); every write carries the lane epoch and a stale epoch is ignored; an unreadable or too-new status reads as `incomplete` (`status-unreadable`, `status-version`); `fold` reads lease files and rebuilds checkpoints from `git log`; `transition` stays the one writer (`--epoch` on `transition` and `heartbeat`).
+- G-44: the mailbox (`lanes.py mailbox`): versioned question, answer and need-human ids, send-backs carrying `n` and the epoch, a `merge-go.json` payload `{lane, epoch, verified_head_sha, base_sha}` that the son refuses when its HEAD differs, and a deadline (`mailbox_wait_min`, default 30) on every wait that parks the lane `incomplete` (`mailbox-timeout`).
+- G-45: the son contract in the autopilot skill (no own stamp, no writes to the protected records, user prompts become need-human, seat-pool collapse and no browser park, context guard writes `incomplete` plus the session id) with a test that each rule is named.
+- G-46: `stop-check` leaves out items tied to a ledgered blocked PR and, with `--base`, reads the end state from the fetched `origin/<base>`; `max_fullauto_loops: 3` stays a resumable park (tested).
+- G-47: a lease records its check-in item; `plan` and `lease` refuse an item another live lease holds. The lease does not call `action-items reserve`: that verb reserves ids for new rows, not for existing items, so the contract text says the lease is the hold.
+- G-48: `lanes.py override <lane>` logs to `state.md`, is refused in a son, a vote or the council and without `approvals.is_human_approved` (absent module means not approved); out-of-lane requests climb head, vote, council, user.
+- G-49: `mailbox rules` digests the rule files (now including `agents/*.md`) at start and before each vote, ship and merge and reports what changed; `agents/*.md` joins the copy-window rule sources of the son-mode test.
+- G-50: `dpp_full_ask_each_lane` (plan records it; `lease` refuses a lane until `approve-lane`) and `fullauto_freeze_scope` (the first fullauto plan stores an item hash in `scope.json`; new items go to `pending-items.json`); dpp section 5.5 updated.
+- G-51: end-to-end son lifecycle test with a fake son built from `son-command` in a real git worktree: status, question, send-back, merge-go, approval gate, merge order, override refusal and a no-browser park.
+- G-30: every hook runs `python3 -I` (session-lessons, stop-checks, pre-compact, session-end); planted `json.py` regression tests.
+- G-31: `hooks/lib-settings.sh` parses settings exactly like `lanes.read_setting` (CRLF, inline comments, quotes); contract test over every template key.
+- G-32: stop hook runs `node_modules/.bin/tsc` and `eslint` only (never npx), passes `--` before file names, and skips `.harness/checks.sh` in son mode; the eslint config check no longer fails when only one config style exists.
+- G-33: stop hook runs under one shared deadline 5 s below the `hooks.json` timeout, saves a partial fingerprint on timeout, and with `stop_checks_block: true` blocks once on a red check (honours `stop_hook_active`).
+- G-34: `.harness/cache/` and `.harness/.locks/` added to the ignored paths.
+- G-35: context guard looks for `plan.md` in the current run only; `context_guard_stop: true` adds `continue:false` and `stopReason`. Scope cache skipped: the guard's per-call cost is one directory listing.
+- G-36: PR receipt chosen by branch-to-stamp mapping (plain, `ship-<stamp>` and lane folders), `gh api .../pulls -X POST` recognised, template push opt-in via `pr_receipt_template_push` (default false, off in son mode).
+- G-37: `if` matcher for `gh api *`, context guard also registered on PostToolBatch. Exec-form `args` not adopted: native Windows cannot spawn `.sh` without a shell and tests pin the script path in `command`.
+- G-38: unterminated quote around the `task-ledger.py` path in the dpp skill fixed.
+- G-39: machine-prep settings and agent-memory files are written through `atomic_write`.
+- G-40: README hooks list and settings keys cover every template key (test added); evolve skill uses `bump-version.py` and changelog fragments.
+- G-41: workflow actions pinned to full commit SHAs, `shellcheck -x install.sh` added, plugin validate step skipped when the CLI is absent; tests for env-detect, prep-tiers and repo-size.
+- Docs: `docs/GUIDE.md`, the agent guide for 3.10 (talking to the harness, which command when, head, son and council flow, 3.10.0 digest), linked from both READMEs and `docs/INVENTORY.md`; root README gains What's new for 3.7 to 3.10, the `dpp`, `dpp-full` and `fullauto` rows and the seven-agent count.
+- G-82: Batch 11 (round 2): `lanes.py report` adds run-wide sections (refusals, overrides, merge order and rebases, total spend, check-in delta) and a per-son line (CI result, merge commit, out-of-lane requests); `report-check --stamp` cross-checks the son run records (unlisted lanes, PRs the report never names).
+- G-83: Batch 11 (round 2): `OTEL_` joins the son env allowlist prefixes (ruling Q8); no tagging, no bundle cap.
+- G-84: Batch 11 (round 2): evolve climbs a hardening ladder (hook, then test, then check, then prose); `pr_payload.py decisions --ledger` and the PR template carry a "Decisions and declined findings" section.
+- G-85: Batch 11 (round 2): doctor reports bwrap, socat, auth method and platform; native Windows warns that dpp parks with `windows-native` (ruling Q6); `docs/RUNTIMES.md` maps WSL and Docker exit codes to constants in `doctor.py`.
+- G-86: Batch 11 (round 2): `scripts/plugin_options.py` reads `CLAUDE_PLUGIN_OPTION_<KEY>` and `CLAUDE_PLUGIN_DATA`; per-repo settings stay in `.claude`. The manifest `userConfig` block is not added here (plugin.json is outside this batch's files).
+- G-87: Batch 11 (round 2): `scripts/receipts_sign.py` adds a hash-chained journal and HMAC signing with a head-held key file the son env never receives (hashlib and hmac only).
+- G-78: Batch 9 (round 2): `lanes.py fix-attempt` caps post-merge fixes at `post_merge_fix_attempts` (default 2) and then opens one revert PR (journal-deduped, adopts an open one; falls back to the revert action item and a park); `base-health` records whether the fetched `origin/<base>` is green and `merge-go` refuses while it is red or has moved; `merge-mutex` is the repo-wide mutex from rebase to post-merge PASS, journaled.
+- G-79: Batch 9 (round 2): `fold --apply <group> --pr <n>` records `superseded_by` and the new PR on each original; `fold-close` closes the originals with a link comment (state check, then one `gh pr close --comment`, then the journal row).
+- G-80: Batch 9 (round 2): integration-lane routing writes a structured record (refusal, reason, alternative, override) to `routing.json`; `status` and `report` print it. G-81 (bundle cap) is not built (ruling Q8).
+- G-75: Batch 7/8 (round 2): eval runner A/B mode (`--arm-b-env`, `--runs`, k >= 5 alternating runs) reports median, range, pass^k and a faster / slower / no difference / inconclusive verdict; `scripts/eval_stats.py`, fast tests with a fake runner.
+- G-76: Batch 7/8 (round 2): the `skills` npm CLI is pinned (`npx --yes skills@<SKILLS_CLI_VERSION>`); `skills-check.py` no longer self-upgrades while a lane lease is live (`upgrade_deferred`, read-only lease read); `--son-root` reports son-versus-head plugin version skew with the `version-skew` park reason (`scripts/harness_skew.py`).
+- G-77: Batch 7/8 (round 2): the hard-coded org string is gone from `skills-check.py` and `skills/evolve/SKILL.md` (the marketplace repo comes from `DTS2_MARKETPLACE_REPO`, `plugin.json` `repository`, or `git remote`); the personal-string scan in `test_orchestration_rules.py` now covers `.py` and `.sh`, plus a test that no script or skill names the org.
+- Batch 6 (round 2), agent privilege and completion gates: retryable dispatch failures, least-privilege agent tools, event hooks.
+- G-72: `council.py next-round` allocates ballot instances `<step>+<attempt>`; a dispatch error, malformed ballot, HTTP 429 or timeout is retryable (same round, attempt + 1, no vote round); the post-merge re-vote gets its own instance and `postmerge/` folder. Council trigger unchanged (after 3 failed rounds).
+- G-73: verifier `tools: Read, Grep, Glob, Bash`; reviewer loses Bash (hook matchers filter by tool name, not agent type, so Bash cannot be scoped). No council or tiebreaker agent files exist. Test pins every agent's tools line.
+- G-74: `hooks/subagent-stop.sh` blocks a verifier stop while the newest run ledger lacks a check line (N3); `stop-failure.sh` and `permission-denied.sh` append Handoff action items; PreCompact already runs handoff-write.
+- Batch 5 (round 2), son containment: sons commit a branch and the head publishes; protected paths, a human-only approval channel, provider env and ballot provenance.
+- G-60: son launch stays non-bare with hooks on (tested by running the configured guard hook); `son_launch.auth_problem` (`claude auth status` via `DTS2_CLAUDE_BIN`) and `init_plugin_errors` (`plugin_errors` in the `system/init` stream-json event) for the preflight.
+- G-61: explicit `--allowedTools` (file tools, `git add`, `git commit`, the repo's check commands, harness scripts), `permissions.deny` in `--settings` as the primary control, sandbox `failIfUnavailable` and `allowUnsandboxedCommands: false` pinned by tests; `son_permission_mode` is validated against an allowlist that excludes `bypassPermissions`.
+- G-62: `scripts/protected.py` (`protected_paths`, `is_protected`, `diff_touches_protected`, `park_decision`): git common dir config/info/hooks, `.gitattributes`, workflows, checks script, CODEOWNERS, `hooks/`, head-only `.harness` records and `merge-go.md`; a touching diff parks as a Decisions item.
+- G-63: `scripts/approvals.py`: human-only channel, `dts2_approvals` in `.claude/settings.local.json` (kinds `recorded_yes`, `unsafe_no_sandbox`, `blocked_pr_done`, `lane_override`, `merge`), write-denied to the model in every son launch; actor logged as `human` or `agent:<session>`.
+- G-64: sons are denied `git push*`, `gh pr*` and `gh api*`; `scripts/head_publish.py` (head only) checks protected files, pushes, opens or adopts one PR per lane and merges after the verifier; `pr-receipt.sh` does nothing inside a son; autopilot son mode and dpp text rewritten (intended `lanes.py publish`).
+- G-65: unattended merge preconditions in `head_publish.py`: zero reported checks is red, a default-branch merge needs required checks plus a review or a merge queue, a production-deploying merge needs `is_human_approved("merge", <pr>)`, post-merge walkthrough on production is flagged read-only (`DTS2_WALKTHROUGH_READONLY`).
+- G-66: `head_publish.py bootstrap`: idempotent per-lockfile install, a sanitized `son.env` of non-secret `.env.example` keys, missing secret names filed as Secrets items; the resolved-blocked-PR re-verify path is untouched.
+- G-67: the son env allowlist (`son_launch.provider_env`) now applies to `roster.py command` (`clean_env`, `shell` starts `env -i`) and the SDK second opinion; `scripts/provider_report.py` adds a provider-neutral brief footer and a validator for the fenced JSON report.
+- G-68: `scripts/ballot_dispatch.py` runs each council seat and writes `<ballot>.dispatch.json` (argv, model, session id, sha256); `council.py tally` does not count a ballot without a valid record; Claude seats run with `--json-schema` and `--restricted`.
+- G-69: SessionStart lessons, state and action items are printed inside the untrusted-content fence, capped at 4000 characters (`council.py wrap - --max-chars`).
+- Batch 4 (round 2): the son process lifecycle. A son now starts in its own session, writes `son.json` (pid, pgid, argv, session id) and, when it ends, `exit.json` (code, signal, cost, session id, reason).
+- G-52: a pre-assigned `--session-id` (uuid4), stream-json output, and the old process group stopped (SIGINT, then SIGKILL) before a lane is dispatched again. `proc.wrap_son(cmd, lane_dir, session_id)` is ready for the planner's `son-command` to call.
+- G-53: `lanes.py reconcile` applies the deterministic mappings: son exit with no final phase -> incomplete (reason from `exit.json`), merged on GitHub -> done, quiet clean lane -> incomplete (stalled); only judgement calls return to the head.
+- G-54: verified the `(stamp, kind, lane, attempt)` dedupe in the merge journal and builders log, and PR check-then-act; the `council.md`, lessons and action-item appends are not deduped yet (see the report).
+- G-55: `lanes.py gc` closes expired leases of crashed runs; `preflight` and `spawn --resume` run it; tests for heartbeat renewal and TTL expiry.
+- G-56: max-turns and "Budget limit reached" results end the lane incomplete; SIGINT then SIGKILL after 30 s (`timeout -s INT -k 30`); `CLAUDE_CODE_RESUME_INTERRUPTED_TURN=1` in the son env; the harness retries an overload only after the CLI's `api_retry` is exhausted; the heartbeat comes from stream-json events.
+- G-57: `son_stream.detect_stuck` marks a lane stalled after 4 identical action/observation pairs, 3 failing identical actions or 6 ping-pong actions.
+- G-58: `lanes.py wait <stamp> --timeout` blocks on `exit.json` and phase changes (inotify, else sleep-backoff); the dpp head calls it once instead of polling `status`.
+- G-59: `son_model` setting (default `opus`) replaces the fixed son model; council head and alternate model ids come from one place (`profiles/agents/claude.json`), checked by a test.
+
+### Fixed
+
+- Verifier stop check reads the current run's ledger only; a run with no ledger yet is missing every check instead of passing on an older run's ledger.
+- `merge-go-step` applies the same base-health and merge-mutex refusal as `merge-go` (a `revert-<lane>` step acts for the mutex holder and is not held by the red base it repairs).
+- `receipts_sign.py` fails closed when `DTS2_PR_RECEIPT_KEY_FILE` is set but unreadable or empty; unset stays unsigned.
+- The revert branch is reset with `git worktree add -B` and pushed with `--force-with-lease`, so a retry after a failed push or `gh pr create` works.
+- Base check runs are read with `gh api --paginate --slurp` and the pages are merged, so a failure past the first 30 runs is seen.
+- `council.py next-round` instance ids count up per step across rounds; round 2 no longer reuses round 1's id.
+- `report_check` matches a PR number with a non-digit boundary (`#7` no longer matches `#70`).
+- Stop checks skipped for a son save a `partial` fingerprint, so the next Stop on the same tree runs the checks.
+- `head_publish.py` treats `DTS2_SON_BRANCH_PREFIX` as a son signal, like `lanes.records.inside_son`.
+- Tests: `import unittest.mock as mock` and `assertLessEqual` in batch 9 and 11 tests (CodeQL notes).
+- Review A: `proc.run_once` streaming path keeps its deadline while draining pipes held by descendants (kills the group, no blocking close); documented the two ignored exceptions in `proc.py`.
+- Review B: `Inotify.wait` ignored `BlockingIOError` is commented.
+- Review C: `detect_stuck` compares a SHA-256 of the full observation, not a 2000-char prefix.
+- Review D: a mailbox timeout park carries the question's epoch; a stale question no longer parks a re-leased lane.
+- Review E: the son contract reports `pr-open` first, then waits for the grant (no circular wait with `next_to_merge`).
+- Review F: `plan` filters by the frozen fullauto scope before the cap and conflict selection; excluded items are recorded as pending.
+- Review G: the no-phase heartbeat checks the epoch under the status lock and does not renew a lease when stale.
+- Review K: the context guard resolves the active run from the `dts2/<stamp>/` branch before looking for a plan.
+- Review P: sons cannot write `.claude/settings.local.json` (sandbox write deny) and `protected.py` refuses a publish diff that touches it.
+- Review M: `test_batch17_mailbox.py` and `test_batch5_containment.py` use `import unittest.mock as mock`.
+- Review H: the autopilot gate and preflight docs dispatch council seats through `ballot_dispatch.py`, so ballots carry their `.dispatch.json` record.
+- Review I: `head_publish.py` refuses publish and merge when `DTS2_SON` is set; the lockfile stamp hashes file contents (sha256).
+- Review J: the protected hooks glob matches a `hooks/` folder at any depth, the repo root included.
+- Review N: the publish diff is read with `--no-renames`, so a renamed protected file is seen at its source path.
+- Review O: the son Bash allowlist covers the plugin's own scripts directory only, and `head_publish.py` is denied.
+- Review Q: publish adopts only an open PR; a closed or merged PR is ignored and a new one is opened.
+- Review R: the merge default branch comes from `merge.default_branch` in the config, falling back to `main`.
+- Review L: `pr-receipt.sh` treats `gh api .../pulls` with `-f`/`-F`/`--field`/`--raw-field`/`--input` and no method as a PR create; an explicit `-X GET` stays a GET.
+- Review S: `stop-checks.sh` runs no repo-provided binary (checks.sh, tsc, eslint) when `DTS2_SON` is set, and prints `skipped: son`.
+- Review T: a failed check saves a `partial` fingerprint, so the next Stop runs the checks again.
+- Review U: the Stop payload is read before any check step runs, and check steps run with stdin closed, so `maybe_block` always sees it.
+- Review V: no `A && B || C` in the hook scripts (SC2015); `context-guard.sh` and `stop-checks.sh` use if/else.
+- Review K (after merging main): the active run from the branch name is preferred; otherwise main's newest-run rule applies.
+
 ## [3.10.0]
 
 Parallel autopilot hardening: lane lifecycle, son containment, merge ordering, council seats, supply chain, docs inventory.

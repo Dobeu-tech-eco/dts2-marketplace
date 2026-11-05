@@ -1,6 +1,0 @@
-- G-82: Batch 11 (round 2): `lanes.py report` adds run-wide sections (refusals, overrides, merge order and rebases, total spend, check-in delta) and a per-son line (CI result, merge commit, out-of-lane requests); `report-check --stamp` cross-checks the son run records (unlisted lanes, PRs the report never names).
-- G-83: Batch 11 (round 2): `OTEL_` joins the son env allowlist prefixes (ruling Q8); no tagging, no bundle cap.
-- G-84: Batch 11 (round 2): evolve climbs a hardening ladder (hook, then test, then check, then prose); `pr_payload.py decisions --ledger` and the PR template carry a "Decisions and declined findings" section.
-- G-85: Batch 11 (round 2): doctor reports bwrap, socat, auth method and platform; native Windows warns that dpp parks with `windows-native` (ruling Q6); `docs/RUNTIMES.md` maps WSL and Docker exit codes to constants in `doctor.py`.
-- G-86: Batch 11 (round 2): `scripts/plugin_options.py` reads `CLAUDE_PLUGIN_OPTION_<KEY>` and `CLAUDE_PLUGIN_DATA`; per-repo settings stay in `.claude`. The manifest `userConfig` block is not added here (plugin.json is outside this batch's files).
-- G-87: Batch 11 (round 2): `scripts/receipts_sign.py` adds a hash-chained journal and HMAC signing with a head-held key file the son env never receives (hashlib and hmac only).

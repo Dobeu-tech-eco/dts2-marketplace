@@ -100,4 +100,3 @@ Run the suite from the plugin folder: `cd plugins/dts2-harness && python3 -m uni
 Released versions are in [CHANGELOG.md](CHANGELOG.md). Changes not yet released are listed below.
 
 ## Unreleased
-

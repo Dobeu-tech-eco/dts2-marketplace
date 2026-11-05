@@ -1,1 +1,0 @@
-- Docs: `docs/GUIDE.md`, the agent guide for 3.10 (talking to the harness, which command when, head, son and council flow, 3.10.0 digest), linked from both READMEs and `docs/INVENTORY.md`; root README gains What's new for 3.7 to 3.10, the `dpp`, `dpp-full` and `fullauto` rows and the seven-agent count.
