@@ -80,6 +80,17 @@ PROTECTED_DEFAULTS: Final[tuple[str, ...]] = ("main", "master")
 PREFLIGHT_TIMEOUT_S: Final[int] = 30
 DEFAULT_CALL_TIMEOUT_S: Final[int] = 1800
 PHASE_PR_OPEN: Final[str] = "pr-open"
+MESSAGE_VERSION: Final[int] = 1  # G-44: every mailbox message carries "v"
+STATUS_VERSION: Final[int] = 1  # G-43: status.json carries "v"; a newer one than this is read as incomplete
+REASON_UNREADABLE: Final[str] = "status-unreadable"
+REASON_STATUS_VERSION: Final[str] = "status-version"
+# G-43: one lane-state enum. Older words map onto it: parked and stopped are `incomplete` with the old word as the reason.
+PHASE_ALIASES: Final[dict[str, str]] = {"parked": "incomplete", "stopped": "incomplete"}
+MERGE_GO_JSON_NAME: Final[str] = "merge-go.json"  # G-44: the merge-go payload {lane, epoch, verified_head_sha, base_sha}
+WAIT_FIELD: Final[str] = "mailbox_wait_min"  # G-44: every mailbox wait has a deadline
+DEFAULT_WAIT_MIN: Final[int] = 30
+ASK_EACH_LANE_FIELD: Final[str] = "dpp_full_ask_each_lane"  # G-50
+FREEZE_SCOPE_FIELD: Final[str] = "fullauto_freeze_scope"  # G-50
 PHASE_STARTING: Final[str] = "starting"
 REASON_TIMEOUT: Final[str] = "timeout"
 REASON_MAX_TURNS: Final[str] = "max-turns"
