@@ -85,7 +85,7 @@ def lease(manifest: dict[str, Any], lane_id: str, runs_dir: Path, cwd: Path, wit
 
 
 def write_lease(manifest: dict[str, Any], lane: dict[str, Any], path: Path, epoch: int | None,
-                ttl_s: int, now: int | None = None) -> dict[str, Any]:
+                ttl_s: int, now: int | None = None, files: set[str] | None = None) -> dict[str, Any]:
     lane_id: str = str(lane["id"])
     previous: dict[str, Any] | None = read_lease(path)
     if previous is None and path.exists():
@@ -97,7 +97,7 @@ def write_lease(manifest: dict[str, Any], lane: dict[str, Any], path: Path, epoc
     created: int = int(time.time()) if now is None else now
     record: dict[str, Any] = {"stamp": str(manifest.get("stamp")), "lane": lane_id, "status": STATUS_ACTIVE,
                               "created": created, "expires_at": created + ttl_s, "ttl_s": ttl_s, "epoch": stored + 1,
-                              "base": manifest.get("base"), "files": sorted(lane_files(lane)), "ids": sorted(lane_ids(lane))}
+                              "base": manifest.get("base"), "files": sorted(lane_files(lane) if files is None else files), "ids": sorted(lane_ids(lane))}
     session: str = os.environ.get(SESSION_ENV, "").strip()
     if session:  # the SessionEnd hook releases only leases carrying the ending session's id
         record["session_id"] = session

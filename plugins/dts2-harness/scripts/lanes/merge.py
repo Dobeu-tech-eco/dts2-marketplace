@@ -18,28 +18,37 @@ from .records import inside_son, lane_lock, read_json_object, son_refusal
 from .runrecord import read_run, update_run
 
 
+def merge_needs(manifest: dict[str, Any]) -> dict[str, set[str]]:
+    """Per lane, the lanes that must merge before it: depends_on plus the merge_after edges plan_graph derives from
+    provides/consumes (the same edges merge-plan orders by). Ids that are not lanes of the manifest are ignored."""
+    from plan_graph import contract_edges  # local: plan_graph imports this package
+    ids: set[str] = {str(lane["id"]) for lane in manifest["lanes"]}
+    _, merge_after, _ = contract_edges(manifest)
+    return {str(lane["id"]): ({str(d) for d in (lane.get("depends_on") or [])} | merge_after.get(str(lane["id"]), set())) & ids
+            for lane in manifest["lanes"]}
+
+
 def merge_sequence(manifest: dict[str, Any]) -> list[str]:
-    """Dependency order first, then manifest lane order (a stable topological sort). A cycle is a manifest error."""
+    """Prerequisite order first (depends_on and merge_after), then manifest lane order (a stable topological sort). A cycle is a manifest error."""
     ids: list[str] = [str(lane["id"]) for lane in manifest["lanes"]]
-    needs: dict[str, set[str]] = {str(lane["id"]): {str(d) for d in (lane.get("depends_on") or []) if str(d) in ids}
-                                  for lane in manifest["lanes"]}
+    needs: dict[str, set[str]] = merge_needs(manifest)
     ordered: list[str] = []
     while len(ordered) < len(ids):
         ready: list[str] = [i for i in ids if i not in ordered and needs[i] <= set(ordered)]
         if not ready:
-            raise LaneError("depends_on has a cycle; no merge order exists")
+            raise LaneError("depends_on or merge_after has a cycle; no merge order exists")
         ordered.append(ready[0])
     return ordered
 
 
 def unmerged_needs(manifest: dict[str, Any], lane_id: str, merged: list[str],
                    parked: frozenset[str] = frozenset()) -> list[str]:
-    """Lanes `lane_id` depends on, directly or through others, that have not merged yet (manifest order). A lane parked
-    incomplete or blocked (`parked`) is not waited for: it does not hold up the merge order of the lanes behind it."""
-    direct: dict[str, list[str]] = {str(lane["id"]): [str(d) for d in (lane.get("depends_on") or [])]
-                                    for lane in manifest["lanes"]}
+    """Lanes `lane_id` must wait for (depends_on or merge_after), directly or through others, that have not merged yet
+    (manifest order). A lane parked incomplete or blocked (`parked`) is not waited for: it does not hold up the merge order
+    of the lanes behind it."""
+    direct: dict[str, set[str]] = merge_needs(manifest)
     seen: set[str] = set()
-    pending: list[str] = list(direct.get(lane_id, []))
+    pending: list[str] = list(direct.get(lane_id, ()))
     while pending:
         dep: str = pending.pop()
         if dep not in seen and dep in direct:
@@ -55,13 +64,12 @@ def parked_lanes(runs_dir: Path, stamp: str, manifest: dict[str, Any]) -> frozen
 
 
 def valid_order(manifest: dict[str, Any], order: Any) -> bool:
-    """True when `order` lists every lane exactly once and puts each lane after the lanes it depends on."""
+    """True when `order` lists every lane exactly once and puts each lane after the lanes it depends on or must merge after."""
     ids: list[str] = [str(lane["id"]) for lane in manifest["lanes"]]
     if not isinstance(order, list) or sorted(str(i) for i in order) != sorted(ids):
         return False
     position: dict[str, int] = {str(i): n for n, i in enumerate(order)}
-    return all(position[str(d)] < position[str(lane["id"])]
-               for lane in manifest["lanes"] for d in (lane.get("depends_on") or []) if str(d) in position)
+    return all(position[d] < position[lane_id] for lane_id, needs in merge_needs(manifest).items() for d in needs if d in position)
 
 
 def with_integration(manifest: dict[str, Any], files: list[str]) -> dict[str, Any]:
@@ -130,6 +138,8 @@ def save_merge_state(path: Path, state: dict[str, Any]) -> None:
     """Write merge-order.json and, beside it, the list of lanes still to merge that the merge guard reads to tell an active run
     from a finished one."""
     atomic_write(path, json.dumps(state, indent=2) + "\n")
+    if not state["order"]:
+        return  # no order known yet: leave the guard to the lanes' status files rather than claim nothing is pending
     pending: list[str] = [str(lane) for lane in state["order"] if lane not in state["merged"]]
     atomic_write(path.parent / MERGE_PENDING_NAME, "".join(f"{lane}\n" for lane in pending))
 
@@ -256,6 +266,22 @@ def grant_merge(manifest: dict[str, Any], runs_dir: Path, lane_id: str, head: st
     save_merge_state(runs_dir / stamp / MERGE_ORDER_NAME, {**state, "current": lane_id})
     note(runs_dir, stamp, KIND_GRANTED, lane=lane_id, key=int(time.time() * 1000), head=head, base=base, target=target)
     return {"ok": True, "lane": lane_id, "path": str(path), "head": head, "target": target, "base": base}
+
+
+def record_merged(runs_dir: Path, stamp: str, lane_id: str) -> bool:
+    """Record a lane that GitHub shows merged in merge-order.json the way `merge-done` does (merged list, merge released,
+    pending list rewritten), without needing the manifest. False when it was already recorded."""
+    path: Path = runs_dir / stamp / MERGE_ORDER_NAME
+    with merge_lock(path):
+        saved: dict[str, Any] = read_json_object(path)
+        merged: list[str] = [str(i) for i in saved.get("merged") or []]
+        if lane_id in merged:
+            return False
+        state: dict[str, Any] = {**saved, "order": [str(i) for i in saved.get("order") or []], "merged": [*merged, lane_id],
+                                 "current": None if saved.get("current") == lane_id else saved.get("current")}
+        save_merge_state(path, state)
+    note(runs_dir, stamp, KIND_MERGED, lane=lane_id, key="")
+    return True
 
 
 def merge_done(manifest: dict[str, Any], runs_dir: Path, lane_id: str) -> dict[str, Any]:

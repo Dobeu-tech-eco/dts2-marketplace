@@ -45,8 +45,8 @@ def new_path(path: str) -> str:
 
 def path_group(path: str) -> str:
     """The first GROUP_DEPTH folders of the path, or the root group for a top-level file."""
-    parts: tuple[str, ...] = PurePosixPath(path).parts
-    return "/".join(parts[:GROUP_DEPTH]) if len(parts) > 1 else ROOT_GROUP
+    folders: tuple[str, ...] = PurePosixPath(path).parts[:-1]
+    return "/".join(folders[:GROUP_DEPTH]) if folders else ROOT_GROUP
 
 
 def group_stats(stats: list[tuple[str, int]]) -> dict[str, dict[str, Any]]:
