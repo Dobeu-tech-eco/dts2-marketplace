@@ -11,10 +11,11 @@ from typing import Any, Iterator
 from son_launch import merge_config
 from state_io import atomic_write
 
-from .common import LaneError, MERGE_GO_NAME, MERGE_ORDER_NAME, MERGE_PENDING_NAME, PHASE_BLOCKED, PHASE_INCOMPLETE, PHASE_PR_OPEN, PROTECTED_DEFAULTS, STATUS_NAME, binary, find_lane, run
+from .common import LEASE_NAME, MERGE_GO_JSON_NAME, MESSAGE_VERSION, LaneError, MERGE_GO_NAME, MERGE_ORDER_NAME, MERGE_PENDING_NAME, PHASE_BLOCKED, PHASE_INCOMPLETE, PHASE_PR_OPEN, PROTECTED_DEFAULTS, STATUS_NAME, binary, find_lane, run
 from .audit import lane_audit
 from .integration import INTEGRATION_LANE
 from .journal import KIND_GRANTED, KIND_MERGED, note
+from .leases import lease_epoch, read_lease
 from .records import inside_son, lane_lock, read_json_object, son_refusal
 from .runrecord import read_run, update_run
 
@@ -280,9 +281,14 @@ def grant_merge(manifest: dict[str, Any], runs_dir: Path, lane_id: str, head: st
     path: Path = runs_dir / stamp / lane_id / MERGE_GO_NAME
     atomic_write(path, f"# Merge go for lane {lane_id}\n\nVerified head: {head}\nBase: {target} {base}\n"
                        f"Granted: {int(time.time())}\n")
+    payload: dict[str, Any] = {"v": MESSAGE_VERSION, "kind": "merge-go", "lane": lane_id,
+                               "epoch": lease_epoch(read_lease(path.parent / LEASE_NAME)), "verified_head_sha": head,
+                               "base_sha": base}
+    atomic_write(path.parent / MERGE_GO_JSON_NAME, json.dumps(payload, indent=2) + "\n")  # G-44: the son checks its HEAD against it
     save_merge_state(runs_dir / stamp / MERGE_ORDER_NAME, {**state, "current": lane_id})
     note(runs_dir, stamp, KIND_GRANTED, lane=lane_id, key=int(time.time() * 1000), head=head, base=base, target=target)
-    return {"ok": True, "lane": lane_id, "path": str(path), "head": head, "target": target, "base": base}
+    return {"ok": True, "lane": lane_id, "path": str(path), "head": head, "target": target, "base": base,
+            "epoch": payload["epoch"]}
 
 
 def record_merged(runs_dir: Path, stamp: str, lane_id: str) -> bool:

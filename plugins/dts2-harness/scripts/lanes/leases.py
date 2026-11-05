@@ -11,13 +11,15 @@ from typing import Any, Final, Iterator
 from model_call import read_budget
 from state_io import StaleEpoch, atomic_write, epoch_of, require_epoch
 
-from .common import LEASE_NAME, LEASE_TTL_FACTOR, SECONDS_PER_MINUTE, STATUS_ACTIVE, find_lane, lane_files, lane_ids
+from .common import LEASE_NAME, LEASE_TTL_FACTOR, SECONDS_PER_MINUTE, STATUS_ACTIVE, find_lane, lane_files, lane_ids, lease_live
 from .conflicts import check
 from .gitrefs import gh_down
 from .records import lane_lock
 
 SESSION_ENV: Final[str] = "CLAUDE_SESSION_ID"
 ADMISSION_NAME: Final[str] = ".admission"  # one lock per runs folder: a lease check and its write are a single step
+POLICY_NAME: Final[str] = "policy.json"  # G-50: plan records `ask_each_lane` here; the lease reads it
+APPROVED_NAME: Final[str] = "approved-lanes.json"  # G-50: lanes the user said yes to (lanes.py approve-lane)
 
 
 def read_lease(path: Path) -> dict[str, Any] | None:
@@ -37,6 +39,41 @@ def admission_lock(runs_dir: Path) -> Iterator[bool]:
 
 def busy(lane_id: str) -> dict[str, Any]:
     return {"ok": False, "lane": lane_id, "lease": None, "conflicts": [], "detail": "lease busy"}
+
+
+def held_items(runs_dir: Path, now: int | None = None) -> dict[str, str]:
+    """G-47: check-in item -> `<stamp>/<lane>` for every live lease in the runs folder that recorded one."""
+    clock: int = int(time.time()) if now is None else now
+    held: dict[str, str] = {}
+    for path in sorted(runs_dir.glob(f"*/*/{LEASE_NAME}")):
+        record: dict[str, Any] | None = read_lease(path)
+        if record is not None and record.get("item") and lease_live(record, clock):
+            held.setdefault(str(record["item"]), f"{path.parent.parent.name}/{path.parent.name}")
+    return held
+
+
+def read_names(path: Path) -> list[str]:
+    try:
+        data: Any = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    return [str(i) for i in data.get("lanes", [])] if isinstance(data, dict) else []
+
+
+def admission_refusal(runs_dir: Path, stamp: str, lane_id: str, item: str) -> str | None:
+    """Why this lane may not take a lease, or None. G-47: its check-in item is held by another live lease. G-50: the run
+    asks before each new lane (dpp-full outside autopilot) and the user has not approved this one."""
+    holder: str | None = held_items(runs_dir).get(item) if item else None
+    if holder is not None and holder != f"{stamp}/{lane_id}":
+        return f"item {item!r} is held by the live lease of lane {holder}"
+    policy: dict[str, Any] = read_lease(runs_dir / stamp / POLICY_NAME) or {}
+    if policy.get("ask_each_lane") and lane_id not in read_names(runs_dir / stamp / APPROVED_NAME):
+        return f"lane {lane_id} needs the user's yes first (dpp_full_ask_each_lane); record it with `lanes.py approve-lane`"
+    return None
+
+
+def refused(lane_id: str, detail: str) -> dict[str, Any]:
+    return {"ok": False, "lane": lane_id, "lease": None, "conflicts": [], "detail": detail}
 
 
 def lease_epoch(record: dict[str, Any] | None) -> int:
@@ -78,6 +115,9 @@ def lease(manifest: dict[str, Any], lane_id: str, runs_dir: Path, cwd: Path, wit
                                           if lane_id in (c["lane"], c["with"]) and not c.get("routed")]
         if blocking:
             return {"ok": False, "lane": lane_id, "lease": None, "conflicts": blocking}
+        why: str | None = admission_refusal(runs_dir, str(manifest.get("stamp")), lane_id, str(lane.get("item") or ""))
+        if why is not None:
+            return refused(lane_id, why)
         with lane_lock(path) as held:
             if not held:
                 return busy(lane_id)
@@ -97,7 +137,7 @@ def write_lease(manifest: dict[str, Any], lane: dict[str, Any], path: Path, epoc
     created: int = int(time.time()) if now is None else now
     record: dict[str, Any] = {"stamp": str(manifest.get("stamp")), "lane": lane_id, "status": STATUS_ACTIVE,
                               "created": created, "expires_at": created + ttl_s, "ttl_s": ttl_s, "epoch": stored + 1,
-                              "base": manifest.get("base"), "files": sorted(lane_files(lane) if files is None else files), "ids": sorted(lane_ids(lane))}
+                              "base": manifest.get("base"), "item": lane.get("item"), "files": sorted(lane_files(lane) if files is None else files), "ids": sorted(lane_ids(lane))}
     session: str = os.environ.get(SESSION_ENV, "").strip()
     if session:  # the SessionEnd hook releases only leases carrying the ending session's id
         record["session_id"] = session

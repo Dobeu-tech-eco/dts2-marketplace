@@ -24,7 +24,9 @@ from lanes.common import COST_SOURCES, DEFAULT_CALL_TIMEOUT_S, HEARTBEAT_PHASES,
 from lanes.gitrefs import branch_check  # noqa: E402
 from lanes.amend import amend_lane, split_list  # noqa: E402
 from lanes.journal import fold_done, walkthrough_failed  # noqa: E402
+from lanes.mailbox import advance_request, ask, answer, check_rules, check as mailbox_check, merge_go_check, park, request_out_of_lane, wait  # noqa: E402
 from lanes.mergeplan import merge_plan  # noqa: E402
+from lanes.policy import approve_lane, apply_policy, base_outstanding, override  # noqa: E402
 from lanes.merge import audit_lane, merge_done, merge_go, merge_go_step, merge_order, set_merge_target  # noqa: E402
 from lanes.mergeresume import merge_resume  # noqa: E402
 from lanes.phases import ALL_PHASES, transition  # noqa: E402
@@ -68,6 +70,7 @@ def add_supervisor_parsers(sub: Any) -> None:
     beat_p.add_argument("--status", choices=HEARTBEAT_PHASES, default=None, help="set the lane's phase")
     beat_p.add_argument("--reason", default=None, help="why, recorded with --status")
     beat_p.add_argument("--blocked-by", default="", help="item ids a blocked lane waits for, comma separated")
+    beat_p.add_argument("--epoch", type=int, default=None, help="the lane epoch from brief.md; an older one than the lease's is ignored")
     sub.add_parser("merge-order").add_argument("manifest")
     plan_p = sub.add_parser("merge-plan")
     plan_p.add_argument("manifest")
@@ -107,6 +110,7 @@ def add_lifecycle_parsers(sub: Any) -> None:
     move_p.add_argument("--reason", default=None)
     move_p.add_argument("--blocked-by", default="", help="item ids a blocked lane waits for, comma separated")
     move_p.add_argument("--turn", type=int, default=None)
+    move_p.add_argument("--epoch", type=int, default=None, help="the lane epoch from brief.md; an older one than the lease's is ignored")
     down_p = sub.add_parser("shutdown", help="graceful end of a run: park lanes, stop sons, close leases")
     down_p.add_argument("stamp")
     down_p.add_argument("--grace-s", type=float, default=GRACE_S, help="seconds a son gets after SIGTERM before SIGKILL")
@@ -142,6 +146,26 @@ def add_lifecycle_parsers(sub: Any) -> None:
     report_p.add_argument("--repo-url", default=None, help="turns PR numbers into links")
 
 
+MAILBOX_OPS: tuple[str, ...] = ("ask", "need-human", "answer", "check", "wait", "park", "merge-go-check", "rules", "request", "decide")
+
+
+def add_mailbox_parser(sub: Any) -> None:
+    """The head/son mailbox: one subcommand, one verb per message kind (see lanes/mailbox.py)."""
+    box_p = sub.add_parser("mailbox", help="the head/son mailbox: questions, answers, need-human, park, merge-go-check, rules, out-of-lane")
+    box_p.add_argument("op", choices=MAILBOX_OPS)
+    box_p.add_argument("stamp")
+    box_p.add_argument("--lane", required=True)
+    box_p.add_argument("--id", default=None, help="the question or request id (q1, h1, r1)")
+    box_p.add_argument("--text", default=None, help="the question, answer or request reason")
+    box_p.add_argument("--reason", default=None, help="park: the reason (seat-pool-collapse, context-guard, mailbox-timeout)")
+    box_p.add_argument("--session-id", default=None, help="park: the son's session id, so the head can resume it")
+    box_p.add_argument("--point", default="start", help="rules: start, vote, ship or merge")
+    box_p.add_argument("--files", default="", help="request: files outside the lane, comma separated")
+    box_p.add_argument("--outcome", default=None, help="decide: escalate, granted or denied")
+    box_p.add_argument("--epoch", type=int, default=None)
+    box_p.add_argument("--worktree", default=None, help="merge-go-check: the lane worktree (default: --cwd)")
+
+
 def add_run_parsers(sub: Any) -> None:
     """Subcommands keyed by run stamp, for the dpp head."""
     plan_p = sub.add_parser("plan")
@@ -151,6 +175,8 @@ def add_run_parsers(sub: Any) -> None:
     plan_p.add_argument("--full", action="store_true", help="dpp-full: greedy fill, delegation lanes allowed")
     plan_p.add_argument("--max", type=int, default=0, help="most lanes --full selects; 0 (default) = no cap, the model-call limit throttles")
     plan_p.add_argument("--stamp", default=None)
+    plan_p.add_argument("--autopilot", action="store_true", help="the run is under autopilot: dpp_full_ask_each_lane does not apply")
+    plan_p.add_argument("--fullauto", action="store_true", help="fullauto: fullauto_freeze_scope freezes the approved item set")
     sub.add_parser("status").add_argument("stamp")
     for name in ("sendback", "release"):
         lane_p = sub.add_parser(name)
@@ -166,6 +192,14 @@ def add_run_parsers(sub: Any) -> None:
     stop_p = sub.add_parser("stop-check")
     stop_p.add_argument("stamp")
     stop_p.add_argument("--from-checkin", required=True)
+    stop_p.add_argument("--base", default=None, help="read the end state from the fetched origin/<base> instead of the working tree")
+    approve_p = sub.add_parser("approve-lane", help="record the user's yes for one lane (dpp_full_ask_each_lane); head only")
+    approve_p.add_argument("stamp")
+    approve_p.add_argument("--lane", required=True)
+    over_p = sub.add_parser("override", help="the owner's override of a lane rule, logged to state.md; needs the human approval channel")
+    over_p.add_argument("lane")
+    over_p.add_argument("--reason", required=True)
+    add_mailbox_parser(sub)
     report_p = sub.add_parser("report-check")
     report_p.add_argument("report")
     report_p.add_argument("--lanes", required=True, help="comma-separated lane ids")
@@ -209,8 +243,37 @@ def dispatch_plan(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> dict[s
         draft = {**draft, "stamp": args.stamp}
     result: dict[str, Any] = plan(draft, read_checkin(Path(args.from_checkin)), args.outside, args.full,
                                   args.max or len(draft["lanes"]), runs_dir, cwd, not args.no_prs)
+    result = apply_policy(result, runs_dir, cwd, full=args.full, fullauto=args.fullauto, autopilot=args.autopilot)
     warn_thin_plan(result)
     return annotate_plan(result, cwd)
+
+
+def dispatch_stop_check(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> dict[str, Any]:
+    if not args.base:
+        return stop_check(runs_dir, args.stamp, Path(args.from_checkin))
+    items, why = base_outstanding(cwd, args.base, read_checkin(Path(args.from_checkin)))
+    if why is not None:
+        return {"ok": False, "stamp": args.stamp, "stop": False, "detail": why}
+    return stop_check(runs_dir, args.stamp, Path(args.from_checkin), items)
+
+
+def dispatch_mailbox(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> dict[str, Any]:
+    stamp, lane, text = args.stamp, args.lane, args.text or ""
+    if args.op in ("ask", "need-human"):
+        return ask(runs_dir, stamp, lane, text, cwd, kind="question" if args.op == "ask" else "need-human", epoch=args.epoch)
+    if args.op == "answer":
+        return answer(runs_dir, stamp, lane, args.id or "", text)
+    if args.op in ("check", "wait"):
+        return (mailbox_check if args.op == "check" else wait)(runs_dir, stamp, lane, args.id or "")
+    if args.op == "park":
+        return park(runs_dir, stamp, lane, args.reason or "", args.session_id, args.epoch)
+    if args.op == "merge-go-check":
+        return merge_go_check(runs_dir, stamp, lane, Path(args.worktree) if args.worktree else cwd)
+    if args.op == "rules":
+        return check_rules(runs_dir, stamp, lane, args.point)
+    if args.op == "request":
+        return request_out_of_lane(runs_dir, stamp, lane, split_ids(args.files), text, args.epoch)
+    return advance_request(runs_dir, stamp, lane, args.id or "", args.outcome or "")
 
 
 def dispatch_run(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> dict[str, Any] | None:
@@ -226,7 +289,13 @@ def dispatch_run(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> dict[st
     if args.command == "fold":
         return fold(runs_dir, args.stamp)
     if args.command == "stop-check":
-        return stop_check(runs_dir, args.stamp, Path(args.from_checkin))
+        return dispatch_stop_check(args, runs_dir, cwd)
+    if args.command == "approve-lane":
+        return approve_lane(runs_dir, args.stamp, args.lane)
+    if args.command == "override":
+        return override(args.lane, args.reason, cwd)
+    if args.command == "mailbox":
+        return dispatch_mailbox(args, runs_dir, cwd)
     if args.command == "report-check":
         return report_check(Path(args.report), split_ids(args.lanes))
     if args.command == "branch-check":
@@ -248,7 +317,7 @@ def dispatch_supervisor(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> 
     if args.command == "gc-restore":
         return gc_restore(runs_dir, args.stamp, cwd)
     if args.command == "heartbeat":
-        return heartbeat(runs_dir, args.stamp, args.lane, args.turn, args.status, args.reason, split_ids(args.blocked_by))
+        return heartbeat(runs_dir, args.stamp, args.lane, args.turn, args.status, args.reason, split_ids(args.blocked_by), args.epoch)
     if args.command == "call":
         return model_call(runs_dir, args.stamp, cwd, args.label, args.command_argv, args.timeout,
                           Path(args.out) if args.out else None, Path(args.prompt_file) if args.prompt_file else None,
@@ -259,7 +328,7 @@ def dispatch_supervisor(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> 
 def dispatch_lifecycle(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> dict[str, Any] | None:
     if args.command == "transition":
         return transition(runs_dir, args.stamp, args.lane, args.to, reason=args.reason, turn=args.turn,
-                          blocked_by=split_ids(args.blocked_by))
+                          blocked_by=split_ids(args.blocked_by), epoch=args.epoch)
     if args.command == "shutdown":
         done: dict[str, Any] = shutdown(runs_dir, args.stamp, cwd, args.grace_s)
         if done.get("ok"):
