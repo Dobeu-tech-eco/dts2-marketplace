@@ -8,6 +8,7 @@ import re
 import subprocess
 import sys
 import threading
+import time
 import unittest
 import unittest.mock
 from contextlib import redirect_stdout
@@ -18,6 +19,7 @@ from helpers import PLUGIN_ROOT, make_tmp_home
 
 SCRIPT: Final[Path] = PLUGIN_ROOT / "scripts" / "intake.py"
 HOOK: Final[Path] = PLUGIN_ROOT / "hooks" / "prompt-intake.sh"
+QUICK_SEC: Final[float] = 1.0
 CLEAR: Final[str] = "Add pagination support to the invoices endpoint with a default page size"
 VAGUE: Final[str] = "fix it"
 
@@ -298,6 +300,27 @@ class LockTests(unittest.TestCase):
                 code: int = intake.main(["hook", "--root", str(self.root)])
         self.assertEqual((code, buffer.getvalue()), (0, ""))
         self.assertEqual(intake.load_items(self.root), [])
+
+    def test_hook_with_real_busy_lock_returns_quickly_and_adds_nothing(self) -> None:
+        with state_io.FileStore(self.root).lock(state_io.INTAKE_REL), unittest.mock.patch(
+                "sys.stdin", io.StringIO(json.dumps({"prompt": CLEAR}))):
+            buffer = io.StringIO()
+            started: float = time.monotonic()
+            with redirect_stdout(buffer):
+                code: int = intake.main(["hook", "--root", str(self.root)])
+            elapsed: float = time.monotonic() - started
+        self.assertEqual((code, buffer.getvalue()), (0, ""))
+        self.assertLess(elapsed, QUICK_SEC)
+        self.assertEqual(intake.load_items(self.root), [])
+
+    def test_cli_add_keeps_default_lock_retries(self) -> None:
+        sleeps: list[float] = []
+        real = state_io.FileStore
+        with state_io.FileStore(self.root).lock(state_io.INTAKE_REL), unittest.mock.patch.object(
+                state_io, "FileStore", lambda root: real(root, sleep=sleeps.append)):
+            with self.assertRaises(state_io.LockBusy):
+                intake.add_item(self.root, CLEAR)
+        self.assertEqual(len(sleeps), state_io.LOCK_TRIES)
 
     def test_unknown_kind_is_rejected(self) -> None:
         with self.assertRaises(ValueError):
