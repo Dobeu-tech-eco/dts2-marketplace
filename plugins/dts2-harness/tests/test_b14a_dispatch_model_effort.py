@@ -58,7 +58,7 @@ class DispatchNamesModelAndEffortTests(unittest.TestCase):
 class MechanicalDispatchTests(unittest.TestCase):
     def test_mechanical_and_phase4_text_use_haiku_low_builder(self) -> None:
         text = (PLUGIN_ROOT / "skills" / "run" / "phase-2-build.md").read_text(encoding="utf-8")
-        line = next(l for l in text.splitlines() if l.startswith("**Mechanical dispatches"))
+        line = next(ln for ln in text.splitlines() if ln.startswith("**Mechanical dispatches"))
         for needle in ("`complexity: mechanical`", "notes", "PR body", "dts2-harness:builder", "model: haiku", "effort: low"):
             self.assertIn(needle, line)
         self.assertIn("no new agent", line.lower())
