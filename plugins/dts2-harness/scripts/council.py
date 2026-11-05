@@ -16,6 +16,10 @@ Subcommands print one JSON object each:
   blind          --proposals DIR --out DIR --voters a,b,c --seed S [--ledger FILE] [--authors a,b]
                  strip author identity from proposals and shuffle option order per voter; the seed and each voter's
                  option order go to the ledger
+  swap           --seats FILE --failed SEAT [--ledger FILE] [--step S] [--reason R]
+                 a seat timed out or failed: substitute the next bench provider (seat_swap.swap_seat) and note it in the ledger
+  identical      --votes-dir DIR --ledger FILE --step S --prev N --curr M
+                 two rounds with identical findings: note it in the ledger (seat_swap); the council trigger is unchanged
 """
 from __future__ import annotations
 
@@ -34,6 +38,7 @@ from profiles import PROFILE_DIR, Profiles  # noqa: E402
 import contracts  # noqa: E402
 import mdparse  # noqa: E402
 import state_io  # noqa: E402
+from seat_swap import REASON_TIMEOUT, note_identical_rounds, record_swap, swap_seat  # noqa: E402
 from state_io import append_text, atomic_write  # noqa: E402
 
 DECISIONS_HEADER: Final[str] = ("# Council decisions\n\nEvery autopilot step that went to council: the vote, each member's reasons, "
@@ -440,6 +445,16 @@ def pick_seats(usable: list[str], config: dict[str, list[str]], failed: set[str]
             "stale": [f["provider"] for f in fresh if f["stale"]]}
 
 
+def substitute_seat(seats_doc: dict[str, Any], failed: str, ledger: Path | None, step: str,
+                    reason: str = REASON_TIMEOUT) -> dict[str, Any]:
+    """Replace a timed-out or failed council seat with the next bench entry; the swap goes to the ledger when one is given.
+    Takes the `seats` and `bench` that `seats` printed. Voting and decision rules are not touched."""
+    result: dict[str, Any] = swap_seat(list(seats_doc.get("seats") or []), list(seats_doc.get("bench") or []), failed, reason)
+    if result["swap"] and ledger is not None:
+        record_swap(ledger, step, result["swap"])
+    return result
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -478,7 +493,27 @@ def main() -> int:
     st.add_argument("--usable", required=True, help="comma-separated usable providers from the roster probe")
     st.add_argument("--config", default=state_io.CONFIG_REL)
     st.add_argument("--failed", default="", help="provider:model seats that failed and must not be reseated")
+    sw = sub.add_parser("swap")
+    sw.add_argument("--seats", required=True)
+    sw.add_argument("--failed", required=True)
+    sw.add_argument("--ledger", default=None)
+    sw.add_argument("--step", default="")
+    sw.add_argument("--reason", default=REASON_TIMEOUT)
+    idn = sub.add_parser("identical")
+    idn.add_argument("--votes-dir", required=True)
+    idn.add_argument("--ledger", required=True)
+    idn.add_argument("--step", required=True)
+    idn.add_argument("--prev", required=True, type=int)
+    idn.add_argument("--curr", required=True, type=int)
     args = parser.parse_args()
+    if args.cmd == "swap":
+        swapped: dict[str, Any] = substitute_seat(json.loads(Path(args.seats).read_text(encoding="utf-8")), args.failed,
+                                                  Path(args.ledger) if args.ledger else None, args.step, args.reason)
+        print(json.dumps(swapped))
+        return 0 if swapped["ok"] else 2
+    if args.cmd == "identical":
+        print(json.dumps(note_identical_rounds(Path(args.votes_dir), Path(args.ledger), args.step, args.prev, args.curr)))
+        return 0
     if args.cmd == "seats":
         config_path: Path = Path(args.config)
         config: dict[str, list[str]] = parse_council_config(config_path.read_text(encoding="utf-8")) if config_path.is_file() else {}
