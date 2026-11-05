@@ -69,10 +69,12 @@ State reads and writes from the scripts go through `scripts/state_io.py`; see "S
 | --- | --- | --- |
 | SessionStart | `hooks/session-lessons.sh` | puts recent lessons, open state items and open action items into context; after a compact (`source` is `compact`) prints only a short resume pointer |
 | PreCompact (auto, manual) | `hooks/pre-compact.sh` | runs `handoff-write.py` so the post-compact session resumes from the handoff |
-| Stop | `hooks/stop-checks.sh` | refreshes `handoff/latest.md`, runs quick typecheck and lint on changed files; warns, never blocks |
+| Stop | `hooks/stop-checks.sh` | refreshes `handoff/latest.md`, runs quick typecheck and lint on changed files from `node_modules/.bin` (never npx) under one deadline; warns, and blocks once only with `stop_checks_block: true` |
 | PreToolUse (Bash) | `hooks/merge-guard.sh` | refuses a force-push, and a merge or push to a protected branch unless a lane's `merge-go.md` allows it |
 | PostToolUse (Bash, `gh pr create *` and `gh pr edit *`) | `hooks/pr-receipt.sh` | on `gh pr create` or `edit`, makes sure the PR body carries the change receipt |
 | PostToolUse (Bash, Edit, Write, Agent) | `hooks/context-guard.sh` | stops a run on a context spike before the plan checkpoint |
+| PostToolBatch | `hooks/context-guard.sh` | the same guard, once per batch of parallel tool calls |
+| PostToolUse (Bash, `gh api *`) | `hooks/pr-receipt.sh` | the receipt check for a PR opened through `gh api .../pulls -X POST` |
 | SubagentStop (builder, reviewer, verifier) | `hooks/subagent-report.sh stop` | checks the final report for its required `## ` sections with `contracts.parse_report` (`scripts/subagent_report.py`); blocks once, naming the missing sections; skips when `stop_hook_active`; a turn-cap partial report passes |
 | PostToolUse (SubagentHandback) | `hooks/subagent-report.sh handback` | the same check for agents that finish through `SubagentHandback`, on `tool_input.message`; blocks once per agent |
 | SessionEnd (logout, prompt_input_exit, other) | `hooks/session-end.sh` | releases only the leases stamped with this session's id (`scripts/session_end.py`, through `state_io`), then runs `handoff-write.py`; best effort, lease expiry is the guarantee |

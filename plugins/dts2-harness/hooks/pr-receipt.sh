@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-# PostToolUse hook: on `gh pr create|edit`, make sure the PR body has a change receipt and the
+# PostToolUse hook: on `gh pr create|edit` (or `gh api .../pulls -X POST`), make sure the PR body has a change receipt and the
 # repo's PR template has the section. Never blocks: every failure goes to stderr and exits 0.
-# The `git push` below is the plugin's one deliberate push, limited to the PR's own head branch.
+# The `git push` below is the plugin's one deliberate push, limited to the PR's own head branch, and only with
+# pr_receipt_template_push: true outside son mode.
 set -uo pipefail
+# shellcheck source-path=SCRIPTDIR source=lib-settings.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib-settings.sh"
 
 RECEIPT_MARKER="## Change receipt"
 ORG_TEMPLATE_PATH=".github/pull_request_template.md"
@@ -10,6 +13,8 @@ ORG_PATTERN='^[A-Za-z0-9][A-Za-z0-9-]*$'
 CONFIG_FILE=".harness/config.yaml"
 LOCAL_TEMPLATE=".github/pull_request_template.md"
 COMMIT_MESSAGE="chore: add change receipt to PR template"
+STAMP_RE='^[0-9]{8}-[0-9]{1,6}$'  # same shape as state_ids.STAMP_PATTERN
+BRANCH_STAMP_RE='^dts2/([0-9]{8}-[0-9]{1,6})/'
 VIEW_FIELDS="number,body,headRefName,isCrossRepository,headRepositoryOwner,baseRepository"
 PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 GH="${DTS2_GH_BIN:-gh}"
@@ -18,14 +23,61 @@ warn() { echo "dts2-harness pr-receipt: $*" >&2; }
 
 # Prints two lines: session id, PR selector (may be empty). Exit 1 when the payload is not a Bash `gh pr create|edit`.
 parse_payload() {
-  printf '%s' "$1" | python3 -I "$PLUGIN_DIR/scripts/pr_payload.py" parse 2>/dev/null
+  printf '%s' "$1" | python3 -I "$PLUGIN_DIR/scripts/pr_payload.py" parse 2>/dev/null && return 0
+  parse_api_payload "$1"
+}
+
+# `gh api repos/<o>/<r>/pulls -X POST ...` creates a PR too. Same output as parse_payload; the selector is the new PR's URL.
+parse_api_payload() {
+  printf '%s' "$1" | python3 -I -c '
+import json, re, sys
+API = re.compile(r"(?:^|[;&|\n])[ \t]*gh api\b[^;&|\n]*?/pulls(?:[ \t\x27\"]|$)[^;&|\n]*")
+POST = re.compile(r"(?:-X|--method)[ =]?POST\b")
+URL = re.compile(r"https://[^\s\"]+/pull/\d+")
+try:
+    data = json.load(sys.stdin)
+except ValueError:
+    sys.exit(1)
+tool_input = data.get("tool_input") if isinstance(data, dict) else None
+command = str(tool_input.get("command", "")) if isinstance(tool_input, dict) else ""
+match = API.search(command) if isinstance(data, dict) and data.get("tool_name") == "Bash" else None
+if not match or not POST.search(match.group(0)):
+    sys.exit(1)
+response = data.get("tool_response")
+text = response.get("stdout", "") if isinstance(response, dict) else (response or "")
+url = URL.search(str(text).replace("\\/", "/"))
+print(re.sub(r"[^A-Za-z0-9_-]", "", str(data.get("session_id", ""))) or "nosession")
+print(url.group(0) if url else "")
+' 2>/dev/null
+}
+
+# The receipt for this PR's branch: dts2/<stamp>/... branches map to that run's receipt (plain, ship-<stamp> or lane folder).
+branch_receipt() {
+  local branch="$1" stamp lane candidate
+  [[ "$branch" =~ $BRANCH_STAMP_RE ]] || return 1
+  stamp="${BASH_REMATCH[1]}"
+  lane=""
+  [[ "$branch" == */lane-* ]] && lane="${branch##*/lane-}"
+  for candidate in ${lane:+".harness/runs/$stamp/$lane/receipt.md"} ".harness/runs/$stamp/receipt.md" ".harness/runs/ship-$stamp/receipt.md"; do
+    [[ -f "$candidate" ]] && { echo "$candidate"; return 0; }
+  done
+  return 1
+}
+
+# Newest run folder holding a receipt: stamped runs (and ship-<stamp>) by stamp first, any other folder name only when none is stamped.
+newest_receipt() {
+  local dir name key best_key="" best=""
+  for dir in .harness/runs/*/; do
+    [[ -f "${dir}receipt.md" ]] || continue
+    name="$(basename "$dir")"; name="${name#ship-}"
+    if [[ "$name" =~ $STAMP_RE ]]; then key="1$name"; else key="0$name"; fi
+    if [[ -z "$best_key" || "$key" > "$best_key" ]]; then best_key="$key"; best="${dir}receipt.md"; fi
+  done
+  [[ -n "$best" ]] && echo "$best"
 }
 
 latest_run_receipt() {
-  local dir
-  # shellcheck disable=SC2012 # run dirs are generated names without odd characters
-  dir=$(ls -1d .harness/runs/*/ 2>/dev/null | sort | tail -1)
-  [[ -n "$dir" && -f "${dir}receipt.md" ]] && echo "${dir}receipt.md"
+  branch_receipt "$1" || newest_receipt
 }
 
 # Template receipt with the tests table replaced by "not recorded".
@@ -39,17 +91,17 @@ fallback_receipt() {
 
 build_receipt() {
   local run_receipt
-  run_receipt=$(latest_run_receipt)
+  run_receipt=$(latest_run_receipt "$1")
   if [[ -n "$run_receipt" ]]; then cat "$run_receipt"; else fallback_receipt; fi
 }
 
 add_receipt_to_pr() {
-  local number="$1" body="$2" file
+  local number="$1" body="$2" branch="$3" file
   file=$(mktemp "${TMPDIR:-/tmp}/dts2-pr-body.XXXXXX") || { warn "cannot create temp file"; return 0; }
   local body_in receipt_in
   body_in=$(mktemp "${TMPDIR:-/tmp}/dts2-pr-in.XXXXXX") || { warn "cannot create temp file"; return 0; }
   receipt_in=$(mktemp "${TMPDIR:-/tmp}/dts2-pr-rc.XXXXXX") || { rm -f "$body_in"; warn "cannot create temp file"; return 0; }
-  printf '%s' "$body" > "$body_in"; build_receipt > "$receipt_in"
+  printf '%s' "$body" > "$body_in"; build_receipt "$branch" > "$receipt_in"
   python3 -I "$PLUGIN_DIR/scripts/pr_payload.py" body --body-file "$body_in" --receipt-file "$receipt_in" > "$file"
   rm -f "$body_in" "$receipt_in"
   "$GH" pr edit "$number" --body-file "$file" >/dev/null || warn "gh pr edit failed for PR #$number"
@@ -103,6 +155,12 @@ write_template() {
   fi
 }
 
+# Opt-in push of the staged template; never in son mode (a son hands over a committed branch only).
+template_push_enabled() {
+  [[ -z "${DTS2_SON:-}" && -z "${DTS2_SON_BRANCH_PREFIX:-}" ]] || return 1
+  [[ "$(setting pr_receipt_template_push false)" == "true" ]]
+}
+
 can_push_branch() {
   local branch="$1" cross="$2"
   [[ -n "$branch" && "$cross" != "true" ]] || return 1
@@ -117,6 +175,10 @@ ensure_template() {
   git add "$LOCAL_TEMPLATE" || { warn "git add failed"; return 0; }
   if ! can_push_branch "$branch" "$cross"; then
     echo "pr-receipt: PR template staged; commit and push it to ${branch:-the PR branch} yourself (branch mismatch or fork PR)" >&2
+    return 0
+  fi
+  if ! template_push_enabled; then
+    echo "pr-receipt: PR template staged; commit and push it yourself (set pr_receipt_template_push: true to let the hook do it)" >&2
     return 0
   fi
   git commit -q -m "$COMMIT_MESSAGE" -- "$LOCAL_TEMPLATE" || { warn "git commit failed"; return 0; }
@@ -138,7 +200,7 @@ main() {
   body=$(cat "$body_file"); rm -f "$body_file"
   number=$(sed -n 1p <<<"$fields"); branch=$(sed -n 2p <<<"$fields"); cross=$(sed -n 3p <<<"$fields")
   [[ -n "$number" ]] || { warn "could not parse gh pr view output; leaving PR untouched"; return 0; }
-  if [[ "$body" != *"$RECEIPT_MARKER"* ]]; then add_receipt_to_pr "$number" "$body"; fi
+  if [[ "$body" != *"$RECEIPT_MARKER"* ]]; then add_receipt_to_pr "$number" "$body" "$branch"; fi
   ensure_template "$session" "$branch" "$cross"
 }
 

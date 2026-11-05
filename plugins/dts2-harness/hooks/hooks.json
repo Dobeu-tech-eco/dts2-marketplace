@@ -41,6 +41,17 @@
         ]
       },
       {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(gh api *)",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/pr-receipt.sh\"",
+            "timeout": 60
+          }
+        ]
+      },
+      {
         "hooks": [
           {
             "type": "command",
@@ -125,6 +136,17 @@
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session-end.sh\"",
             "timeout": 25
+          }
+        ]
+      }
+    ],
+    "PostToolBatch": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/context-guard.sh\"",
+            "timeout": 5
           }
         ]
       }
