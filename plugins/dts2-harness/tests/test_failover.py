@@ -10,7 +10,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Final
 
-from helpers import PLUGIN_ROOT
+from helpers import PLUGIN_ROOT, isolate_agent_status
 
 SCRIPT: Final[Path] = PLUGIN_ROOT / "scripts" / "failover.py"
 PROFILE_DIR: Final[Path] = PLUGIN_ROOT / "profiles" / "agents"
@@ -35,6 +35,7 @@ def all_profiles() -> dict[str, dict[str, Any]]:
 
 class NextLeadTests(unittest.TestCase):
     def setUp(self) -> None:
+        isolate_agent_status(self)
         self.mod: ModuleType = load_module()
         self.profiles: dict[str, dict[str, Any]] = all_profiles()
         self.eligible: list[str] = self.mod.lead_eligible(self.profiles)
@@ -110,6 +111,9 @@ class NextLeadTests(unittest.TestCase):
 
 
 class CliTests(unittest.TestCase):
+    def setUp(self) -> None:
+        isolate_agent_status(self)
+
     def test_cli_prints_next(self) -> None:
         result = subprocess.run(
             [sys.executable, "-I", str(SCRIPT), "--current", "claude", "--exclude", "codex"],

@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 from typing import Any, Final
 
-from helpers import PLUGIN_ROOT
+from helpers import PLUGIN_ROOT, isolate_agent_status
 
 sys.path.insert(0, str(PLUGIN_ROOT / "scripts"))
 import council  # noqa: E402
@@ -24,6 +24,9 @@ FINDINGS: Final[str] = "VOTE: REJECT\n\n## Findings\n- Missing test\n- Bad name\
 
 
 class RosterTimeoutTest(unittest.TestCase):
+    def setUp(self) -> None:
+        isolate_agent_status(self)
+
     def test_constant_matches_seat_swap(self) -> None:
         self.assertEqual(roster.TIMEOUT_EXIT_CODE, seat_swap.TIMEOUT_EXIT)
 

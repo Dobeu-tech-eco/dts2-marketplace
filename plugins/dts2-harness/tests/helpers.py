@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import tempfile
+import unittest
+from unittest import mock
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Final
@@ -24,6 +27,15 @@ def run_script(name: str, *args: str) -> dict[str, Any]:
     )
     parsed: dict[str, Any] = json.loads(result.stdout)
     return parsed
+
+
+def isolate_agent_status(case: unittest.TestCase) -> Path:
+    """Point DTS2_AGENT_STATUS at a fresh temp file so a test never reads or writes the real ~/.dts2."""
+    folder: Path = Path(tempfile.mkdtemp(prefix="dts2-status-"))
+    patcher = mock.patch.dict(os.environ, {"DTS2_AGENT_STATUS": str(folder / "agent-status.json")})
+    patcher.start()
+    case.addCleanup(patcher.stop)
+    return folder / "agent-status.json"
 
 
 def make_tmp_home() -> Path:
