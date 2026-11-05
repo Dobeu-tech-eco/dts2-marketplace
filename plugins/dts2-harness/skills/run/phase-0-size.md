@@ -2,6 +2,7 @@
 
 ## Phase 0 — Size and Budget check
 1. Dispatch `dts2-harness:scout` (`model: haiku`) with the repo path(s) and the task. Use its tier unless `auto_scale` is false (then tier S).
+   A scout report whose first line is `PARTIAL: hit turn cap at <step>` gives no tier: re-dispatch the scout with a narrower scope or a fresh agent, inside the fix-loop cap.
 2. **Budget check** (`roster.py probe`). Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/roster.py" probe --config .harness/config.yaml`. From its JSON:
    - Drop every agent in `dropped` for this run; keep its `reason`.
    - An agent with budget `low` keeps only the `second-opinion` role (the probe already restricts its `roles`); never give it a builder or reviewer seat.

@@ -1,6 +1,7 @@
 ---
 name: fullauto
 description: dpp-full with autopilot forced on, looping until a check-in reports nothing outstanding. Use when the user says fullauto, run everything, or finish the end state unattended.
+disable-model-invocation: true
 ---
 
 # fullauto — dpp-full under autopilot, to the end

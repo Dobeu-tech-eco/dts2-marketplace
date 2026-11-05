@@ -46,3 +46,20 @@ jobs:
         run: ruff check plugins/dts2-harness
       - name: Shellcheck
         run: shellcheck -x plugins/dts2-harness/hooks/*.sh
+
+  metadata:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Context tax (always-loaded skill and agent metadata, chars/4 estimate)
+        run: python3 plugins/dts2-harness/scripts/context-tax.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install the Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code@2.1.311
+      - name: Validate the plugin
+        run: claude plugin validate plugins/dts2-harness --strict
