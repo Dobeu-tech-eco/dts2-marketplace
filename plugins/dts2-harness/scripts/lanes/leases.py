@@ -75,7 +75,7 @@ def lease(manifest: dict[str, Any], lane_id: str, runs_dir: Path, cwd: Path, wit
           epoch: int | None = None) -> dict[str, Any]:
     lane: dict[str, Any] = find_lane(manifest, lane_id)
     result: dict[str, Any] = check(manifest, runs_dir, cwd, with_prs)
-    blocking: list[dict[str, Any]] = [c for c in result["conflicts"] if lane_id in (c["lane"], c["with"])]
+    blocking: list[dict[str, Any]] = [c for c in result["conflicts"] if lane_id in (c["lane"], c["with"]) and not c.get("routed")]
     if blocking:
         return {"ok": False, "lane": lane_id, "lease": None, "conflicts": blocking}
     stamp: str = str(manifest.get("stamp"))

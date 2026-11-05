@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Final
 
 from helpers import PLUGIN_ROOT, _write, run_script
+from skill_text import read_skill
 
 SCRIPT: Final[str] = "app-type-detect.py"
 REPORT_ROWS: Final[set[str]] = {"coverage", "a11y-axe", "lighthouse", "sast-semgrep", "license-check", "sbom", "stride"}
@@ -118,7 +119,7 @@ class ReadinessTextTests(unittest.TestCase):
 
 class SetupSkillTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.text: str = (PLUGIN_ROOT / "skills" / "setup" / "SKILL.md").read_text(encoding="utf-8")
+        self.text: str = read_skill("setup")
 
     def test_setup_detects_type_and_fills_table(self) -> None:
         self.assertIn("app-type-detect.py", self.text)

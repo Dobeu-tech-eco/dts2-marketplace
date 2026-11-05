@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Final
 
 from helpers import PLUGIN_ROOT, make_tmp_home, read_run_skill
+from skill_text import read_skill
 from test_hooks import make_repo as make_git_repo, run_hook
 
 SCRIPT: Final[Path] = PLUGIN_ROOT / "scripts" / "handoff-write.py"
@@ -173,7 +174,7 @@ class SkillTextTests(unittest.TestCase):
         self.assertLess(text.find("run resume"), text.find("1. **Harness change.**"))
 
     def test_setup_skill_has_agents_pointer(self) -> None:
-        text: str = (PLUGIN_ROOT / "skills" / "setup" / "SKILL.md").read_text(encoding="utf-8")
+        text: str = read_skill("setup")
         self.assertIn(POINTER, text)
 
     def test_action_items_template_has_owner(self) -> None:

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+import uuid
 from pathlib import Path
 from typing import Final
 
@@ -69,16 +70,23 @@ def append_text(path: Path | str, text: str, *, header: str = "") -> Path:
     would lose any line another process appended in between. `header` is written first only when the file is new."""
     target: Path = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
-    if header:
+    if header and not target.exists():
+        # Create the file with its header already inside: write a private temp file, then hard-link it into place.
+        # os.link fails with FileExistsError when another writer got there first, so the header is always the first
+        # bytes and is never written at offset 0 of a file that rows may already be appended to.
+        scratch: str = f"{target}.{os.getpid()}.{uuid.uuid4().hex}.hdr"
+        fd: int = os.open(scratch, os.O_WRONLY | os.O_CREAT | os.O_EXCL, DEFAULT_MODE)
         try:
-            created: int = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, DEFAULT_MODE)
-        except FileExistsError:
-            pass
-        else:
             try:
-                os.write(created, header.encode(ENCODING))
+                os.write(fd, header.encode(ENCODING))
             finally:
-                os.close(created)
+                os.close(fd)
+            try:
+                os.link(scratch, target)
+            except FileExistsError:
+                pass
+        finally:
+            os.unlink(scratch)
     descriptor: int = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_APPEND, DEFAULT_MODE)
     try:
         os.write(descriptor, text.encode(ENCODING))

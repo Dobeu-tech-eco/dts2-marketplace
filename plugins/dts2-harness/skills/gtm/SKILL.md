@@ -1,6 +1,6 @@
 ---
 name: gtm
-description: Take a product through go-to-market in one pass: installs marketing-skills if missing, runs a short GTM deep-dive and the skills that apply, and ends with a launch-readiness scorecard. Use for go to market, launch readiness, gtm, or SEO review.
+description: "Take a product through go-to-market in one pass: installs marketing-skills if missing, runs a short GTM deep-dive and the skills that apply, and ends with a launch-readiness scorecard. Use for go to market, launch readiness, gtm, or SEO review."
 ---
 
 # GTM — one seamless pass

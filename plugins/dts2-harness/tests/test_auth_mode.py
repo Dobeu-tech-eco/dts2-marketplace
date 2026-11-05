@@ -10,10 +10,11 @@ from pathlib import Path
 from typing import Any, Final
 
 from helpers import PLUGIN_ROOT
+from skill_text import read_skill
 
 PROFILE_DIR: Final[Path] = PLUGIN_ROOT / "profiles" / "agents"
 ROSTER: Final[Path] = PLUGIN_ROOT / "scripts" / "roster.py"
-SETUP: Final[Path] = PLUGIN_ROOT / "skills" / "setup" / "SKILL.md"
+SETUP: Final[Path] = PLUGIN_ROOT / "skills" / "setup"
 SECRET: Final[str] = "sk-test-NEVER-PRINT"
 SUBSCRIPTIONS: Final[dict[str, str | None]] = {
     "claude": "Claude Max", "codex": "ChatGPT Pro (Codex)", "gemini": "Gemini Pro",
@@ -149,7 +150,7 @@ class ProbeAuthTests(unittest.TestCase):
 
 class SetupTextTests(unittest.TestCase):
     def test_agents_round_wording(self) -> None:
-        text: str = SETUP.read_text(encoding="utf-8")
+        text: str = read_skill("setup")
         for phrase in ("pay-per-use", "Include or exclude", "included:", "auth: subscription"):
             self.assertIn(phrase, text)
 

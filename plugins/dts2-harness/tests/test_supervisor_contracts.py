@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Final
 
 from helpers import PLUGIN_ROOT
+from skill_text import read_skill
 
 sys.path.insert(0, str(PLUGIN_ROOT / "scripts"))
 import model_call  # noqa: E402
@@ -22,7 +23,7 @@ STATE_FILES: Final[tuple[str, ...]] = ("budget.json", "model-ledger.jsonl", "mer
 
 
 def skill(name: str) -> str:
-    return (SKILLS / name / "SKILL.md").read_text(encoding="utf-8")
+    return read_skill(name)
 
 
 class TemplateTests(unittest.TestCase):

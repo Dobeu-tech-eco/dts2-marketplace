@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Final
 
 from helpers import PLUGIN_ROOT, make_tmp_home, read_run_skill
+from skill_text import read_rel
 
 SCOPE_SCRIPT: Final[Path] = PLUGIN_ROOT / "scripts" / "scope-check.py"
 GUARD_HOOK: Final[Path] = PLUGIN_ROOT / "hooks" / "context-guard.sh"
@@ -146,7 +147,7 @@ class ContextGuardTests(unittest.TestCase):
 
 
 def read(rel: str) -> str:
-    return (PLUGIN_ROOT / rel).read_text(encoding="utf-8")
+    return read_rel(rel)
 
 
 class ScopeTextContracts(unittest.TestCase):
