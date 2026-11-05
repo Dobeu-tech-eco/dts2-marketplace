@@ -190,9 +190,9 @@ class ActiveRunPlanTests(unittest.TestCase):
         self.on_branch("dts2/20260101-1/main")
         self.assertTrue(self.guard.has_plan(self.repo, self.guard.active_stamp(self.repo)))
 
-    def test_with_no_active_run_any_plan_counts(self) -> None:
+    def test_with_no_active_run_the_newest_run_decides(self) -> None:
         self.on_branch("main")
-        self.assertTrue(self.guard.has_plan(self.repo, self.guard.active_stamp(self.repo)))
+        self.assertFalse(self.guard.has_plan(self.repo, self.guard.active_stamp(self.repo)))
 
 
 class SonApprovalKeyTests(LaneCase):
@@ -315,6 +315,110 @@ class CouncilDispatchDocsTests(unittest.TestCase):
             text = (PLUGIN_ROOT / "skills" / "autopilot" / name).read_text(encoding="utf-8")
             self.assertIn("ballot_dispatch.py", text, name)
             self.assertIn(".dispatch.json", text, name)
+
+
+STOP_HOOK: Final[Path] = PLUGIN_ROOT / "hooks" / "stop-checks.sh"
+PR_HOOK: Final[Path] = PLUGIN_ROOT / "hooks" / "pr-receipt.sh"
+MARKER: Final[str] = "SON-RAN"
+
+
+class StopHookCase(unittest.TestCase):
+    def setUp(self) -> None:
+        self.repo = Path(tempfile.mkdtemp(prefix="dts2-b19s-"))
+        sh(self.repo, "git", "init", "-q", "-b", "main")
+        (self.repo / ".gitignore").write_text(".harness/cache/\n.harness/handoff/\nout/\n", encoding="utf-8")
+        (self.repo / "package.json").write_text("{}\n", encoding="utf-8")
+        (self.repo / "tsconfig.json").write_text("{}\n", encoding="utf-8")
+        (self.repo / "a.txt").write_text("one\n", encoding="utf-8")
+        sh(self.repo, "git", "add", "-A"), sh(self.repo, "git", "commit", "-q", "-m", "base")
+        (self.repo / "a.txt").write_text("two\n", encoding="utf-8")
+        (self.repo / "node_modules" / ".bin").mkdir(parents=True)
+        self.runs_log = self.repo.parent / f"{self.repo.name}-runs.log"  # outside the tree, so it never changes the fingerprint
+
+    def tsc(self, body: str) -> None:
+        path = self.repo / "node_modules" / ".bin" / "tsc"
+        path.write_text("#!/usr/bin/env bash\n" + body, encoding="utf-8")
+        path.chmod(0o755)
+
+    def stop(self, payload: str = "", **env: str) -> subprocess.CompletedProcess[str]:
+        clean = {k: v for k, v in os.environ.items() if not k.startswith("DTS2_SON")}
+        return subprocess.run(["bash", str(STOP_HOOK)], cwd=self.repo, input=payload, env={**clean, **env, "TMPDIR": str(self.repo.parent)},
+                              capture_output=True, text=True, check=False)
+
+
+class StopHookTests(StopHookCase):
+    def test_a_son_runs_no_repo_binary_and_says_so(self) -> None:
+        self.tsc(f"touch '{self.repo}/{MARKER}'\n")
+        done = self.stop(DTS2_SON="1")
+        self.assertFalse((self.repo / MARKER).exists())
+        self.assertIn("skipped: son", done.stderr)
+
+    def test_the_same_binary_runs_for_the_head(self) -> None:
+        self.tsc(f"touch '{self.repo}/{MARKER}'\n")
+        self.stop()
+        self.assertTrue((self.repo / MARKER).exists())
+
+    def test_a_red_check_runs_again_on_the_next_stop(self) -> None:
+        self.tsc(f"echo run >> '{self.runs_log}'\nexit 1\n")
+        self.stop(), self.stop()
+        self.assertEqual(self.runs_log.read_text(encoding="utf-8").split(), ["run", "run"])
+
+    def test_a_green_check_is_skipped_on_the_next_stop(self) -> None:
+        self.tsc(f"echo run >> '{self.runs_log}'\n")
+        self.stop(), self.stop()
+        self.assertEqual(self.runs_log.read_text(encoding="utf-8").split(), ["run"])
+
+    def test_a_check_that_reads_stdin_does_not_starve_the_block_decision(self) -> None:
+        (self.repo / ".harness").mkdir()
+        (self.repo / ".harness" / "dts2-harness.local.md").write_text("", encoding="utf-8")
+        (self.repo / ".claude").mkdir()
+        (self.repo / ".claude" / "dts2-harness.local.md").write_text("---\nstop_checks_block: true\n---\n", encoding="utf-8")
+        self.tsc("cat >/dev/null\necho red\nexit 1\n")
+        done = self.stop(payload=json.dumps({"stop_hook_active": False}))
+        self.assertIn('"decision": "block"', done.stdout)
+        again = self.stop(payload=json.dumps({"stop_hook_active": True}))
+        self.assertNotIn("block", again.stdout)
+
+
+class PrReceiptApiTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.dir = Path(tempfile.mkdtemp(prefix="dts2-b19r-"))
+        gh = self.dir / "gh"
+        gh.write_text(f'#!/usr/bin/env bash\necho "$*" >> "{self.dir}/gh.log"\nexit 1\n', encoding="utf-8")
+        gh.chmod(0o755)
+
+    def reached_gh(self, command: str) -> bool:
+        payload = json.dumps({"session_id": "s", "tool_name": "Bash", "tool_input": {"command": command}})
+        env = {**os.environ, "DTS2_GH_BIN": str(self.dir / "gh"), "TMPDIR": str(self.dir)}
+        subprocess.run(["bash", str(PR_HOOK)], cwd=self.dir, input=payload, env=env, capture_output=True, text=True, check=False)
+        return (self.dir / "gh.log").exists()
+
+    def test_an_implicit_post_with_body_flags_is_a_pr_create(self) -> None:
+        self.assertTrue(self.reached_gh("gh api repos/o/r/pulls -f title=t -f head=h -f base=main"))
+
+    def test_input_and_field_flags_also_imply_post(self) -> None:
+        self.assertTrue(self.reached_gh("gh api repos/o/r/pulls --input body.json"))
+        (self.dir / "gh.log").unlink(missing_ok=True)
+        self.assertTrue(self.reached_gh("gh api repos/o/r/pulls --field title=t"))
+
+    def test_an_explicit_get_stays_a_get(self) -> None:
+        self.assertFalse(self.reached_gh("gh api repos/o/r/pulls -X GET -f state=open"))
+
+    def test_a_plain_listing_is_not_a_pr_create(self) -> None:
+        self.assertFalse(self.reached_gh("gh api repos/o/r/pulls"))
+
+    def test_an_explicit_post_still_works(self) -> None:
+        self.assertTrue(self.reached_gh("gh api repos/o/r/pulls -X POST --input b.json"))
+
+
+class HookScriptStyleTests(unittest.TestCase):
+    def test_no_hook_script_uses_the_a_and_b_or_c_form(self) -> None:
+        import re
+        pattern = re.compile(r"\]\]\s*&&[^|\n]*\|\|")
+        for path in sorted((PLUGIN_ROOT / "hooks").glob("*.sh")):
+            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                code = line.split("#", 1)[0]
+                self.assertIsNone(pattern.search(code) if "{" not in code else None, f"{path.name}:{number}: {line}")
 
 
 if __name__ == "__main__":

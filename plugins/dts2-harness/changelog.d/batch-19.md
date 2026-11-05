@@ -16,3 +16,9 @@
 - Review O: the son Bash allowlist covers the plugin's own scripts directory only, and `head_publish.py` is denied.
 - Review Q: publish adopts only an open PR; a closed or merged PR is ignored and a new one is opened.
 - Review R: the merge default branch comes from `merge.default_branch` in the config, falling back to `main`.
+- Review L: `pr-receipt.sh` treats `gh api .../pulls` with `-f`/`-F`/`--field`/`--raw-field`/`--input` and no method as a PR create; an explicit `-X GET` stays a GET.
+- Review S: `stop-checks.sh` runs no repo-provided binary (checks.sh, tsc, eslint) when `DTS2_SON` is set, and prints `skipped: son`.
+- Review T: a failed check saves a `partial` fingerprint, so the next Stop runs the checks again.
+- Review U: the Stop payload is read before any check step runs, and check steps run with stdin closed, so `maybe_block` always sees it.
+- Review V: no `A && B || C` in the hook scripts (SC2015); `context-guard.sh` and `stop-checks.sh` use if/else.
+- Review K (after merging main): the active run from the branch name is preferred; otherwise main's newest-run rule applies.
