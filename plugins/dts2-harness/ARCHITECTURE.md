@@ -52,6 +52,7 @@ flowchart TD
 | `runs/<stamp>/plan.md`, `receipt.md`, `task-ledger.md` | run, ship, `task-ledger.py` | plan, change receipt, per-task record |
 | `runs/<stamp>/ledger.jsonl` | `checks.py`, `council.py` | check results with HEAD sha, env, ballots |
 | `runs/<stamp>/run.json`, `budget.json`, `model-ledger.jsonl` | `lanes.py` | pinned CLI version, spend counter, model-call ledger |
+| `runs/<stamp>/flags.md` | `flags_collect.py` | the builders' `FLAGS:` blocks, one section per builder |
 | `runs/<stamp>/merge-order.json`, `merge-go.md`, `merge-journal.jsonl` | `lanes.py` | serialised merge state; journal of grants, merges, fold groups and failed walkthroughs |
 | `runs/<stamp>/builders.jsonl` | `lanes.py` | one row per builder step (section, branch, status, confirmed sha, round) for `run resume` |
 | `runs/<stamp>/<lane>/lease.json`, `status.json`, `brief.md`, `send-back-<n>.md`, `questions/<n>.md` | `lanes.py`, the son | lane lease and epoch, phase and heartbeat, brief, send-backs, son questions |
@@ -65,11 +66,16 @@ State writes from the scripts go through `scripts/state_io.py` (`atomic_write`, 
 
 | Event | Script | What it does |
 | --- | --- | --- |
-| SessionStart | `hooks/session-lessons.sh` | puts recent lessons, open state items and open action items into context |
+| SessionStart | `hooks/session-lessons.sh` | puts recent lessons, open state items and open action items into context; after a compact (`source` is `compact`) prints only a short resume pointer |
+| PreCompact (auto, manual) | `hooks/pre-compact.sh` | runs `handoff-write.py` so the post-compact session resumes from the handoff |
 | Stop | `hooks/stop-checks.sh` | refreshes `handoff/latest.md`, runs quick typecheck and lint on changed files; warns, never blocks |
 | PreToolUse (Bash) | `hooks/merge-guard.sh` | refuses a force-push, and a merge or push to a protected branch unless a lane's `merge-go.md` allows it |
 | PostToolUse (Bash) | `hooks/pr-receipt.sh` | on `gh pr create` or `edit`, makes sure the PR body carries the change receipt |
 | PostToolUse (all tools) | `hooks/context-guard.sh` | stops a run on a context spike before the plan checkpoint |
+| SubagentStop (builder, reviewer, verifier) | `hooks/subagent-report.sh stop` | checks the final report for its required `## ` sections with `contracts.parse_report` (`scripts/subagent_report.py`); blocks once, naming the missing sections; skips when `stop_hook_active`; a turn-cap partial report passes |
+| PostToolUse (SubagentHandback) | `hooks/subagent-report.sh handback` | the same check for agents that finish through `SubagentHandback`, on `tool_input.message`; blocks once per agent |
+| SessionEnd (logout, prompt_input_exit, other) | `hooks/session-end.sh` | releases only the leases stamped with this session's id (`scripts/session_end.py`, through `state_io`), then runs `handoff-write.py`; best effort, lease expiry is the guarantee |
+| PreToolUse (Bash `lanes.py spawn --dry-run`, Agent) | `hooks/spawn-dry-run.sh` | prints the exact son command, env names, byte counts and the son `brief.md` (`scripts/spawn_dry_run.py`, on `briefs.dry_run`) and refuses the call so nothing starts; for Agent only when `spawn_dry_run: true` |
 
 Hooks read settings from `.claude/dts2-harness.local.md` through `hooks/lib-settings.sh`.
 
@@ -80,6 +86,8 @@ Hooks read settings from `.claude/dts2-harness.local.md` through `hooks/lib-sett
 `skills/autopilot/` and `skills/setup/` are short routers (`SKILL.md`) that point to phase files read on demand (`phase-*.md`, `son-mode.md`); the text is the same as before, moved, a son reads its brief and `son-mode.md` first, then phase files on demand.
 
 `briefs.py` (briefs and the cached prefix; `son-brief` fills `templates/son-brief.md`, the ~4 KB brief a son reads as `brief.md`; `lead-brief` turns the task, roster, probe and check ledger into one page for the lead; `prefix` is the fixed-order cached prefix of discipline, roster and probe that `son_launch.launch_flags` hands every son with `--append-system-prompt`; `dry-run` prints the exact son command, env names and byte counts without starting a session).
+
+Hook entry points (each is called by one `hooks/*.sh`, reads the hook JSON on stdin, exits 0): `subagent_report.py` (Q-8 report check), `session_end.py` (Q-16 lease release), `spawn_dry_run.py` (spawn dry-run printout).
 
 Imported by the scripts above; none is a hook entry point.
 
@@ -93,4 +101,6 @@ Imported by the scripts above; none is a hook entry point.
 | `scripts/state_ids.py` | `Stamp` and `LaneId` value objects; the only way a run stamp or lane id reaches a path |
 | `scripts/mdparse.py` | the one Markdown tokenizer (headings, bullets, checkboxes, table rows; skips fenced code) |
 | `scripts/contracts.py` | text-contract parsers on mdparse: vote entry, ballot, decision, sections, acceptance, report; a dataclass or `Invalid` |
-| `scripts/proc.py` | child-process seam: `Runner` (real, fake, dry-run), timeout kill (143), 429 backoff, version pin and fallback flags; model_call, skills-check and task-ledger go through it |
+| `scripts/proc.py` | child-process seam: `Runner` (real, fake, dry-run), timeout kill (143), 429 backoff, version pin and fallback flags; model_call, skills-check and task-ledger go through it |.
+
+`ownership_audit.py` (the shared `audit(diff, owned, claimed_sha)` core) and `builder-audit.py` (its CLI: empty diff with DONE, file outside the owned set, claimed commit not HEAD). `plan-gate.py` is the plan checkpoint gate: PASS or FAIL on Foundation, exclusive ownership, model and effort per builder, with an estimated token count. `flags_collect.py` collects each builder report's `FLAGS:` block into `runs/<stamp>/flags.md`.

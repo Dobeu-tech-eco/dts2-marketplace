@@ -1,16 +1,20 @@
 # run — Phase 1, plan
 
 ## Phase 1 — Plan (lead)
-Dispatch `dts2-harness:lead` (seat: sign-off, tier `frontier`) with `model` = claude `frontier` (`opus`). Give it: the task verbatim, `.harness/config.yaml`, `.harness/end-state.md`, `.harness/discipline.md`, `.harness/lessons.md`, the scout report, the roster JSON, the probe JSON, and the workspace manifest if present. Tell it:
-A lead report whose first line is `PARTIAL: hit turn cap at <step>` is not a plan: do not open the checkpoint; re-dispatch the lead with a narrower scope or a fresh agent, inside the fix-loop cap.
+Dispatch `dts2-harness:lead` (seat: sign-off, tier `frontier`) with `model` = claude `frontier` (`opus`) and `effort: high`. Give it: the task verbatim, `.harness/config.yaml`, `.harness/end-state.md`, `.harness/discipline.md`, `.harness/lessons.md`, the scout report, the roster JSON, the probe JSON, and the workspace manifest if present. Tell it:
+A lead report whose first line is `PARTIAL: hit turn cap at <step>` is not a plan: do not open the checkpoint; re-dispatch the lead with a narrower scope or a fresh agent (same `model` and `effort`), inside the fix-loop cap.
 - Assign only agents in the probe's `usable` list. Builders are execution seats at every complexity: the cheapest capable agent by profile `tokenBurn.standard` (ties broken by `costTier`), never a frontier model. Axis reviews are advisory seats: the cheapest available agent whose roles include the seat. The strongest agent holds the sign-off seats: the plan, the verifier, and the final review (the `lead_provider` setting picks which provider, default claude).
 - Rate every `### Builder N` with `complexity: mechanical|normal|design`.
 - Plan from the `## Sections` table and end the plan with `## Ready queue` for sections that are ready but beyond the builder cap.
+- Put a `## Foundation` section (`wave: 0`) before the builders: shared types, config, schema and skeleton built first, or `Foundation: none needed — <why>`.
 
 **Plan checkpoint.** It will not open without the lead's `## Done` section with at least one line. If the section is missing or empty, send the plan back to the lead once with "Add the Done section: one outcome per line with its check method." Still missing → stop and say why.
 
+**Plan gate.** Save the plan to `.harness/runs/<stamp>/plan.md`, then run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/plan-gate.py" .harness/runs/<stamp>/plan.md`. It checks the `## Foundation` section, exclusive file ownership (no file or dir/ prefix owned twice), a `complexity:` per builder with its model and effort (never frontier), and prints estimated tokens. `PLAN GATE: FAIL` blocks the checkpoint: send the plan back to the lead once with the `FAIL:` lines. Still failing → stop and say why.
+
 Show, in this order:
 - The plan as the lead wrote it, including `## Done` and `Axes:`.
+- The `plan-gate.py` output verbatim: one model and effort line per builder, `Estimated tokens: ~N`, and `PLAN GATE: PASS`.
 - `Team: N builders on separate file sets`, reviewer axes, and one line per seat: `<role> — <agent> (<tier>, effort <e>, <auth>)`, where auth is `subscription`, `api-key`, `installed (unverified)`, or `handoff` for IDE agents, for example `builder 2 — codex (standard, effort medium, api-key)`.
 - One line per dropped agent: `Dropped: <agent> — <reason>`.
 - The output of `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/metrics.py" <repo> trend` as one line (`Trend: no runs yet` on a first run).
