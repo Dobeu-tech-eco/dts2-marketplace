@@ -298,7 +298,7 @@ class LeadWiringTests(unittest.TestCase):
             "print(json.dumps({'type': 'system', 'subtype': 'init', 'plugin_errors': ['hooks.json invalid']}))\n"
             "print(json.dumps({'type': 'result', 'is_error': True, 'result': 'not logged in'}))\n", encoding="utf-8")
         git = folder / "git.py"
-        git.write_text("import sys\nsys.exit(1 if sys.argv[1:2] == ['push'] else 0)\n", encoding="utf-8")
+        git.write_text("import sys\nsys.exit(1 if 'push' in sys.argv[1:] else 0)\n", encoding="utf-8")
         done = self.lanes("preflight", "20261105-1", DTS2_CLAUDE_BIN=str(claude), DTS2_GIT_BIN=str(git))
         problems = " | ".join(json.loads(done.stdout)["problems"])
         self.assertIn("no login", problems)
@@ -380,7 +380,7 @@ class LeadWiringTests(unittest.TestCase):
         lessons = SCRIPTS / "lessons.py"
         path = self.repo / state_io.rel("lessons.md")
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("# Lessons\n\n- [L-001] never do X (files: a.py)\n", encoding="utf-8")
+        path.write_text("# Lessons\n\n- [L-001] never do X (files: a.py, promoted_at: 2026-11-05)\n", encoding="utf-8")
 
         def regress() -> dict[str, Any]:
             done = subprocess.run([sys.executable, "-I", str(lessons), str(self.repo), "regress", "L-001", "--stamp", "s1", "--step", "3"],
