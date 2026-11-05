@@ -10,8 +10,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from .common import *  # noqa: E402,F401,F403
 from .conflicts import *  # noqa: E402,F401,F403
 from .gitrefs import *  # noqa: E402,F401,F403
+from .integration import *  # noqa: E402,F401,F403
 from .leases import *  # noqa: E402,F401,F403
 from .merge import *  # noqa: E402,F401,F403
+from .mergeplan import *  # noqa: E402,F401,F403
 from .planner import *  # noqa: E402,F401,F403
 from .runstate import *  # noqa: E402,F401,F403
 from .supervisor import *  # noqa: E402,F401,F403

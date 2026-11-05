@@ -11,6 +11,7 @@ from model_call import (
 )
 from son_launch import launch_flags, son_env
 
+from .integration import shared_patterns
 from .common import DEFAULT_BURN, DEFAULT_PERMISSION_MODE, DEFAULT_TIER, FRONTMATTER_FENCE, KIND_MAX, LEASE_NAME, LaneError, NONE_FOUND, PERMISSION_FIELD, PLUGIN_ROOT, PROFILE_PATH, SETTINGS_FILE, SON_MODEL, SON_SKILL, SOURCE_DELEGATION, STATUS_ACTIVE, binary, find_lane, norm
 from .conflicts import assess, external_sources
 
@@ -132,7 +133,7 @@ def reported_row(lane: dict[str, Any], reasons: list[str]) -> dict[str, Any]:
 
 
 def select_lanes(draft: dict[str, Any], candidates: list[dict[str, Any]], sources: list[tuple[str, set[str]]],
-                 cap: int) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+                 cap: int, shared: tuple[str, ...] = ()) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Greedy --full selection: keep a lane only while the set stays conflict-free; never pad past the cap."""
     selected: list[dict[str, Any]] = []
     reported: list[dict[str, Any]] = []
@@ -140,8 +141,9 @@ def select_lanes(draft: dict[str, Any], candidates: list[dict[str, Any]], source
         if len(selected) >= cap:
             reported.append(reported_row(lane, [f"{KIND_MAX}: lane cap of {cap} reached"]))
             continue
-        trial: dict[str, Any] = assess({**draft, "lanes": [*selected, lane]}, sources, True)
-        blocking: list[dict[str, Any]] = [c for c in trial["conflicts"] if lane.get("id") in (c["lane"], c["with"])]
+        trial: dict[str, Any] = assess({**draft, "lanes": [*selected, lane]}, sources, True, shared)
+        blocking: list[dict[str, Any]] = [c for c in trial["conflicts"]
+                                          if lane.get("id") in (c["lane"], c["with"]) and not c.get("routed")]
         if blocking:
             reported.append(reported_row(lane, [f"{c['kind']}: {c['detail']}" for c in blocking]))
         else:
@@ -159,9 +161,9 @@ def plan(draft: dict[str, Any], outstanding: set[str], outside: str, full: bool,
     for lane in draft["lanes"]:
         kept, refusal = admit_lane(lane, outstanding, outside, full)
         candidates.append(kept) if kept is not None else refused.append(refusal)
-    selected, reported = select_lanes(draft, candidates, sources, cap) if full else (candidates, [])
+    selected, reported = select_lanes(draft, candidates, sources, cap, shared_patterns(cwd)) if full else (candidates, [])
     manifest: dict[str, Any] = {**draft, "lanes": selected}
-    feasibility: dict[str, Any] = assess(manifest, sources, prs_checked)
+    feasibility: dict[str, Any] = assess(manifest, sources, prs_checked, shared_patterns(cwd))
     result: dict[str, Any] = {"ok": bool(selected) and not refused and feasibility["ok"], "stamp": stamp,
                               "manifest": manifest, "feasibility": feasibility, "refused": refused, "reported": reported}
     if full and len(selected) < cap:

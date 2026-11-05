@@ -4,7 +4,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-
 from .common import BRANCH_PREFIX, GIT_VERSION, HEAD_NAME, LANE_PREFIX, MIN_GIT, binary, run
 
 

@@ -4,7 +4,7 @@ and the dpp head's helpers: plan (admission, spend, feasibility, --full selectio
 stop-check and report-check. It is the only writer of lane state: leases, status.json fields the head owns (heartbeat,
 session id, park reason), send-backs, the budget counter, the model-call ledger and merge order. Its supervisor commands:
 preflight (pin the CLI version), spawn (start a son under every cap), call (any other model call behind the shared
-limit), heartbeat, budget, loop, merge-order, merge-go, merge-go-step and merge-done."""
+limit), heartbeat, budget, loop, merge-order, merge-plan, merge-go, merge-go-step and merge-done."""
 from __future__ import annotations
 
 import argparse
@@ -19,6 +19,7 @@ from lanes.common import COST_SOURCES, DEFAULT_CALL_TIMEOUT_S, HEARTBEAT_PHASES,
 from lanes.conflicts import check  # noqa: E402
 from lanes.gitrefs import branch_check  # noqa: E402
 from lanes.leases import lease  # noqa: E402
+from lanes.mergeplan import merge_plan  # noqa: E402
 from lanes.merge import merge_done, merge_go, merge_go_step, merge_order, set_merge_target  # noqa: E402
 from lanes.planner import load_draft, plan, read_checkin, son_command  # noqa: E402
 from lanes.runstate import budget_report, fold, heartbeat, release, report_check, sendback, spend_state, status, stop_check  # noqa: E402
@@ -56,6 +57,9 @@ def add_supervisor_parsers(sub: Any) -> None:
     beat_p.add_argument("--reason", default=None, help="why, recorded with --status")
     beat_p.add_argument("--blocked-by", default="", help="item ids a blocked lane waits for, comma separated")
     sub.add_parser("merge-order").add_argument("manifest")
+    plan_p = sub.add_parser("merge-plan")
+    plan_p.add_argument("manifest")
+    plan_p.add_argument("--base", help="ref to probe lanes against (default origin/<merge target>)")
     go_p = sub.add_parser("merge-go")
     go_p.add_argument("manifest")
     go_p.add_argument("--lane", required=True)
@@ -194,6 +198,8 @@ def dispatch(args: argparse.Namespace) -> dict[str, Any]:
         return spawn(manifest, args.lane, Path(args.worktree), runs_dir, cwd, args.resume, args.unsafe_no_sandbox)
     if args.command == "merge-order":
         return merge_order(manifest, runs_dir)
+    if args.command == "merge-plan":
+        return merge_plan(manifest, runs_dir, cwd, args.base)
     if args.command == "merge-go":
         return merge_go(manifest, runs_dir, args.lane, args.head, cwd, args.base)
     if args.command == "merge-done":
