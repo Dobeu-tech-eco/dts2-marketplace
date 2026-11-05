@@ -3,7 +3,7 @@
 vertical slices and package-root areas (G-28), and the cycle check plus critical path (Q-22). Read-only.
 
   analyse   <manifest>                    the graph report as JSON (errors, warnings, edges, critical path, merge order)
-  merge-order <manifest> --stamp-dir ...  record the provider-first merge order in merge-order.json
+  merge-order <manifest> --runs-dir D   record the provider-first merge order (the lanes merge-order record)
   brief     <manifest> --lane L           the six-section lane brief skeleton for the lead
 
 Lane fields it reads, all optional: `provides` (names), `consumes` (names), `stubbed_on` (consumed names the lane builds
@@ -425,7 +425,7 @@ def graph_lease(manifest: dict[str, Any], lane_id: str, runs_dir: Path, cwd: Pat
 
 
 def record_merge_order(manifest: dict[str, Any], runs_dir: Path, cwd: Path) -> dict[str, Any]:
-    """Write the provider-first order to merge-order.json (through the merge module), integration lane last."""
+    """Write the provider-first order to the lanes merge-order record (through the merge module), integration lane last."""
     from lanes.merge import record_plan
     graph: dict[str, Any] = analyse(manifest, cwd, shared_patterns(cwd))
     if not graph["order"]:
@@ -459,7 +459,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("analyse").add_argument("manifest")
     order_p = sub.add_parser("merge-order")
     order_p.add_argument("manifest")
-    order_p.add_argument("--runs-dir", required=True, help="the runs folder that holds <stamp>/merge-order.json")
+    order_p.add_argument("--runs-dir", required=True, help="the runs folder that holds the run stamp folders")
     brief_p = sub.add_parser("brief")
     brief_p.add_argument("manifest")
     brief_p.add_argument("--lane", required=True)
