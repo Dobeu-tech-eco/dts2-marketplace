@@ -45,7 +45,19 @@ result = {"type": "result", "subtype": "success", "is_error": False, "session_id
           "total_cost_usd": cost}
 status_file = os.environ.get("FAKE_STATUS_FILE")
 if status_file and "-p" in argv and argv[argv.index("-p") + 1] != "ok":
-    Path(status_file).write_text(json.dumps({"lane": "a", "status": os.environ.get("FAKE_PHASE", "done")}))
+    # The supervisor records son_pid in status.json right after it spawns us, as a locked read-merge-write. Write
+    # only once that has landed, and replace the file atomically, or our write can be lost to (or tear under) it.
+    deadline = time.time() + 10
+    while time.time() < deadline:
+        try:
+            if json.loads(Path(status_file).read_text()).get("son_pid"):
+                break
+        except (OSError, ValueError):
+            pass
+        time.sleep(0.01)
+    tmp = Path(status_file + ".fake")
+    tmp.write_text(json.dumps({"lane": "a", "status": os.environ.get("FAKE_PHASE", "done")}))
+    os.replace(tmp, status_file)
 if mode == "429-then-ok" and count <= int(os.environ.get("FAKE_FAILS", "2")):
     sys.stderr.write("API Error: 429 rate_limit_error\n")
     sys.exit(1)
