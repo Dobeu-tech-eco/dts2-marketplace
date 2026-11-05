@@ -226,14 +226,17 @@ def tool_view(words: list[str]) -> tuple[str, list[str], list[str]] | None:
 
 def sub_slack(words: list[str]) -> int:
     """How far from the front a sub-command may start: git and gh already skip their global options, so it starts first; any other
-    tool may put one value-taking flag before it (`vercel --token x env`), so each leading flag word buys one position."""
+    tool may put value-taking flags before it (`vercel --token x --scope y env`), so each leading `--name value` buys one position."""
     words = unwrap_runner(words)
     if not words or ALIASES.get(Path(words[0]).name, Path(words[0]).name) in ("git", "gh"):
         return 0
-    lead: int = 0
-    while lead + 1 < len(words) and words[lead + 1].startswith("-"):
-        lead += 1
-    return lead
+    slack: int = 0
+    i: int = 1
+    while i < len(words) and words[i].startswith("-"):
+        has_value: bool = "=" not in words[i] and i + 1 < len(words) and not words[i + 1].startswith("-")
+        slack += has_value
+        i += 2 if has_value else 1
+    return slack
 
 
 def has_sequence(positionals: list[str], sub: list[str], slack: int = 0) -> bool:
