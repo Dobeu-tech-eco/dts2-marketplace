@@ -16,6 +16,9 @@ GH="${DTS2_GH_BIN:-gh}"
 
 warn() { echo "dts2-harness pr-receipt: $*" >&2; }
 
+# A son hands over a committed branch only (G-64): it neither opens PRs nor pushes, so the receipt hook has nothing to do there.
+[[ -n "${DTS2_SON:-}" ]] && exit 0
+
 # Prints two lines: session id, PR selector (may be empty). Exit 1 when the payload is not a Bash `gh pr create|edit`.
 parse_payload() {
   printf '%s' "$1" | python3 -I "$PLUGIN_DIR/scripts/pr_payload.py" parse 2>/dev/null
