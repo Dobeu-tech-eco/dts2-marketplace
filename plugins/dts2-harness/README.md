@@ -87,6 +87,12 @@ Restart Claude Code, then run `/dts2-harness:onboard`.
 ## Tests
 Run the suite from the plugin folder: `cd plugins/dts2-harness && python3 -m unittest discover -s tests` (or `make test` from the repo root). `make doctor` checks git, Python, the claude CLI and sandbox tooling first. The property tests (`tests/test_hypothesis_*.py`) need Hypothesis, which is not part of the plugin runtime: run `pip install -r requirements-dev.txt` (ideally in a virtualenv) to enable them; without it they are skipped.
 
+## Docs
+- [docs/GUIDE.md](docs/GUIDE.md): how to talk to the harness, which command when, the head, son and council flow, and the 3.10.0 digest. Start here.
+- [docs/INVENTORY.md](docs/INVENTORY.md): every skill, agent, hook, script and `lanes.py` subcommand with exact usage.
+- [ARCHITECTURE.md](ARCHITECTURE.md): modules, state port, plan graph, briefs and hook entry points.
+- [CHANGELOG.md](CHANGELOG.md): release notes.
+
 ## Changelog
 
 Released versions are in [CHANGELOG.md](CHANGELOG.md). Changes not yet released are listed below.

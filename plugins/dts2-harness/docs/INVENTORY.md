@@ -4,6 +4,8 @@ Every command an agent or a user can run in this plugin, with its purpose, exact
 
 In examples, `$P` stands for `${CLAUDE_PLUGIN_ROOT}`, `<repo>` for a repo root, `<stamp>` for a run stamp and `<manifest>` for a lane manifest (`lanes.json`). Scripts print one JSON object on stdout unless noted. The "Since" column is `new` for a command added in 3.10.0 and `changed` for an existing command whose arguments or output changed; section 7 lists the changes.
 
+For a shorter orientation (how to talk to the harness, which command when, the head, son and council flow) read `GUIDE.md` first.
+
 Contents: 1 Skills, 2 Agents, 3 Hooks, 4 CLI scripts (4.1 state and progress, 4.2 detection and scaffolding, 4.3 roster, council and orchestration, 4.4 review and build gates, 4.5 parallel lanes, 4.6 maintenance, 4.7 hook entry points, 4.8 other entry points), 5 Library modules, 6 Makefile targets and CI, 7 Changed in 3.10.0.
 
 ## 1. Skills (slash commands)
