@@ -62,7 +62,7 @@ PR_URL: Final[re.Pattern[str]] = re.compile(r"^https://[^\s]+/pull/\d+$")
 API_MERGE_PATH: Final[re.Pattern[str]] = re.compile(r"/pulls/(\d+)/merge/?(?:[?#].*)?$")
 API_REPO_PATH: Final[re.Pattern[str]] = re.compile(r"(?:^|/)repos/([A-Za-z0-9._-]+)/([A-Za-z0-9._-]+)/pulls/")
 API_FILE_FIELD: Final[re.Pattern[str]] = re.compile(r"^[^=\s]+=@")
-GRANT_COMMANDS: Final[frozenset[str]] = frozenset({"merge-go", "merge-go-step", "merge-target", "gc-restore"})
+GRANT_COMMANDS: Final[frozenset[str]] = frozenset({"merge-go", "merge-go-step", "merge-target", "gc-restore", "publish"})
 BODY_VALUE_FLAGS: Final[frozenset[str]] = frozenset({"-b", "--body", "-F", "--body-file", "-t", "--subject", "-A", "--author-email"})
 STATUS_NAME: Final[str] = "status.json"
 PENDING_NAME: Final[str] = "merge-pending.txt"
@@ -129,6 +129,36 @@ def watched(command: str) -> bool:
     return WATCHED.search(joined) is not None or WATCHED.search(re.sub(r"[\\'\"]", "", joined)) is not None
 
 
+LITERAL_DOLLAR: Final[str] = "\ue000"  # stands for a `$` or backtick the shell leaves alone inside single quotes
+LITERAL_TICK: Final[str] = "\ue001"
+
+
+def mask_literals(text: str) -> str:
+    """Swap each `$` and backtick inside single quotes for an inert stand-in, so `git commit -m '$(env)'` holds no expansion.
+    Double quotes and bare text are left alone (the shell expands there); `unmask_literals` undoes it."""
+    out: list[str] = []
+    quote: str = ""
+    i: int = 0
+    while i < len(text):
+        c: str = text[i]
+        if quote == "'":
+            quote = "" if c == "'" else quote
+            c = LITERAL_DOLLAR if c == "$" else LITERAL_TICK if c == "`" else c
+        elif c == "\\" and i + 1 < len(text):
+            out.append(c)
+            i += 1
+            c = text[i]
+        elif c in "'\"":
+            quote = "" if quote == c else c if not quote else quote
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
+def unmask_literals(text: str) -> str:
+    return text.replace(LITERAL_DOLLAR, "$").replace(LITERAL_TICK, "`")
+
+
 def substitutions(text: str) -> list[str]:
     """Inner texts of `$(...)` (balanced) and backtick pairs, so commands hidden in them are checked too."""
     found: list[str] = []
@@ -144,6 +174,18 @@ def substitutions(text: str) -> list[str]:
     return found
 
 
+ENV_VALUE_LETTERS: Final[str] = "uCS"  # env's short flags that take a value (`-u NAME`, `-C DIR`, `-S STR`)
+
+
+def env_flag_width(flag: str) -> int:
+    """Words an `env` flag consumes: 2 when its value is the next word (`-u`, `-iu`, `--unset`), else 1 (`-i`, `-uNAME`, `--unset=X`)."""
+    if flag.startswith("--"):
+        return 2 if flag in ENV_VALUE_FLAGS else 1
+    letters: str = flag[1:]
+    hit: list[int] = [i for i, ch in enumerate(letters) if ch in ENV_VALUE_LETTERS]
+    return 2 if hit and hit[0] == len(letters) - 1 else 1
+
+
 def strip_wrappers(words: list[str], seen: list[str] | None = None) -> list[str]:
     """Drop env assignments and the wrappers Claude Code strips (`timeout N`, `time`, `nice`, `nohup`, `stdbuf`, `builtin`,
     bare `xargs`) and their flags, leaving the command that actually runs. The wrapper names dropped are appended to `seen`."""
@@ -157,8 +199,8 @@ def strip_wrappers(words: list[str], seen: list[str] | None = None) -> list[str]
             words = words[1:]
             while words and (words[0].startswith("-") or (head in ("timeout", "nice") and DURATION.match(words[0]))
                              or (head == "env" and "=" in words[0])):
-                value_flags: frozenset[str] = ENV_VALUE_FLAGS if head == "env" else FLAG_WITH_VALUE
-                words = words[2:] if words[0] in value_flags else words[1:]
+                width: int = env_flag_width(words[0]) if head == "env" else (2 if words[0] in FLAG_WITH_VALUE else 1)
+                words = words[width:]
         else:
             break
     return words
@@ -452,7 +494,7 @@ def son_bash_denial(words: list[str], prefix: str) -> str | None:
             return gh_api_denial(rest[1:])
     for i, word in enumerate(words):
         if Path(word).name == "lanes.py" and any(w in GRANT_COMMANDS for w in words[i + 1:]):
-            return "merge-go, merge-target and gc-restore are the head's alone"
+            return "merge-go, merge-target, gc-restore and publish are the head's alone"
     return None
 
 

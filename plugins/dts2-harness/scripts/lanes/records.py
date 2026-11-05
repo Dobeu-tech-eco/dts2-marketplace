@@ -7,7 +7,7 @@ import json
 import os
 import time
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Final, Iterator
 
 from son_launch import SON_MARKER
 from state_io import FileStore, LockBusy, State
@@ -57,9 +57,18 @@ def ledger_emitter(runs_dir: Path, stamp: str, lane_id: str) -> Any:
     return lambda event: append_ledger(runs_dir, stamp, {"lane": lane_id, **event})
 
 
+ROLE_ENV: Final[str] = "DTS2_ROLE"
+NON_HEAD_ROLES: Final[frozenset[str]] = frozenset({"son", "vote", "voter", "council"})  # roles that never publish or merge
+
+
 def inside_son() -> bool:
-    """True in a son's process: the marker its env carries, or its lane branch prefix."""
-    return bool(os.environ.get(SON_MARKER) or os.environ.get("DTS2_SON_BRANCH_PREFIX"))
+    """True in a son's process: the marker its env carries, its lane branch prefix, or the role `son`."""
+    return bool(os.environ.get(SON_MARKER) or os.environ.get("DTS2_SON_BRANCH_PREFIX") or os.environ.get(ROLE_ENV, "").lower() == "son")
+
+
+def non_head_role() -> bool:
+    """True for a son, a voter or a council seat: none of them publishes a lane, whatever markers the env carries."""
+    return inside_son() or os.environ.get(ROLE_ENV, "").lower() in NON_HEAD_ROLES
 
 
 def son_refusal(what: str) -> dict[str, Any]:

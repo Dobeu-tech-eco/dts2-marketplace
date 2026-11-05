@@ -178,7 +178,7 @@ Stamp-keyed commands:
 | `budget <stamp>` | none | Budget report. | `dpp` | new |
 | `loop <stamp>` | none | Fullauto loop cap. | `fullauto` | new |
 | `call <stamp>` | `--label` (required), `--timeout`, `--cost-source` (claude or none), `--prompt-file`, `--out`; command follows `--` | Any other model call behind the shared limit; the command runs with a scrubbed env (`provider_env`: no `GH_TOKEN`, cloud keys or, for a non-Claude command, Anthropic credentials). | `autopilot` | new |
-| `publish <stamp>` | `--lane` (required), `--branch`, `--base`, `--title`, `--body` | The head pushes a finished lane branch and opens or adopts its PR (`head_publish.publish_lane`); a diff that touches protected files parks the lane and pushes nothing. Refused inside a son. | `dpp`, `autopilot` (head only) | new |
+| `publish <stamp>` | `--lane` (required), `--branch`, `--base`, `--title`, `--body` | The head pushes a finished lane branch and opens or adopts its PR (`head_publish.publish_lane`); a diff that touches protected files parks the lane and pushes nothing. Refused for a son, a voter or a council seat (env marker or `DTS2_ROLE`), and denied in a son's Bash (`lanes.py publish`). | `dpp`, `autopilot` (head only) | new |
 | `heartbeat <stamp>` | `--lane` (required), `--epoch`, `--turn`, `--status` (pr-open, done, blocked, incomplete), `--reason`, `--blocked-by` | Record a lane heartbeat or phase (goes through `transition`). | `autopilot`; son brief | new |
 | `merge-target <stamp>` | `--set`, `--yes-default-branch` | Record the branch the run merges into (head only). | `dpp`, `autopilot` | new |
 | `merge-go-step <stamp>` | `--step --head` (required), `--base` | Merge clearance for an autopilot step (head only). | `autopilot` | new |

@@ -25,7 +25,7 @@ from lanes.common import COST_SOURCES, DEFAULT_CALL_TIMEOUT_S, HEARTBEAT_PHASES,
 from head_publish import publish_lane  # noqa: E402
 from son_launch import merge_config  # noqa: E402
 from lanes.gitrefs import branch_check, lane_ref  # noqa: E402
-from lanes.records import inside_son, son_refusal  # noqa: E402
+from lanes.records import non_head_role, son_refusal  # noqa: E402
 from lanes.amend import amend_lane, split_list  # noqa: E402
 from lanes.journal import close_superseded, fix_attempt, fold_done, walkthrough_failed  # noqa: E402
 from lanes.mergecomp import MUTEX_OPS, base_health, merge_mutex, read_routing, record_routing, routing_markdown  # noqa: E402
@@ -371,7 +371,7 @@ def dispatch_supervisor(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> 
 
 def publish_command(args: argparse.Namespace, cwd: Path) -> dict[str, Any]:
     """G-64: the head, not the son, pushes the lane branch and opens its PR (ruling Q1). Refused inside a son."""
-    if inside_son():
+    if non_head_role():
         return {**son_refusal("publish"), "lane": args.lane}
     branch: str = args.branch or lane_ref(args.stamp, args.lane)
     base: str = args.base or merge_config(cwd)["target"]

@@ -319,14 +319,11 @@ def link_task(lines: list[str], result: dict[str, Any], task: str | None, text: 
     return result
 
 
-def first_add(path: Path, stamp: str, step: str, attempt: int) -> bool:
-    """G-54: False when this (stamp, step, attempt) already added its row; the event ledger sits beside the items file."""
-    event = state_io.make_event(EVENT_KIND, id=state_io.event_id(stamp, step, EVENT_KIND, attempt), step=step, attempt=attempt)
-    return state_io.append_event_at(path.with_name(EVENTS_NAME), event)
+def add_event(stamp: str, step: str, attempt: int) -> dict[str, Any]:
+    return state_io.make_event(EVENT_KIND, id=state_io.event_id(stamp, step, EVENT_KIND, attempt), step=step, attempt=attempt)
 
 
-def mutate(path: Path, args: argparse.Namespace, today: date) -> dict[str, Any]:
-    lines: list[str] = read_lines(path)
+def apply_command(lines: list[str], args: argparse.Namespace, today: date) -> dict[str, Any]:
     if args.command == "done":
         result: dict[str, Any] = set_cell(lines, args.row, "status", STATUS_DONE)
         task: str | None = linked_task(lines, args.row)
@@ -340,13 +337,28 @@ def mutate(path: Path, args: argparse.Namespace, today: date) -> dict[str, Any]:
         result = release_rows(lines, args.holder)
     elif args.command == "fold":
         result = fold_rows(lines, read_lines(Path(args.lane_file)), args.holder, today)
-    elif args.command == "add" and args.stamp and not first_add(path, args.stamp, args.step or "", args.attempt):
-        return {"duplicate": True, "group": args.group}
     elif args.id:
         result = link_task(lines, fill_reserved(lines, args.id, " ".join(args.text), args.holder), args.task, " ".join(args.text))
     else:
         result = link_task(lines, add_row(lines, args.group, " ".join(args.text), today), args.task, " ".join(args.text))
-    write_lines(path, lines)
+    return result
+
+
+def mutate(path: Path, args: argparse.Namespace, today: date) -> dict[str, Any]:
+    """Apply the command and write the file. A stamped add (G-54) is counted once, and only once it was written: the dedupe row goes
+    in first (so two racing retries cannot both write) and comes out again if the add fails."""
+    lines: list[str] = read_lines(path)
+    event: dict[str, Any] | None = add_event(args.stamp, args.step or "", args.attempt) if args.command == "add" and args.stamp else None
+    ledger: Path = path.with_name(EVENTS_NAME)
+    if event is not None and not state_io.append_event_at(ledger, event):
+        return {"duplicate": True, "group": args.group}
+    try:
+        result: dict[str, Any] = apply_command(lines, args, today)
+        write_lines(path, lines)
+    except BaseException:
+        if event is not None:
+            state_io.forget_event_at(ledger, event["id"])
+        raise
     return result
 
 

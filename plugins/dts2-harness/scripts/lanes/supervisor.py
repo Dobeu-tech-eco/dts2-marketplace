@@ -50,10 +50,16 @@ def push_access_problem(cwd: Path, env: dict[str, str]) -> str | None:
             "(for example GH_TOKEN, or SSH_AUTH_SOCK for ssh remotes) with DTS2_SON_ENV_PASS")
 
 
+SON_ENV_CHANGE: Final[re.Pattern[str]] = re.compile(  # `DTS2_SON=0`, `env -u DTS2_SON`, `env -iuDTS2_SON`, `--unset=DTS2_SON`, `unset DTS2_SON`
+    r"DTS2_SON\w*=|--unset(?:=|\s+)DTS2_SON|(?:^|\s)-[A-Za-z]*u\s*DTS2_SON|\bunset\s+DTS2_SON")
+NO_HOOKS: Final[str] = "core.hooksPath=/dev/null"  # the probe must not run the repo's pre-push hook (contributor-controlled)
+
+
 def head_push_problem(cwd: Path) -> str | None:
     """Why the head (the one that publishes, ruling Q1) cannot push: `git push --dry-run` to origin under the head's own env."""
     try:
-        done = subprocess.run([*binary("DTS2_GIT_BIN", "git"), "push", "--dry-run", "origin", f"HEAD:refs/heads/{PROBE_REF}"], cwd=str(cwd),
+        done = subprocess.run([*binary("DTS2_GIT_BIN", "git"), "-c", NO_HOOKS, "push", "--dry-run", "--no-verify", "origin",
+                               f"HEAD:refs/heads/{PROBE_REF}"], cwd=str(cwd),
                               capture_output=True, text=True, timeout=TIMEOUT_S, stdin=subprocess.DEVNULL, check=False)
     except (subprocess.TimeoutExpired, OSError) as exc:
         return f"`git push --dry-run origin` could not run under the head env: {exc}"
@@ -358,6 +364,8 @@ def model_call(runs_dir: Path, stamp: str, cwd: Path, label: str, argv: list[str
     cost-source `none` (a CLI that never prints a cost) the call is counted as unreported, not as unknown spend."""
     if not argv:
         raise LaneError("call needs a command after --")
+    if SON_ENV_CHANGE.search(" ".join(argv)):
+        return {"ok": False, "label": label, "detail": "call may not set or unset DTS2_SON*: a wrapped command keeps the caller's role"}
     why: str | None = budget_refusal(spend_state(runs_dir, stamp, cwd), None, int(time.time()))
     if why:
         append_ledger(runs_dir, stamp, {"lane": label, "event": "refused", "reason": why})

@@ -36,7 +36,6 @@ ALIASES: Final[dict[str, str]] = {"flyctl": "fly", "ntl": "netlify"}
 TEXT_HEADS: Final[frozenset[str]] = frozenset({"echo", "printf", "grep", "egrep", "fgrep", "rg", "man", "cat", "less", "head", "tail",
                                                "which", "type", "diff", "wc", "git", "gh"})
 ASSIGNMENT: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
-ENV_VALUE_FLAGS: Final[frozenset[str]] = frozenset({"-u", "-C", "-S", "--unset", "--chdir", "--split-string"})
 UNATTENDED_VARS: Final[tuple[str, ...]] = ("DTS2_SON", "DTS2_UNATTENDED")
 TRUE_WORDS: Final[frozenset[str]] = frozenset({"1", "true", "yes", "on"})
 SCANNERS: Final[tuple[tuple[str, str], ...]] = (("DTS2_GITLEAKS_BIN", "gitleaks"), ("DTS2_TRUFFLEHOG_BIN", "trufflehog"))
@@ -75,8 +74,10 @@ def skip_flags(words: list[str], start: int, valued: bool = True, env: bool = Fa
     guard's table, or env's own `-u`, `-C`, `-S`); `env` flags like `-i` never do."""
     index: int = start
     while index < len(words) and (words[index].startswith("-") or guard.DURATION.match(words[index])):
-        takes_value: bool = words[index] in ENV_VALUE_FLAGS if env else valued and words[index] in guard.FLAG_WITH_VALUE
-        index += 2 if takes_value else 1
+        if env and words[index].startswith("-"):
+            index += guard.env_flag_width(words[index])
+            continue
+        index += 2 if valued and words[index] in guard.FLAG_WITH_VALUE else 1
     return index
 
 
@@ -169,7 +170,7 @@ def expand(command: str, depth: int = 0) -> list[list[str]]:
     found: list[list[str]] = []
     if depth > MAX_DEPTH:
         return found
-    command = guard.join_continuations(command)
+    command = guard.mask_literals(guard.join_continuations(command))  # '$(x)' in single quotes is text, not an expansion
     for inner in guard.substitutions(command):
         found += expand(inner, depth + 1)
     for part in split_segments(command):
@@ -181,12 +182,12 @@ def expand(command: str, depth: int = 0) -> list[list[str]]:
         if not words:
             continue
         found.append(words)
-        found += nested(words, depth)
+        found += nested([guard.unmask_literals(w) for w in words], depth)
         for valued in (True, False):
             inner_words: list[str] = unwrap_runner(peel(words, valued))
             if inner_words and inner_words != words:
                 found.append(inner_words)
-                found += nested(inner_words, depth)
+                found += nested([guard.unmask_literals(w) for w in inner_words], depth)
     return found
 
 
@@ -223,9 +224,22 @@ def tool_view(words: list[str]) -> tuple[str, list[str], list[str]] | None:
     return name, [w for w in rest if not w.startswith("-")], [w for w in rest if w.startswith("-")]
 
 
-def has_sequence(positionals: list[str], sub: list[str]) -> bool:
+def sub_slack(words: list[str]) -> int:
+    """How far from the front a sub-command may start: git and gh already skip their global options, so it starts first; any other
+    tool may put one value-taking flag before it (`vercel --token x env`), so each leading flag word buys one position."""
+    words = unwrap_runner(words)
+    if not words or ALIASES.get(Path(words[0]).name, Path(words[0]).name) in ("git", "gh"):
+        return 0
+    lead: int = 0
+    while lead + 1 < len(words) and words[lead + 1].startswith("-"):
+        lead += 1
+    return lead
+
+
+def has_sequence(positionals: list[str], sub: list[str], slack: int = 0) -> bool:
+    """True when `sub` sits at the sub-command position (the first `slack + 1` places), not in a later option value or operand."""
     size: int = len(sub)
-    return any(positionals[i:i + size] == sub for i in range(len(positionals) - size + 1))
+    return any(positionals[i:i + size] == sub for i in range(min(slack + 1, len(positionals) - size + 1)))
 
 
 def flag_hit(flag: str, rule: dict[str, Any]) -> bool:
@@ -244,7 +258,7 @@ def rule_matches(rule: dict[str, Any], words: list[str]) -> bool:
     if view is None or view[0] not in rule.get("cmd", []):
         return False
     _, positionals, flags = view
-    if rule.get("sub") and not has_sequence(positionals, rule["sub"]):
+    if rule.get("sub") and not has_sequence(positionals, rule["sub"], sub_slack(words)):
         return False
     if not (rule.get("flags") or rule.get("short_flags") or rule.get("plus_refspec")):
         return True
@@ -254,14 +268,16 @@ def rule_matches(rule: dict[str, Any], words: list[str]) -> bool:
 
 
 def expansion_hides_flags(rule: dict[str, Any], words: list[str]) -> bool:
-    """A flag-checked rule for a command whose arguments hold a `$` cannot be judged; refuse it (fail closed)."""
+    """A flag-checked rule for a command whose arguments hold a `$` cannot be judged; refuse it (fail closed). A rule with a
+    `sub` only judges commands that run that sub-command; a flag-only rule judges every command of its tool."""
     view = tool_view(words)
-    if view is None or view[0] not in rule.get("cmd", []) or not rule.get("sub") or not (rule.get("flags") or rule.get("short_flags")):
+    if view is None or view[0] not in rule.get("cmd", []) or not (rule.get("flags") or rule.get("short_flags")):
         return False
     _, positionals, flags = view
-    if not has_sequence(positionals, rule["sub"]):
+    skip: int = len(rule["sub"]) if rule.get("sub") else 0
+    if skip and not has_sequence(positionals, rule["sub"], sub_slack(words)):
         return False
-    return any(arg.startswith(("$", "`")) for arg in positionals[len(rule["sub"]):]) or any("$" in flag or "`" in flag for flag in flags)
+    return any(arg.startswith(("$", "`")) for arg in positionals[skip:]) or any("$" in flag or "`" in flag for flag in flags)
 
 
 def deny_reason(policy: dict[str, Any], command: str) -> str | None:

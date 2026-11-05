@@ -59,7 +59,7 @@ RULE_UNSAFE: Final[re.Pattern[str]] = re.compile(r"[()\n]")
 HANDOVER_DENY: Final[tuple[str, ...]] = ("Bash(git push*)", "Bash(gh pr*)", "Bash(gh api*)")  # G-64: a son hands over a branch
 DISALLOWED: Final[tuple[str, ...]] = (
     *HANDOVER_DENY,
-    "Bash(gh pr merge *)", "Bash(*head_publish.py*)", "Bash(*lanes.py merge-go*)", "Bash(*lanes.py merge-target*)", "Bash(gh repo delete *)", "Bash(git -c *)", "Bash(git push --force *)",
+    "Bash(gh pr merge *)", "Bash(*head_publish.py*)", "Bash(*lanes.py merge-go*)", "Bash(*lanes.py merge-target*)", "Bash(*lanes.py publish*)", "Bash(gh repo delete *)", "Bash(git -c *)", "Bash(git push --force *)",
     "Bash(git push -f *)", "Read(~/.ssh/**)", "Read(**/.env)", "Read(**/.env.*)", "Read(~/.aws/**)",
     "Read(~/.config/gcloud/**)", "Edit(.claude/**)", "Write(.claude/**)", "Edit(.mcp.json)", "Write(.mcp.json)",
     "Edit(.git/hooks/**)", "Write(.git/hooks/**)",
