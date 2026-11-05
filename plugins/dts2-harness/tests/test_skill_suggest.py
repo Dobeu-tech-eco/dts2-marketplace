@@ -67,6 +67,23 @@ class SuggestTests(unittest.TestCase):
         self.assertEqual(first, self.mod.suggest(dict(reversed(list(facts.items())))))
         self.assertEqual(first[:2], ["grill-me", "research"])
 
+    def test_database_fact_adds_database_skills_before_question_skill(self) -> None:
+        result: list[str] = self.mod.suggest({"has_database": True})
+        wanted: tuple[str, ...] = ("postgresql-table-design", "sql-optimization-patterns", "database-migration")
+        for slug in wanted:
+            self.assertIn(slug, result)
+            self.assertLess(result.index(slug), result.index("ask-matt"))
+        self.assertEqual(result[-1], "ask-matt")
+
+    def test_database_skills_absent_without_the_fact(self) -> None:
+        result: list[str] = self.mod.suggest({"has_tests": True, "has_prisma": False})
+        for slug in ("postgresql-table-design", "sql-optimization-patterns", "database-migration"):
+            self.assertNotIn(slug, result)
+
+    def test_prisma_and_supabase_facts_add_their_skills(self) -> None:
+        self.assertIn("database-migration", self.mod.suggest({"has_prisma": True}))
+        self.assertIn("postgresql-table-design", self.mod.suggest({"has_supabase": True}))
+
     def test_cli_prints_json_list(self) -> None:
         result = subprocess.run(
             [sys.executable, "-I", str(SCRIPT), "--facts", json.dumps({"has_pr": True})],
