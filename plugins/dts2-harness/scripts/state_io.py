@@ -712,6 +712,13 @@ class State:
             self.store.append_text(path, line)
             return True
 
+    def forget_event(self, path: str, event_id: str) -> None:
+        """Drop the rows with this id (under the file's lock), so a write that failed after its dedupe row went in can be retried."""
+        with self.store.lock(path):
+            kept: list[str] = [line for line in (self.store.read_text(path) or "").splitlines()
+                               if (parse_object(line) or {}).get("id") != event_id]
+            self.store.write_text(path, "".join(line + "\n" for line in kept))
+
     def events(self, path: str, kind: str | None = None, lane: str | None = None) -> list[dict[str, Any]]:
         return [row for row in self.read_rows(path)
                 if (kind is None or row.get("kind") == kind) and (lane is None or row.get("lane") == lane)]
@@ -773,6 +780,12 @@ def append_event_at(path: Path | str, event: dict[str, Any]) -> bool:
     """append_event for a plain filesystem path (a ledger a script was handed on its command line)."""
     target: Path = Path(path)
     return State(FileStore(target.parent)).append_event(target.name, event)
+
+
+def forget_event_at(path: Path | str, event_id: str) -> None:
+    """forget_event for a plain filesystem path; the counterpart of append_event_at for a write that then failed."""
+    target: Path = Path(path)
+    State(FileStore(target.parent)).forget_event(target.name, event_id)
 
 
 def main(argv: list[str] | None = None) -> int:
