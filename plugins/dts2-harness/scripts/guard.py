@@ -136,7 +136,8 @@ LITERAL_TICK: Final[str] = "\ue001"
 def mask_literals(text: str) -> str:
     """Swap each `$` and backtick inside single quotes for an inert stand-in, so `git commit -m '$(env)'` holds no expansion.
     Double quotes and bare text are left alone (the shell expands there); `unmask_literals` undoes it. The scan keeps a stack,
-    so a quote inside a nested `$(...)` belongs to that substitution and a `'` inside double quotes stays literal."""
+    so a quote inside a nested `$(...)` belongs to that substitution and a `'` inside double quotes stays literal.
+    Only an unescaped `$(` opens a substitution; an escaped `\\$(` and the PID `$$` (as in `$$(`) do not."""
     out: list[str] = []
     stack: list[str] = []  # open contexts, innermost last: `'`, `"` or `(` (command text of a substitution or subshell)
     i: int = 0
@@ -152,8 +153,11 @@ def mask_literals(text: str) -> str:
             c = text[i]
         elif top == '"' and c == '"':
             stack = stack[:-1]
-        elif top == '"' and c == "(" and text[i - 1:i] == "$":
-            stack.append("(")
+        elif c == "$" and top in ('"', "(") and text[i + 1:i + 2] in ("(", "$"):
+            stack = stack + ["("] if text[i + 1] == "(" else stack  # `$(` opens a substitution; `$$` is the PID
+            out.append(c)
+            i += 1
+            c = text[i]
         elif top == "(" and c in "'\"":
             stack.append(c)
         elif top == "(" and c == "(":
