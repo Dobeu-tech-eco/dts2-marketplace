@@ -11,7 +11,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from typing import Any, Final
-from unittest import mock
+import unittest.mock
 
 from helpers import PLUGIN_ROOT
 
@@ -37,7 +37,7 @@ class EvalRunnerTests(unittest.TestCase):
 
     def main(self, *argv: str) -> tuple[int, str]:
         out = io.StringIO()
-        with mock.patch.object(sys, "argv", ["run.py", *argv]), contextlib.redirect_stdout(out):
+        with unittest.mock.patch.object(sys, "argv", ["run.py", *argv]), contextlib.redirect_stdout(out):
             code: int = self.run_mod.main()
         return code, out.getvalue()
 
@@ -97,7 +97,7 @@ class EvalRunnerTests(unittest.TestCase):
 
     def test_subset_total_delta_covers_only_that_fixture(self) -> None:
         path = self.two_row_baseline()
-        with mock.patch.object(self.run_mod, "run_fixture", return_value=row(True, 1500, 1000)):
+        with unittest.mock.patch.object(self.run_mod, "run_fixture", return_value=row(True, 1500, 1000)):
             code, text = self.main("--fixture", "clean-fix", "--baseline", str(path), "--results-dir", str(self.tmp / "r"))
         self.assertEqual(code, 0, text)
         self.assertIn("TOTAL: 1/1 pass tokens 1500 (+500) wall_ms 1000 (+0)", text)
@@ -118,7 +118,7 @@ class EvalRunnerTests(unittest.TestCase):
     def test_update_baseline_refuses_failing_fixtures(self) -> None:
         path = self.two_row_baseline()
         before = path.read_text(encoding="utf-8")
-        with mock.patch.object(self.run_mod, "run_fixture", return_value=row(False, 1, 1)):
+        with unittest.mock.patch.object(self.run_mod, "run_fixture", return_value=row(False, 1, 1)):
             code, text = self.main("--fixture", "clean-fix", "--update-baseline", "--baseline", str(path), "--results-dir", str(self.tmp / "r"))
         self.assertEqual(code, 2)
         self.assertIn("refusing to record a baseline with failing fixtures: clean-fix", text)
@@ -135,15 +135,15 @@ class EvalRunnerTests(unittest.TestCase):
         empty = self.tmp / "empty2.json"
         empty.write_text("{}", encoding="utf-8")
         for pid in (111, 222):
-            with mock.patch.object(self.run_mod.time, "strftime", return_value="20260101-000000"), \
-                    mock.patch.object(self.run_mod.os, "getpid", return_value=pid):
+            with unittest.mock.patch.object(self.run_mod.time, "strftime", return_value="20260101-000000"), \
+                    unittest.mock.patch.object(self.run_mod.os, "getpid", return_value=pid):
                 code, text = self.main("--fixture", "clean-fix", "--baseline", str(empty), "--results-dir", str(results))
             self.assertEqual(code, 0, text)
         self.assertEqual(sorted(p.name for p in results.glob("*.json")), ["20260101-000000-111.json", "20260101-000000-222.json"])
 
     def test_missing_default_baseline_warns_and_exits_zero(self) -> None:
         absent = self.tmp / "no-default.json"
-        with mock.patch.object(self.run_mod, "DEFAULT_BASELINE", absent):
+        with unittest.mock.patch.object(self.run_mod, "DEFAULT_BASELINE", absent):
             code, text = self.main("--fixture", "clean-fix", "--results-dir", str(self.tmp / "r"))
         self.assertEqual(code, 0, text)
         self.assertIn("warning: no baseline", text)
@@ -151,7 +151,7 @@ class EvalRunnerTests(unittest.TestCase):
     def test_pass_fail_regression_exits_one(self) -> None:
         baseline = self.tmp / "b.json"
         baseline.write_text(json.dumps({"fixtures": {"clean-fix": row(True, 100, 100)}, "totals": {"tokens": 100, "wall_ms": 100}}))
-        with mock.patch.object(self.run_mod, "run_fixture", return_value=row(False, 100, 100)):
+        with unittest.mock.patch.object(self.run_mod, "run_fixture", return_value=row(False, 100, 100)):
             code, text = self.main("--fixture", "clean-fix", "--baseline", str(baseline), "--results-dir", str(self.tmp / "r"))
         self.assertEqual(code, 1)
         self.assertIn("REGRESSION: clean-fix", text)
@@ -159,7 +159,7 @@ class EvalRunnerTests(unittest.TestCase):
     def test_cost_increase_alone_exits_zero_and_prints_delta(self) -> None:
         baseline = self.tmp / "b.json"
         baseline.write_text(json.dumps({"fixtures": {"clean-fix": row(True, 100, 100)}, "totals": {"tokens": 100, "wall_ms": 100}}))
-        with mock.patch.object(self.run_mod, "run_fixture", return_value=row(True, 5000, 9000)):
+        with unittest.mock.patch.object(self.run_mod, "run_fixture", return_value=row(True, 5000, 9000)):
             code, text = self.main("--fixture", "clean-fix", "--baseline", str(baseline), "--results-dir", str(self.tmp / "r"))
         self.assertEqual(code, 0)
         self.assertIn("tokens 5000 (+4900)", text)
