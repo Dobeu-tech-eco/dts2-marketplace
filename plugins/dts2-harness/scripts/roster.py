@@ -79,6 +79,9 @@ CONTEXT_BUDGET: Final[re.Pattern[str]] = re.compile(
 TAIL_LINES: Final[int] = 20
 CONTEXT_BUDGET_REASON: Final[str] = "context budget exceeded"
 DISPATCH_FAILED: Final[str] = "dispatch exited non-zero"
+TIMEOUT_EXIT_CODE: Final[int] = 143  # 128 + SIGTERM: what `timeout` leaves behind when it stops a dispatch
+DISPATCH_TIMED_OUT: Final[str] = "dispatch timed out"
+OUTCOME_TIMEOUT: Final[str] = "timeout"
 RESET_AT: Final[re.Pattern[str]] = re.compile(
     r"resets at\s+(\d{4}-\d{2}-\d{2}T[0-9:.]+(?:Z|[+-]\d{2}:?\d{2})?)", re.I,
 )
@@ -600,6 +603,11 @@ def classify_dispatch(
         return {
             **base, "outcome": "context-budget", "reason": CONTEXT_BUDGET_REASON, "resetAt": None,
             "dropForRun": False, "fallback": seat_fallback(profile, seat, usable),
+        }
+    if exit_code == TIMEOUT_EXIT_CODE:
+        return {
+            **base, "outcome": OUTCOME_TIMEOUT, "reason": DISPATCH_TIMED_OUT, "resetAt": None,
+            "dropForRun": False, "fallback": None, "seatFailed": True,
         }
     if exit_code != 0:
         return {
