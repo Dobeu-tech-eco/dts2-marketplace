@@ -6,11 +6,11 @@ lessons_inject: true
 lessons_max: 10
 # Team scaling for the run skill
 auto_scale: true
-max_builders: 6
+max_builders: 4
 max_reviewers: 4
 continuous_dispatch: true     # keep max_builders in flight while ready sections exist; park stalled builders and move on
 builder_timeout_min: 20       # minutes without a builder report before it is parked
-son_permission_mode: bypassPermissions   # claude -p permission mode for dpp sons
+son_permission_mode: dontAsk   # claude -p permission mode for dpp sons (with a tool allowlist, deny list and guard hook)
 use_worktrees: auto        # auto = one worktree per builder in a git repo (scratch dir per builder without git) | always | never
 # Headless runner (sdk skill)
 second_opinion: none       # none | codex | gemini

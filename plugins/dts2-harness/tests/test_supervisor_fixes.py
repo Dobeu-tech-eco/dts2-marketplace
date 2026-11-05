@@ -27,7 +27,7 @@ import json, os, sys, time
 from pathlib import Path
 argv = sys.argv[1:]
 if "--version" in argv:
-    print("2.1.230 (Claude Code)")
+    print("2.1.250 (Claude Code)")
     sys.exit(0)
 state = Path(os.environ["FAKE_DIR"])
 with open(state / "calls.log", "a") as log:
@@ -89,7 +89,7 @@ class MergeDependencyTests(base.SupervisorBase):
         (self.runs / lane_id / "status.json").write_text(json.dumps({"lane": lane_id, "status": phase}))
 
     def go(self, lane_id: str) -> dict[str, Any]:
-        return self.lanes("merge-go", str(self.manifest), "--lane", lane_id, "--head", "deadbeef")
+        return self.lanes("merge-go", str(self.manifest), "--lane", lane_id, "--head", "deadbeef", "--base", "cafe1234")
 
     def test_dependent_of_a_parked_lane_is_never_next(self) -> None:
         self.phase("a", "incomplete")

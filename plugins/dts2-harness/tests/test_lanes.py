@@ -161,11 +161,11 @@ class LanesTests(unittest.TestCase):
         clean = self.run_cmd("branch-check", "20261104-1", "--lanes", "a,b", refs="main\norigin/dts2/20261104-0/a\n")
         self.assertTrue(clean["ok"], clean)
 
-    def test_more_than_five_lanes_refused(self) -> None:
+    def test_no_fixed_lane_cap(self) -> None:
+        # A9/A7 ruling: the old five-lane limit is gone; the model-call limit throttles instead.
         lanes = [lane(x, [f"src/{x}/x.py"]) for x in "abcdef"]
         result = self.run_cmd("check", self.write_manifest(manifest(lanes)))
-        self.assertEqual(result["_code"], 1)
-        self.assertIn("limit is 5", result["error"])
+        self.assertNotIn("error", result)
 
 
 if __name__ == "__main__":
