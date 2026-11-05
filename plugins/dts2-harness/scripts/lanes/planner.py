@@ -10,11 +10,11 @@ from typing import Any
 from model_call import (
     read_budget, read_supervisor,
 )
-from proc import fallback_flags
+from proc import fallback_flags, wrap_son
 from son_launch import launch_flags, son_env
 
 from .integration import shared_patterns
-from .common import DEFAULT_BURN, DEFAULT_PERMISSION_MODE, DEFAULT_TIER, FRONTMATTER_FENCE, KIND_MAX, LEASE_NAME, LaneError, NONE_FOUND, PERMISSION_FIELD, PLUGIN_ROOT, PROFILE_PATH, SETTINGS_FILE, SON_MODEL, SON_SKILL, SOURCE_DELEGATION, binary, find_lane, lease_live, norm
+from .common import DEFAULT_BURN, DEFAULT_PERMISSION_MODE, DEFAULT_TIER, FRONTMATTER_FENCE, KIND_MAX, LEASE_NAME, LaneError, NONE_FOUND, PERMISSION_FIELD, PLUGIN_ROOT, PROFILE_PATH, SETTINGS_FILE, SON_SKILL, SOURCE_DELEGATION, binary, find_lane, lease_live, norm, son_model
 from .conflicts import assess, external_sources
 from .gitrefs import gh_down
 from .leases import held_items
@@ -52,15 +52,18 @@ def cap_flags(cwd: Path, remaining_usd: float | None, session: str | None) -> li
 
 
 def son_command(manifest: dict[str, Any], lane_id: str, worktree: Path, cwd: Path,
-                remaining_usd: float | None = None, session: str | None = None) -> dict[str, Any]:
-    """The headless command for one son: claude -p inside the lane's worktree, with the budget caps and fallback chain."""
+                remaining_usd: float | None = None, session: str | None = None, lane_dir: Path | None = None) -> dict[str, Any]:
+    """The headless command for one son: claude -p inside the lane's worktree, with the budget caps and fallback chain, on the
+    `son_model` setting. With `lane_dir` the argv is wrapped by proc.wrap_son (session id, stream-json, son.json)."""
     lane: dict[str, Any] = find_lane(manifest, lane_id)
     mode: str = read_setting(cwd, PERMISSION_FIELD, DEFAULT_PERMISSION_MODE)
     argv: list[str] = binary("DTS2_CLAUDE_BIN", "claude") + [
         "-p", f"{SON_SKILL} {manifest['stamp']}/{lane['id']}",
-        *launch_flags(cwd, mode, manifest, str(lane["id"]), worktree), "--model", SON_MODEL, "--plugin-dir", str(PLUGIN_ROOT),
+        *launch_flags(cwd, mode, manifest, str(lane["id"]), worktree), "--model", son_model(cwd), "--plugin-dir", str(PLUGIN_ROOT),
         *cap_flags(cwd, remaining_usd, session),
     ]
+    if lane_dir is not None:
+        argv = wrap_son(argv, lane_dir)
     return {"ok": True, "lane": lane["id"], "cwd": str(worktree), "permission_mode": mode, "argv": argv,
             "env": son_env(manifest, str(lane["id"]), cwd)}
 

@@ -22,6 +22,7 @@ from .records import inside_son, son_refusal
 SCOPE_NAME: Final[str] = "scope.json"
 PENDING_NAME: Final[str] = "pending-items.json"
 OVERRIDE_KIND: Final[str] = "override"
+KIND_ALIASES: Final[dict[str, str]] = {OVERRIDE_KIND: "lane_override"}  # the approvals channel names this kind lane_override
 # Roles that vote or sit on the council; an override is never available to them (G-48).
 BARRED_ROLES: Final[frozenset[str]] = frozenset({"vote", "voter", "council"})
 ROLE_ENV: Final[str] = "DTS2_ROLE"
@@ -40,7 +41,12 @@ def human_approved(kind: str, key: str) -> bool:
     except ImportError:
         return False
     check: Any = getattr(module, "is_human_approved", None)
-    return bool(check(kind, key)) if callable(check) else False
+    if not callable(check):
+        return False
+    try:
+        return bool(check(KIND_ALIASES.get(kind, kind), key))
+    except ValueError:  # approvals.ApprovalError: an unknown kind is never an approval
+        return False
 
 
 def git_user(cwd: Path) -> str:
