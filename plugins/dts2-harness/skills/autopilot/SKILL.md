@@ -42,6 +42,7 @@ Every rule below binds a son started with `--son`; the head is the other end of 
 - **Every wait has a deadline.** `mailbox_wait_min` bounds each wait; on expiry the lane parks `incomplete` with reason `mailbox-timeout` (section 4) and the head decides what happens next.
 - **Seat-pool collapse parks.** When fewer than three distinct voter seats answer (section 1), the son runs `mailbox park <stamp> --lane <lane> --reason seat-pool-collapse` and stops; it never votes with a short panel.
 - **Context guard parks.** When the context guard fires inside a son, the son runs `mailbox park <stamp> --lane <lane> --reason context-guard --session-id <id>`, which writes `incomplete` with the session id so the head can resume it.
+- **No browser parks.** When a walkthrough needs a browser and the son has none, it runs `mailbox park <stamp> --lane <lane> --reason no-browser`; it never marks the check skipped.
 - **Merge needs the exact head.** Before it reports `pr-open` as ready, the son runs `mailbox merge-go-check`; a HEAD that differs from `verified_head_sha` voids the grant. Every write carries `--epoch` from `brief.md`; a stale epoch is ignored.
 - **Fresh rules.** The son runs `mailbox rules --point start|vote|ship|merge` at its start and before each vote, ship and merge, and re-reads every file the answer lists as changed.
 - **Out of lane.** A change outside the file set is asked for with `mailbox request`; it climbs head, vote, council, user, one rung at a time. A son never uses `lanes.py override`.

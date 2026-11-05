@@ -32,8 +32,9 @@ STATE_WAITING: Final[str] = "waiting"
 STATE_EXPIRED: Final[str] = "expired"
 POLL_S: Final[float] = 2.0
 REASON_MAILBOX_TIMEOUT: Final[str] = "mailbox-timeout"
-# Why a son parks itself (G-45): the pool of agent seats collapsed, the context guard fired, a wait ran out.
-PARK_REASONS: Final[tuple[str, ...]] = ("seat-pool-collapse", "context-guard", REASON_MAILBOX_TIMEOUT)
+# Why a son parks itself (G-45): the pool of agent seats collapsed, the context guard fired, a walkthrough needs a browser
+# and none exists (a park, never a skip), a wait ran out.
+PARK_REASONS: Final[tuple[str, ...]] = ("seat-pool-collapse", "context-guard", "no-browser", REASON_MAILBOX_TIMEOUT)
 ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"[a-z][0-9]{1,6}")
 # G-48: a request to touch files outside the lane climbs this ladder, one rung at a time; only the user ends it.
 OUT_OF_LANE_ROUTE: Final[tuple[str, ...]] = ("head", "vote", "council", "user")

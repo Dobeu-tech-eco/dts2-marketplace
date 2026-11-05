@@ -163,7 +163,7 @@ def add_mailbox_parser(sub: Any) -> None:
     box_p.add_argument("--files", default="", help="request: files outside the lane, comma separated")
     box_p.add_argument("--outcome", default=None, help="decide: escalate, granted or denied")
     box_p.add_argument("--epoch", type=int, default=None)
-    box_p.add_argument("--worktree", default=None, help="merge-go-check: the lane worktree (default: --cwd)")
+    box_p.add_argument("--worktree", default=None, help="merge-go-check: the lane worktree (default: the current directory, a son's own worktree)")
 
 
 def add_run_parsers(sub: Any) -> None:
@@ -268,7 +268,7 @@ def dispatch_mailbox(args: argparse.Namespace, runs_dir: Path, cwd: Path) -> dic
     if args.op == "park":
         return park(runs_dir, stamp, lane, args.reason or "", args.session_id, args.epoch)
     if args.op == "merge-go-check":
-        return merge_go_check(runs_dir, stamp, lane, Path(args.worktree) if args.worktree else cwd)
+        return merge_go_check(runs_dir, stamp, lane, Path(args.worktree) if args.worktree else Path.cwd())
     if args.op == "rules":
         return check_rules(runs_dir, stamp, lane, args.point)
     if args.op == "request":
