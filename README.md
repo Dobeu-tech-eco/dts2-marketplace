@@ -6,6 +6,21 @@ Claude Code plugin marketplace for Dobeu Tech Solutions.
 |---|---|
 | [`dts2-harness`](plugins/dts2-harness) | Plan-build-review-verify agent harness: end-state interview, Plan and Ship checkpoints, agent roster, deployment verification, GTM, machine prep, multi-repo scaffolding, lessons memory, and a headless Agent SDK runner. Windows, WSL, Linux, macOS. |
 
+## What's new in 3.10.0
+- Parallel autopilot hardening: a 35-subcommand lane lifecycle in `lanes.py` (leases with TTL and epochs, `transition`, `merge-order`, `merge-go`, `merge-done`, `shutdown`, `reconcile`), a per-run merge journal and typed run records.
+- Son containment: sandboxed headless sons with tool allowlists, an allowlisted environment, hard caps on turns, spend and model calls, and a merge guard hook that lets nothing merge without a `merge-go.md`.
+- Council hardening (seat swap, blind and fenced ballots), a checks gate before any vote, a plan gate and builder audit, a `fixer` agent, production-readiness scaffolding, and `docs/INVENTORY.md` with a completeness test.
+- Agent guide: [docs/GUIDE.md](plugins/dts2-harness/docs/GUIDE.md) explains how to talk to the harness, which command to use when, and the head, son and council flow.
+
+## What's new in 3.9.0
+- Parallel autopilot: `dpp`, `dpp-full` and `fullauto` run several autopilot lanes as headless sons under a head that plans, supervises and serialises merges.
+
+## What's new in 3.8.0
+- Autopilot council: after three failed voting rounds, five frontier seats read the step's full history and vote; Fable 5.1 heads the council and must answer every dissent.
+
+## What's new in 3.7.0
+- Pre-check before every run command, `ship` (user-initiated PR with sweep), `feature` (roadmap a feature), and `autopilot` (no human checkpoints behind a three-provider gate).
+
 ## What's new in 3.6.1
 - Gtm is self-sufficient: auto-installs marketing-skills, runs a deep-dive (optional deep-interview re-run), selects the applicable skills, and runs them as one seamless pass.
 
@@ -49,8 +64,13 @@ Claude Code plugin marketplace for Dobeu Tech Solutions.
 | `model` | Pick which agent provider leads the lead, advisory and sign-off seats (`/dts2-harness:model`); builders always run the cheapest capable model. |
 | `find-skills` | Available any time (`/dts2-harness:find-skills`): rescan the repo, ask a few questions, suggest skills, wire in the ones you pick. |
 | `check-in` | Available any time (`/dts2-harness:check-in`): a read-only checklist from where the project started through the approved end state, each item complete or outstanding. |
+| `dpp` | Run several autopilot lanes in parallel as headless sons, one worktree each, under a head that plans, supervises and serialises merges (`dpp [dry-run] [--full] [resume]`). |
+| `dpp-full` | `dpp --full`: also fills lanes from a delegation scan and keeps dispatching without a new approval. |
+| `fullauto` | `dpp-full` with autopilot forced on, looping check-in until nothing is outstanding. |
 
-Six agents: lead, builder, reviewer, verifier, scout, auditor.
+Seven agents: lead, builder, fixer, reviewer, verifier, scout, auditor.
+
+Not sure which command to use? Read the [agent guide](plugins/dts2-harness/docs/GUIDE.md): how to talk to the harness, a which-command-when table, and the head, son and council flow.
 
 ## Install
 Inside Claude Code:
