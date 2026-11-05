@@ -1,7 +1,6 @@
 ---
 name: cooldown
 description: Pause an agent that hit a usage limit until its reset date, resume it, or list what is paused. Use for set a cooldown, agent is out of usage, clear a cooldown, or which agents are paused.
-disable-model-invocation: true
 ---
 
 # Cooldown — pause an agent until its usage limit resets
