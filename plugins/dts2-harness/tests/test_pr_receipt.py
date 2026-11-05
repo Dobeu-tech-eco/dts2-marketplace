@@ -51,6 +51,8 @@ class Fixture:
         view = {"number": 7, "body": body, "headRefName": head, "isCrossRepository": cross}
         text: str = raw_view if raw_view is not None else json.dumps(view)
         (self.fake_dir / "view.json").write_text(text, encoding="utf-8")
+        (self.repo / ".claude").mkdir()  # the template push is opt-in (G-36)
+        (self.repo / ".claude" / "dts2-harness.local.md").write_text("---\npr_receipt_template_push: true\n---\n", encoding="utf-8")
         gh: Path = self.fake_dir / "gh"
         gh.write_text(FAKE_GH, encoding="utf-8")
         gh.chmod(0o755)

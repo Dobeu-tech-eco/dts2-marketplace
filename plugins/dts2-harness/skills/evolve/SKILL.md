@@ -29,10 +29,12 @@ Run all three; stop on any failure and fix before continuing:
 - `python3 -m unittest discover -s plugins/dts2-harness/tests`
 
 ## 4. Bump versions
-Bump both manifests (`plugins/dts2-harness/.claude-plugin/plugin.json` and the marketplace entry) to the same version:
+Run `python3 plugins/dts2-harness/scripts/bump-version.py <x.y.z>` (it writes every place the version is recorded, including both manifests, and `--check` verifies them) instead of editing the manifests by hand. Choose the version:
 - patch for text-only changes
 - minor for a new skill, agent, or script
 - major for a checkpoint or layout change
+
+Record the change as a bullet in a `changelog.d/batch-<n>.md` fragment; `scripts/changelog-join.py --apply` moves the fragments under `## Unreleased` in the README at release.
 
 ## 5. Commit, then push only on a yes
 Commit with a message that names the change and the bump. Push only after the user gives an explicit yes; silence or a vague reply means do not push. The change reaches other machines only once it is on the repo's default branch; after the push, open a PR or merge on a second explicit yes, and say the update command picks it up after that.
