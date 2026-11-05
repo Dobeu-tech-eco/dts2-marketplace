@@ -49,6 +49,16 @@
           }
         ],
         "matcher": "Bash|Edit|Write|Agent"
+      },
+      {
+        "matcher": "SubagentHandback",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/subagent-report.sh\" handback",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "PreToolUse": [
@@ -61,6 +71,27 @@
             "timeout": 60
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/spawn-dry-run.sh\"",
+            "timeout": 10,
+            "if": "Bash(*lanes.py spawn*--dry-run*)"
+          }
+        ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/spawn-dry-run.sh\"",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "PreCompact": [
@@ -71,6 +102,29 @@
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/pre-compact.sh\"",
             "timeout": 15
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "dts2-harness:builder|dts2-harness:reviewer|dts2-harness:verifier",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/subagent-report.sh\" stop",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session-end.sh\"",
+            "timeout": 25
           }
         ]
       }
