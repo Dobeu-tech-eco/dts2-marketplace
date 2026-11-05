@@ -25,6 +25,8 @@ Parallel autopilot hardening: lane lifecycle, son containment, merge ordering, c
 - Production readiness: `scripts/prod-scaffold.py` writes CI, `RUNBOOK.md` and `ops/` notes for the target app, `scripts/app-type-detect.py` names the app type, `end-state.md` gains a Production readiness table, and `setup` offers a Dependabot or Renovate config. (C1 to C7, D4)
 - Tooling: `scripts/run_report.py` and `scripts/run_metrics.py` (lanes, tokens, wall-clock, 3x-median warning), `scripts/walkthrough_fallback.py` (Playwright fallback), `scripts/bump-version.py` and Makefile targets `package`, `test`, `check-version`, `make doctor`, `evals/run.py`, Hypothesis property tests, `ARCHITECTURE.md`, and a CI workflow (Python 3.10 to 3.13, ruff, shellcheck). (N6, SE-1, B10, B9, A1, B1, D2 to D4, N7)
 - Docs inventory: `docs/INVENTORY.md` lists every skill, agent, hook, script and Makefile target, including all 35 `lanes.py` subcommands, with a "Called by" column and a "Changed in 3.10.0" section; `tests/test_inventory_complete.py` fails when an entry is missing. `ARCHITECTURE.md` describes the `scripts/lanes/` package, `state_io.py`, the plan graph, briefs and hook entry points.
+- `merge-go` refuses a lane whose branch changed files outside its owned set (the integration lane is audited against its integration files); `lanes.py audit <manifest> <lane> --head <sha>` shows why.
+- Merge-order property tests (random dependency graphs and merge-go/merge-done interleavings).
 
 ### Changed
 
@@ -46,6 +48,7 @@ Parallel autopilot hardening: lane lifecycle, son containment, merge ordering, c
 - `builder-audit` sees both paths of a rename and untracked files in new folders; `plan-gate` catches intersecting globs and requires `complexity:` on Foundation; `flags_collect` skips blank lines after `FLAGS:`; `review_split` grouping, `graph_lease` lockfiles, the final-review digest truncation note, `disjoint_lane_count`, the compact resume pointer, run report wall-clock and `learn` pruning approval corrected. (b14a-followups, followups, followups-2)
 - `subagent_report.already_blocked` handles an unwritable marker file with a documented fallback. (closing-a)
 - Review fixes across the checks gate, scope check, blind/redaction, prod-scaffold, app-type detection and skill-pin handling (details in the commit history). (C1 to C7, B4/B8)
+- The onboard skill counted six agents; there are seven.
 
 ### Security
 
