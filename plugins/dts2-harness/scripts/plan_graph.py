@@ -430,7 +430,7 @@ def graph_lease(manifest: dict[str, Any], lane_id: str, runs_dir: Path, cwd: Pat
         if blocking:
             return {"ok": False, "lane": lane_id, "lease": None, "conflicts": blocking}
         with lane_lock(path) as held:
-            return write_lease(manifest, lane, path, epoch, lease_ttl_s(cwd)) if held else busy(lane_id)
+            return write_lease(manifest, lane, path, epoch, lease_ttl_s(cwd), files=owned_entries(lane)) if held else busy(lane_id)
 
 
 def record_merge_order(manifest: dict[str, Any], runs_dir: Path, cwd: Path) -> dict[str, Any]:
