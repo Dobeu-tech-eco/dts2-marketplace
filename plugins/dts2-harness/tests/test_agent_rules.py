@@ -432,11 +432,11 @@ class SpendLedgerTests(TempProject):
         self.assertEqual(after["dropped"], [{"name": "grok-api", "reason": "budget exhausted"}])
 
     def test_probe_cli_reads_the_ledger_of_the_config_repo(self) -> None:
-        profile = self.root / state_io.AGENT_PROFILES_REL / "grok-api.json"
+        profile = self.root / state_io.AGENT_PROFILES_REL / "grok-pay.json"
         profile.parent.mkdir(parents=True)
-        profile.write_text(json.dumps({"name": "grok-api", "extends": "grok", "statusCommand": None, "loginCommand": None}), encoding="utf-8")
-        self.write_config("roster:\n  - name: claude\n  - name: grok-api\n    auth: api-key\n    included: true\n")
-        agent_rules.record_spend("grok-api", 5.0, "r", self.root)
+        profile.write_text(json.dumps({"name": "grok-pay", "extends": "grok", "statusCommand": None, "loginCommand": None}), encoding="utf-8")
+        self.write_config("roster:\n  - name: claude\n  - name: grok-pay\n    auth: api-key\n    included: true\n")
+        agent_rules.record_spend("grok-pay", 5.0, "r", self.root)
         bin_dir = self.root / "bin"
         bin_dir.mkdir()
         fake = bin_dir / "grok"
@@ -445,7 +445,7 @@ class SpendLedgerTests(TempProject):
         done = self.cli("probe", "--config", str(self.config), env={roster.PROBE_PATH_ENV: str(bin_dir)})
         self.assertEqual(done.returncode, 0, done.stderr)
         agents = json.loads(done.stdout)["agents"]
-        self.assertEqual((agents["grok-api"]["available"], agents["grok-api"]["reason"]), (False, "budget exhausted"))
+        self.assertEqual((agents["grok-pay"]["available"], agents["grok-pay"]["reason"]), (False, "budget exhausted"))
 
     def test_a_model_call_as_a_named_agent_lands_in_the_ledger(self) -> None:
         from lanes import supervisor

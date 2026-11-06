@@ -305,28 +305,39 @@ def gemini_second_opinion(diff: str, repo: Path) -> str:
             })
             if shutil.which(argv[0]) is None:
                 return f"(second opinion skipped: {argv[0]} CLI not found)"
-        return run_second_opinion(argv, repo, env)
+        return run_second_opinion(argv, repo, env, "gemini")
 
 
-def second_opinion_env(profile_env: dict[str, str] | None) -> dict[str, str]:
-    """The son allowlist plus the profile env (G-67): a second-opinion CLI never sees GH_TOKEN, cloud credentials or the
-    Anthropic key. The provider's own key variables pass through when set."""
+SECOND_OPINION_KEYS: Final[dict[str, str]] = {"codex": "CODEX_API_KEY", "gemini": "GEMINI_API_KEY", "grok": "XAI_API_KEY"}
+
+
+def second_opinion_env(profile_env: dict[str, str] | None, backend: str = "codex") -> dict[str, str]:
+    """The scrubbed son env (`son_launch.provider_env`) plus the profile env (G-67): a second-opinion CLI never sees GH_TOKEN,
+    cloud credentials, the Anthropic key or another provider's key. It gets only its own provider key, resolved through
+    api_keys (the `<backend>-api` profile's apiKeyRef, else the key variable in our environment), when one is found."""
     sys.path.insert(0, str(PLUGIN_ROOT / "scripts"))
-    from son_launch import provider_env
+    import api_keys
+    from profiles import Profiles
+    from son_launch import credential_name, provider_env
     source: dict[str, str] = dict(os.environ)
-    keys: list[str] = [k for k in ("CODEX_API_KEY", "GEMINI_API_KEY", "XAI_API_KEY") if source.get(k)]
+    key_env: str | None = SECOND_OPINION_KEYS.get(backend)
     env: dict[str, str] = provider_env(source)
-    env.update({k: source[k] for k in keys})
-    merged: dict[str, str] = {**env, **(profile_env or {})}
-    return {k: v for k, v in merged.items() if k not in ANTHROPIC_CREDENTIALS}
+    if key_env:
+        own: dict[str, Any] = {"name": backend, "apiKeyEnv": key_env, **{
+            k: v for k, v in (Profiles.load().get(f"{backend}-api") or {}).items() if k == "apiKeyRef"}}
+        value: str | None = api_keys.resolve_key(own, source)[0]
+        if value:
+            env[key_env] = value
+    extra: dict[str, str] = {k: v for k, v in (profile_env or {}).items() if not credential_name(k)}
+    return {k: v for k, v in {**env, **extra}.items() if k not in ANTHROPIC_CREDENTIALS}
 
 
-def run_second_opinion(argv: list[str], repo: Path, env: dict[str, str] | None = None) -> str:
+def run_second_opinion(argv: list[str], repo: Path, env: dict[str, str] | None = None, backend: str = "codex") -> str:
     """Run one second-opinion CLI with the profile env on top of ours; a timeout becomes a note so
     the run still reaches the receipt."""
     try:
         result = subprocess.run(argv, cwd=repo, capture_output=True, text=True,
-                                stdin=subprocess.DEVNULL, env=second_opinion_env(env),
+                                stdin=subprocess.DEVNULL, env=second_opinion_env(env, backend),
                                 timeout=SECOND_OPINION_TIMEOUT_S)
     except subprocess.TimeoutExpired:
         return TIMED_OUT.format(seconds=SECOND_OPINION_TIMEOUT_S)
@@ -358,7 +369,7 @@ def second_opinion(backend: str, diff: str, repo: Path) -> str:
         return f"(second opinion skipped: {backend} CLI not found)"
     with tempfile.TemporaryDirectory(prefix="dts2-second-opinion-") as folder:
         prompt_path: Path = write_prompt(Path(folder), diff, "Do not edit files. ")
-        return run_second_opinion(command + [POINTER.format(path=prompt_path)], repo)
+        return run_second_opinion(command + [POINTER.format(path=prompt_path)], repo, backend=backend)
 
 
 def git_diff(repo: Path) -> str:

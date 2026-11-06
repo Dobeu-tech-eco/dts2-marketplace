@@ -1,0 +1,76 @@
+{
+  "name": "claude-api",
+  "displayName": "Claude (API key)",
+  "form": "cli",
+  "rulesFile": "CLAUDE.md",
+  "invocation": "live",
+  "command": [
+    "claude"
+  ],
+  "headlessFlag": "-p",
+  "roles": [
+    "reviewer",
+    "builder"
+  ],
+  "specialty": "Pay-as-you-go Claude on its own API key and Console workspace: reviews, and takes overflow builds when the Max agents are rate-limited.",
+  "verified": false,
+  "costTier": 3,
+  "statusCommand": [
+    "claude",
+    "--version"
+  ],
+  "loginCommand": null,
+  "models": {
+    "frontier": null,
+    "standard": "sonnet",
+    "economy": "haiku"
+  },
+  "modelsVerified": false,
+  "subscriptionName": null,
+  "auth": "api-key",
+  "apiKeyEnv": "ANTHROPIC_API_KEY",
+  "keyRequired": true,
+  "leadEligible": false,
+  "homeEnv": "CLAUDE_CONFIG_DIR",
+  "searchPaths": [],
+  "budgetFlag": "--max-budget-usd",
+  "roleCommands": {
+    "reviewer": [
+      "claude",
+      "-p",
+      "--model",
+      "{model}",
+      "--output-format",
+      "json",
+      "--permission-mode",
+      "plan",
+      "{prompt}"
+    ],
+    "builder": [
+      "claude",
+      "-p",
+      "--model",
+      "{model}",
+      "--output-format",
+      "json",
+      "--permission-mode",
+      "acceptEdits",
+      "{prompt}"
+    ]
+  },
+  "readOnlyRoles": ["reviewer"],
+  "readOnlyCommand": ["claude", "-p", "--model", "{model}", "--output-format", "json", "--permission-mode", "plan", "{prompt}"],
+  "notes": [
+    "Runs `claude -p --model sonnet --output-format json` (the JSON result carries total_cost_usd, which feeds the spend ledger). Never `--bare`: it turns off plugins, agents and skills, and the docs say it will become the default for -p, so a test pins the command without it.",
+    "ANTHROPIC_API_KEY is injected only into this child's environment (scripts/api_keys.py), after the env scrub. CLAUDE_CONFIG_DIR points at the agent's own folder under the harness user dir (agents-home/claude-api), so it never picks up the Max OAuth login.",
+    "Reviewer and overflow builder only; never lead or sign-off (leadEligible false). The builder is reachable only when the roster rules allow `build` and read_only is false; the defaults do not. The lead applies and commits its work."
+  ],
+  "effortLevels": [
+    "medium"
+  ],
+  "tokenBurn": {
+    "frontier": 8,
+    "standard": 3,
+    "economy": 1
+  }
+}

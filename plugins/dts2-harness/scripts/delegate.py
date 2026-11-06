@@ -10,6 +10,7 @@ from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import agent_rules  # noqa: E402
+import api_keys  # noqa: E402
 import state_io  # noqa: E402
 from profiles import PROFILE_DIR, Profiles  # noqa: E402
 
@@ -221,6 +222,8 @@ def delegate(
     effort: str | None = None, task_class: str | None = None, rules: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     check_inputs(seat, complexity, budget)
+    if seat == "signoff" and profile.get("leadEligible") is False:
+        raise DelegationError(f"agent '{profile['name']}' is an API-key agent and never fills the signoff seat")
     skipped: list[dict[str, str]] = []
     chosen: dict[str, Any] = pick_profile(profile, seat, lead_provider, profiles, task_class, None, rules, skipped, complexity, budget)
     tier, planned = seat_plan(chosen, seat, complexity, budget)
@@ -229,6 +232,8 @@ def delegate(
         "agent": chosen["name"], "seat": seat, "model": chosen["models"][tier], "tier": tier,
         "effort": resolved, "tokenBurn": chosen.get("tokenBurn", {}).get(tier),
     }
+    if chosen.get("keyRequired") is True:
+        result["credential"] = api_keys.source_label(chosen)
     return {**result, "skipped": skipped} if skipped else result
 
 
@@ -251,12 +256,15 @@ def tier_of_model(profile: dict[str, Any], model: str | None) -> str | None:
     return None
 
 
-def receipt_line(profile: dict[str, Any], seat: str, effort: str, model: str | None = None) -> str:
-    """One Delegation row: model, tier, and effort. An unpinned codex default reports as standard."""
+def receipt_line(profile: dict[str, Any], seat: str, effort: str, model: str | None = None, credential: str | None = None) -> str:
+    """One Delegation row: model, tier, and effort. An unpinned codex default reports as standard. A key agent's row also
+    names its credential source (`keyring`, `env:XAI_API_KEY`...), never the key."""
     shown: str = observed_model(profile, model) or "unpinned"
     tier: str | None = tier_of_model(profile, model)
     tier_bit: str = f" tier={tier}" if tier else ""
-    return f"- {profile['name']} {shown}{tier_bit} effort={effort} ({seat})"
+    source: str | None = credential or (api_keys.source_label(profile) if profile.get("keyRequired") is True else None)
+    cred_bit: str = f" credential={source}" if source else ""
+    return f"- {profile['name']} {shown}{tier_bit} effort={effort}{cred_bit} ({seat})"
 
 
 def load_profiles(profile_dir: Path | None = None) -> dict[str, dict[str, Any]]:

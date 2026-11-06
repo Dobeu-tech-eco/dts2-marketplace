@@ -251,8 +251,9 @@ class Profiles:
         return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else default
 
     def lead_eligible(self) -> list[str]:
-        """Names that can fill advisory and sign-off seats (a reviewer or an independent second opinion), sorted."""
+        """Names that can fill advisory and sign-off seats (a reviewer or an independent second opinion), sorted. A profile with
+        `leadEligible: false` (the API-key agents) is never one: it neither leads nor signs off, nor takes over as lead."""
         return sorted(
             name for name, profile in self._data.items()
-            if any(role in (profile.get("roles") or []) for role in ADVISORY_ROLES)
+            if profile.get("leadEligible") is not False and any(role in (profile.get("roles") or []) for role in ADVISORY_ROLES)
         )
