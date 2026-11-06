@@ -22,6 +22,9 @@ LOCAL_FILE: Final[str] = ".claude/dts2-harness.local.md"
 CACHE_FILE: Final[str] = state_io.SETTINGS_CACHE_REL
 CACHE_MODE: Final[int] = 0o600
 SCHEMA_VERSION: Final[int] = 2
+AUTONOMY_KEY: Final[str] = "autonomy"
+AUTONOMY_UNATTENDED: Final[str] = "unattended"
+UNLIMITED_LOOPS: Final[int] = 1_000_000
 # section -> key -> (type, default). The defaults are the ones model_call.py and lanes.py already used.
 SCHEMA: Final[dict[str, dict[str, tuple[type, Any]]]] = {
     "budget": {
@@ -84,10 +87,14 @@ def build(repo: Path) -> dict[str, dict[str, Any]]:
         "supervisor": config.get("supervisor") if isinstance(config.get("supervisor"), dict) else {},
         "local": local,
     }
-    return {
+    settings: dict[str, dict[str, Any]] = {
         section: {key: typed(sources[section], key, kind, default) for key, (kind, default) in keys.items()}
         for section, keys in SCHEMA.items()
     }
+    autonomy: Any = config.get(AUTONOMY_KEY)
+    if isinstance(autonomy, str) and autonomy.strip().lower() == AUTONOMY_UNATTENDED:
+        settings["budget"]["max_fullauto_loops"] = UNLIMITED_LOOPS  # unattended: loop_guard stops the loop instead
+    return settings
 
 
 def read_cache(repo: Path, key: dict[str, list[int]]) -> dict[str, dict[str, Any]] | None:
