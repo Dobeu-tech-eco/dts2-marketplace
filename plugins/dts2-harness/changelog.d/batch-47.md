@@ -1,0 +1,5 @@
+### Added
+
+- Agents: user and project agent profiles. `Profiles.load()` merges the bundled profiles, then `~/.dts2/agents/*.json` (override with `DTS2_USER_AGENTS_DIR`), then `.harness/agents/*.json`; later layers win field by field, and `extends: <name>` deep-merges a parent profile (a cycle or missing parent drops that profile with a warning). `layer_of(name)` reports the layer. A profile may carry `apiKeyRef` (`keyring:`, `op://`, `doppler:` or `env:` pointer); a profile holding something that looks like a raw key (`sk-`, `xai-`) is rejected.
+- Roster: any merged profile name resolves, and a roster entry may set `profile: <name>`. New `roster.py list [--json]`, `add` (name check, collision exits 2 naming the layer, `--edit-existing`), `rename OLD NEW` (rewrites the profile, roster entries and other profiles' `extends` and `fallback`) and `suggest-name`. Name rules (kebab-case, 2-32 characters, reserved words, `<base>-api` suggestions) live in `scripts/agent_names.py`.
+- Skills: `/dts2:model` gains an "Add or rename an agent" flow; `/dts2:onboard` points API-key agents to it.
