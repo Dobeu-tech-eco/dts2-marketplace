@@ -9,6 +9,7 @@ Every subcommand prints one JSON object.
   sweep add     [--ledger FILE] --repo NAME --verdict V --confidence C --score N --reason TEXT --salvage TEXT [--report PATH]
   sweep show    --ledger FILE                                 the ledger rows (best score first) plus a markdown table
   archive       --repo OWNER/NAME                             gh repo archive (reversible)
+  panel-tally   --plans SEAT=FILE ... [--votes SEAT=FILE ...] [--record DIR --round N]   three-seat panel: majority verdict and cross-review votes
   backup        --repo OWNER/NAME [--dest DIR]                mirror clone, git bundle, bundle verify
   delete        --repo OWNER/NAME --confirm NAME --bundle PATH  one repo per call; refused without the typed name and a verified bundle
 gh and git run through DTS2_GH_BIN and DTS2_GIT_BIN."""
@@ -376,7 +377,16 @@ def bad_repo(repo: str) -> int:
 
 
 def verify_bundle(bundle: Path) -> tuple[bool, str]:
-    done = run_tool([*binary(ENV_GIT, "git"), "bundle", "verify", str(bundle)])
+    """`git bundle verify` needs a repository; run it in a scratch one so it works from any cwd. The bare skeleton is written
+    directly (HEAD, objects, refs) because git accepts it as a repo and it needs no extra git call."""
+    scratch: Path = Path(tempfile.mkdtemp(prefix="dts2-verify-"))
+    try:
+        (scratch / "objects").mkdir()
+        (scratch / "refs").mkdir()
+        (scratch / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+        done = run_tool([*binary(ENV_GIT, "git"), "bundle", "verify", str(bundle.absolute())], cwd=scratch)
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
     return done.returncode == 0, tail(done.stderr or done.stdout)
 
 
@@ -390,9 +400,9 @@ def cmd_archive(args: argparse.Namespace) -> int:
 
 def backup_dest(flag: str | None) -> Path:
     if flag:
-        return Path(flag)
+        return Path(flag).expanduser().resolve()
     home: str = os.environ.get(ENV_HOME) or str(Path.home() / DEFAULT_HOME_DIR)
-    return Path(home) / BACKUP_DIR
+    return (Path(home).expanduser() / BACKUP_DIR).resolve()
 
 
 def cmd_backup(args: argparse.Namespace) -> int:
@@ -446,6 +456,107 @@ def cmd_delete(args: argparse.Namespace) -> int:
     return EXIT_OK if done.returncode == 0 else EXIT_REPORT
 
 
+# ---- panel ---------------------------------------------------------------------------------------------------------
+
+PLAN_LINE: Final[re.Pattern[str]] = re.compile(
+    r"^VERDICT:\s*(KEEP|FOLD(?:\s+INTO\b.*)?|(?:SELL\s+AS\s+)?TEMPLATE|ARCHIVE|DELETE)\s*$", re.IGNORECASE)
+VOTE_LINE: Final[re.Pattern[str]] = re.compile(r"^VOTE\s+([A-Za-z0-9_.-]+):\s*(AGREE|DISAGREE)\s*$", re.IGNORECASE | re.MULTILINE)
+NO_MAJORITY: Final[str] = "no-majority"
+PANEL_MIN: Final[int] = 2
+
+
+def plan_verdict(text: str) -> str | None:
+    """The plan's first line as one of VERDICTS ("FOLD INTO x" is FOLD, "SELL AS TEMPLATE" is TEMPLATE), or None."""
+    match = PLAN_LINE.match(mdparse.first_line(text))
+    return None if match is None else ("FOLD" if match.group(1).upper().startswith("FOLD") else match.group(1).upper().split()[-1])
+
+
+def seat_files(pairs: list[str]) -> tuple[dict[str, Path], list[str]]:
+    files: dict[str, Path] = {}
+    problems: list[str] = []
+    for pair in pairs:
+        seat, sep, path = pair.partition("=")
+        if not sep or not NAME_PATTERN.match(seat) or not path:
+            problems.append(f"expected SEAT=FILE, got {pair!r}")
+        elif seat in files:
+            problems.append(f"seat {seat!r} given twice")
+        else:
+            files[seat] = Path(path)
+    return files, problems
+
+
+def panel_tally(plans: dict[str, Path], votes: dict[str, Path]) -> dict[str, Any]:
+    """Majority verdict of the panel plans (a plan counts only with a strict first-line VERDICT) and, when given, the cross-review
+    votes: every seat casts one `VOTE <seat>: AGREE|DISAGREE` line per other plan. The round passes when the plans are unanimous
+    and nobody disagrees."""
+    problems: list[str] = [] if len(plans) >= PANEL_MIN else [f"need at least {PANEL_MIN} plans, got {len(plans)}"]
+    verdicts: dict[str, str] = {}
+    for seat, path in plans.items():
+        verdict: str | None = plan_verdict(path.read_text(encoding=ENCODING)) if path.is_file() else None
+        if verdict is None:
+            problems.append(f"plan of {seat!r} has no strict first line 'VERDICT: KEEP|FOLD INTO <repo>|SELL AS TEMPLATE|ARCHIVE|DELETE'")
+        else:
+            verdicts[seat] = verdict
+    agree = disagree = 0
+    if votes:
+        for voter in plans:
+            if voter not in votes:
+                problems.append(f"no vote file for seat {voter!r}")
+        for voter, path in votes.items():
+            cast = VOTE_LINE.findall(path.read_text(encoding=ENCODING)) if path.is_file() and voter in plans else []
+            targets: list[str] = sorted(seat for seat, _ in cast)
+            if targets != sorted(seat for seat in plans if seat != voter):
+                problems.append(f"votes of {voter!r} must name each other seat exactly once, got {targets}")
+                continue
+            agree += sum(1 for _, how in cast if how.upper() == "AGREE")
+            disagree += sum(1 for _, how in cast if how.upper() == "DISAGREE")
+    if problems:
+        return {"ok": False, "problems": problems}
+    counts: dict[str, int] = {v: list(verdicts.values()).count(v) for v in VERDICTS if v in verdicts.values()}
+    top: str = max(counts, key=lambda v: counts[v])
+    majority: bool = counts[top] * 2 > len(verdicts) and sum(1 for n in counts.values() if n == counts[top]) == 1
+    unanimous: bool = len(counts) == 1
+    return {"ok": True, "verdict": top if majority else NO_MAJORITY, "unanimous": unanimous, "counts": counts, "plans": verdicts,
+            "agree": agree, "disagree": disagree, "pass": bool(votes) and unanimous and disagree == 0}
+
+
+ENTRY_ORDER: Final[re.Pattern[str]] = re.compile(r"^(\d+)-")
+
+
+def record_round(folder: Path, number: int, result: dict[str, Any]) -> list[str]:
+    """One council-format entry per seat (`<NN>-plan-r<round>-<seat>.md`, first line `VOTE: APPROVE|REJECT`) so that
+    `council.py eligible` sees the round: every seat approves a passed round and rejects a failed one."""
+    folder.mkdir(parents=True, exist_ok=True)
+    used: list[int] = [int(m.group(1)) for p in folder.glob("*.md") if (m := ENTRY_ORDER.match(p.name))]
+    order: int = max(used, default=0)
+    vote: str = "APPROVE" if result["pass"] else "REJECT"
+    body: str = f"Panel round {number}: verdict {result['verdict']}, plans {json.dumps(result['counts'], sort_keys=True)}, " \
+        f"agree {result['agree']}, disagree {result['disagree']}.\n"
+    written: list[str] = []
+    for seat in result["plans"]:
+        order += 1
+        entry: Path = folder / f"{order:02d}-plan-r{number}-{seat}.md"
+        entry.write_text(f"VOTE: {vote}\n\n{body}", encoding=ENCODING)
+        written.append(str(entry))
+    return written
+
+
+def cmd_panel_tally(args: argparse.Namespace) -> int:
+    plans, bad_plans = seat_files(args.plans)
+    votes, bad_votes = seat_files(args.votes or [])
+    if bad_plans or bad_votes:
+        emit({"ok": False, "problems": bad_plans + bad_votes})
+        return EXIT_REFUSED
+    result: dict[str, Any] = panel_tally(plans, votes)
+    if result["ok"] and args.record:
+        if args.round is None or args.round < 1:
+            emit({"ok": False, "problems": ["--record needs --round N (1 or more)"]})
+            return EXIT_REFUSED
+        result["recorded"] = record_round(Path(args.record), args.round, result)
+    emit(result)
+    return EXIT_OK if result["ok"] else EXIT_REFUSED
+
+
 # ---- CLI -----------------------------------------------------------------------------------------------------------
 
 def build_parser() -> argparse.ArgumentParser:
@@ -479,6 +590,11 @@ def build_parser() -> argparse.ArgumentParser:
     add.add_argument("--score", type=int, required=True)
     add.add_argument("--report", default=None)
     sweep.add_parser("show").add_argument("--ledger", required=True)
+    pt = sub.add_parser("panel-tally")
+    pt.add_argument("--plans", nargs="+", required=True)
+    pt.add_argument("--votes", nargs="+", default=None)
+    pt.add_argument("--record", default=None)
+    pt.add_argument("--round", type=int, default=None)
     sub.add_parser("archive").add_argument("--repo", required=True)
     b = sub.add_parser("backup")
     b.add_argument("--repo", required=True)
@@ -501,6 +617,8 @@ def main() -> int:
         return cmd_scorecard(args)
     if args.cmd == "sweep":
         return cmd_sweep_add(args) if args.sweep_cmd == "add" else cmd_sweep_show(args)
+    if args.cmd == "panel-tally":
+        return cmd_panel_tally(args)
     if args.cmd == "archive":
         return cmd_archive(args)
     if args.cmd == "backup":
