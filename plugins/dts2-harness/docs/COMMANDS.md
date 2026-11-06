@@ -126,7 +126,7 @@ Invocation shown without the prefix `python3 -I "$CLAUDE_PLUGIN_ROOT/scripts/`; 
 | `repo-size.py` | either | Size repos and recommend a team tier. | `repo-size.py [repos ...] [--max-builders N] [--json]` | none |
 | `review_split.py` | head | Above a line threshold, split a diff into path-group slices, one reviewer each. | `review_split.py plan --base B [--repo R --threshold N --max-reviewers N]` | none |
 | `rollback_ref.py` | head | Pin `refs/dts2/<stamp>/base` and print the human-run Rollback line. Rolls nothing back. | `rollback_ref.py create\|line --stamp S [--repo R] [--sha S]` | git ref (`create`) |
-| `roster.py` | either | Detect installed coding agents and resolve the roster into seats. | `roster.py detect [--project P] \| resolve [--config C] \| probe [--config C] \| model --agent A --tier T \| command --agent A --role R [--tier --effort --prompt-file --workspace --model] \| classify --agent A --role R --exit-code N [--axis --usable]` | none |
+| `roster.py` | either | Detect installed coding agents and resolve the roster into seats. | `roster.py detect [--project P] \| resolve [--config C] \| probe [--config C] \| model --agent A --tier T \| command --agent A --role R [--tier --effort --prompt-file --workspace --model] \| classify --agent A --role R --exit-code N [--axis --usable] \| list [--config C --json] \| add --name N --extends B [--auth --api-key-ref --scope --display-name --roles --edit-existing] \| rename OLD NEW \| suggest-name --base B` | project or user agent profile JSON, `.harness/config.yaml` roster |
 | `run_metrics.py` | either | Run metrics with lanes, tokens, wall-clock. | `run_metrics.py plan-check <manifest> \| record <repo> --stamp S --rounds N --duration D --verdict V --lanes N --tokens N --wall-clock-s N [--agents --failures --size-class]` | metrics file |
 | `run_report.py` | either | Markdown table of one run; same view as `lanes.py report`. | `run_report.py <stamp> [--runs-dir D] [--repo-url U]` | none |
 | `scope-check.py` | either | Detect workspace root, member, single repo or none; `--lessons` adds matching lessons. | `scope-check.py [path] [--lessons] [--files F]` | none |
@@ -148,7 +148,7 @@ Invocation shown without the prefix `python3 -I "$CLAUDE_PLUGIN_ROOT/scripts/`; 
 
 Also outside `scripts/`: `sdk/dts2-run.py <task> [--repo R] [--yes] [--api-key-env V] [--second-opinion none|codex|gemini] [--ship] [--live-only]` (headless pipeline, run by the `sdk` skill) and `evals/run.py [--fixture F] [--baseline B] [--results-dir D] [--update-baseline] [--runs N] [--arm-b-env VAR=VAL]` (smoke evals; by hand). The root `Makefile` has `make test`, `make doctor`, `make check-version` and `make package`.
 
-Library modules, not invoked directly (15): `_load.py`, `contracts.py`, `eval_stats.py`, `harness_skew.py`, `mdparse.py`, `miniyaml.py`, `model_call.py`, `ownership_audit.py`, `prep-tiers.py`, `proc.py`, `profiles.py`, `skill_pins.py`, `son_launch.py`, `son_stream.py`, `state_ids.py`. The modules of `scripts/lanes/` are libraries behind `lanes.py` and have no command line either.
+Library modules, not invoked directly (16): `_load.py`, `agent_names.py`, `contracts.py`, `eval_stats.py`, `harness_skew.py`, `mdparse.py`, `miniyaml.py`, `model_call.py`, `ownership_audit.py`, `prep-tiers.py`, `proc.py`, `profiles.py`, `skill_pins.py`, `son_launch.py`, `son_stream.py`, `state_ids.py`. The modules of `scripts/lanes/` are libraries behind `lanes.py` and have no command line either.
 
 ## 4. Skills (26 slash commands)
 
@@ -173,7 +173,7 @@ Typed as `/dt:<name>`. `user only` means `disable-model-invocation: true`: the m
 | `/dt:dpp-full` | user only | `dpp --full`: also fills lanes from a delegation scan and keeps dispatching. | `/dt:dpp-full` | as `dpp` |
 | `/dt:fullauto` | user only | `dpp-full` with autopilot forced on, looping check-in until nothing is outstanding. | `/dt:fullauto` | as `dpp` |
 | `/dt:check-in` | user or model | Read-only progress against the approved end state: `N of M complete`. `all` reports check-in items from every session on the machine and, after a yes, asks them for fresh ones. | `/dt:check-in [all [--since 24h]]` | none (broadcast inbox on a yes) |
-| `/dt:model` | user only | Choose which agent provider fills the lead, advisory and sign-off seats; records `lead_provider`. | `/dt:model` | settings file |
+| `/dt:model` | user only | Choose which agent provider fills the lead, advisory and sign-off seats; records `lead_provider`. Also adds or renames a named agent such as `grok-api` (`roster.py add`, `rename`; profiles in `~/.dts2/agents` or `.harness/agents`, key kept as a reference only). | `/dt:model` | settings file, agent profile, roster |
 | `/dt:cooldown` | user only | Pause an agent that hit a usage limit until its reset date, resume it, or list what is paused. | `/dt:cooldown set <agent> <date or duration> [reason] \| clear <agent> \| list` | agent status file |
 | `/dt:fleet` | user or model | See every harness session on this computer; read status, logs and ledgers without interrupting them; broadcast a note, handoff, pause or knowledge finding to all (confirms first). | `/dt:fleet list \| show <ref> \| logs <ref> [-n N] \| broadcast --kind K --text T [--to ...] \| status [<id>] \| label <ref> <name> \| prune` | fleet home (`~/.dts2/fleet`) |
 | `/dt:knowledge` | user only | Keep your own standing preferences, glossary terms and cross-project learnings in a private store that syncs across devices (private GitHub repo, Cloudflare Worker + D1, or a drive-synced folder). | `setup \| join \| set <key> <value> \| get <key> \| find <text> \| list \| rm <key> \| sync \| status` | personal knowledge store |
@@ -278,12 +278,12 @@ lanes base-health <stamp>
 lanes merge-mutex <stamp> --lane a --op acquire
 lanes audit lanes.json a --head <sha>
 lanes merge-go lanes.json --lane a --head <sha>
-gh pr merge <pr> --merge
+gh pr merge <pr> --merge   # or, under the standing grant: gh pr merge <pr> --squash --match-head-commit <sha>
 lanes merge-mutex <stamp> --lane a --op release
 lanes merge-done lanes.json --lane a
 ```
 
-`gh pr merge` passes the merge guard only because `merge-go.md` now names the head and base commit; the policy gate also needs the person's approval for the merge. After a failed post-merge walkthrough run `lanes walkthrough-failed <stamp> --lane a --reason "<why>"` and `lanes fix-attempt <stamp> --lane a --reason "<why>"`.
+`gh pr merge` passes the merge guard only because `merge-go.md` now names the head and base commit; the policy gate also needs the person's approval for the merge. The policy gate admits the merge on one of two paths. Per PR: the PR number under `dts2_approvals.merge`. Standing: once, add `"merge_policy": ["auto-when-green"]` under `dts2_approvals` in `.claude/settings.local.json` (human-only), and set a ruleset or branch protection on the default branch that requires the test and lint checks; the agent then runs `gh pr merge <n> --squash --match-head-commit <sha>` after `merge-go-step`, once it has confirmed every required check is green on that head. GitHub native auto-merge is never armed (`--auto` is refused). The gate also refuses the merge when the sha is not the granted head or the live head, the PR touches `.github/workflows`, `policy.json`, settings files, `.env*` or migrations (`auto_merge_never_paths`), the base has no required checks, a required check is pending, failing or missing, or any lookup fails. After a failed post-merge walkthrough run `lanes walkthrough-failed <stamp> --lane a --reason "<why>"` and `lanes fix-attempt <stamp> --lane a --reason "<why>"`.
 
 4. Publish a finished lane (head only; refused in a son, a voter or a council seat).
 

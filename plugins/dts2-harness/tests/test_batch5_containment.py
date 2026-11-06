@@ -171,7 +171,7 @@ class ApprovalTests(unittest.TestCase):
 
     def test_marker_path_and_kinds(self) -> None:
         self.assertEqual(approvals.human_marker_path(self.repo), self.repo / ".claude" / "settings.local.json")
-        self.assertEqual(set(approvals.KINDS), {"recorded_yes", "unsafe_no_sandbox", "blocked_pr_done", "lane_override", "merge"})
+        self.assertEqual(set(approvals.KINDS), {"recorded_yes", "unsafe_no_sandbox", "blocked_pr_done", "lane_override", "merge", "merge_policy"})
 
     def test_nothing_is_approved_without_the_file(self) -> None:
         self.assertFalse(approvals.is_human_approved("merge", "42", self.repo))
