@@ -1,0 +1,15 @@
+### Fixed
+
+- Rules: a roster entry that points at a profile (`name: scout, profile: grok`) now runs under its own name. Its rules, `DTS2_AGENT`, declared auth and spend ledger use `scout`, not `grok`, so `read_only`, caps and an explicit `rules:` block apply. The underlying profile still supplies the binary and commands.
+- Profiles: an untrusted project profile can no longer set `readOnlyCommand`, `readOnlyRoles`, `budgetFlag`, `tierEffort`, `apiKeyRef`, `homeEnv`, `homeFiles`, `keyRequired`, `leadEligible` or `auth`; they are dropped with a warning unless the project is trusted.
+- Launch: a read-only agent can now run the `second-opinion` role when its profile lists `reviewer` under `readOnlyRoles`, because a second opinion runs the reviewer command.
+- Runtime: `paths_deny` now matches relative paths after `..` and `./` are resolved, so `src/../infra/main.tf` is denied by `infra/**`. A path outside the repo is still compared as written.
+- Launch: `roster.py exec` reads project profiles and the roster from `--workspace` instead of the current folder, follows a roster entry's `profile:` pointer, and keeps the roster name for rules, env and the spend ledger.
+- Profiles: `defaultModel` joins the executable fields an untrusted project profile cannot set. An untrusted project profile that names a bundled API-key agent (`keyRequired`) or a non-lead agent (`leadEligible: false`) is ignored with a warning, so it cannot change that agent's auth, key reference, home folder or lead eligibility.
+- Rules: a roster entry with `auth: subscription` on an API-key profile no longer removes its rules; an API-key profile always runs as `api-key`, in launch, dispatch and the policy gate.
+- Launch: `roster.py command` no longer prints a real API key. Credential variables in `clean_env` read `<redacted>`, and any launch that carries a key goes through `roster.py exec`.
+- Runtime: the policy gate applies the API-key default rules to an API-key agent that has no roster entry, and denies an API-key agent when the roster config exists but cannot be read.
+- Launch: `roster.py exec` refuses (exit 2) when the agent's daily cost cap is spent or its model tier is above `max_tier`, and warns when `max_cost_usd_per_run` is set but the profile has no budget flag, so only the daily cap is enforced.
+- Rules: the launch path now takes a profile's auth through one helper, so an API-key profile (`keyRequired`) is `api-key` for rules, spend and the launch environment even when its roster entry says `auth: subscription`; it stays read-only with deploy, merge and release denied.
+- Launch: argv templates accept a `{pluginRoot}` placeholder (the absolute plugin folder, the parent of `scripts/`). The `claude-api` profile passes `--plugin-dir {pluginRoot}` in its command and every role command, so the policy gate loads under its private `CLAUDE_CONFIG_DIR`.
+- The policy gate now follows a roster alias's `profile:` pointer, so an alias of an API-key agent (for example `scout` pointing at `claude-api` with `auth: subscription`) is restricted at tool time exactly as it is at launch.

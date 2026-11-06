@@ -35,6 +35,8 @@ REQUIRED_KEYS: Final[tuple[str, ...]] = ("roles", "invocation", "costTier", "sta
 EXECUTABLE_KEYS: Final[tuple[str, ...]] = (
     "command", "statusCommand", "loginCommand", "roleCommand", "roleCommands", "invocation", "env", "searchPaths",
     "stdin", "headlessFlag", "apiKeyEnv", "rulesFile", "binary", "bin", "path", "cwd",
+    "readOnlyCommand", "readOnlyRoles", "budgetFlag", "tierEffort", "apiKeyRef", "homeEnv", "homeFiles",
+    "keyRequired", "leadEligible", "auth", "defaultModel",
 )
 
 
@@ -86,6 +88,11 @@ def strip_executable(data: dict[str, Any], path: Path, warnings: list[str]) -> d
         f" (list the project in {trusted_projects_file()} to allow them)"
     )
     return {key: value for key, value in data.items() if key not in dropped}
+
+
+def protected(profile: dict[str, Any] | None) -> bool:
+    """A profile the rules depend on: an API-key agent (`keyRequired`) or one that never leads (`leadEligible: false`)."""
+    return bool(profile) and (profile.get("keyRequired") is True or profile.get("leadEligible") is False)  # type: ignore[union-attr]
 
 
 def deep_merge(base: dict[str, Any], over: dict[str, Any]) -> dict[str, Any]:
@@ -196,6 +203,10 @@ class Profiles:
         trusted: bool = not use_layers or trusted_project(project)
         for layer, folder in folders:
             for name, data in read_layer(folder, layer, warnings, trusted).items():
+                if layer == PROJECT and not trusted and protected(raw.get(name)) and set(data) - {"name"}:
+                    warnings.append(f"project profile '{name}': ignored, it would change an API-key or non-lead agent "
+                                    f"(list the project in {trusted_projects_file()} to allow it)")
+                    continue
                 raw[name] = deep_merge(raw[name], data) if name in raw else dict(data)
                 origins.setdefault(name, []).append(layer)
         profiles: Profiles = cls(resolve_extends(raw, origins, warnings))

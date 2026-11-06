@@ -227,7 +227,7 @@ class SdkRunnerTests(unittest.TestCase):
         source = {"PATH": "/usr/bin", "ANTHROPIC_API_KEY": "k", "ANTHROPIC_AUTH_TOKEN": "t", "CLAUDE_CODE_OAUTH_TOKEN": "o",
                   "GH_TOKEN": "g", "CODEX_API_KEY": "ok"}
         with mock.patch.dict(os.environ, source, clear=True):
-            env = self.runner.second_opinion_env({"ANTHROPIC_API_KEY": "from-profile"})
+            env = self.runner.second_opinion_env({"ANTHROPIC_API_KEY": "from-profile"}, "codex-api")
         self.assertEqual({k for k in env if k.startswith(("ANTHROPIC", "CLAUDE_CODE", "GH_"))}, set())
         self.assertEqual(env["CODEX_API_KEY"], "ok")
 

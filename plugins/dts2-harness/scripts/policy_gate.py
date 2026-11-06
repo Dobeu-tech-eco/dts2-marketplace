@@ -539,9 +539,12 @@ def tool_path(payload: dict[str, Any], key: str) -> str:
 
 
 def relative_path(path: str, cwd: Path) -> str:
-    """`path` relative to the repo when it sits inside it, so `paths_deny` globs written for the repo match absolute paths."""
+    """`path` relative to the repo when it sits inside it (`..` and `./` resolved), so `paths_deny` globs written for the repo
+    match absolute and relative spellings alike. A path outside the repo is returned as written."""
     try:
-        return str(Path(path).resolve().relative_to(cwd.resolve())) if Path(path).is_absolute() else path
+        base: Path = cwd.resolve()
+        target: Path = Path(path) if Path(path).is_absolute() else base / path
+        return str(target.resolve().relative_to(base))
     except (ValueError, OSError):
         return path
 
@@ -573,18 +576,51 @@ def call_classes(payload: dict[str, Any], table: dict[str, Any], lines: list[lis
     return list(dict.fromkeys(found))
 
 
-def agent_profile_auth(agent: str, cwd: Path) -> str | None:
+AUTH_API_KEY: Final[str] = "api-key"
+
+
+def agent_profile_of(agent: str, cwd: Path, entry: dict[str, Any] | None = None) -> dict[str, Any]:
+    """The profile behind `agent`: its roster entry's `profile:` pointer when it has one (an alias), else its own name."""
     from profiles import Profiles  # noqa: PLC0415 - only a rules-limited agent needs the profiles
-    profile: dict[str, Any] = Profiles.load(project=cwd).get(agent) or {}
+    pointer: Any = (entry or {}).get("profile")
+    return Profiles.load(project=cwd).get(pointer if isinstance(pointer, str) and pointer else agent) or {}
+
+
+def agent_profile_auth(agent: str, cwd: Path) -> str | None:
+    """`api-key` for an API-key profile whatever its roster entry says, else the profile's own `auth`."""
+    profile: dict[str, Any] = agent_profile_of(agent, cwd)
+    if profile.get("keyRequired") is True:
+        return AUTH_API_KEY
     return profile.get("auth") if isinstance(profile.get("auth"), str) else None
 
 
+def unreadable(config: Path) -> bool:
+    """True when the config exists but cannot be read as text."""
+    try:
+        config.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return False
+    except (OSError, ValueError):
+        return True
+    return False
+
+
 def agent_denial(payload: dict[str, Any], cwd: Path, policy: dict[str, Any], agent: str) -> str | None:
-    """The reason the rules of agent `agent` refuse this tool call, or None. An agent with no rules is not restricted."""
+    """The reason the rules of agent `agent` refuse this tool call, or None. An agent with no rules is not restricted; an
+    API-key agent missing from the roster (or whose roster cannot be read) gets the API-key defaults."""
     config: Path = cwd / state_io.CONFIG_REL
-    if agent_rules.entry_for(agent, config) is None:
+    if unreadable(config):
+        profile: dict[str, Any] = agent_profile_of(agent, cwd)
+        limited: bool = profile.get("keyRequired") is True or profile.get("auth") == AUTH_API_KEY
+        return f"agent-rules: {agent}: the roster config cannot be read" if limited else None
+    entry: dict[str, Any] | None = agent_rules.entry_for(agent, config)
+    profile = agent_profile_of(agent, cwd, entry)
+    if entry is None and profile.get("keyRequired") is True:
+        entry = {"name": agent, "auth": None, "rules": {}}
+    if entry is None:
         return None
-    rules: dict[str, Any] = agent_rules.agent_rules(agent, config, agent_profile_auth(agent, cwd))
+    auth: str | None = AUTH_API_KEY if profile.get("keyRequired") is True else (entry.get("auth") or profile.get("auth"))
+    rules: dict[str, Any] = agent_rules.effective_rules(entry, auth)
     if not rules:
         return None
     command: str = guard.command_of(payload)

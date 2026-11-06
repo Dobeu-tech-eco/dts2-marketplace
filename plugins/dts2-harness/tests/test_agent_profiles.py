@@ -276,7 +276,7 @@ class RosterTests(Workspace):
         self.assertEqual(rows["grok-pay"]["base"], "grok")
         self.assertEqual(rows["grok-pay"]["layer"], "project")
         self.assertEqual(rows["grok-pay"]["auth"], "api-key")
-        self.assertEqual(rows["grok-pay"]["rules"], "ro review,docs,research \u2264standard $0.5/$5")  # the api-key defaults
+        self.assertEqual(rows["grok-pay"]["rules"], "ro review,docs,research \u2264standard no-secrets $0.5/$5")  # the api-key defaults
         self.assertEqual(rows["grok"]["rules"], "-")
         self.assertEqual(rows["grok-pay"]["spent_today"], "-")
         self.assertTrue(rows["grok-pay"]["inRoster"])
@@ -323,7 +323,7 @@ class FindingTests(Workspace):
         config = str(self.config)
         done = self.run_script("roster.py", "command", "--agent", "scout-grok", "--role", "builder", "--config", config)
         self.assertEqual(done.returncode, 0, done.stderr)
-        self.assertEqual(json.loads(done.stdout)["agent"], "grok")
+        self.assertEqual(json.loads(done.stdout)["agent"], "scout-grok")  # the roster name, so its rules apply
         model = self.run_script("roster.py", "model", "--agent", "scout-grok", "--tier", "standard", "--config", config)
         self.assertEqual(model.returncode, 0, model.stderr)
         direct = self.run_script("roster.py", "model", "--agent", "grok", "--tier", "standard", "--config", config)

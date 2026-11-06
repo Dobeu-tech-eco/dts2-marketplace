@@ -396,8 +396,8 @@ class ProviderEnvTests(unittest.TestCase):
             data = roster.resolve_command(roster.load_profiles()["codex"], "builder", "standard", prompt, prompt.parent)
         self.assertEqual(set(data["clean_env"]) & {"GH_TOKEN", "SSH_AUTH_SOCK", "AWS_SECRET_ACCESS_KEY", "ANTHROPIC_API_KEY",
                                                    "GEMINI_API_KEY"}, set())
-        self.assertEqual(data["clean_env"]["CODEX_API_KEY"], "ok")
-        self.assertTrue(data["shell"].startswith("env -i "))
+        self.assertEqual(data["clean_env"]["CODEX_API_KEY"], "<redacted>")  # the key never rides in the printed plan
+        self.assertIn(" exec ", data["shell"])  # a key-bearing launch goes through `roster.py exec`
         self.assertNotIn("GH_TOKEN", data["shell"])
 
     def test_sdk_second_opinion_env_is_clean(self) -> None:
