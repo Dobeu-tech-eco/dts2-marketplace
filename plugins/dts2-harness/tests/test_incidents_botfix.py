@@ -124,13 +124,13 @@ class KnowledgeSearchTests(unittest.TestCase):
         ids = [re.match(r"- \[(K-\w+)\]", line).group(1) for line in lines]  # type: ignore[union-attr]
         self.assertEqual(ids, ["K-a1", "K-d4"])
 
-    def test_cap_of_three(self) -> None:
+    def test_lines_are_uncapped_here(self) -> None:
         home = make_tmp_home()
         fake = home / "knowledge.py"
         rows = [{"key": f"k{i}", "value": f"Rule {i}", "kind": "learning", "tags": []} for i in range(6)]
         fake.write_text(f"import json\nprint(json.dumps({rows!r}))\n", encoding="utf-8")
         with unittest.mock.patch.dict(os.environ, {"DTS2_KNOWLEDGE_SCRIPT": str(fake), "DTS2_KNOWLEDGE": "cf"}):
-            self.assertEqual(len(learn.knowledge_lines("builder src/x.py")), 3)
+            self.assertEqual(len(learn.knowledge_lines("builder src/x.py")), 6)  # select() applies the cap
 
 
 if __name__ == "__main__":
