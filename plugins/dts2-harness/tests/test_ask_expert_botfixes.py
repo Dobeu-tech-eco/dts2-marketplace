@@ -161,6 +161,41 @@ class PanelTallyCase(unittest.TestCase):
             self.assertFalse(out["ok"])
 
 
+class RecordCase(PanelTallyCase):
+    def record(self, number: int, passed: bool, folder: Path) -> dict[str, Any]:
+        plans = [self.plan(s, "VERDICT: KEEP") for s in "abc"]
+        how = "AGREE" if passed else "DISAGREE"
+        votes = [self.votes("a", "VOTE b: AGREE", f"VOTE c: {how}"), self.votes("b", "VOTE a: AGREE", "VOTE c: AGREE"),
+                 self.votes("c", "VOTE a: AGREE", "VOTE b: AGREE")]
+        done = run("panel-tally", "--plans", *plans, "--votes", *votes, "--record", str(folder), "--round", str(number), cwd=self.dir)
+        self.assertEqual(done.returncode, 0, done.stdout)
+        return json.loads(done.stdout)
+
+    def eligible(self, folder: Path) -> dict[str, Any]:
+        done = subprocess.run(["python3", "-I", str(PLUGIN_ROOT / "scripts" / "council.py"), "eligible", "--votes-dir", str(folder)],
+                              capture_output=True, text=True, check=False)
+        return json.loads(done.stdout)
+
+    def test_three_failed_recorded_rounds_make_the_council_eligible(self) -> None:
+        folder: Path = self.dir / "run"
+        for number in (1, 2, 3):
+            self.assertEqual(len(self.record(number, False, folder)["recorded"]), 3)
+        out = self.eligible(folder)
+        self.assertTrue(out["eligible"], out)
+        self.assertEqual(out["failedRounds"], 3)
+
+    def test_a_passed_round_means_no_council(self) -> None:
+        folder: Path = self.dir / "run"
+        self.record(1, False, folder)
+        self.record(2, True, folder)
+        self.assertFalse(self.eligible(folder)["eligible"])
+
+    def test_record_needs_a_round(self) -> None:
+        plans = [self.plan(s, "VERDICT: KEEP") for s in "abc"]
+        done = run("panel-tally", "--plans", *plans, "--record", str(self.dir / "r"), cwd=self.dir)
+        self.assertEqual(done.returncode, 2)
+
+
 class StateDirCase(unittest.TestCase):
     def test_state_dir_comes_from_state_io_only(self) -> None:
         text: str = SCRIPT.read_text(encoding="utf-8")

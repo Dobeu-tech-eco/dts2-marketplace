@@ -9,7 +9,7 @@ Every subcommand prints one JSON object.
   sweep add     [--ledger FILE] --repo NAME --verdict V --confidence C --score N --reason TEXT --salvage TEXT [--report PATH]
   sweep show    --ledger FILE                                 the ledger rows (best score first) plus a markdown table
   archive       --repo OWNER/NAME                             gh repo archive (reversible)
-  panel-tally   --plans SEAT=FILE ... [--votes SEAT=FILE ...]   three-seat panel: majority verdict and cross-review votes
+  panel-tally   --plans SEAT=FILE ... [--votes SEAT=FILE ...] [--record DIR --round N]   three-seat panel: majority verdict and cross-review votes
   backup        --repo OWNER/NAME [--dest DIR]                mirror clone, git bundle, bundle verify
   delete        --repo OWNER/NAME --confirm NAME --bundle PATH  one repo per call; refused without the typed name and a verified bundle
 gh and git run through DTS2_GH_BIN and DTS2_GIT_BIN."""
@@ -520,6 +520,27 @@ def panel_tally(plans: dict[str, Path], votes: dict[str, Path]) -> dict[str, Any
             "agree": agree, "disagree": disagree, "pass": bool(votes) and unanimous and disagree == 0}
 
 
+ENTRY_ORDER: Final[re.Pattern[str]] = re.compile(r"^(\d+)-")
+
+
+def record_round(folder: Path, number: int, result: dict[str, Any]) -> list[str]:
+    """One council-format entry per seat (`<NN>-plan-r<round>-<seat>.md`, first line `VOTE: APPROVE|REJECT`) so that
+    `council.py eligible` sees the round: every seat approves a passed round and rejects a failed one."""
+    folder.mkdir(parents=True, exist_ok=True)
+    used: list[int] = [int(m.group(1)) for p in folder.glob("*.md") if (m := ENTRY_ORDER.match(p.name))]
+    order: int = max(used, default=0)
+    vote: str = "APPROVE" if result["pass"] else "REJECT"
+    body: str = f"Panel round {number}: verdict {result['verdict']}, plans {json.dumps(result['counts'], sort_keys=True)}, " \
+        f"agree {result['agree']}, disagree {result['disagree']}.\n"
+    written: list[str] = []
+    for seat in result["plans"]:
+        order += 1
+        entry: Path = folder / f"{order:02d}-plan-r{number}-{seat}.md"
+        entry.write_text(f"VOTE: {vote}\n\n{body}", encoding=ENCODING)
+        written.append(str(entry))
+    return written
+
+
 def cmd_panel_tally(args: argparse.Namespace) -> int:
     plans, bad_plans = seat_files(args.plans)
     votes, bad_votes = seat_files(args.votes or [])
@@ -527,6 +548,11 @@ def cmd_panel_tally(args: argparse.Namespace) -> int:
         emit({"ok": False, "problems": bad_plans + bad_votes})
         return EXIT_REFUSED
     result: dict[str, Any] = panel_tally(plans, votes)
+    if result["ok"] and args.record:
+        if args.round is None or args.round < 1:
+            emit({"ok": False, "problems": ["--record needs --round N (1 or more)"]})
+            return EXIT_REFUSED
+        result["recorded"] = record_round(Path(args.record), args.round, result)
     emit(result)
     return EXIT_OK if result["ok"] else EXIT_REFUSED
 
@@ -567,6 +593,8 @@ def build_parser() -> argparse.ArgumentParser:
     pt = sub.add_parser("panel-tally")
     pt.add_argument("--plans", nargs="+", required=True)
     pt.add_argument("--votes", nargs="+", default=None)
+    pt.add_argument("--record", default=None)
+    pt.add_argument("--round", type=int, default=None)
     sub.add_parser("archive").add_argument("--repo", required=True)
     b = sub.add_parser("backup")
     b.add_argument("--repo", required=True)
