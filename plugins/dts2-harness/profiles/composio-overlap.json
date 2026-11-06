@@ -1,0 +1,563 @@
+{
+  "version": 1,
+  "note": "Maps a hosted-toolkit slug to enabled local items that duplicate it. Patterns are case-insensitive fnmatch (separators _ and - are equivalent); a pattern without wildcards must match the whole name. Items matching the harness itself, requiredByHarness or a project keep-list are never listed.",
+  "toolkits": {
+    "github": {
+      "plugins": [
+        "github@*",
+        "github-pr@*",
+        "github-*@*",
+        "github-pr-*@*"
+      ],
+      "mcp": [
+        "*github*",
+        "*github-pr*"
+      ],
+      "skills": [
+        "github",
+        "github-pr",
+        "github-*",
+        "github-pr-*"
+      ]
+    },
+    "gitlab": {
+      "plugins": [
+        "gitlab@*",
+        "gitlab-*@*"
+      ],
+      "mcp": [
+        "*gitlab*"
+      ],
+      "skills": [
+        "gitlab",
+        "gitlab-*"
+      ]
+    },
+    "slack": {
+      "plugins": [
+        "slack@*",
+        "slack-*@*"
+      ],
+      "mcp": [
+        "*slack*"
+      ],
+      "skills": [
+        "slack",
+        "slack-*"
+      ]
+    },
+    "notion": {
+      "plugins": [
+        "notion@*",
+        "notion-*@*"
+      ],
+      "mcp": [
+        "*notion*"
+      ],
+      "skills": [
+        "notion",
+        "notion-*"
+      ]
+    },
+    "linear": {
+      "plugins": [
+        "linear@*",
+        "linear-*@*"
+      ],
+      "mcp": [
+        "linear",
+        "linear-*",
+        "*-linear"
+      ],
+      "skills": [
+        "linear",
+        "linear-*"
+      ]
+    },
+    "gmail": {
+      "plugins": [
+        "gmail@*",
+        "google-mail@*",
+        "gmail-*@*",
+        "google-mail-*@*"
+      ],
+      "mcp": [
+        "*gmail*",
+        "*google-mail*"
+      ],
+      "skills": [
+        "gmail",
+        "google-mail",
+        "gmail-*",
+        "google-mail-*"
+      ]
+    },
+    "googlecalendar": {
+      "plugins": [
+        "google-calendar@*",
+        "googlecalendar@*",
+        "gcal@*",
+        "google-calendar-*@*",
+        "googlecalendar-*@*",
+        "gcal-*@*"
+      ],
+      "mcp": [
+        "google-calendar",
+        "google-calendar-*",
+        "*-google-calendar",
+        "googlecalendar",
+        "googlecalendar-*",
+        "*-googlecalendar",
+        "gcal",
+        "gcal-*",
+        "*-gcal"
+      ],
+      "skills": [
+        "google-calendar",
+        "googlecalendar",
+        "gcal",
+        "google-calendar-*",
+        "googlecalendar-*",
+        "gcal-*"
+      ]
+    },
+    "googledrive": {
+      "plugins": [
+        "google-drive@*",
+        "googledrive@*",
+        "gdrive@*",
+        "google-drive-*@*",
+        "googledrive-*@*",
+        "gdrive-*@*"
+      ],
+      "mcp": [
+        "google-drive",
+        "google-drive-*",
+        "*-google-drive",
+        "googledrive",
+        "googledrive-*",
+        "*-googledrive",
+        "gdrive",
+        "gdrive-*",
+        "*-gdrive"
+      ],
+      "skills": [
+        "google-drive",
+        "googledrive",
+        "gdrive",
+        "google-drive-*",
+        "googledrive-*",
+        "gdrive-*"
+      ]
+    },
+    "googledocs": {
+      "plugins": [
+        "google-docs@*",
+        "googledocs@*",
+        "gdocs@*",
+        "google-docs-*@*",
+        "googledocs-*@*",
+        "gdocs-*@*"
+      ],
+      "mcp": [
+        "google-docs",
+        "google-docs-*",
+        "*-google-docs",
+        "googledocs",
+        "googledocs-*",
+        "*-googledocs",
+        "gdocs",
+        "gdocs-*",
+        "*-gdocs"
+      ],
+      "skills": [
+        "google-docs",
+        "googledocs",
+        "gdocs",
+        "google-docs-*",
+        "googledocs-*",
+        "gdocs-*"
+      ]
+    },
+    "googlesheets": {
+      "plugins": [
+        "google-sheets@*",
+        "googlesheets@*",
+        "gsheets@*",
+        "google-sheets-*@*",
+        "googlesheets-*@*",
+        "gsheets-*@*"
+      ],
+      "mcp": [
+        "google-sheets",
+        "google-sheets-*",
+        "*-google-sheets",
+        "googlesheets",
+        "googlesheets-*",
+        "*-googlesheets",
+        "gsheets",
+        "gsheets-*",
+        "*-gsheets"
+      ],
+      "skills": [
+        "google-sheets",
+        "googlesheets",
+        "gsheets",
+        "google-sheets-*",
+        "googlesheets-*",
+        "gsheets-*"
+      ]
+    },
+    "outlook": {
+      "plugins": [
+        "outlook@*",
+        "microsoft-365@*",
+        "ms365@*",
+        "outlook-*@*",
+        "microsoft-365-*@*",
+        "ms365-*@*"
+      ],
+      "mcp": [
+        "*outlook*",
+        "*microsoft-365*",
+        "*ms365*"
+      ],
+      "skills": [
+        "outlook",
+        "microsoft-365",
+        "ms365",
+        "outlook-*",
+        "microsoft-365-*",
+        "ms365-*"
+      ]
+    },
+    "microsoft_teams": {
+      "plugins": [
+        "microsoft-teams@*",
+        "ms-teams@*",
+        "msteams@*",
+        "microsoft-teams-*@*",
+        "ms-teams-*@*",
+        "msteams-*@*"
+      ],
+      "mcp": [
+        "microsoft-teams",
+        "microsoft-teams-*",
+        "*-microsoft-teams",
+        "ms-teams",
+        "ms-teams-*",
+        "*-ms-teams",
+        "msteams",
+        "msteams-*",
+        "*-msteams"
+      ],
+      "skills": [
+        "microsoft-teams",
+        "ms-teams",
+        "msteams",
+        "microsoft-teams-*",
+        "ms-teams-*",
+        "msteams-*"
+      ]
+    },
+    "jira": {
+      "plugins": [
+        "jira@*",
+        "jira-*@*"
+      ],
+      "mcp": [
+        "*jira*"
+      ],
+      "skills": [
+        "jira",
+        "jira-*"
+      ]
+    },
+    "confluence": {
+      "plugins": [
+        "confluence@*",
+        "confluence-*@*"
+      ],
+      "mcp": [
+        "*confluence*"
+      ],
+      "skills": [
+        "confluence",
+        "confluence-*"
+      ]
+    },
+    "asana": {
+      "plugins": [
+        "asana@*",
+        "asana-*@*"
+      ],
+      "mcp": [
+        "*asana*"
+      ],
+      "skills": [
+        "asana",
+        "asana-*"
+      ]
+    },
+    "clickup": {
+      "plugins": [
+        "clickup@*",
+        "clickup-*@*"
+      ],
+      "mcp": [
+        "*clickup*"
+      ],
+      "skills": [
+        "clickup",
+        "clickup-*"
+      ]
+    },
+    "airtable": {
+      "plugins": [
+        "airtable@*",
+        "airtable-*@*"
+      ],
+      "mcp": [
+        "*airtable*"
+      ],
+      "skills": [
+        "airtable",
+        "airtable-*"
+      ]
+    },
+    "hubspot": {
+      "plugins": [
+        "hubspot@*",
+        "hubspot-*@*"
+      ],
+      "mcp": [
+        "*hubspot*"
+      ],
+      "skills": [
+        "hubspot",
+        "hubspot-*"
+      ]
+    },
+    "stripe": {
+      "plugins": [
+        "stripe@*",
+        "stripe-*@*"
+      ],
+      "mcp": [
+        "*stripe*"
+      ],
+      "skills": [
+        "stripe",
+        "stripe-*"
+      ]
+    },
+    "supabase": {
+      "plugins": [
+        "supabase@*",
+        "supabase-*@*"
+      ],
+      "mcp": [
+        "*supabase*"
+      ],
+      "skills": [
+        "supabase",
+        "supabase-*"
+      ]
+    },
+    "vercel": {
+      "plugins": [
+        "vercel@*",
+        "vercel-*@*"
+      ],
+      "mcp": [
+        "*vercel*"
+      ],
+      "skills": [
+        "vercel",
+        "vercel-*"
+      ]
+    },
+    "sentry": {
+      "plugins": [
+        "sentry@*",
+        "sentry-*@*"
+      ],
+      "mcp": [
+        "*sentry*"
+      ],
+      "skills": [
+        "sentry",
+        "sentry-*"
+      ]
+    },
+    "posthog": {
+      "plugins": [
+        "posthog@*",
+        "posthog-*@*"
+      ],
+      "mcp": [
+        "*posthog*"
+      ],
+      "skills": [
+        "posthog",
+        "posthog-*"
+      ]
+    },
+    "mixpanel": {
+      "plugins": [
+        "mixpanel@*",
+        "mixpanel-*@*"
+      ],
+      "mcp": [
+        "*mixpanel*"
+      ],
+      "skills": [
+        "mixpanel",
+        "mixpanel-*"
+      ]
+    },
+    "amplitude": {
+      "plugins": [
+        "amplitude@*",
+        "amplitude-*@*"
+      ],
+      "mcp": [
+        "*amplitude*"
+      ],
+      "skills": [
+        "amplitude",
+        "amplitude-*"
+      ]
+    },
+    "figma": {
+      "plugins": [
+        "figma@*",
+        "figma-*@*"
+      ],
+      "mcp": [
+        "*figma*"
+      ],
+      "skills": [
+        "figma",
+        "figma-*"
+      ]
+    },
+    "canva": {
+      "plugins": [
+        "canva@*",
+        "canva-*@*"
+      ],
+      "mcp": [
+        "*canva*"
+      ],
+      "skills": [
+        "canva",
+        "canva-*"
+      ]
+    },
+    "webflow": {
+      "plugins": [
+        "webflow@*",
+        "webflow-*@*"
+      ],
+      "mcp": [
+        "*webflow*"
+      ],
+      "skills": [
+        "webflow",
+        "webflow-*"
+      ]
+    },
+    "apollo": {
+      "plugins": [
+        "apollo@*",
+        "apollo-*@*"
+      ],
+      "mcp": [
+        "apollo",
+        "apollo-*",
+        "*-apollo"
+      ],
+      "skills": [
+        "apollo",
+        "apollo-*"
+      ]
+    },
+    "semrush": {
+      "plugins": [
+        "semrush@*",
+        "semrush-*@*"
+      ],
+      "mcp": [
+        "*semrush*"
+      ],
+      "skills": [
+        "semrush",
+        "semrush-*"
+      ]
+    },
+    "firecrawl": {
+      "plugins": [
+        "firecrawl@*",
+        "firecrawl-*@*"
+      ],
+      "mcp": [
+        "*firecrawl*"
+      ],
+      "skills": [
+        "firecrawl",
+        "firecrawl-*"
+      ]
+    },
+    "exa": {
+      "plugins": [
+        "exa@*",
+        "exa-*@*"
+      ],
+      "mcp": [
+        "exa",
+        "exa-*",
+        "*-exa"
+      ],
+      "skills": [
+        "exa",
+        "exa-*"
+      ]
+    },
+    "perplexityai": {
+      "plugins": [
+        "perplexity@*",
+        "perplexityai@*",
+        "perplexity-*@*",
+        "perplexityai-*@*"
+      ],
+      "mcp": [
+        "perplexity",
+        "perplexity-*",
+        "*-perplexity",
+        "perplexityai",
+        "perplexityai-*",
+        "*-perplexityai"
+      ],
+      "skills": [
+        "perplexity",
+        "perplexityai",
+        "perplexity-*",
+        "perplexityai-*"
+      ]
+    },
+    "mem0": {
+      "plugins": [
+        "mem0@*",
+        "mem0-*@*"
+      ],
+      "mcp": [
+        "*mem0*"
+      ],
+      "skills": [
+        "mem0",
+        "mem0-*"
+      ]
+    }
+  }
+}
