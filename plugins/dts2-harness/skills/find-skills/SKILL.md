@@ -24,6 +24,8 @@ Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/skill-suggest.py" --facts '<the fact
 
 Merge those skills with the improve-scan recommendations. Database tooling is a featured category: show its items near the top, right after priority 1. Show at most twelve, grouped by category (skills, database, hooks, mcp, plugins, commands, subagents, permissions, ci, docs), each with its priority (1 high, 2 medium, 3 low), a one-line reason, and whether it is already installed or present. Then ask once, with AskUserQuestion multi-select, which to apply.
 
+Composio: if `~/.dts2/composio-tools.json` exists (the Composio tool map), `improve-scan.py` already leaves out MCP recommendations that a connected Composio toolkit covers and lists them under `info` as "covered by Composio (<toolkit>)". Prefer Composio toolkits over installing duplicate MCP servers or plugins, and point the user to `/dts2:composio` to build or refresh the map.
+
 ## 4. Wire in
 On the user's yes, handle only the picked items, per category:
 - **skills**: for each chosen skill:

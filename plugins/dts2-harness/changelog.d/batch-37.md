@@ -1,6 +1,8 @@
 ### Added
 
-- `/dts2:fleet`: lists every harness session on this computer (label, repo@branch, state, last seen, turns, pending broadcasts), shows a session's handoff, task ledger, intake, lanes and cooldowns, and prints its recent turns, all read-only so a running session is never interrupted. `broadcast` sends one `note`, `handoff`, `pause`, `knowledge` or `checkin` message to all, or to `harness`, `repo:X`, `id:X` or `label:X` sessions; each session gets it once, on its next prompt, tool call or stop. The skill confirms the matching session count before sending. `status`, `label` and `prune` complete the set.
-- `/dts2:check-in all`: gathers the check-in items from every session on the machine into one report that leads with what needs you, and offers (after a yes) to ask every live session for a fresh check-in. Without `all`, `/dts2:check-in` is unchanged.
-- `hooks/fleet-session.sh` (SessionStart, UserPromptSubmit, PostToolUse, Stop, SessionEnd) registers sessions and delivers broadcasts; `scripts/fleet.py` holds the registry and inbox in `DTS2_FLEET_HOME`, else `DTS2_HOME/fleet`, else `~/.dts2/fleet`.
-- Limits: a session idle at the prompt receives a broadcast when next touched; a crashed session shows `stale`; the pid check is skipped on Windows; only sessions with the updated plugin register; per machine only.
+- `/dts2:composio` skill (user only): asks once whether you have a Composio account, connects it (plugin by default), maps the toolkit catalogue and connected accounts, and offers to disable overlapping tools. Nothing is deleted.
+- `scripts/composio-setup.py` with `status`, `decide`, `map`, `overlap` and `disable`; state lives in `~/.dts2/composio.json` and `~/.dts2/composio-tools.json`, credentials are never read.
+- `onboard` gains an optional Composio step that records the yes or no answer.
+- `machine-prep` lists plugins, MCP servers and skills that a connected Composio toolkit covers and offers to disable or archive them, with backups.
+- `improve-scan.py` drops MCP recommendations (github, vercel, supabase, neon) that a connected Composio toolkit covers and reports them under `info` as "covered by Composio (<toolkit>)"; `find-skills` prefers Composio toolkits over duplicate servers.
+- Discipline routing rule for Composio: check the cached tool map first, one search per workflow, batch independent calls, use the workbench for bulk results, and never run the plugin and a hosted MCP server together.

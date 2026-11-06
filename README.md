@@ -57,6 +57,7 @@ Claude Code plugin marketplace for Dobeu Tech Solutions.
 | Skill | Use it to |
 |---|---|
 | `onboard` | Explain the harness, its agents and skills, and where to start. Explanation only. |
+| `composio` | Connect Composio once, map its toolkits and connected accounts, and offer to disable overlapping plugins, MCP servers and skills. User only. |
 | `machine-prep` | Scan the computer, prune plugins to the blueprint keep-set, set up the slim startup. Once per machine. |
 | `setup` | Interview to an approved end state, then scaffold `.harness/` in one repo, many repos, or a multi-repo workspace. |
 | `run` | Do a task: scout sizes it, lead plans, builders build, reviewers and verifier check, with Plan and Ship checkpoints. |
