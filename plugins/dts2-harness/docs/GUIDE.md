@@ -115,6 +115,15 @@ Usage limits belong to the account, so the harness keeps one shared list of paus
 - Each new session starts with a one-line note of who is paused and until when.
 - Set or lift a pause by hand with `/dts2:cooldown set <agent> <date or duration>`, `clear <agent>` and `list`.
 
+### Watching and messaging all your sessions
+
+Running many sessions at once (for example one per terminal tab)?
+
+- See them all: `/dts2:fleet list`. Read one without interrupting it: `/dts2:fleet show <ref>` and `/dts2:fleet logs <ref>`.
+- Tell them all something: `/dts2:fleet broadcast --kind handoff --text "..."`. You are shown how many sessions match and asked first. Kinds: `note`, `handoff`, `pause`, `knowledge`, `checkin`. `/dts2:fleet status` shows who has picked it up.
+- Ask them all where they stand: `/dts2:fleet-checkin` makes one report across the machine, with what needs you at the top.
+- Limit: a session idle at the prompt gets the message only when it is next touched; a crashed one shows `stale`.
+
 ## 3. The head, son and council flow
 
 Three roles appear in 3.10.0 and the words are used consistently across the skills.
