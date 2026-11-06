@@ -7,6 +7,22 @@
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session-lessons.sh\"",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session-cooldowns.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/prompt-intake.sh\"",
+            "timeout": 10
           }
         ]
       }
@@ -129,7 +145,7 @@
     ],
     "SubagentStop": [
       {
-        "matcher": "dts2-harness:builder|dts2-harness:reviewer|dts2-harness:verifier",
+        "matcher": "dts2:builder|dts2:reviewer|dts2:verifier",
         "hooks": [
           {
             "type": "command",
@@ -139,7 +155,7 @@
         ]
       },
       {
-        "matcher": "dts2-harness:verifier",
+        "matcher": "dts2:verifier",
         "hooks": [
           {
             "type": "command",

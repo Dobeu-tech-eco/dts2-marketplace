@@ -19,6 +19,9 @@ CATALOG: Final[tuple[tuple[str, bool, tuple[str, ...]], ...]] = (
     ("has_frontend", True, ("impeccable", "frontend-design")),
     ("has_marketing", True, ("page-cro", "copywriting", "seo-audit")),
     ("has_agent_docs", True, ("writing-for-agents",)),
+    ("has_database", True, ("postgresql-table-design", "sql-optimization-patterns", "database-migration")),
+    ("has_prisma", True, ("database-migration",)),
+    ("has_supabase", True, ("postgresql-table-design",)),
 )
 QUESTION_SKILL: Final[str] = "ask-matt"
 

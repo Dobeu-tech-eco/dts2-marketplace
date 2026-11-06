@@ -27,7 +27,7 @@ MISPLACED: Final[str] = "workspace-member"
 MESSAGE: Final[str] = (
     "dts2-harness CONTEXT GUARD (%s): %s. STOP: do not dispatch or continue any agent. "
     "Follow the run skill's 'Context guard and pivot' section now: write .harness/state.md and the handoff file, "
-    "run scope-check, then /dts2-harness:setup (workspace re-link if a manifest exists) and resume with run resume.")
+    "run scope-check, then /dts2:setup (workspace re-link if a manifest exists) and resume with run resume.")
 
 
 DEFAULT_EVENT: Final[str] = "PostToolUse"

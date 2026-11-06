@@ -36,7 +36,7 @@ class TextContractMixin(unittest.TestCase):
 
 
 SUPABASE_ROUTE: Final[tuple[str, ...]] = (
-    "dts2-harness:builder has no MCP tools", "supabase branches create", "supabase db query --linked",
+    "dts2:builder has no MCP tools", "supabase branches create", "supabase db query --linked",
     "supabase branches delete", "never `supabase branches get`", "prints keys",
     "resolves `-f` paths from the project root", "Initialising login role",
 )
@@ -174,8 +174,8 @@ class RunSkillContracts(TextContractMixin):
             "escalate with what failed", "receipt",
             "Here is the plan, the done-criteria, and who does what. Approve, edit, or stop.",
             "Here is the receipt. Ship, fix the blocking items and re-check, or stop and revert.",
-            "No end state yet; /dts2-harness:setup interviews to one.",
-            "That changes the harness itself; use `/dts2-harness:evolve`.",
+            "No end state yet; /dts2:setup interviews to one.",
+            "That changes the harness itself; use `/dts2:evolve`.",
             "Cap at 3 rounds. After 3, stop and escalate with what failed; record it in `.harness/state.md`.",
             "Finish pass skipped: Impeccable not installed (github.com/pbakaus/impeccable)",
             "Both checkpoints need a human. Headless runs stop at each and write what a human would have seen.",
@@ -244,8 +244,8 @@ class RunSkillContracts(TextContractMixin):
 
 
 class ReleaseContract(unittest.TestCase):
-    VERSION: Final[str] = "3.11.1"
-    SKILL_COUNT: Final[int] = 18
+    VERSION: Final[str] = "4.0.0"
+    SKILL_COUNT: Final[int] = 24
     AGENT_COUNT: Final[int] = 7
     REPO_ROOT: Final[Path] = PLUGIN_ROOT.parent.parent
 

@@ -125,7 +125,7 @@ class EvalRunnerCliTests(unittest.TestCase):
 def write_plugin(root: Path, version: str, repository: str | None = None) -> Path:
     manifest = root / ".claude-plugin"
     manifest.mkdir(parents=True)
-    data: dict[str, Any] = {"name": "dts2-harness", "version": version}
+    data: dict[str, Any] = {"name": "dts2", "version": version}
     if repository:
         data["repository"] = repository
     (manifest / "plugin.json").write_text(json.dumps(data), encoding="utf-8")

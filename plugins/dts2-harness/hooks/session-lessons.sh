@@ -104,8 +104,8 @@ print_scope() {
   scope="$(printf '%s' "$info" | python3 -I -c 'import json,sys; print(json.load(sys.stdin).get("scope",""))' 2>/dev/null)" || return 0
   root="$(printf '%s' "$info" | python3 -I -c 'import json,sys; print(json.load(sys.stdin).get("workspaceRoot") or "")' 2>/dev/null)" || return 0
   case "$scope" in
-    workspace-member) echo "dts2-harness scope: you are inside $(basename "$PWD"), a member of workspace $root. Run /dts2-harness:run from $root (run pivots there automatically)." ;;
-    none) echo "dts2-harness scope: no harness in this folder; /dts2-harness:setup to start." ;;
+    workspace-member) echo "dts2-harness scope: you are inside $(basename "$PWD"), a member of workspace $root. Run /dts2:run from $root (run pivots there automatically)." ;;
+    none) echo "dts2-harness scope: no harness in this folder; /dts2:setup to start." ;;
   esac
 }
 print_scope || true

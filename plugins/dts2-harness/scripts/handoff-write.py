@@ -24,8 +24,8 @@ OUTPUT: Final[str] = state_io.HANDOFF_LATEST_REL
 TEMPLATE: Final[Path] = Path(__file__).resolve().parent.parent / "templates" / "handoff-latest.md"
 RECEIPT_PLACEHOLDER: Final[str] = "(filled at the ship checkpoint)"
 ROLLBACK_PREFIX: Final[str] = "Rollback (human-run"
-RESUME_COMMAND: Final[str] = "/dts2-harness:run resume"
-NEW_TASK: Final[str] = "No open items. Start a new task with `/dts2-harness:run <task>`."
+RESUME_COMMAND: Final[str] = "/dts2:run resume"
+NEW_TASK: Final[str] = "No open items. Start a new task with `/dts2:run <task>`."
 MAX_STATE_ITEMS: Final[int] = 5
 LEAD_LINE: Final[str] = "lead: claude (frontier)"
 COMPLEXITY: Final[re.Pattern[str]] = re.compile(r"complexity:\s*(mechanical|normal|design)")
@@ -170,9 +170,9 @@ def next_action(items: list[dict[str, Any]], receipt: str, end_state: str, check
     if items:
         return f"Resolve {items[0]['id']} ({items[0]['item']}): `{items[0]['resolve_command']}`"
     if receipt and RECEIPT_PLACEHOLDER in receipt:
-        return "The latest receipt is not approved yet; finish the ship checkpoint with `/dts2-harness:run resume`."
+        return "The latest receipt is not approved yet; finish the ship checkpoint with `/dts2:run resume`."
     if re.search(r"status:\s*planned", end_state):
-        return "The production target is planned but not built; run `/dts2-harness:run` to build it."
+        return "The production target is planned but not built; run `/dts2:run` to build it."
     return NEW_TASK
 
 

@@ -95,7 +95,7 @@ class DryRunTests(Fixture):
         self.assertFalse(result["started"])
         self.assertIn(str(self.fake), result["command"])
         self.assertIn("--append-system-prompt", result["command"])
-        self.assertEqual(result["prompt"], "/dts2-harness:autopilot --son s1/a")
+        self.assertEqual(result["prompt"], "/dts2:autopilot --son s1/a")
         self.assertEqual(result["prompt_bytes"], len(result["prompt"].encode()))
         self.assertIn("PATH", result["env_allowlist"])
         self.assertIn("DTS2_SON", result["env_allowlist"])

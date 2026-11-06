@@ -15,8 +15,8 @@ from helpers import PLUGIN_ROOT
 
 SCRIPT: Final[Path] = PLUGIN_ROOT / "scripts" / "agent-memory.py"
 PROFILE_DIR: Final[Path] = PLUGIN_ROOT / "profiles" / "agents"
-START: Final[str] = "<!-- dts2-harness:start -->"
-END: Final[str] = "<!-- dts2-harness:end -->"
+START: Final[str] = "<!-- dts2:start -->"
+END: Final[str] = "<!-- dts2:end -->"
 
 
 def load_module() -> ModuleType:
