@@ -159,9 +159,28 @@ def check_agent_rules() -> dict[str, str]:
     return check("agent-rules", FAIL, "; ".join(problems)) if problems else check("agent-rules", PASS, "no invalid rules in the roster")
 
 
+def check_api_keys() -> list[dict[str, str]]:
+    """One row per API-key agent profile: `set (source)` or `missing`, never the key. A missing key is a warning only when the
+    agent is in this repo's roster, since the profiles are built in and most users never run them."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import api_keys  # noqa: PLC0415 - only this check needs them
+    import roster  # noqa: PLC0415
+    import state_io  # noqa: PLC0415
+    profiles: dict[str, dict[str, Any]] = roster.load_profiles()
+    in_roster: set[str] = {str(e["name"]) for e in roster.read_roster(Path(state_io.CONFIG_REL))}
+    rows: list[dict[str, str]] = []
+    for name, profile in sorted(profiles.items()):
+        if profile.get("keyRequired") is not True:
+            continue
+        found, source = api_keys.resolve_key(profile)
+        status: str = PASS if found is not None or name not in in_roster else WARN
+        rows.append(check(f"api-key {name}", status, f"set ({source})" if found is not None else "missing"))
+    return rows
+
+
 def run_checks() -> list[dict[str, str]]:
     return [check_python(), check_git(), check_claude(), check_sandbox(), *check_helper_tools(), check_auth(), check_platform(), check_fake_env(),
-            check_agent_rules()]
+            check_agent_rules(), *check_api_keys()]
 
 
 def render_table(checks: list[dict[str, str]]) -> str:

@@ -1,0 +1,82 @@
+{
+  "name": "grok-api",
+  "displayName": "Grok (API key)",
+  "form": "cli",
+  "rulesFile": "AGENTS.md",
+  "invocation": "live",
+  "command": [
+    "grok",
+    "-p"
+  ],
+  "headlessFlag": null,
+  "roles": [
+    "reviewer",
+    "reviewer:security"
+  ],
+  "specialty": "Pay-as-you-go Grok on its own xAI key: the cheapest per output token for reviews, and the security-review fallback.",
+  "verified": false,
+  "costTier": 1,
+  "statusCommand": [
+    "grok",
+    "version"
+  ],
+  "loginCommand": null,
+  "models": {
+    "frontier": null,
+    "standard": "grok-build-0.1",
+    "economy": "grok-build-0.1"
+  },
+  "modelsVerified": false,
+  "subscriptionName": null,
+  "auth": "api-key",
+  "apiKeyEnv": "XAI_API_KEY",
+  "keyRequired": true,
+  "leadEligible": false,
+  "searchPaths": [
+    "~/.grok/bin",
+    "~/.local/bin",
+    "~/.bun/bin",
+    "~/.npm-global/bin",
+    "~/.deno/bin",
+    "$APPDATA/npm",
+    "$LOCALAPPDATA/Programs"
+  ],
+  "roleCommands": {
+    "reviewer": [
+      "grok",
+      "-p",
+      "{prompt}",
+      "-m",
+      "{model}",
+      "--permission-mode",
+      "plan",
+      "--deny",
+      "Bash",
+      "--deny",
+      "Edit",
+      "--deny",
+      "Write",
+      "--deny",
+      "MCPTool",
+      "--no-subagents",
+      "--disable-web-search"
+    ]
+  },
+  "readOnlyRoles": ["reviewer"],
+  "env": {
+    "GROK_WORKFLOWS": "0"
+  },
+  "notes": [
+    "Runs `grok -p -m grok-build-0.1` in plan mode with Bash, Edit, Write and MCP tools denied and no subagents; reviewer and security-review fallback only, never a builder. The existing `grok` profile stays on the Grok Build subscription.",
+    "XAI_API_KEY is set only in this child's environment. Use a dedicated xAI key with a spend cap.",
+    "Every seat runs with GROK_WORKFLOWS=0 (see the grok profile): --no-subagents does not stop background workflows."
+  ],
+  "effortLevels": [
+    "medium"
+  ],
+  "tokenBurn": {
+    "frontier": 6,
+    "standard": 3,
+    "economy": 1
+  }
+}

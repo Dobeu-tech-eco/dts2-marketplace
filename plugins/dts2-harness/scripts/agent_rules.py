@@ -17,6 +17,7 @@ from typing import Any, Final, Iterable
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import miniyaml  # noqa: E402
 import state_io  # noqa: E402
+from profiles import has_raw_key  # noqa: E402
 
 AGENT_VAR: Final[str] = "DTS2_AGENT"
 AUTH_SUBSCRIPTION: Final[str] = "subscription"
@@ -219,11 +220,14 @@ def spend_path(root: Path | str | None = None) -> Path:
 
 
 def record_spend(agent: str, usd: float | None, run_id: str = "", root: Path | str | None = None,
-                 today: date | None = None) -> bool:
-    """Append one spend row (agent, dollars, run id, local date). A missing, zero, negative or non-finite cost writes nothing."""
+                 today: date | None = None, credential: str | None = None) -> bool:
+    """Append one spend row (agent, dollars, run id, local date, and the credential source label such as `keyring` or
+    `env:XAI_API_KEY`, never the key). A missing, zero, negative or non-finite cost writes nothing."""
     if not agent or not is_number(usd) or float(usd) <= 0:  # type: ignore[arg-type]
         return False
     row: dict[str, Any] = {"date": (today or date.today()).isoformat(), "agent": agent, "usd": float(usd), "run": run_id}  # type: ignore[arg-type]
+    if credential and not has_raw_key(credential):
+        row["credential"] = credential
     state_io.append_text(spend_path(root), json.dumps(row, sort_keys=True) + "\n")
     return True
 

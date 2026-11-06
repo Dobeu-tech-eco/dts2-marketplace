@@ -137,6 +137,17 @@ roster:
 - Four places enforce them. Dispatch skips an agent whose rules deny the task or tier and tries the next one (`roster.py resolve --task-class`, `delegate.py --task-class`; nothing eligible is an error naming each reason). Launch passes `DTS2_AGENT=<name>`, `--max-budget-usd` where the CLI has it, no secret env with `no_secrets`, and refuses a read-only agent whose profile has no read-only command. The policy gate denies a tool call whose class or path the rules forbid. The spend ledger (`.harness/spend.jsonl`) sums each run's cost and takes the agent out of dispatch for the day at its daily cap.
 - Edit with `/dts2:model` ("Edit agent rules") or `roster.py rules <name> --show | --set key=value | --reset`. A bad block (unknown key, a class in both lists) is reported at session start and by `doctor.py`.
 
+### API agents (claude-api, codex-api, grok-api)
+
+Three built-in profiles run the same CLIs on a pay-as-you-go API key instead of a subscription: `claude-api` (`claude -p --model sonnet --output-format json`), `codex-api` (`codex exec -m gpt-6.1-sol --sandbox read-only --json`) and `grok-api` (`grok -p -m grok-build-0.1`, plan mode). They are for overflow and second opinions, not for steering the run.
+
+- Roles: `claude-api` is a reviewer and an overflow builder (the builder is reachable only when its rules allow `build`, which the defaults do not); `codex-api` is a read-only second-opinion reviewer; `grok-api` is a reviewer and the security-review fallback. None of them is ever the lead or signs off; those stay on the Max agents.
+- Billing is separate: give each its own Anthropic Console workspace, OpenAI project and xAI key with a spend cap. Max agents run with every `*_API_KEY`, `ANTHROPIC_*`, `CODEX_*`, `XAI_*` and `OPENAI_*` variable removed, so a stray key in your shell cannot bill the API account. An API agent's key is set only in that one agent's environment, and each has its own `CLAUDE_CONFIG_DIR` / `CODEX_HOME` under `~/.dts2/agents-home/`.
+- Store the key outside the repo and outside the roster file: put an `apiKeyRef` in a user profile (`~/.dts2/agents/<name>.json`, `{"name": "claude-api", "apiKeyRef": "keyring:dts2/claude-api"}`). Schemes: `keyring:service/user`, `op://vault/item/field`, `doppler:PROJECT/CONFIG/NAME`, `env:NAME`. With no ref the agent reads its own variable (`ANTHROPIC_API_KEY`, `CODEX_API_KEY`, `XAI_API_KEY`) from your shell. A key is never written to a file, receipt or ledger; receipts record only `credential: <keyring|op|doppler|env:NAME>`.
+- No key means no launch: dispatch skips the agent and says why, and `roster.py exec` refuses naming the ref or variable. `doctor.py` shows `set (source)` or `missing` for each.
+- Widen what one may do with `roster.py rules <name> --set allow_tasks=[review,docs,research,build] --set read_only=false`; deploy, merge, release, secrets and delete stay denied.
+- Step-by-step per provider: `docs/API-AGENTS.md`.
+
 ### Watching and messaging all your sessions
 
 Running many sessions at once (for example one per terminal tab)?

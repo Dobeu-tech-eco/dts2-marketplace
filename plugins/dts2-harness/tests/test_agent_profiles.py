@@ -68,15 +68,15 @@ class LayerTests(Workspace):
         self.assertEqual(profiles.layers_of("grok"), ["bundled", "user", "project"])
 
     def test_extends_deep_merges_dicts_and_replaces_lists(self) -> None:
-        write(self.home / "grok-api.json", {
-            "name": "grok-api", "extends": "grok", "roles": ["builder"], "models": {"standard": "grok-build-0.1"},
+        write(self.home / "grok-pay.json", {
+            "name": "grok-pay", "extends": "grok", "roles": ["builder"], "models": {"standard": "grok-build-0.1"},
         })
-        child = self.load().get("grok-api") or {}
+        child = self.load().get("grok-pay") or {}
         self.assertEqual(child["models"], {"frontier": "grok-4.7", "standard": "grok-build-0.1", "economy": "grok-4.7-build-fast"})
         self.assertEqual(child["roles"], ["builder"])
         self.assertEqual(child["apiKeyEnv"], "XAI_API_KEY")
-        self.assertEqual(self.load().base_of("grok-api"), "grok")
-        self.assertEqual(self.load().layer_of("grok-api"), "user")
+        self.assertEqual(self.load().base_of("grok-pay"), "grok")
+        self.assertEqual(self.load().layer_of("grok-pay"), "user")
 
     def test_extends_resolves_after_all_layers_load(self) -> None:
         write(self.project_dir / "fast.json", {"name": "fast", "extends": "grok", "costTier": 1})
@@ -130,8 +130,8 @@ class LayerTests(Workspace):
         self.assertEqual(profiles.layer_of("nope"), "")
 
     def test_explicit_dir_reads_only_that_folder(self) -> None:
-        write(self.home / "grok-api.json", {"name": "grok-api", "extends": "grok"})
-        self.assertNotIn("grok-api", Profiles.load(PLUGIN_ROOT / "profiles" / "agents"))
+        write(self.home / "grok-pay.json", {"name": "grok-pay", "extends": "grok"})
+        self.assertNotIn("grok-pay", Profiles.load(PLUGIN_ROOT / "profiles" / "agents"))
 
 
 class NameTests(unittest.TestCase):
@@ -158,15 +158,16 @@ class NameTests(unittest.TestCase):
     def test_collision_names_the_layer(self) -> None:
         profiles = Profiles.load()
         self.assertEqual(agent_names.collision("grok", profiles), "bundled")
-        self.assertIsNone(agent_names.collision("grok-api", profiles))
+        self.assertEqual(agent_names.collision("grok-api", profiles), "bundled")  # a built-in API profile since batch E
+        self.assertIsNone(agent_names.collision("grok-pay", profiles))
 
 
 class RosterTests(Workspace):
     def test_resolve_accepts_a_user_layer_name(self) -> None:
-        write(self.home / "grok-api.json", {"name": "grok-api", "extends": "grok"})
-        result = roster.resolve([{"name": "claude"}, {"name": "grok-api", "roles": ["builder"]}], roster.load_profiles(self.project))
-        self.assertEqual(result["assignments"]["builder"], ["claude", "grok-api"])
-        self.assertEqual(result["live"], ["claude", "grok-api"])
+        write(self.home / "grok-pay.json", {"name": "grok-pay", "extends": "grok"})
+        result = roster.resolve([{"name": "claude"}, {"name": "grok-pay", "roles": ["builder"]}], roster.load_profiles(self.project))
+        self.assertEqual(result["assignments"]["builder"], ["claude", "grok-pay"])
+        self.assertEqual(result["live"], ["claude", "grok-pay"])
 
     def test_resolve_still_rejects_unknown_names(self) -> None:
         with self.assertRaises(roster.RosterError):
@@ -185,24 +186,24 @@ class RosterTests(Workspace):
         self.assertEqual(entries, [{"name": "a", "profile": "grok"}])
 
     def test_add_writes_profile_and_roster_entry(self) -> None:
-        done = self.cli("add", "--name", "grok-api", "--extends", "grok", "--auth", "api-key",
-                        "--api-key-ref", "keyring:dts2/grok-api", "--display-name", "Grok (API key)", "--roles", "builder,reviewer")
+        done = self.cli("add", "--name", "grok-pay", "--extends", "grok", "--auth", "api-key",
+                        "--api-key-ref", "keyring:dts2/grok-pay", "--display-name", "Grok (API key)", "--roles", "builder,reviewer")
         self.assertEqual(done.returncode, 0, done.stderr)
-        saved = json.loads((self.project_dir / "grok-api.json").read_text(encoding="utf-8"))
+        saved = json.loads((self.project_dir / "grok-pay.json").read_text(encoding="utf-8"))
         self.assertEqual(saved, {
-            "name": "grok-api", "extends": "grok", "displayName": "Grok (API key)", "auth": "api-key",
-            "apiKeyRef": "keyring:dts2/grok-api",
+            "name": "grok-pay", "extends": "grok", "displayName": "Grok (API key)", "auth": "api-key",
+            "apiKeyRef": "keyring:dts2/grok-pay",
         })
         text = self.config.read_text(encoding="utf-8")
-        self.assertTrue(text.startswith("project: demo\nroster:\n  - name: claude\n  - name: codex\n    roles: [builder]\n  - name: grok-api\n"))
+        self.assertTrue(text.startswith("project: demo\nroster:\n  - name: claude\n  - name: codex\n    roles: [builder]\n  - name: grok-pay\n"))
         self.assertTrue(text.endswith("budget:\n  codex:\n    status: ok\n"))
         entry = roster.read_roster(self.config)[-1]
-        self.assertEqual(entry, {"name": "grok-api", "roles": ["builder", "reviewer"], "auth": "api-key", "included": True})
+        self.assertEqual(entry, {"name": "grok-pay", "roles": ["builder", "reviewer"], "auth": "api-key", "included": True})
 
     def test_add_user_scope_writes_to_the_user_folder(self) -> None:
-        done = self.cli("add", "--name", "codex-api", "--extends", "codex", "--scope", "user")
+        done = self.cli("add", "--name", "codex-pay", "--extends", "codex", "--scope", "user")
         self.assertEqual(done.returncode, 0, done.stderr)
-        self.assertTrue((self.home / "codex-api.json").exists())
+        self.assertTrue((self.home / "codex-pay.json").exists())
         self.assertFalse(self.project_dir.exists())
 
     def test_add_collision_exits_2_and_names_the_layer(self) -> None:
@@ -217,12 +218,12 @@ class RosterTests(Workspace):
         self.assertIn("user layer", again.stderr)
 
     def test_add_edit_existing_overwrites(self) -> None:
-        self.assertEqual(self.cli("add", "--name", "grok-api", "--extends", "grok").returncode, 0)
-        self.assertEqual(self.cli("add", "--name", "grok-api", "--extends", "grok").returncode, 2)
-        done = self.cli("add", "--name", "grok-api", "--extends", "grok", "--display-name", "Second", "--edit-existing")
+        self.assertEqual(self.cli("add", "--name", "grok-pay", "--extends", "grok").returncode, 0)
+        self.assertEqual(self.cli("add", "--name", "grok-pay", "--extends", "grok").returncode, 2)
+        done = self.cli("add", "--name", "grok-pay", "--extends", "grok", "--display-name", "Second", "--edit-existing")
         self.assertEqual(done.returncode, 0, done.stderr)
-        self.assertEqual(json.loads((self.project_dir / "grok-api.json").read_text(encoding="utf-8"))["displayName"], "Second")
-        self.assertEqual([e["name"] for e in roster.read_roster(self.config)].count("grok-api"), 1)
+        self.assertEqual(json.loads((self.project_dir / "grok-pay.json").read_text(encoding="utf-8"))["displayName"], "Second")
+        self.assertEqual([e["name"] for e in roster.read_roster(self.config)].count("grok-pay"), 1)
 
     def test_add_refuses_bad_input(self) -> None:
         cases = (
@@ -238,19 +239,19 @@ class RosterTests(Workspace):
 
     def test_add_creates_config_when_missing(self) -> None:
         self.config.unlink()
-        self.assertEqual(self.cli("add", "--name", "grok-api", "--extends", "grok").returncode, 0)
-        self.assertEqual([e["name"] for e in roster.read_roster(self.config)], ["claude", "grok-api"])
+        self.assertEqual(self.cli("add", "--name", "grok-pay", "--extends", "grok").returncode, 0)
+        self.assertEqual([e["name"] for e in roster.read_roster(self.config)], ["claude", "grok-pay"])
 
     def test_rename_rewrites_roster_and_references(self) -> None:
-        self.assertEqual(self.cli("add", "--name", "grok-api", "--extends", "grok", "--roles", "builder").returncode, 0)
+        self.assertEqual(self.cli("add", "--name", "grok-pay", "--extends", "grok", "--roles", "builder").returncode, 0)
         write(self.project_dir / "grok-fast.json", {
-            "name": "grok-fast", "extends": "grok-api", "fallback": {"builder": "grok-api", "reviewer": "claude"},
+            "name": "grok-fast", "extends": "grok-pay", "fallback": {"builder": "grok-pay", "reviewer": "claude"},
         })
         write(self.config, self.config.read_text(encoding="utf-8").replace(
-            "  - name: grok-api\n", "  - name: grok-api\n  - name: twin\n    profile: grok-api\n"))
-        done = self.cli("rename", "grok-api", "xai-grok")
+            "  - name: grok-pay\n", "  - name: grok-pay\n  - name: twin\n    profile: grok-pay\n"))
+        done = self.cli("rename", "grok-pay", "xai-grok")
         self.assertEqual(done.returncode, 0, done.stderr)
-        self.assertFalse((self.project_dir / "grok-api.json").exists())
+        self.assertFalse((self.project_dir / "grok-pay.json").exists())
         self.assertEqual(json.loads((self.project_dir / "xai-grok.json").read_text(encoding="utf-8"))["name"], "xai-grok")
         fast = json.loads((self.project_dir / "grok-fast.json").read_text(encoding="utf-8"))
         self.assertEqual(fast["extends"], "xai-grok")
@@ -259,36 +260,36 @@ class RosterTests(Workspace):
         self.assertEqual([e["name"] for e in entries], ["claude", "codex", "xai-grok", "twin"])
         self.assertEqual(entries[3]["profile"], "xai-grok")
         self.assertEqual(self.load().base_of("grok-fast"), "grok")
-        self.assertNotIn("grok-api", self.config.read_text(encoding="utf-8"))
+        self.assertNotIn("grok-pay", self.config.read_text(encoding="utf-8"))
 
     def test_rename_refuses_bundled_unknown_and_taken(self) -> None:
-        self.assertEqual(self.cli("add", "--name", "grok-api", "--extends", "grok").returncode, 0)
+        self.assertEqual(self.cli("add", "--name", "grok-pay", "--extends", "grok").returncode, 0)
         self.assertEqual(self.cli("rename", "grok", "groky").returncode, 2)
         self.assertEqual(self.cli("rename", "ghost", "spirit").returncode, 2)
-        self.assertEqual(self.cli("rename", "grok-api", "codex").returncode, 2)
-        self.assertEqual(self.cli("rename", "grok-api", "Bad Name").returncode, 2)
-        self.assertTrue((self.project_dir / "grok-api.json").exists())
+        self.assertEqual(self.cli("rename", "grok-pay", "codex").returncode, 2)
+        self.assertEqual(self.cli("rename", "grok-pay", "Bad Name").returncode, 2)
+        self.assertTrue((self.project_dir / "grok-pay.json").exists())
 
     def test_list_json_and_table(self) -> None:
-        self.assertEqual(self.cli("add", "--name", "grok-api", "--extends", "grok", "--auth", "api-key").returncode, 0)
+        self.assertEqual(self.cli("add", "--name", "grok-pay", "--extends", "grok", "--auth", "api-key").returncode, 0)
         rows = {r["name"]: r for r in json.loads(self.cli("list", "--json").stdout)}
-        self.assertEqual(rows["grok-api"]["base"], "grok")
-        self.assertEqual(rows["grok-api"]["layer"], "project")
-        self.assertEqual(rows["grok-api"]["auth"], "api-key")
-        self.assertEqual(rows["grok-api"]["rules"], "ro review,docs,research \u2264standard $0.5/$5")  # the api-key defaults
+        self.assertEqual(rows["grok-pay"]["base"], "grok")
+        self.assertEqual(rows["grok-pay"]["layer"], "project")
+        self.assertEqual(rows["grok-pay"]["auth"], "api-key")
+        self.assertEqual(rows["grok-pay"]["rules"], "ro review,docs,research \u2264standard $0.5/$5")  # the api-key defaults
         self.assertEqual(rows["grok"]["rules"], "-")
-        self.assertEqual(rows["grok-api"]["spent_today"], "-")
-        self.assertTrue(rows["grok-api"]["inRoster"])
+        self.assertEqual(rows["grok-pay"]["spent_today"], "-")
+        self.assertTrue(rows["grok-pay"]["inRoster"])
         self.assertFalse(rows["grok"]["inRoster"])
         self.assertEqual(rows["grok"]["layer"], "bundled")
         header = self.cli("list").stdout.splitlines()[0].split()
         self.assertEqual(header, ["name", "base", "layer", "auth", "roles", "rules", "spent_today"])
 
     def test_suggest_name_cli(self) -> None:
-        self.assertEqual(self.cli("suggest-name", "--base", "grok").stdout.strip(), "grok-api")
+        self.assertEqual(self.cli("suggest-name", "--base", "grok").stdout.strip(), "grok-api-2")  # grok-api is built in
         self.assertEqual(self.cli("suggest-name", "--base", "newthing").stdout.strip(), "newthing")
-        self.assertEqual(self.cli("add", "--name", "grok-api", "--extends", "grok").returncode, 0)
-        self.assertEqual(self.cli("suggest-name", "--base", "grok").stdout.strip(), "grok-api-2")
+        self.assertEqual(self.cli("add", "--name", "grok-api-2", "--extends", "grok").returncode, 0)
+        self.assertEqual(self.cli("suggest-name", "--base", "grok").stdout.strip(), "grok-api-3")
 
 
 if __name__ == "__main__":
