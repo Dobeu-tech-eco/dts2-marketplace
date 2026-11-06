@@ -1,6 +1,0 @@
-### Added
-
-- `/dts2:ask-expert`: reviews one repo before setup. It asks your goal in plain words and will not start until the answers are clear enough (95 on a slot score), reads the code, shows what you said against what the code shows, checks overlap with your active repos, then a three-provider expert panel votes (council after three failed rounds, which may ask for research). It ends in a one-page memo with a verdict of keep, fold, sell as template, archive or delete, every number labelled sourced, estimated or assumed. The template path is always priced before archive or delete.
-- `/dts2:repo-sweep`: the batch version. It walks an owner's repos oldest first, runs a quick pass on each and shows one cleanup screen. Keep, fold and template only write a to-do file; archive uses `gh repo archive`; delete is one repo at a time, after a verified backup bundle in `~/.dts2/repo-backups/` and a typed repo name.
-- `scripts/ask_expert.py` (clarity, goal record, check-report, sweep, archive, backup, delete), `council.py --allow-research` and the `RESEARCH` decision with a required `## Research brief`, and `.harness/ask-expert/` state.
-- `onboard` and `setup` offer ask-expert when you doubt keeping a repo.
