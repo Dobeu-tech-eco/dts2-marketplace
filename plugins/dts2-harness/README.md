@@ -15,7 +15,7 @@ Second-generation Dobeu Tech Solutions agent harness. It supersedes `harness@har
 
 ## Components
 - Agents: lead, builder, fixer, reviewer, verifier, scout, auditor
-- Skills: onboard, machine-prep, setup, run, learn, evolve, gtm, sdk, action-items, model, find-skills, check-in, ship, feature, autopilot, dpp, dpp-full, fullauto, ask-expert, repo-sweep
+- Skills: onboard, composio, machine-prep, setup, run, learn, evolve, gtm, sdk, action-items, model, find-skills, check-in, ship, feature, autopilot, dpp, dpp-full, fullauto, ask-expert, repo-sweep
 - Hooks: SessionStart (lessons), PreCompact (handoff), Stop (typecheck and lint), PreToolUse (merge guard, spawn dry-run), PostToolUse and PostToolBatch (PR receipt, context guard, subagent report), SubagentStop (report check; verifier check-line gate), StopFailure and PermissionDenied (action-items ledger), SessionEnd (lease release)
 - Settings: `.claude/dts2-harness.local.md` (template in `templates/`)
 
