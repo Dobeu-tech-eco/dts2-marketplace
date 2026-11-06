@@ -225,11 +225,11 @@ class SdkRunnerTests(unittest.TestCase):
 
     def test_second_opinion_env_never_carries_the_anthropic_credentials(self) -> None:
         source = {"PATH": "/usr/bin", "ANTHROPIC_API_KEY": "k", "ANTHROPIC_AUTH_TOKEN": "t", "CLAUDE_CODE_OAUTH_TOKEN": "o",
-                  "GH_TOKEN": "g", "OPENAI_API_KEY": "ok"}
+                  "GH_TOKEN": "g", "CODEX_API_KEY": "ok"}
         with mock.patch.dict(os.environ, source, clear=True):
             env = self.runner.second_opinion_env({"ANTHROPIC_API_KEY": "from-profile"})
         self.assertEqual({k for k in env if k.startswith(("ANTHROPIC", "CLAUDE_CODE", "GH_"))}, set())
-        self.assertEqual(env["OPENAI_API_KEY"], "ok")
+        self.assertEqual(env["CODEX_API_KEY"], "ok")
 
     def test_secret_scan_gate_is_red_without_a_scanner_and_before_add(self) -> None:
         (self.repo / "a.txt").write_text("x", encoding="utf-8")

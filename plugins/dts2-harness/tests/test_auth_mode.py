@@ -22,7 +22,7 @@ SUBSCRIPTIONS: Final[dict[str, str | None]] = {
     "copilot": "GitHub Copilot", "opencode": None, "cursor": "Cursor Pro", "muse": "Muse",
 }
 API_KEY_ENVS: Final[dict[str, str | None]] = {
-    "claude": "ANTHROPIC_API_KEY", "codex": "OPENAI_API_KEY", "gemini": "GEMINI_API_KEY",
+    "claude": "ANTHROPIC_API_KEY", "codex": "CODEX_API_KEY", "gemini": "GEMINI_API_KEY",
     "grok": "XAI_API_KEY", "opencode": None, "copilot": None, "cursor": None, "antigravity": None,
     "muse": None,
 }
@@ -84,11 +84,11 @@ class ProfileKeyTests(unittest.TestCase):
 
 class DetectAuthTests(unittest.TestCase):
     def test_login_wins_over_api_key(self) -> None:
-        data = detect_codex(True, {"OPENAI_API_KEY": SECRET})
+        data = detect_codex(True, {"CODEX_API_KEY": SECRET})
         self.assertEqual(data["auth"]["codex"], "subscription")
 
     def test_failed_login_with_key_is_api_key(self) -> None:
-        data = detect_codex(False, {"OPENAI_API_KEY": SECRET})
+        data = detect_codex(False, {"CODEX_API_KEY": SECRET})
         self.assertEqual(data["auth"]["codex"], "api-key")
 
     def test_failed_login_without_key_is_none(self) -> None:
@@ -96,15 +96,15 @@ class DetectAuthTests(unittest.TestCase):
         self.assertEqual(data["auth"]["codex"], "none")
 
     def test_empty_key_is_none(self) -> None:
-        data = detect_codex(False, {"OPENAI_API_KEY": ""})
+        data = detect_codex(False, {"CODEX_API_KEY": ""})
         self.assertEqual(data["auth"]["codex"], "none")
 
 
 class ProbeAuthTests(unittest.TestCase):
     def test_probe_reports_auth(self) -> None:
-        out: dict[str, Any] = json.loads(probe_codex(True, {"OPENAI_API_KEY": SECRET}).stdout)
+        out: dict[str, Any] = json.loads(probe_codex(True, {"CODEX_API_KEY": SECRET}).stdout)
         self.assertEqual(out["agents"]["codex"]["auth"], "subscription")
-        out = json.loads(probe_codex(False, {"OPENAI_API_KEY": SECRET}).stdout)
+        out = json.loads(probe_codex(False, {"CODEX_API_KEY": SECRET}).stdout)
         self.assertEqual(out["agents"]["codex"]["auth"], "api-key")
 
     def test_included_false_is_dropped(self) -> None:
@@ -114,13 +114,13 @@ class ProbeAuthTests(unittest.TestCase):
 
     def test_api_key_opt_in_is_usable(self) -> None:
         body: str = "    auth: api-key\n    included: true\n"
-        out: dict[str, Any] = json.loads(probe_codex(False, {"OPENAI_API_KEY": SECRET}, body).stdout)
+        out: dict[str, Any] = json.loads(probe_codex(False, {"CODEX_API_KEY": SECRET}, body).stdout)
         self.assertIn("codex", out["usable"])
         self.assertEqual(out["agents"]["codex"]["auth"], "api-key")
 
     def test_api_key_without_opt_in_is_dropped(self) -> None:
         body: str = "    auth: api-key\n"
-        out: dict[str, Any] = json.loads(probe_codex(False, {"OPENAI_API_KEY": SECRET}, body).stdout)
+        out: dict[str, Any] = json.loads(probe_codex(False, {"CODEX_API_KEY": SECRET}, body).stdout)
         self.assertNotIn("codex", out["usable"])
         self.assertIn("codex", [d["name"] for d in out["dropped"]])
 
@@ -133,14 +133,14 @@ class ProbeAuthTests(unittest.TestCase):
 
     def test_api_key_map_is_boolean_and_secret_free(self) -> None:
         project: str = tempfile.mkdtemp(prefix="dts2-proj-")
-        result = run(["detect", "--project", project], fake_codex(False), {"OPENAI_API_KEY": SECRET})
+        result = run(["detect", "--project", project], fake_codex(False), {"CODEX_API_KEY": SECRET})
         data: dict[str, Any] = json.loads(result.stdout)
         self.assertTrue(all(isinstance(v, bool) for v in data["apiKey"].values()))
         self.assertTrue(data["apiKey"]["codex"])
         self.assertNotIn(SECRET, result.stdout + result.stderr)
 
     def test_secret_value_never_printed(self) -> None:
-        env: dict[str, str] = {"OPENAI_API_KEY": SECRET, "ANTHROPIC_API_KEY": SECRET}
+        env: dict[str, str] = {"CODEX_API_KEY": SECRET, "ANTHROPIC_API_KEY": SECRET}
         for status_ok in (True, False):
             result = probe_codex(status_ok, env)
             self.assertNotIn(SECRET, result.stdout + result.stderr)
