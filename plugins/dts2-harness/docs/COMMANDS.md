@@ -173,10 +173,11 @@ Typed as `/dts2:<name>`. `user only` means `disable-model-invocation: true`: the
 | `/dts2:cooldown` | user only | Pause an agent that hit a usage limit until its reset date, resume it, or list what is paused. | `/dts2:cooldown set <agent> <date or duration> [reason] \| clear <agent> \| list` | agent status file |
 | `/dts2:find-skills` | user or model | Rescan the repo, audit every improvement option (skills, hooks, MCP servers, plugins, commands, subagents, permissions, CI), ask, and wire in the picks on a yes. | `/dts2:find-skills` | keep list, settings (on a yes) |
 | `/dts2:steer` | user or model | Stop running work and redirect it. Finishes the current atomic step, dispatches nothing new, checkpoints a handoff, reviews open intake items, re-plans to the new direction, confirms in one short message and resumes. | `/dts2:steer <new direction>` | handoff file, intake queue, plan |
+| `/dts2:incidents` | user or model | See and learn from agent incidents: list, live view, end-of-run brief, a reviewed debrief that writes lessons, and promotion of repeat trends up the tier ladder. | `/dts2:incidents list [--open] \| live \| brief \| review \| resolve <id> \| promote --tier harness\|knowledge <id> \| lessons stats` | resolves incidents, lessons inbox, tier ledgers (after review) |
 | `/dts2:ask-expert` | user or model | Decide the fate of one repo: asks your goal in plain words, reads the code, compares it with what you said and with your active repos, runs a three-provider expert panel (council and research if it stalls) and writes a one-page memo: keep, fold, template, archive or delete. Changes nothing. | `/dts2:ask-expert [repo] ["what I'm unsure about"]` | `.harness/ask-expert/<repo>/` |
 | `/dts2:repo-sweep` | user or model | Quick ask-expert pass over every repo of an owner, oldest first, then one cleanup screen. Keep, fold and template write a to-do file; archive uses `gh repo archive`; delete is per repo after a backup bundle and a typed name. | `/dts2:repo-sweep [owner]` | `.harness/ask-expert/`, archived repos, `~/.dts2/repo-backups/` |
 
-## 5. Agents (7)
+## 5. Agents (8)
 
 Dispatched by the skills with the Agent tool; nobody types them.
 
@@ -189,6 +190,7 @@ Dispatched by the skills with the Agent tool; nobody types them.
 | `dts2:verifier` | read-only (Bash for checks; cannot write files) | Runs configured build, type, lint and test commands, checks for stubs, walks screens when asked. Evidence only. | After review, before the Ship checkpoint. | `Agent(subagent_type: dts2:verifier)` |
 | `dts2:scout` | read-only (Bash for configured commands) | Measures a repo, detects other harnesses and a marketing surface, recommends team tier, builder count and reviewer axes. | First, before planning. | `Agent(subagent_type: dts2:scout)` |
 | `dts2:auditor` | read-only (Bash) | Inventories installed agent tooling against a blueprint profile and proposes keep, disable and setup. Never changes anything. | From `machine-prep`. | `Agent(subagent_type: dts2:auditor)` |
+| `dts2:incident-reviewer` | read-only (Bash for read-only commands) | Takes the open incidents from `incidents.py review-input`, finds a root cause with a short five-whys, marks each isolated or trend, and proposes lessons, promotions and `harness:` lines. Never edits files. | From `incidents review`, only when incidents are open. | `Agent(subagent_type: dts2:incident-reviewer)` |
 
 ## 6. Hooks (15 rows, 20 registrations in `hooks/hooks.json`)
 
