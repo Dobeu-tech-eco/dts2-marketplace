@@ -563,11 +563,21 @@ def panel_tally(plans: dict[str, Path], votes: dict[str, Path], blind_key: dict[
             "pass": bool(votes) and unanimous and disagree == 0}
 
 
+def ballot_legend(blind_key: dict[str, Any] | None, voter: str) -> str:
+    """Which seat's plan each option label meant on `voter`'s blind ballot, so the council can follow `Option <L>` references."""
+    labels: dict[str, str] = (blind_key or {}).get("key", blind_key or {}).get(voter) or {}
+    if not isinstance(labels, dict) or not labels:
+        return ""
+    rows: list[str] = [f"- Option {label} = plan of {stem[len(PLAN_STEM_PREFIX):] if stem.startswith(PLAN_STEM_PREFIX) else stem}"
+                       for label, stem in sorted(labels.items())]
+    return "\n## Option labels on this ballot\n\n" + "\n".join(rows) + "\n"
+
+
 ENTRY_ORDER: Final[re.Pattern[str]] = re.compile(r"^(\d+)-")
 
 
 def record_round(folder: Path, number: int, result: dict[str, Any], plans: dict[str, Path] | None = None,
-                 votes: dict[str, Path] | None = None) -> list[str]:
+                 votes: dict[str, Path] | None = None, blind_key: dict[str, Any] | None = None) -> list[str]:
     """One council-format entry per seat (`<NN>-plan-r<round>-<seat>.md`, first line `VOTE: APPROVE|REJECT`) so that
     `council.py eligible` sees the round: every seat approves a passed round and rejects a failed one. Each entry then carries
     the seat's plan and, when it has one, its cross-review votes verbatim, because `council.py dossier` reads only these files."""
@@ -586,6 +596,7 @@ def record_round(folder: Path, number: int, result: dict[str, Any], plans: dict[
             text += f"\n## Plan (verbatim)\n\n{plans[seat].read_text(encoding=ENCODING).strip()}\n"
         if votes and seat in votes and votes[seat].is_file():
             text += f"\n## Cross-review votes (verbatim)\n\n{votes[seat].read_text(encoding=ENCODING).strip()}\n"
+            text += ballot_legend(blind_key, seat)
         entry.write_text(text, encoding=ENCODING)
         written.append(str(entry))
     return written
@@ -613,7 +624,7 @@ def cmd_panel_tally(args: argparse.Namespace) -> int:
         if args.round is None or args.round < 1:
             emit({"ok": False, "problems": ["--record needs --round N (1 or more)"]})
             return EXIT_REFUSED
-        result["recorded"] = record_round(Path(args.record), args.round, result, plans, votes)
+        result["recorded"] = record_round(Path(args.record), args.round, result, plans, votes, blind_key)
     emit(result)
     return EXIT_OK if result["ok"] else EXIT_REFUSED
 

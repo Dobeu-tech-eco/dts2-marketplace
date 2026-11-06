@@ -116,6 +116,14 @@ class RecordCase(BlindCase):
         self.assertIn("## Cross-review votes (verbatim)", first)
         self.assertIn("VOTE Option A: DISAGREE", first)
 
+    def test_entries_carry_each_voters_option_legend(self) -> None:
+        out = self.record(1, self.dir / "run")
+        first: str = Path(out["recorded"][0]).read_text(encoding="utf-8")
+        self.assertIn("## Option labels on this ballot", first)
+        self.assertIn("- Option A = plan of b", first)
+        self.assertIn("- Option B = plan of a", first)
+        self.assertIn("- Option C = plan of c", first)
+
     def test_dossier_includes_plan_text_and_council_still_eligible(self) -> None:
         folder: Path = self.dir / "run"
         for number in (1, 2, 3):
