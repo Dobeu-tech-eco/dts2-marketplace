@@ -83,6 +83,9 @@ PATH_KEYS: Final[tuple[str, ...]] = ("file_path", "path", "notebook_path")
 GH_BODY_FLAGS: Final[frozenset[str]] = frozenset({"-f", "-F", "--field", "--raw-field", "--input"})
 GH_METHOD_FLAGS: Final[frozenset[str]] = frozenset({"-X", "--method"})
 CONFIG_ESCAPES: Final[tuple[str, ...]] = ("core.hookspath", "git_external_diff")
+INTERPRETERS: Final[frozenset[str]] = frozenset({"python", "python3", "node", "ruby", "perl"})
+INLINE_CODE_FLAGS: Final[frozenset[str]] = frozenset({"-c", "-m", "-e", "--eval", "-E"})
+HARNESS_SCRIPTS: Final[Path] = Path(__file__).resolve().parent  # the installed plugin's own scripts/ (lives under ~/.claude/)
 SAFE_REF: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9._/@-]+$")
 
 
@@ -517,6 +520,28 @@ def own_branch(target: str, prefix: str) -> bool:
     return target == prefix or target.startswith(prefix + "-")
 
 
+def interpreter_script(words: list[str]) -> str | None:
+    """The script file an interpreter runs (`python3 -I <script> ...`), or None for inline code (`-c`, `-m`, `-e`)."""
+    if not words or Path(words[0]).name not in INTERPRETERS:
+        return None
+    for word in words[1:]:
+        if word in INLINE_CODE_FLAGS:
+            return None
+        if not word.startswith("-"):
+            return word
+    return None
+
+
+def is_harness_script(word: str) -> bool:
+    """True when `word` is a file directly inside the installed plugin's scripts/ folder. That path sits under
+    ~/.claude/plugins/, so without this the `.claude` write rule denied every harness script a son runs (D74)."""
+    try:
+        resolved: Path = Path(os.path.expanduser(word)).resolve()
+    except (OSError, RuntimeError, ValueError):
+        return False
+    return resolved.parent == HARNESS_SCRIPTS and resolved.suffix == ".py"
+
+
 def son_path_denial(tool: str, tool_input: dict[str, Any], command: str, prefix: str) -> str | None:
     lowered: str = command.lower()
     if any(token in lowered for token in CONFIG_ESCAPES):
@@ -531,7 +556,9 @@ def son_path_denial(tool: str, tool_input: dict[str, Any], command: str, prefix:
         if any(is_secret_path(w) for w in flat if looks_like_path(w)):
             return "reading credentials (ssh keys, .env files, cloud credential paths) is denied for a son"
         writes: bool = bool(words) and Path(words[0]).name in WRITE_COMMANDS
-        written: list[str] = [*(flat if writes else []), *(t for op, t in redirects if ">" in op and t)]
+        script: str | None = interpreter_script(words)
+        exempt: str | None = script if script is not None and is_harness_script(script) else None
+        written: list[str] = [*(w for w in flat if writes and w != exempt), *(t for op, t in redirects if ">" in op and t)]
         if any(is_protected_write(w) for w in written if looks_like_path(w)):
             return "writing .claude/, .mcp.json, merge-go.md or .git/hooks is denied for a son"
     return None
