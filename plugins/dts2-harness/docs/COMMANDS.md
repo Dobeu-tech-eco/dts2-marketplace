@@ -71,7 +71,7 @@ Contents: 1 How to run a command, 2 `lanes.py` subcommands, 3 Standalone scripts
 | `mailbox` | either | The head/son mailbox. Son ops: ask, need-human, check, wait, park, merge-go-check, rules, request. Head ops: answer, decide (refused in a son). A wait that runs out parks the lane (`mailbox_wait_min`). | `lanes.py mailbox ask <stamp> --lane a --text "<question>"  \|  mailbox answer <stamp> --lane a --id q1 --text "<answer>"  \|  mailbox park <stamp> --lane a --reason context-guard [--session-id S]  \|  mailbox rules <stamp> --lane a --point start\|vote\|ship\|merge  \|  mailbox request <stamp> --lane a --files f1,f2 --text "<why>"  \|  mailbox decide <stamp> --lane a --id r1 --outcome escalate\|granted\|denied  \|  mailbox merge-go-check <stamp> --lane a [--worktree D]` | `questions/`, `merge-go.json`, status |
 | `report-check` | head | Check the final report against lane ids; with `--stamp` also cross-check the son run records. | `lanes.py report-check dpp-report.md --lanes a,b [--stamp <stamp>]` | none (read-only) |
 
-## 3. Standalone scripts (64 with a command line)
+## 3. Standalone scripts (65 with a command line)
 
 Invocation shown without the prefix `python3 -I "$CLAUDE_PLUGIN_ROOT/scripts/`; add it and the closing `"`. Scripts marked `hook` read the hook JSON on stdin and are called by `hooks/*.sh`.
 
@@ -109,6 +109,7 @@ Invocation shown without the prefix `python3 -I "$CLAUDE_PLUGIN_ROOT/scripts/`; 
 | `harness-lock.py` | head (only a head may lock) | Lock a shared harness record for one writer. | `harness-lock.py acquire\|release\|check --file F --holder H [--role head\|son --ttl-sec N --lock-dir D]` | lock file |
 | `head_publish.py` | head | The head pushes and opens one PR per lane, merges when preconditions hold, and bootstraps each lane. Refused when `DTS2_SON` is set. | `head_publish.py [--repo R] publish --lane L --branch B --base B --title T [--body X] \| merge <pr> [--verifier-ok --default-branch B --deploys-production] \| bootstrap --stamp S --lane L --worktree D` | git push, PRs, `son.env` |
 | `lessons.py` | either | Maintain the lessons file: promotions, regressions, 90-day pruning. | `lessons.py <repo> promote <lesson> [--lives-at P --today D] \| regress <lesson> [--today D] \| stats \| prune [--today D --stale-days N]` | lessons file |
+| `loop_guard.py` | head | Unattended fullauto outer-loop guard: kill-switch and budget check, progress ledger with stall verdict, parked items and sweep, one "dts2: needs you" issue. | `loop_guard.py [--repo R] check \| record --progress P [--signature S] \| park --id I --reason R [--blocker-pr N \| --blocker-item ID \| --blocker-file F] \| sweep [--release] \| notify [--reason R]` | `.harness/loop/` ledger, parked list, note |
 | `machine-prep.py` | user (via skill) | Audit a machine against a blueprint profile; `apply` disables plugins (reversible). | `machine-prep.py audit\|plan\|apply [--profile P --home H --claude-home C --tier light\|standard\|strict --days N --project P]` | settings backup, plugin settings (`apply`) |
 | `marketing-select.py` | either | Ordered marketing-skills subset for the go-to-market pass. | `marketing-select.py [--facts F]` | none |
 | `metrics.py` | either | Append run metrics (one row per stamp) and print a trend line. | `metrics.py <repo> append --stamp S --rounds N --duration D --verdict V [--agents A --failures F] \| trend [--last N]` | metrics file |
@@ -228,6 +229,15 @@ One command for every harness session on the computer. Hooks register each sessi
 - `/dts2:fleet list` shows label or short id, repo@branch, state, last seen, turns and pending broadcasts. `show <ref>` adds the handoff, task ledger tail, open intake items, lanes and cooldowns; `logs <ref> -n 20` shows the last turns.
 - `/dts2:fleet broadcast --kind handoff --text "Plugin update coming. Finish your step, write the handoff, stop."` reaches each target session once: on its next prompt, after its next tool call, or when it is about to go idle. Kinds are `note`, `handoff`, `pause`, `knowledge` and `checkin`. The skill shows how many live sessions match and asks before sending.
 - `/dts2:fleet status` shows which sessions picked a broadcast up. A session idle at the prompt picks it up only when next touched.
+
+### `/dts2:fullauto` unattended loop in short
+
+With `autonomy: unattended` in `.harness/config.yaml` the `max_fullauto_loops` cap is lifted (the default stays 3) and `loop_guard.py` ends the loop instead.
+
+- Start it with `/goal` ("all ready items are done or parked, or loop_guard.py returned a stall verdict or STOP") and `/loop` over `.claude/loop.md`, copied from `templates/loop.md`.
+- A pass runs `loop_guard.py check`, then `sweep --release`, does the next ready item, `park`s one that needs a person, and ends with `record --progress "<open items> | <merged PRs>" --signature "<failure>"`.
+- `record` answers `stall` after `loop.no_progress_limit` passes (default 3) with the same progress hash, or three identical failure signatures in a row. `notify` then opens or updates the single issue "dts2: needs you" and writes `.harness/loop/need-human.md`.
+- Stop it from outside with a `.harness/STOP` file or the label `dts2:stop` on an open PR. `loop.max_passes` and `loop.max_hours` are the budget stops.
 
 ## 7. Common flows
 
