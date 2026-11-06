@@ -5,12 +5,16 @@
                      (N3: test, typecheck, lint, secret-scan, scope-check); blocks once, skipped when `stop_hook_active`.
   stop-failure       a turn ended on an API error (rate limit, overload, auth, billing...): append a Handoff action item.
   permission-denied  a tool call was denied: append a Handoff action item naming the tool, so a person can widen or fix it.
+                     In unattended mode (`autonomy: unattended` or DTS2_UNATTENDED=1) a lane also gets a need-human mailbox item
+                     and parks (`incomplete`, reason `permission-denied`), so a person answers it later instead of the run stalling.
 
 Always exits 0: an event hook never fails the session."""
 from __future__ import annotations
 
 import argparse
 import json
+import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -29,6 +33,9 @@ ADD_TIMEOUT_S: Final[int] = 10
 COOLDOWN_AGENT: Final[str] = "claude"
 SET_BY: Final[str] = "stop-failure"
 DETAIL_MAX_CHARS: Final[int] = 120
+BRANCH_PREFIX_VAR: Final[str] = "DTS2_SON_BRANCH_PREFIX"  # `dts2/<stamp>/lane-<id>`, set in every son's env
+LANE_BRANCH: Final[re.Pattern[str]] = re.compile(r"^dts2/([^/]+)/lane-([^/]+)$")
+REASON_PERMISSION_DENIED: Final[str] = "permission-denied"
 REASON: Final[str] = ("dts2-harness verifier stop check: the newest run ledger has no check line for: %s. Run `checks.py run` "
                       "(or report the check as skipped with its reason) and send the report again.")
 
@@ -126,6 +133,42 @@ def record_incident(cwd: Path, event: str, payload: dict[str, Any]) -> None:
                                    f"{one_line(payload.get('reason') or payload.get('permission_denied_reason'))}")
 
 
+def lane_identity() -> tuple[str, str] | None:
+    """(stamp, lane id) of the lane this session is a son of, from its env; None for a head or a plain session."""
+    found = LANE_BRANCH.match(os.environ.get(BRANCH_PREFIX_VAR, ""))
+    return (found.group(1), found.group(2)) if found else None
+
+
+def lane_runs_dir(cwd: Path, stamp: str, lane_id: str) -> Path | None:
+    """The runs folder holding this lane's status.json: the session's own, else the main checkout's (a son works in a worktree)."""
+    import son_launch  # noqa: PLC0415 - only the unattended path needs it
+
+    for root in (cwd, son_launch.git_common_dir(cwd).parent):
+        runs: Path = root / state_io.RUNS_REL
+        if (runs / stamp / lane_id / "status.json").is_file():
+            return runs
+    return None
+
+
+def route_to_human(cwd: Path, payload: dict[str, Any]) -> None:
+    """Unattended: leave a need-human item in the lane's mailbox and park the lane, so the run goes on without a prompt.
+    Does nothing for a session that is not a lane; every failure is swallowed by the caller."""
+    ident = lane_identity()
+    if ident is None:
+        return
+    stamp, lane_id = ident
+    runs_dir: Path | None = lane_runs_dir(cwd, stamp, lane_id)
+    if runs_dir is None:
+        return
+    from lanes.common import PHASE_INCOMPLETE  # noqa: PLC0415
+    from lanes.mailbox import KIND_NEED_HUMAN, ask  # noqa: PLC0415
+    from lanes.phases import transition  # noqa: PLC0415
+
+    text: str = item_text("permission-denied", payload)
+    sent: dict[str, Any] = ask(runs_dir, stamp, lane_id, text, cwd, kind=KIND_NEED_HUMAN)
+    transition(runs_dir, stamp, lane_id, PHASE_INCOMPLETE, reason=REASON_PERMISSION_DENIED, extra={"waiting_on": sent.get("id")})
+
+
 def main() -> int:
     parser: argparse.ArgumentParser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("event", choices=("subagent-stop", "stop-failure", "permission-denied"))
@@ -141,6 +184,14 @@ def main() -> int:
                 print(json.dumps(result))
             return 0
         append_item(cwd, item_text(args.event, payload))
+        if args.event == "permission-denied":
+            try:
+                import unattended  # noqa: PLC0415
+
+                if unattended.is_unattended(cwd):
+                    route_to_human(cwd, payload)
+            except Exception:  # noqa: BLE001 - parking is best effort; the action item above already stands
+                pass
         try:
             record_incident(cwd, args.event, payload)
         except Exception:  # noqa: BLE001 - telemetry must never change the existing action-item behavior

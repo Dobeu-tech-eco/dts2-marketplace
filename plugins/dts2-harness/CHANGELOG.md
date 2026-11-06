@@ -6,6 +6,27 @@ All notable changes to dts2-harness are recorded here, newest first, in the [Kee
 Released versions live in this file. Work that has not been released yet is listed under `## Unreleased` in `README.md` until the release step joins it here.
 Entries carry no dates: the repository holds no release tags to take them from.
 
+## [4.1.0]
+
+Minor release: personal knowledge store, repo review, Composio, agent incidents, fleet view, cooldowns, prompt intake and hooks setup, plus the 3.11.1 son-sandbox fix. Nothing breaking; the 4.0.0 migration steps are unchanged.
+
+### Added
+
+- `/dts2:knowledge` (user only): a private, git-synced store of standing preferences, glossary terms and cross-project learnings, with an optional Cloudflare backend (`scripts/knowledge.py`, `scripts/knowledge_cloudflare.py`); `/dts2:setup` reads it and asks before applying a preference.
+- `/dts2:ask-expert` reviews one repo before setup (goal questions, clarity gate, evidence report, optional panel with `panel-tally`) and `/dts2:repo-sweep` runs the quick pass over an owner's repos with one cleanup screen (`scripts/ask_expert.py`, `council.py --allow-research`).
+- `/dts2:composio` (user only) connects a Composio account, maps toolkits and connected accounts, and offers to disable overlapping tools without deleting anything (`scripts/composio-setup.py`); `onboard`, `machine-prep`, `improve-scan.py` and `find-skills` take covered tools into account.
+- `/dts2:incidents` (`list`, `live`, `brief`, `review`, `resolve`, `promote`, `lessons`) with a read-only `incident-reviewer` agent and an agent telemetry hook that records thin briefs, empty or partial reports, rework and hung spawns; `incident_capture: false` turns capture off. Skill count is now 26 and agent count 8.
+- `/dts2:fleet` lists every harness session on the machine and shows a session's handoff, tasks, intake, lanes and cooldowns read-only; `/dts2:check-in all` gathers check-in items from all sessions into one report (`hooks/fleet-session.sh`, `scripts/fleet.py`).
+- `/dts2:cooldown` and `scripts/cooldowns.py` track agents paused after a usage limit with their reset dates; `roster.py` and `failover.py` skip cooling agents and `hooks/session-cooldowns.sh` reports them at session start.
+- Prompt intake: a `UserPromptSubmit` hook (`hooks/prompt-intake.sh`, `scripts/intake.py`) queues every prompt typed while the harness works as fold, clarify or steer, and `/dts2:steer` is the only command that stops running work to re-plan.
+- Onboarding hooks setup (`scripts/hooks-setup.py`, `templates/hooks/`) merges picked hooks into project, local or user settings with a backup, including database guard hooks; `find-skills` now audits every improvement option through the read-only `scripts/improve-scan.py`.
+- Handoff and builder gates: H-003 pending plan or ship checkpoint in the handoff, H-004 approved plan counts as the plan checkpoint, H-006 builders run `/improve-codebase-architecture` only when installed.
+
+### Fixed
+
+- 3.11.1 / D74 (son sandbox): the son guard no longer treats an interpreter's script argument inside the plugin's own `scripts/` as a write target, so `lanes.py` runs in a son; `lane_env` sets `CLAUDE_PLUGIN_ROOT` and keeps pnpm's store. Lessons from the incident are recorded.
+- Bot-review fixes: fleet broadcast delivery keeps a per-session `.seen.json` marker so no message is skipped; incident lessons keep distinct `K-` ids, project-prefixed promoted keys and the full injected id forms; intake updates run under the file lock and the hook never waits on it; `agent-memory.py` migrates the pre-4.0 managed block in place; `ask_expert.py` backup, delete and panel voting corrected; the hook speed test no longer fails on one slow CI sample.
+
 ## [4.0.0]
 
 Plugin renamed from `dts2-harness` to `dts2` so every command reads `/dts2:<command>`.

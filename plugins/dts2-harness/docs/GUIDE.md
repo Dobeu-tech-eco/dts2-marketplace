@@ -261,3 +261,13 @@ Release history before 3.10: 3.9 parallel autopilot (`dpp`, `dpp-full`, `fullaut
 | `.harness/cache` | Shared build cache across lanes | sons |
 
 `.harness/runs/`, receipts and review receipts are never committed; `ensure-ignored.py` keeps them out of git.
+
+## 7. Unattended mode
+
+Unattended mode lets a lane run for hours without permission prompts while every dangerous action stays blocked.
+
+- **Turn it on.** `/dts2:setup` offers it (step 9b). Or run `python3 -I scripts/unattended.py diff` to see the change and `apply` to merge it into `.claude/settings.json`. Then set `autonomy: unattended` in `.claude/dts2-harness.local.md`.
+- **What it adds.** `permissions.defaultMode: dontAsk`; an allowlist for normal work (file tools, git read and commit, push, `gh pr view/create/checks`, `gh pr merge --auto`, the plugin scripts, tests, ruff, shellcheck); `permissions.deny` rules that mirror every deny rule in `templates/policy.json` plus the human approvals file; `disableBypassPermissionsMode: disable`; and the sandbox.
+- **Append-only.** `apply` adds list entries and missing keys. A value you already set is kept and reported. The old file is saved as `settings.json.bak-<stamp>`.
+- **When something is blocked.** The PermissionDenied hook still adds a Handoff action item. In unattended mode a lane also gets a `need-human` item in its mailbox and parks (`incomplete`, reason `permission-denied`), so the run goes on and a person answers later. A push to the default branch and `gh pr merge` still need the person's approval.
+- **Off by default.** Without `autonomy: unattended` (or `DTS2_UNATTENDED=1`) the hook behaves as before.
