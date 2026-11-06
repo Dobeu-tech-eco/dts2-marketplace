@@ -115,6 +115,14 @@ Usage limits belong to the account, so the harness keeps one shared list of paus
 - Each new session starts with a one-line note of who is paused and until when.
 - Set or lift a pause by hand with `/dts2:cooldown set <agent> <date or duration>`, `clear <agent>` and `list`.
 
+### Incidents and learning
+
+The harness watches its own agents without spending model tokens.
+
+- **What fires automatically.** Every subagent start and stop is recorded. A thin brief, an empty or partial report, a missing section, an agent editing a file another agent wrote, or an agent that never stops (20 minutes by default) is logged as an incident, and the lead is told on its next turn. At spawn, up to 3 matching lessons are added to the agent's context. At the end of a session a one-page brief is written.
+- **Where the files live.** `.harness/agents.jsonl` (events and incidents), `.harness/injections.jsonl` (which lessons were injected), `.harness/briefs/<session>.md` (end-of-run brief), `.harness/lessons.md` and `.harness/lessons-inbox.md` (lessons). Turn capture off with `incident_capture: false` in `.claude/dts2-harness.local.md`.
+- **How to run a review.** `/dts2:incidents list --open` shows what is open and `/dts2:incidents live` shows agents still running. `/dts2:incidents review` sends the open incidents to a read-only reviewer once, then records root causes, queues lessons for `learn`, promotes repeat trends one tier up and lists plugin-wide fixes for `evolve`. Nothing edits the plugin without your yes.
+
 ### Composio
 
 `/dts2:composio` (also offered as a step in `/dts2:onboard`) asks once whether you have a Composio account and records the answer in `~/.dts2/composio.json` (no secrets, never in a repo).

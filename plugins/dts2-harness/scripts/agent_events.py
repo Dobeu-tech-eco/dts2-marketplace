@@ -26,6 +26,8 @@ GATED_AGENT: Final[str] = "verifier"
 LEDGER_GROUP: Final[str] = "Handoff"
 ACTION_ITEMS_SCRIPT: Final[str] = "action-items.py"
 ADD_TIMEOUT_S: Final[int] = 10
+COOLDOWN_AGENT: Final[str] = "claude"
+SET_BY: Final[str] = "stop-failure"
 DETAIL_MAX_CHARS: Final[int] = 120
 REASON: Final[str] = ("dts2-harness verifier stop check: the newest run ledger has no check line for: %s. Run `checks.py run` "
                       "(or report the check as skipped with its reason) and send the report again.")
@@ -99,6 +101,31 @@ def append_item(cwd: Path, text: str) -> bool:
     return done.returncode == 0
 
 
+def record_incident(cwd: Path, event: str, payload: dict[str, Any]) -> None:
+    """Also log the event as an api-error / permission-denied incident; a StopFailure also feeds the cooldown detector."""
+    import incidents  # noqa: PLC0415 - loaded only for these two events, keeping the hook start cheap
+
+    session: str = str(payload.get("session_id") or "unknown")
+    if not (cwd / state_io.HARNESS).is_dir():
+        return
+    if event == "stop-failure":
+        text: str = " ".join(str(payload.get(k) or "") for k in ("error", "error_details", "last_assistant_message"))
+        incidents.record_incident(cwd, category="api-error", session_id=session, agent_id="", klass="lead", detected_by="stop-failure",
+                                  what=f"StopFailure {one_line(payload.get('error')) or 'unknown'}: {one_line(text)}",
+                                  evidence={"paths": []})
+        import cooldowns  # noqa: PLC0415
+
+        found = cooldowns.detect(text, None, COOLDOWN_AGENT)
+        if found:
+            cooldowns.record_detection(found, SET_BY)
+        return
+    incidents.record_incident(cwd, category="permission-denied", session_id=session, agent_id="", klass="lead",
+                              detected_by="permission-denied", evidence={"paths": []},
+                              key=one_line(payload.get("tool_name")),
+                              what=f"PermissionDenied for {one_line(payload.get('tool_name')) or 'a tool'}: "
+                                   f"{one_line(payload.get('reason') or payload.get('permission_denied_reason'))}")
+
+
 def main() -> int:
     parser: argparse.ArgumentParser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("event", choices=("subagent-stop", "stop-failure", "permission-denied"))
@@ -114,6 +141,10 @@ def main() -> int:
                 print(json.dumps(result))
             return 0
         append_item(cwd, item_text(args.event, payload))
+        try:
+            record_incident(cwd, args.event, payload)
+        except Exception:  # noqa: BLE001 - telemetry must never change the existing action-item behavior
+            return 0
     except Exception:  # noqa: BLE001 - an event hook must never fail the session
         return 0
     return 0
