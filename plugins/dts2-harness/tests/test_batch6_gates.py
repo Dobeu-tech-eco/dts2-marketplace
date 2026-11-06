@@ -20,6 +20,7 @@ EXPECTED_TOOLS: Final[dict[str, str]] = {
     "auditor": "Read, Grep, Glob, Bash",
     "builder": "Read, Write, Edit, Grep, Glob, Bash",
     "fixer": "Read, Write, Edit, Grep, Glob, Bash",
+    "incident-reviewer": "Read, Grep, Glob, Bash",
     "lead": "Read, Grep, Glob",
     "reviewer": "Read, Grep, Glob",
     "scout": "Read, Grep, Glob, Bash",

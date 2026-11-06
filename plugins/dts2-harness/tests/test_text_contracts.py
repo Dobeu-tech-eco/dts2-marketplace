@@ -245,8 +245,8 @@ class RunSkillContracts(TextContractMixin):
 
 class ReleaseContract(unittest.TestCase):
     VERSION: Final[str] = "4.0.0"
-    SKILL_COUNT: Final[int] = 22
-    AGENT_COUNT: Final[int] = 7
+    SKILL_COUNT: Final[int] = 23
+    AGENT_COUNT: Final[int] = 8
     REPO_ROOT: Final[Path] = PLUGIN_ROOT.parent.parent
 
     def test_manifests_report_release_version(self) -> None:
