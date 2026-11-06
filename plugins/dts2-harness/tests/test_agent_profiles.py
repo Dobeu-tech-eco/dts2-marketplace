@@ -7,9 +7,9 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock as mock
 from pathlib import Path
 from typing import Any, Final
-from unittest import mock
 
 from helpers import PLUGIN_ROOT
 
