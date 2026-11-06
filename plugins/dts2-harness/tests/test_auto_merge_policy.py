@@ -103,7 +103,8 @@ class AutoMergePolicyTests(unittest.TestCase):
         self.assertIsNone(self.decide(f"env -i gh -R o/r pr merge 42 --match-head-commit {SHA}"))
 
     def test_auto_flag_is_refused_under_the_grant(self) -> None:
-        for command in (f"gh pr merge 42 --auto --squash --match-head-commit {SHA}", f"gh pr merge 42 --squash --auto --match-head-commit={SHA}"):
+        for command in (f"gh pr merge 42 --auto --squash --match-head-commit {SHA}", f"gh pr merge 42 --squash --auto --match-head-commit={SHA}",
+                        f"gh pr merge 42 --squash --match-head-commit {SHA} --auto=true"):
             reason = str(self.decide(command))
             self.assertIn("pr-merge", reason)
             self.assertIn("never armed", reason)
@@ -136,6 +137,21 @@ class AutoMergePolicyTests(unittest.TestCase):
         self.set_gh(view=VIEW, protection=CHECKS, check_runs={"check_runs": [{"name": "test", "conclusion": "success"}]},
                     status={"statuses": [{"context": "lint", "state": "pending"}]})
         self.assertIn("wait for lint", str(self.decide(self.auto())))
+
+    def test_passing_namesake_never_masks_a_pending_or_failing_check(self) -> None:
+        cases = {
+            "duplicate run": {"check_runs": {"check_runs": [{"name": "test", "conclusion": "success"}, {"name": "lint", "conclusion": "success"},
+                                                            {"name": "lint", "conclusion": "failure"}]}},
+            "status masks run": {"check_runs": {"check_runs": [{"name": "test", "conclusion": "success"}, {"name": "lint", "conclusion": "failure"}]},
+                                 "status": {"statuses": [{"context": "lint", "state": "success"}]}},
+            "run masks status": {"status": {"statuses": [{"context": "lint", "state": "pending"}]}},
+        }
+        for label, config in cases.items():
+            self.set_gh(view=VIEW, protection=CHECKS, **config)
+            self.assertIn("wait for lint", str(self.decide(self.auto())), label)
+
+    def test_admin_equals_form_is_denied(self) -> None:
+        self.assertIn("--admin", str(self.decide(f"gh pr merge 42 --squash --admin=true --match-head-commit {SHA}")))
 
     def test_checks_lookup_failure_denies(self) -> None:
         self.set_gh(view=VIEW, protection=CHECKS, check_runs=None)

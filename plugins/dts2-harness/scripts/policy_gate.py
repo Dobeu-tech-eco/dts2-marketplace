@@ -408,12 +408,19 @@ def required_checks_refusal(base: str, repo: str, head: str, cwd: Path) -> str |
     if not isinstance(runs, dict) or not isinstance(runs.get("check_runs"), list) or not isinstance(status, dict) \
             or not isinstance(status.get("statuses"), list):
         return f"cannot read the checks on {head[:10]} from gh, so the merge fails closed; retry, or add the PR under dts2_approvals.merge"
-    green: set[str] = {str(r.get("name")) for r in runs["check_runs"] if isinstance(r, dict) and r.get("conclusion") in GREEN_CONCLUSIONS}
-    green |= {str(s.get("context")) for s in status["statuses"] if isinstance(s, dict) and s.get("state") == "success"}
     for name in names:
-        if name not in green:
+        # Every result reported under the name must be green: a passing namesake never masks a pending or failing one.
+        results: list[bool] = [r.get("conclusion") in GREEN_CONCLUSIONS for r in runs["check_runs"]
+                               if isinstance(r, dict) and str(r.get("name")) == name]
+        results += [s.get("state") == "success" for s in status["statuses"] if isinstance(s, dict) and str(s.get("context")) == name]
+        if not results or not all(results):
             return f"required check {name} is not green: wait for {name} on {head[:10]}, then merge again"
     return None
+
+
+def has_flag(args: list[str], flag: str) -> bool:
+    """True when `flag` appears bare or in its `--flag=value` form (gh accepts `--auto=true`)."""
+    return any(a == flag or a.startswith(flag + "=") for a in args)
 
 
 def standing_merge_refusal(policy: dict[str, Any], rule: dict[str, Any], words: list[str], cwd: Path) -> str | None:
@@ -424,9 +431,9 @@ def standing_merge_refusal(policy: dict[str, Any], rule: dict[str, Any], words: 
     rest, repo = guard.gh_words(unwrap_runner(words))
     merge_args: list[str] = rest[rest.index("merge") + 1:] if "merge" in rest else []
     repo = repo or guard.repo_flag(merge_args)
-    if "--admin" in merge_args:
+    if has_flag(merge_args, "--admin"):
         return "--admin skips branch protection and is denied"
-    if "--auto" in merge_args:
+    if has_flag(merge_args, "--auto"):
         return "native auto-merge is never armed; merge directly with --match-head-commit <sha> after the required checks are green"
     sha: str = (merge_flag_value(merge_args, "--match-head-commit") or "").lower()
     if not HEAD_SHA.match(sha):
