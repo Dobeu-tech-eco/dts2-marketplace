@@ -18,6 +18,12 @@ Before anything else, run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/scope-check.py
 - `workspace-root` with an existing manifest → offer `Re-link the existing workspace (no interview) or revise the end state?`.
 - If `.harness/keep.yaml` exists at the effective root, read it and say `Keeping <n> plugins, <n> skills, <n> agents from .harness/keep.yaml`. Skip the install question for every listed skill (never re-ask), pre-include the listed agents in the Agents round (still show them), and never propose disabling a listed plugin. A re-link or pivot re-run never rewrites keep.yaml except to append.
 
+## Personal knowledge (optional, never blocks)
+
+Run `python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/knowledge.py" context --repo <repo path> --json`. Any failure or empty result: continue without a word.
+- `store` is null → say once `No personal knowledge store yet; /dts2:knowledge setup creates one (new person) or /dts2:knowledge join connects this device to an existing one (private GitHub repo, Cloudflare Worker + D1, or a synced folder).` and continue.
+- Otherwise show the `preferences` and the `terms` named in `repo_matches`, then ASK before using any of them. On a yes, apply mapped ones: `agents.standard` answers the roster and builder-count questions in the interview, so skip them. Without a yes, ask as usual.
+
 ## Mode
 
 - One path or the current repo → **single**: Part 1, then Part 2.
