@@ -379,10 +379,11 @@ class LeaseTests(unittest.TestCase):
         self.assertEqual(leases.lease_ttl_s(self.root), 90 * 60 * 2)
 
     def test_heartbeat_renews_the_ttl(self) -> None:
-        self.lease(now=int(time.time()), ttl=100)
+        start = int(time.time())
+        self.lease(now=start, ttl=100)
         (self.lane / "status.json").write_text(json.dumps({"lane": "a", "status": "starting"}))
         before = json.loads(self.path.read_text())["expires_at"]
-        transition(self.runs, STAMP, "a", "starting", now=int(time.time()) + 50, actor="head")
+        transition(self.runs, STAMP, "a", "starting", now=start + 50, actor="head")
         self.assertEqual(json.loads(self.path.read_text())["expires_at"], before + 50)
 
     def test_expired_lease_is_not_live(self) -> None:

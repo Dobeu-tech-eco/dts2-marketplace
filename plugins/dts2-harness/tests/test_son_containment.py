@@ -113,7 +113,7 @@ class EnvAndFlagTests(unittest.TestCase):
     def test_allowed_env_is_a_pure_filter(self) -> None:
         kept = son_launch.allowed_env({"PATH": "/bin", "GH_TOKEN": "x", "ANTHROPIC_API_KEY": "k", "LC_ALL": "C",
                                        "AZURE_CLIENT_SECRET": "s", "FAKE_X": "1", "DTS2_SON_ENV_PASS": "FAKE_*"})
-        self.assertEqual(set(kept), {"PATH", "ANTHROPIC_API_KEY", "LC_ALL", "FAKE_X", "DTS2_SON_ENV_PASS"})
+        self.assertEqual(set(kept), {"PATH", "LC_ALL", "FAKE_X", "DTS2_SON_ENV_PASS"})
 
     def test_lanes_get_distinct_ports_and_names(self) -> None:
         a, b = self.command("a")["env"], self.command("b")["env"]

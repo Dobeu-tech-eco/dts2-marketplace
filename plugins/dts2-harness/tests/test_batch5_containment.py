@@ -380,11 +380,11 @@ class ProviderEnvTests(unittest.TestCase):
     """G-67."""
 
     SOURCE: Final[dict[str, str]] = {"PATH": "/bin", "HOME": "/h", "GH_TOKEN": "g", "SSH_AUTH_SOCK": "/s", "AWS_SECRET_ACCESS_KEY": "a",
-                                     "ANTHROPIC_API_KEY": "ak", "OPENAI_API_KEY": "ok", "GEMINI_API_KEY": "gk", "LC_ALL": "C"}
+                                     "ANTHROPIC_API_KEY": "ak", "CODEX_API_KEY": "ok", "OPENAI_API_KEY": "oai", "GEMINI_API_KEY": "gk", "LC_ALL": "C"}
 
     def test_provider_env_keeps_only_the_allowlist_and_its_own_key(self) -> None:
-        env = son_launch.provider_env(self.SOURCE, "OPENAI_API_KEY")
-        self.assertEqual(set(env), {"PATH", "HOME", "LC_ALL", "OPENAI_API_KEY"})
+        env = son_launch.provider_env(self.SOURCE, "CODEX_API_KEY")
+        self.assertEqual(set(env), {"PATH", "HOME", "LC_ALL", "CODEX_API_KEY"})
 
     def test_claude_keeps_its_own_credentials(self) -> None:
         self.assertIn("ANTHROPIC_API_KEY", son_launch.provider_env(self.SOURCE, "ANTHROPIC_API_KEY", claude=True))
@@ -392,11 +392,11 @@ class ProviderEnvTests(unittest.TestCase):
     def test_roster_command_runs_codex_in_a_clean_env(self) -> None:
         prompt = Path(tempfile.mkdtemp()) / "p.md"
         prompt.write_text("brief", encoding="utf-8")
-        with mock.patch.dict(os.environ, self.SOURCE, clear=True):
+        with mock.patch.dict(os.environ, self.SOURCE, clear=True), mock.patch.object(roster, "declared_auth", return_value="api-key"):
             data = roster.resolve_command(roster.load_profiles()["codex"], "builder", "standard", prompt, prompt.parent)
         self.assertEqual(set(data["clean_env"]) & {"GH_TOKEN", "SSH_AUTH_SOCK", "AWS_SECRET_ACCESS_KEY", "ANTHROPIC_API_KEY",
                                                    "GEMINI_API_KEY"}, set())
-        self.assertEqual(data["clean_env"]["OPENAI_API_KEY"], "ok")
+        self.assertEqual(data["clean_env"]["CODEX_API_KEY"], "ok")
         self.assertTrue(data["shell"].startswith("env -i "))
         self.assertNotIn("GH_TOKEN", data["shell"])
 
