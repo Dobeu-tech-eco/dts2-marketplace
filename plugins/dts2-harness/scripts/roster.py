@@ -551,8 +551,8 @@ def declared_auth(name: str, config: Path | None = None) -> str:
         for entry in read_roster(config or Path(state_io.CONFIG_REL)):
             if entry["name"] == name:
                 return str(entry.get("auth") or AUTH_SUBSCRIPTION)
-    except OSError:
-        pass
+    except OSError:  # no readable roster: fall through to the subscription default
+        return AUTH_SUBSCRIPTION
     return AUTH_SUBSCRIPTION
 
 

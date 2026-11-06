@@ -4,9 +4,9 @@ from __future__ import annotations
 import os
 import sys
 import unittest
+import unittest.mock
 from pathlib import Path
 from typing import Final
-from unittest import mock
 
 PLUGIN_ROOT: Final[Path] = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PLUGIN_ROOT / "scripts"))
@@ -49,7 +49,7 @@ class SubscriptionTests(unittest.TestCase):
         self.assertNotIn("CLAUDE_CODE_OAUTH_TOKEN", env)
 
     def test_codex_clean_env_from_roster_is_keyless_by_default(self) -> None:
-        with mock.patch.dict(os.environ, SOURCE, clear=True):
+        with unittest.mock.patch.dict(os.environ, SOURCE, clear=True):
             env = roster.clean_env(roster.load_profiles()["codex"], auth="subscription")
         self.assertFalse(KEYS & set(env))
 
@@ -69,7 +69,7 @@ class ApiKeyTests(unittest.TestCase):
         self.assertEqual(env, {"PATH": "/bin"})
 
     def test_roster_clean_env_follows_declared_auth(self) -> None:
-        with mock.patch.dict(os.environ, SOURCE, clear=True):
+        with unittest.mock.patch.dict(os.environ, SOURCE, clear=True):
             env = roster.clean_env(roster.load_profiles()["codex"], auth="api-key")
         self.assertEqual({k for k in env if son_launch.credential_name(k)}, {"CODEX_API_KEY"})
 
