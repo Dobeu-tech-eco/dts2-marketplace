@@ -9,11 +9,11 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Final
-from unittest import mock
 
 from helpers import PLUGIN_ROOT, isolate_agent_status, make_tmp_home
 
@@ -40,7 +40,7 @@ def cli(*args: str) -> tuple[int, str, str]:
 class FleetCase(unittest.TestCase):
     def setUp(self) -> None:
         self.home: Path = make_tmp_home()
-        patcher = mock.patch.dict(os.environ, {"DTS2_FLEET_HOME": str(self.home / "fleet")})
+        patcher = unittest.mock.patch.dict(os.environ, {"DTS2_FLEET_HOME": str(self.home / "fleet")})
         patcher.start()
         self.addCleanup(patcher.stop)
         isolate_agent_status(self)
@@ -145,14 +145,14 @@ class RegistryLifecycleTests(FleetCase):
 
     def test_hook_never_fails_on_garbage(self) -> None:
         for garbage in ("", "not json", "[]", "null", '{"session_id": 5}', '{"session_id": "../../x"}', "\x00\xff"):
-            with mock.patch("sys.stdin", io.StringIO(garbage)), redirect_stdout(io.StringIO()) as out:
+            with unittest.mock.patch("sys.stdin", io.StringIO(garbage)), redirect_stdout(io.StringIO()) as out:
                 code = fleet.main(["hook", "--event", "UserPromptSubmit"])
             self.assertEqual((code, out.getvalue()), (0, ""), garbage)
         self.assertFalse((self.home / "fleet" / "sessions").exists())
 
     def test_hook_swallows_internal_errors(self) -> None:
-        with mock.patch("fleet.run_hook", side_effect=RuntimeError("boom")), \
-                mock.patch("sys.stdin", io.StringIO(json.dumps(self.payload()))):
+        with unittest.mock.patch("fleet.run_hook", side_effect=RuntimeError("boom")), \
+                unittest.mock.patch("sys.stdin", io.StringIO(json.dumps(self.payload()))):
             self.assertEqual(fleet.main(["hook", "--event", "Stop"]), 0)
 
 
@@ -216,8 +216,46 @@ class DeliveryTests(FleetCase):
     def test_fast_path_skips_when_nothing_changed(self) -> None:
         self.send("note", "x")
         self.event("UserPromptSubmit")
-        with mock.patch("fleet.load_broadcasts", side_effect=AssertionError("should not read")):
+        with unittest.mock.patch("fleet.load_broadcasts", side_effect=AssertionError("should not read")):
             self.assertIsNone(self.event("PostToolUse", now=NOW + timedelta(seconds=120)))
+
+    def test_second_deliver_is_a_fast_path_without_reading(self) -> None:
+        self.send("note", "x")
+        self.assertIsNotNone(self.event("UserPromptSubmit"))
+        with unittest.mock.patch("fleet.load_broadcasts") as reader:
+            self.assertIsNone(self.event("UserPromptSubmit", now=NOW + timedelta(seconds=5)))
+        reader.assert_not_called()
+        self.assertEqual(fleet.read_json(fleet.seen_path(SID_A)), fleet.broadcasts_version())
+
+    def test_broadcast_appended_during_the_read_is_not_skipped(self) -> None:
+        self.send("note", "first")
+        late: dict[str, Any] = {}
+        real = fleet.load_broadcasts
+
+        def racing() -> list[dict[str, Any]]:
+            rows = real()
+            if not late:  # another session appends after our snapshot, before our receipt is written
+                late.update(self.send("handoff", "late arrival", now=NOW + timedelta(seconds=1)))
+            return rows
+
+        with unittest.mock.patch("fleet.load_broadcasts", racing):
+            first = self.event("UserPromptSubmit", now=NOW + timedelta(seconds=2))
+        assert first is not None
+        self.assertNotIn(late["id"], first)
+        future = fleet.broadcasts_path().stat().st_mtime_ns + 10_000_000_000
+        os.utime(fleet.receipt_path(SID_A), ns=(future, future))  # receipt newer than the file, old mtime check would skip
+        second = self.event("PostToolUse", now=NOW + timedelta(seconds=3))
+        assert second is not None
+        self.assertIn(late["id"], second)
+
+    def test_stop_does_not_write_the_seen_marker(self) -> None:
+        self.event("SessionStart")
+        self.send("note", "pending at stop")
+        self.assertIsNone(self.event("Stop", now=NOW + timedelta(seconds=1)))
+        self.assertIsNone(fleet.read_json(fleet.seen_path(SID_A)))
+        output = self.event("UserPromptSubmit", now=NOW + timedelta(seconds=2))
+        assert output is not None
+        self.assertIn("pending at stop", output)
 
     def test_no_broadcast_file_is_quiet(self) -> None:
         self.assertIsNone(self.event("UserPromptSubmit"))
@@ -448,6 +486,20 @@ class ShowAndLogsTests(FleetCase):
 
 
 class BroadcastCommandTests(FleetCase):
+    def test_checkin_broadcast_without_text_gets_default_text(self) -> None:
+        code, _, err = cli("broadcast", "--kind", "checkin", "--to", "all")
+        self.assertEqual(code, 0, err)
+        records = fleet.load_broadcasts()
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["kind"], "checkin")
+        self.assertEqual(records[0]["text"], fleet.CHECKIN_DEFAULT_TEXT)
+
+    def test_note_without_text_still_fails(self) -> None:
+        code, _, err = cli("broadcast", "--kind", "note", "--to", "all")
+        self.assertEqual(code, 2)
+        self.assertIn("needs text", err)
+        self.assertEqual(fleet.load_broadcasts(), [])
+
     def test_broadcast_prints_id_and_live_match_count(self) -> None:
         self.seed(SID_A, last_seen=fleet.to_iso(fleet.utc_now()))
         self.seed(SID_B, state="ended", last_seen=fleet.to_iso(fleet.utc_now()))
@@ -475,7 +527,7 @@ class BroadcastCommandTests(FleetCase):
         self.assertIn("bad duration", err)
 
     def test_from_knowledge_without_script_errors_clearly(self) -> None:
-        with mock.patch("fleet.knowledge_script", return_value=None):
+        with unittest.mock.patch("fleet.knowledge_script", return_value=None):
             code, _, err = cli("broadcast", "--kind", "knowledge", "--from-knowledge", "prefs/x")
         self.assertEqual(code, 2)
         self.assertIn("knowledge store script", err)
@@ -483,7 +535,7 @@ class BroadcastCommandTests(FleetCase):
     def test_from_knowledge_uses_script_output(self) -> None:
         script = self.repo / "knowledge.py"
         script.write_text("import sys\nprint('finding for ' + sys.argv[2])\n", encoding="utf-8")
-        with mock.patch("fleet.knowledge_script", return_value=script):
+        with unittest.mock.patch("fleet.knowledge_script", return_value=script):
             code, _, _ = cli("broadcast", "--kind", "knowledge", "--from-knowledge", "prefs/x")
         self.assertEqual(code, 0)
         self.assertEqual(fleet.load_broadcasts()[0]["text"], "finding for prefs/x")
@@ -509,6 +561,7 @@ class PruneTests(FleetCase):
         self.seed(SID_B, state="ended", last_seen=fleet.to_iso(now - timedelta(days=2)))
         self.seed(SID_A2, state="idle", last_seen=fleet.to_iso(now - timedelta(days=40)))
         fleet.write_json(fleet.receipt_path(SID_A), ["bc-1"])
+        fleet.write_json(fleet.seen_path(SID_A), {"mtime_ns": 1, "size": 1, "ino": 1})
         fleet.append_line(fleet.checkins_path(SID_A), {"ts": fleet.to_iso(now), "status": "x"})
         stale = fleet.make_broadcast("note", "old", ["all"], "1h", now - timedelta(days=3))
         fresh = fleet.make_broadcast("note", "new", ["all"], "24h", now)
@@ -519,6 +572,7 @@ class PruneTests(FleetCase):
         self.assertIn("pruned 1 ended session", out)
         self.assertFalse(fleet.session_path(SID_A).exists())
         self.assertFalse(fleet.receipt_path(SID_A).exists())
+        self.assertFalse(fleet.seen_path(SID_A).exists())
         self.assertFalse(fleet.checkins_path(SID_A).exists())
         self.assertTrue(fleet.session_path(SID_B).exists())
         self.assertTrue(fleet.session_path(SID_A2).exists())
@@ -557,11 +611,11 @@ class CheckinTests(FleetCase):
         self.assertEqual(rows[0]["session_id"], SID_A)
 
     def test_checkin_session_from_env_and_missing(self) -> None:
-        with mock.patch.dict(os.environ, {"CLAUDE_SESSION_ID": SID_B}):
+        with unittest.mock.patch.dict(os.environ, {"CLAUDE_SESSION_ID": SID_B}):
             self.assertEqual(cli("checkin", "--status", "ok")[0], 0)
         self.assertEqual(len(fleet.read_lines(fleet.checkins_path(SID_B))), 1)
         env = {k: v for k, v in os.environ.items() if k != "CLAUDE_SESSION_ID"}
-        with mock.patch.dict(os.environ, env, clear=True):
+        with unittest.mock.patch.dict(os.environ, env, clear=True):
             code, _, err = cli("checkin", "--status", "ok")
         self.assertEqual(code, 2)
         self.assertIn("--session", err)
@@ -669,13 +723,13 @@ class ShellHookTests(FleetCase):
 class HomeResolutionTests(unittest.TestCase):
     def test_precedence(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
-            with mock.patch.dict(os.environ, {"DTS2_FLEET_HOME": f"{folder}/f", "DTS2_HOME": f"{folder}/h"}):
+            with unittest.mock.patch.dict(os.environ, {"DTS2_FLEET_HOME": f"{folder}/f", "DTS2_HOME": f"{folder}/h"}):
                 self.assertEqual(fleet.fleet_home(), Path(folder) / "f")
             env = {k: v for k, v in os.environ.items() if k != "DTS2_FLEET_HOME"}
-            with mock.patch.dict(os.environ, {**env, "DTS2_HOME": f"{folder}/h"}, clear=True):
+            with unittest.mock.patch.dict(os.environ, {**env, "DTS2_HOME": f"{folder}/h"}, clear=True):
                 self.assertEqual(fleet.fleet_home(), Path(folder) / "h" / "fleet")
             env.pop("DTS2_HOME", None)
-            with mock.patch.dict(os.environ, env, clear=True):
+            with unittest.mock.patch.dict(os.environ, env, clear=True):
                 self.assertEqual(fleet.fleet_home(), Path.home() / ".dts2" / "fleet")
 
 

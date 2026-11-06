@@ -52,6 +52,8 @@ DEFAULT_EXPIRES: Final[str] = "24h"
 GIT_TIMEOUT_SECONDS: Final[int] = 2
 SUBPROCESS_TIMEOUT_SECONDS: Final[int] = 10
 SOURCE_DEFAULT: Final[str] = "operator"
+CHECKIN_DEFAULT_TEXT: Final[str] = ('Check-in requested: reply with fleet.py checkin --session <your id> --status "..." '
+                                    '[--blocker X] [--next N] [--question Q]')
 
 KIND_NOTE: Final[str] = "note"
 KIND_HANDOFF: Final[str] = "handoff"
@@ -188,6 +190,10 @@ def session_path(session_id: str) -> Path:
 
 def receipt_path(session_id: str) -> Path:
     return fleet_home() / DELIVERED_DIR / f"{session_id}.json"
+
+
+def seen_path(session_id: str) -> Path:
+    return fleet_home() / DELIVERED_DIR / f"{session_id}.seen.json"
 
 
 def broadcasts_path() -> Path:
@@ -386,39 +392,39 @@ def log_steer(entry: dict[str, Any], broadcast: dict[str, Any]) -> None:
         return
 
 
-def mtime_ns(path: Path) -> int | None:
+def broadcasts_version() -> dict[str, int] | None:
+    """Identity of the current broadcasts.jsonl from one stat, or None when it does not exist."""
     try:
-        return path.stat().st_mtime_ns
+        info: os.stat_result = broadcasts_path().stat()
     except OSError:
         return None
+    return {"mtime_ns": info.st_mtime_ns, "size": info.st_size, "ino": info.st_ino}
 
 
 def deliver(event: str, entry: dict[str, Any], now: datetime) -> str | None:
     """The hook output for `event`, marking what it delivers. None when there is nothing to say."""
     if event == "SessionEnd":
         return None
-    broadcasts_mtime: int | None = mtime_ns(broadcasts_path())
-    if broadcasts_mtime is None:
+    # Captured before the read: a broadcast appended after this stat changes the version, so it is never marked seen.
+    version: dict[str, int] | None = broadcasts_version()
+    if version is None:
         return None
     session_id: str = entry["session_id"]
-    receipt_mtime: int | None = mtime_ns(receipt_path(session_id))
-    if receipt_mtime is not None and receipt_mtime > broadcasts_mtime:
+    if read_json(seen_path(session_id)) == version:
         return None
     delivered: list[str] = load_receipt(session_id)
     broadcasts: list[dict[str, Any]] = load_broadcasts()
     pending: list[dict[str, Any]] = pending_for(entry, broadcasts, delivered, now)
     if event == "Stop":
-        # A Stop only ever acts on handoff and pause; it must not mark the file as looked at, or notes would be skipped.
+        # A Stop only ever acts on handoff and pause; it must not mark the file as seen, or notes would be skipped.
         pending = [b for b in pending if b["kind"] in BLOCKING_KINDS]
-    if pending or (event != "Stop" and (receipt_mtime is None or receipt_mtime <= broadcasts_mtime)):
-        # Writing the receipt, even unchanged, records that this version of broadcasts.jsonl was looked at.
+    if pending:
         known: set[str] = {b["id"] for b in broadcasts}
         kept: list[str] = [i for i in delivered if i in known]
         write_json(receipt_path(session_id), [*kept, *(b["id"] for b in pending)])
-        if event == "Stop":
-            # Keep the "looked at" time where it was, so notes still pending are seen at the next prompt or tool call.
-            restore: int = receipt_mtime if receipt_mtime is not None else broadcasts_mtime
-            os.utime(receipt_path(session_id), ns=(restore, restore))
+    if event != "Stop":
+        # The seen marker records the version read above, so an append during this hook leaves it stale and re-read.
+        write_json(seen_path(session_id), version)
     if not pending:
         return None
     for broadcast in pending:
@@ -442,7 +448,7 @@ def run_hook(event: str, payload: Any, pid: int | None = None, now: datetime | N
         try:
             prune_sessions(PRUNE_DAYS, moment)
         except OSError:
-            pass
+            pass  # pruning is best-effort housekeeping and must never block the hook
     return deliver(event, entry, moment)
 
 
@@ -722,6 +728,8 @@ def make_broadcast(kind: str, text: str, targets: list[str], expires: str | None
                    source: str = SOURCE_DEFAULT) -> dict[str, Any]:
     if kind not in KINDS:
         raise FleetError(f"unknown kind {kind!r}: use one of {', '.join(KINDS)}")
+    if kind == KIND_CHECKIN and not text.strip():
+        text = CHECKIN_DEFAULT_TEXT  # the request itself is the message; only the other kinds need words
     if not text.strip():
         raise FleetError("a broadcast needs text (--text or --from-knowledge)")
     expiry: datetime | None = None if expires in ("never", "none") else now + parse_duration(expires or DEFAULT_EXPIRES)
@@ -808,7 +816,7 @@ def prune_sessions(days: int, now: datetime) -> list[str]:
         if entry.get("state") != ENDED or seen is None or seen > cutoff:
             continue
         session_id: str = entry["session_id"]
-        for path in (session_path(session_id), receipt_path(session_id), checkins_path(session_id)):
+        for path in (session_path(session_id), receipt_path(session_id), seen_path(session_id), checkins_path(session_id)):
             path.unlink(missing_ok=True)
         removed.append(session_id)
     return removed
