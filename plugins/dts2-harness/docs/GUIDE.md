@@ -123,6 +123,17 @@ The harness watches its own agents without spending model tokens.
 - **Where the files live.** `.harness/agents.jsonl` (events and incidents), `.harness/injections.jsonl` (which lessons were injected), `.harness/briefs/<session>.md` (end-of-run brief), `.harness/lessons.md` and `.harness/lessons-inbox.md` (lessons). Turn capture off with `incident_capture: false` in `.claude/dts2-harness.local.md`.
 - **How to run a review.** `/dts2:incidents list --open` shows what is open and `/dts2:incidents live` shows agents still running. `/dts2:incidents review` sends the open incidents to a read-only reviewer once, then records root causes, queues lessons for `learn`, promotes repeat trends one tier up and lists plugin-wide fixes for `evolve`. Nothing edits the plugin without your yes.
 
+### Personal knowledge across devices
+
+`/dts2:knowledge` keeps your own standing preferences ("my standard team is 6 agents"), glossary terms (a brand and the repos in it) and cross-project lessons in a private store that is never part of the plugin.
+
+- First time (once per person): `/dts2:knowledge setup` asks where it should live (cloud: a private GitHub repo, the default; a Cloudflare Worker + D1 that also works from claude.ai web and phone; or a OneDrive/Google Drive/Dropbox folder. Or this machine only) and an owner label. Each new computer: `/dts2:knowledge join`. Sign-in comes from `gh`/git or the drive app; no API keys are asked for or stored. The Cloudflare choice is the one exception to "no token": you deploy `templates/knowledge-cloudflare/` with wrangler, set its `KNOWLEDGE_TOKEN` secret, and export the same value as `DTS2_KNOWLEDGE_TOKEN` on each device. The token lives only in your environment, never in the store or the profile. The claude.ai custom connector form may insist on OAuth, which the template does not do yet (see its README).
+- Use plain phrases: "remember my standard is 6 agents" (set), "what is acme" (get), "anything about releases" (find), "sync my knowledge" (sync).
+- `/dts2:setup` reads it, shows what matches the repo, and asks before applying a preference such as the agent count.
+- Nothing else reads it: no hook, no other skill.
+- Do not store secrets; the script refuses tokens, passwords and keys.
+- It is separate from cooldowns: those are live per-account state and do not go through git.
+
 ## 3. The head, son and council flow
 
 Three roles appear in 3.10.0 and the words are used consistently across the skills.

@@ -1,0 +1,14 @@
+# Personal knowledge store: Cloudflare Worker + D1.
+# No account id is committed; `npx wrangler login` selects your account.
+name = "dts2-knowledge"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "dts2-knowledge"
+# Paste the id printed by `npx wrangler d1 create dts2-knowledge`.
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+# The bearer token is a secret, never a variable. Set it with:
+#   npx wrangler secret put KNOWLEDGE_TOKEN
