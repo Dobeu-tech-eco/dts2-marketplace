@@ -198,7 +198,8 @@ def keep_list_plugins(project: Path) -> list[str]:
 
 def with_keep_list(profile: dict, project: Path) -> dict:
     """Return the profile with the project's keep-list plugins added to requiredByHarness."""
-    extra: list[str] = keep_list_plugins(project)
+    # A pre-5.0 keep list names the old plugin id; it must not protect that stale install from being disabled.
+    extra: list[str] = [p for p in keep_list_plugins(project) if p not in state_io.LEGACY_HARNESS_PLUGINS]
     if not extra:
         return profile
     merged: dict = dict(profile)

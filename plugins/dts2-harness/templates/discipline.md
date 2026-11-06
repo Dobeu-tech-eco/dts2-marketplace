@@ -35,7 +35,7 @@ Applies to every agent provider the roster can dispatch; the lead is the session
 9. **Scope before spend.** A run checks its scope first (workspace root, member repo, single, none) and pivots to the workspace root when it is inside a member repo. A context spike before the plan checkpoint is a stop signal: stop every agent, write state, re-run setup, resume. Never push through it.
 10. **Never idle, never collide.** While any ready section with a non-overlapping file set exists, a builder is working on it. A stalled builder is parked with an action item and the next ready section is dispatched in the same step; the run ends only when nothing is ready or at a checkpoint. Two writers never share a file, even to stay busy.
 11. **Effort before escalation.** To do more without spending more, raise a cheaper model's effort before reaching for a pricier model or tier.
-12. **The lead provider is selectable.** The provider that fills the lead, advisory and sign-off seats is chosen with `/dts2:model` (default Claude, stored as `lead_provider`), but the frontier-only-for-advice-and-sign-off rule holds whichever provider leads; execution seats are never affected.
+12. **The lead provider is selectable.** The provider that fills the lead, advisory and sign-off seats is chosen with `/dt:model` (default Claude, stored as `lead_provider`), but the frontier-only-for-advice-and-sign-off rule holds whichever provider leads; execution seats are never affected.
 13. **Partial output is not done.** An agent that hits its turn cap returns a first report line `PARTIAL: hit turn cap at <step>`. The head or lead treats any report carrying it as unfinished: never mark the section done or count a verdict as passed, then re-dispatch with a narrower scope (the remaining steps only) or a fresh agent, inside the Rule 9.6 fix-loop cap.
 
 ## Rule 10 — Branches, worktrees and pull requests
@@ -62,7 +62,7 @@ Installed with `npx skills add https://github.com/mattpocock/skills --skill <nam
 | `diagnosing-bugs` | run: at fix round 2 on the same failure, before the second fix; and again at the hard 3-round cap, bugs still failing, as a fresh `/diagnosing-bugs` pass (`npx skills add https://github.com/mattpocock/skills --skill diagnosing-bugs`) on everything still failing (upstream renamed `diagnose` to `diagnosing-bugs`, so the hard cap reruns that skill from scratch, not the round-2 output) before escalating to the user |
 | `ask-matt` | setup/run: when the user asks a question (`/ask-matt`) |
 | `research` | setup/run: when still unsure after ask-matt (`/research`) |
-| `loop-me` | run: on /dts2:run trigger — check in with the user, before dispatching builders (`npx skills add https://github.com/mattpocock/skills --skill loop-me`) |
+| `loop-me` | run: on /dt:run trigger — check in with the user, before dispatching builders (`npx skills add https://github.com/mattpocock/skills --skill loop-me`) |
 | `setup-pre-commit` | run: once per repo, as the last gate before `git commit`, when `companion-gate.py check --skill setup-pre-commit` answers `run: true`; store it with `record` afterwards (`npx skills add https://github.com/mattpocock/skills --skill setup-pre-commit`) |
 | `code-review` | setup/run: first contact — repo the harness has never been in (no `.harness/` marker); fires once per repo (`npx skills add https://github.com/mattpocock/skills --skill code-review`) |
 

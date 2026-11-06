@@ -130,7 +130,7 @@ class SonCommandTests(unittest.TestCase):
         argv: list[str] = result["argv"]
         self.assertEqual(argv[:2], [sys.executable, str(self.fake)])
         self.assertIn("-p", argv)
-        self.assertIn("/dts2:autopilot --son 20261104-7/a", argv)
+        self.assertIn("/dt:autopilot --son 20261104-7/a", argv)
         self.assertEqual(argv[argv.index("--permission-mode") + 1], DEFAULT_PERMISSION_MODE)
         self.assertEqual(argv[argv.index("--plugin-dir") + 1], str(PLUGIN_ROOT))
         self.assertIn("--model", argv)

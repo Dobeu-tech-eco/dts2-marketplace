@@ -9,7 +9,7 @@ from typing import Final
 from helpers import PLUGIN_ROOT
 
 DISPATCH: Final[re.Pattern[str]] = re.compile(r"\b[Dd]ispatch(?:es|ed|ing)?\b")
-AGENT_OBJECT: Final[re.Pattern[str]] = re.compile(r"\b(?:builders?|lead|reviewers?|verifier|scout)\b|dts2:")
+AGENT_OBJECT: Final[re.Pattern[str]] = re.compile(r"\b(?:builders?|lead|reviewers?|verifier|scout)\b|dt:")
 MODEL: Final[re.Pattern[str]] = re.compile(r"\bmodel\b", re.IGNORECASE)
 EFFORT: Final[re.Pattern[str]] = re.compile(r"\beffort\b", re.IGNORECASE)
 # Files owned by other workers in batch 14. Their dispatch lines are the follow-up to bring to model + effort;
@@ -59,7 +59,7 @@ class MechanicalDispatchTests(unittest.TestCase):
     def test_mechanical_and_phase4_text_use_haiku_low_builder(self) -> None:
         text = (PLUGIN_ROOT / "skills" / "run" / "phase-2-build.md").read_text(encoding="utf-8")
         line = next(ln for ln in text.splitlines() if ln.startswith("**Mechanical dispatches"))
-        for needle in ("`complexity: mechanical`", "notes", "PR body", "dts2:builder", "model: haiku", "effort: low"):
+        for needle in ("`complexity: mechanical`", "notes", "PR body", "dt:builder", "model: haiku", "effort: low"):
             self.assertIn(needle, line)
         self.assertIn("no new agent", line.lower())
 

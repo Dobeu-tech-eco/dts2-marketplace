@@ -36,7 +36,7 @@ class NewSkillsContract(TextContractMixin):
 
     def test_ship(self) -> None:
         self.assert_contains(SKILLS / "ship" / "SKILL.md", [
-            "Never merges", "gitleaks", "do_not_touch", "dts2:verifier", "dts2:reviewer",
+            "Never merges", "gitleaks", "do_not_touch", "dt:verifier", "dt:reviewer",
             "templates/receipt.md", "templates/pr-template.md", ".github/pull_request_template.md",
             "/pr", "gh pr create --base", "gh pr checks", "only `main` and `dev` remain",
             "foldable PR", "redundant PR", "stale branch", "Apply this cleanup?", "cleanup.md",
@@ -47,8 +47,8 @@ class NewSkillsContract(TextContractMixin):
         self.assert_contains(SKILLS / "feature" / "SKILL.md", [
             "clarity-score.py", "end_state_threshold", "Round 3b", "Round 4 — Question loop",
             "Round 4c", "/grill-me", "5b. Architecture pass", "/improve-codebase-architecture",
-            "5c. Agent-friendly rewrite", "/writing-for-agents", "dts2:lead", "## Sections",
-            "PLAN.md", "ROADMAP.md", "STATUS.md", "action-items.py", "/dts2:ship",
+            "5c. Agent-friendly rewrite", "/writing-for-agents", "dt:lead", "## Sections",
+            "PLAN.md", "ROADMAP.md", "STATUS.md", "action-items.py", "/dt:ship",
             "never renumbered", "Continue anyway",
         ])
 

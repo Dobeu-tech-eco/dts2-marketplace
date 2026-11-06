@@ -1,6 +1,6 @@
 # dts2-harness keep list — project-level. Setup re-runs read this first and never re-ask or prune these.
 plugins:          # Claude Code plugin ids the user wants on for this project, e.g. impeccable@impeccable
-  - dts2@dts2
+  - dt@dts2
 skills:           # skills installed for this project; source is "npx skills add <ref>", "plugin", or "synced"
   # Optional per skill: `pin: <40-character commit sha>` installs exactly that commit. The daily pre-check never
   # moves a pin: it writes .harness/skill-updates.json (diff summary per skill) and you approve one with

@@ -15,7 +15,7 @@ from helpers import PLUGIN_ROOT, read_run_skill
 
 SCRIPT: Final[Path] = PLUGIN_ROOT / "scripts" / "upgrade-check.py"
 PLUGIN_JSON: Final[Path] = PLUGIN_ROOT / ".claude-plugin" / "plugin.json"
-RELEASE: Final[str] = "4.1.0"
+RELEASE: Final[str] = "5.0.0"
 
 
 def load_module() -> ModuleType:
@@ -111,8 +111,8 @@ class PrecheckUpgradeTests(unittest.TestCase):
         text: str = read_run_skill()
         for needle in (
             "### Pre-check (every run command)", "skills-check.py", ".harness/upgrade-from.txt",
-            ".harness/handoff/latest.md", "claude plugin update dts2@dts2", "/plugin marketplace update dts2",
-            "/plugin install dts2@dts2", "cannot run `/plugin`", "/reload-plugins", "Upgrade re-entry",
+            ".harness/handoff/latest.md", "claude plugin update dt@dts2", "/plugin marketplace update dts2",
+            "/plugin install dt@dts2", "cannot run `/plugin`", "/reload-plugins", "Upgrade re-entry",
             "the upgrade finishes itself", "Do not start the task on the old version",
         ):
             self.assertIn(needle, text)

@@ -530,9 +530,9 @@ def session_note(repo: Path, cfg: dict[str, Any], now: int) -> str | None:
             counts[str(item["category"])] = counts.get(str(item["category"]), 0) + 1
         detail: str = ", ".join(f"{n} {c}" for c, n in sorted(counts.items()))
         parts.append(f"dts2 incidents: {len(open_now)} open{f' ({detail})' if detail else ''}"
-                     f"{f', {hung} agent(s) possibly hung' if hung else ''}. See /dts2:incidents.")
+                     f"{f', {hung} agent(s) possibly hung' if hung else ''}. See /dt:incidents.")
         if cfg["incidents_auto_review"] and any(n >= AUTO_REVIEW_MIN for n in counts.values()):
-            parts.append("dts2 incidents: 3+ open incidents share a category; run /dts2:incidents review.")
+            parts.append("dts2 incidents: 3+ open incidents share a category; run /dt:incidents review.")
     return "\n".join(parts) if parts else None
 
 

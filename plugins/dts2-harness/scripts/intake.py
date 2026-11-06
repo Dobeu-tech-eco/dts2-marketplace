@@ -40,7 +40,7 @@ NOUN_MIN_LETTERS: Final[int] = 5
 VAGUE_LEAD_WORDS: Final[int] = 10
 VAGUE_PENALTY: Final[int] = 25
 QUESTION_PENALTY: Final[int] = 15
-STEER_PREFIXES: Final[tuple[str, ...]] = ("/dts2:steer", "steer:")
+STEER_PREFIXES: Final[tuple[str, ...]] = ("/dt:steer", "steer:")
 SLASH: Final[str] = "/"
 VAGUE_LEADS: Final[frozenset[str]] = frozenset({"it", "this", "that", "those"})
 STOPWORDS: Final[frozenset[str]] = frozenset({
@@ -262,7 +262,7 @@ def context_text(item: dict[str, Any], budget: int = QUESTION_BUDGET) -> str:
     item_id: str = item["id"]
     if item["kind"] == STEER:
         return (f"dts2 STEER {item_id}: the person's message above asks to stop and redirect. Finish the current atomic "
-                f"step only, then run /dts2:steer with that new direction.")
+                f"step only, then run /dt:steer with that new direction.")
     if item["status"] == SET:
         return (f"dts2 intake {item_id} (fold): the person's message above is added to the task ledger. Keep working; "
                 f"fold it in where it fits, do not stop current work.")

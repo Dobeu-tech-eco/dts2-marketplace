@@ -215,7 +215,7 @@
     ],
     "SubagentStop": [
       {
-        "matcher": "dts2:builder|dts2:reviewer|dts2:verifier",
+        "matcher": "dt:builder|dt:reviewer|dt:verifier",
         "hooks": [
           {
             "type": "command",
@@ -225,7 +225,7 @@
         ]
       },
       {
-        "matcher": "dts2:verifier",
+        "matcher": "dt:verifier",
         "hooks": [
           {
             "type": "command",

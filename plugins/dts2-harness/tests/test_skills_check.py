@@ -373,7 +373,7 @@ class SkillsCheckTests(unittest.TestCase):
         self.assertIn("loop-me", [f["name"] for f in out["skills"]["failed"]])
 
     def test_marketplaces_from_keep_plugins_are_updated(self) -> None:
-        fx = Fixture("plugins:\n  - dts2@dts2\n  - impeccable@impeccable\n")
+        fx = Fixture("plugins:\n  - dt@dts2\n  - impeccable@impeccable\n")
         out = fx.run("--fix", "--no-upstream")
         self.assertEqual(out["harness"]["marketplaces"], {"dts2": "updated", "impeccable": "updated"})
         self.assertIn("plugin marketplace update dts2", fx.log("claude"))
@@ -385,7 +385,7 @@ class SkillsCheckTests(unittest.TestCase):
         self.assertTrue(out["harness"]["upgrade_started"])
         self.assertTrue(out["harness"]["restart_required"])
         self.assertEqual((fx.repo / ".harness" / "upgrade-from.txt").read_text().strip(), "3.6.3")
-        self.assertIn("plugin update dts2@dts2", fx.log("claude"))
+        self.assertIn("plugin update dt@dts2", fx.log("claude"))
         self.assertEqual(out["skills"], {})
 
     def test_report_mode_flags_upgrade_without_writing_marker(self) -> None:
