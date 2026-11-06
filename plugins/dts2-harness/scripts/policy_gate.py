@@ -4,7 +4,9 @@ for every son.
 
 Three tables: `deny` (always refused: force-push, `--admin`, deploy CLIs, `gh secret`, `vercel env`, a bare `env`, repo
 deletes), `require_approval` (`gh pr merge` and a push to the default branch pass only when `approvals.is_human_approved`
-holds the PR number or branch) and `scanner_required` (staging everything in an unattended run needs a secret scanner; its
+holds the PR number or branch; a `gh pr merge <n> --auto --match-head-commit <sha>` also passes under the standing grant
+`merge_policy: ["auto-when-green"]` when the sha is the one `lanes.py merge-go-step` recorded, the PR touches no
+`auto_merge_never_paths` file and the base branch has required checks, so GitHub merges only when CI is green) and `scanner_required` (staging everything in an unattended run needs a secret scanner; its
 absence is red). The command is normalised before it is matched: `bash -lc "..."`, `eval`, `$(...)`, `env -i`, `command`,
 `sudo`, `npx` / `pnpm dlx` runners, `git -C dir`, `;` `&&` `|` chains and quoted words all reduce to the command that runs.
 The tokenizer is `guard.py`'s, not a copy. A line that hides its command word behind a shell expansion is refused when it names
@@ -40,6 +42,9 @@ UNATTENDED_VARS: Final[tuple[str, ...]] = ("DTS2_SON", "DTS2_UNATTENDED")
 TRUE_WORDS: Final[frozenset[str]] = frozenset({"1", "true", "yes", "on"})
 SCANNERS: Final[tuple[tuple[str, str], ...]] = (("DTS2_GITLEAKS_BIN", "gitleaks"), ("DTS2_TRUFFLEHOG_BIN", "trufflehog"))
 PR_NUMBER: Final[re.Pattern[str]] = re.compile(r"^(?:\d+|https://[^\s]+/pull/(\d+))$")
+HEAD_SHA: Final[re.Pattern[str]] = re.compile(r"^[0-9a-f]{7,40}$")
+REPO_FROM_URL: Final[re.Pattern[str]] = re.compile(r"^https://[^/\s]+/([^/\s]+/[^/\s]+)/pull/\d+")
+MAX_LISTED_FILES: Final[int] = 100  # gh lists at most this many changed files; a full list may be cut short
 HIDDEN_WORDS: Final[tuple[str, ...]] = ("push", "merge", "deploy", "publish", "secret")
 POLICY_TOOLS: Final[frozenset[str]] = frozenset({"git", "gh", "vercel", "wrangler", "fly", "flyctl", "netlify", "ntl", "supabase",
                                                  "env", "printenv"})
@@ -325,6 +330,100 @@ def push_branches(args: list[str], cwd: Path) -> list[str]:
     return [dst for dst in targets if dst in default_branches(cwd) or not dst]
 
 
+def glob_regex(pattern: str) -> re.Pattern[str]:
+    """A path glob as a regex: `**/` any directories (or none), `**` anything, `*` and `?` stay inside one path part."""
+    out: list[str] = []
+    i: int = 0
+    while i < len(pattern):
+        if pattern.startswith("**/", i):
+            out.append("(?:.*/)?")
+            i += 3
+        elif pattern.startswith("**", i):
+            out.append(".*")
+            i += 2
+        else:
+            out.append("[^/]*" if pattern[i] == "*" else "[^/]" if pattern[i] == "?" else re.escape(pattern[i]))
+            i += 1
+    return re.compile("".join(out) + r"\Z")
+
+
+def never_path_hit(policy: dict[str, Any], paths: list[str]) -> str | None:
+    """The first changed path that matches an `auto_merge_never_paths` glob."""
+    patterns: list[re.Pattern[str]] = [glob_regex(str(p)) for p in policy.get("auto_merge_never_paths", [])]
+    return next((path for path in paths if any(p.match(path) for p in patterns)), None)
+
+
+def merge_flag_value(merge_args: list[str], flag: str) -> str | None:
+    """The value of `--flag value` or `--flag=value` among a merge command's arguments."""
+    for i, arg in enumerate(merge_args):
+        if arg == flag and i + 1 < len(merge_args):
+            return merge_args[i + 1]
+        if arg.startswith(f"{flag}="):
+            return arg.split("=", 1)[1]
+    return None
+
+
+def gh_json(args: list[str], cwd: Path) -> Any:
+    """Parsed JSON printed by `gh <args>` (DTS2_GH_BIN honoured); None when gh fails or prints something else."""
+    raw: str | None = guard.run([*guard.binary("DTS2_GH_BIN", "gh"), *args], cwd)
+    try:
+        return json.loads(raw) if raw else None
+    except ValueError:
+        return None
+
+
+def required_checks_refusal(base: str, repo: str, cwd: Path) -> str | None:
+    """None when the base branch has at least one required status check (branch protection or a ruleset); else why not.
+    Fails closed on any lookup error."""
+    slug: str = repo or "{owner}/{repo}"
+    protection: Any = gh_json(["api", f"repos/{slug}/branches/{base}/protection/required_status_checks"], cwd)
+    if isinstance(protection, dict) and (protection.get("contexts") or protection.get("checks")):
+        return None
+    rules: Any = gh_json(["api", f"repos/{slug}/rules/branches/{base}"], cwd)
+    if isinstance(rules, list) and any(isinstance(r, dict) and r.get("type") == "required_status_checks" for r in rules):
+        return None
+    return (f"{base} has no required status checks (or they cannot be read), so auto-merge would merge without CI; add a GitHub "
+            "ruleset or branch protection on the base that requires the test and lint checks, and turn on Allow auto-merge")
+
+
+def auto_merge_refusal(policy: dict[str, Any], rule: dict[str, Any], words: list[str], cwd: Path) -> str | None:
+    """None when this `gh pr merge` may pass under the standing grant (see the module docstring); else the reason, which says
+    what to do. A merge without the grant keeps the rule's own per-PR message."""
+    if not approvals.standing_auto_merge(cwd):
+        return str(rule["reason"])
+    rest, repo = guard.gh_words(unwrap_runner(words))
+    merge_args: list[str] = rest[rest.index("merge") + 1:] if "merge" in rest else []
+    repo = repo or guard.repo_flag(merge_args)
+    if "--admin" in merge_args:
+        return "--admin skips branch protection and is denied"
+    if "--auto" not in merge_args:
+        return "without --auto this merge needs a per-PR approval: add the PR number under dts2_approvals.merge, or arm auto-merge with `--auto --match-head-commit <sha>`"
+    sha: str = (merge_flag_value(merge_args, "--match-head-commit") or "").lower()
+    if not HEAD_SHA.match(sha):
+        return "auto-merge needs `--match-head-commit <sha>` (the PR head that `lanes.py merge-go-step` recorded) so a later push cannot ride along"
+    key: str | None = pr_key(merge_args)
+    if not key:
+        return "auto-merge names the PR by number or URL (`gh pr merge <n> --auto --squash --match-head-commit <sha>`), not by branch or the current branch"
+    url = REPO_FROM_URL.match(guard.merge_selector(merge_args) or "")
+    repo = repo or (url.group(1) if url else "")
+    if not any(sha.startswith(g["head"].lower()) or g["head"].lower().startswith(sha) for g in guard.grants(cwd)):
+        return (f"no merge-go grant records head {sha[:10]}; run `python3 -I \"${{CLAUDE_PLUGIN_ROOT}}/scripts/lanes.py\" merge-go-step <stamp> "
+                f"--step <step> --head <sha>` for the PR head first")
+    facts: Any = gh_json(["pr", "view", key, *(["--repo", repo] if repo else []), "--json", "baseRefName,headRefOid,files"], cwd)
+    if not isinstance(facts, dict) or not isinstance(facts.get("baseRefName"), str) or not isinstance(facts.get("files"), list):
+        return f"cannot read PR {key} (base, head and changed files) from gh, so auto-merge fails closed; retry, or add {key} under dts2_approvals.merge"
+    head: str = str(facts.get("headRefOid") or "").lower()
+    if not head or not (head.startswith(sha) or sha.startswith(head)):
+        return f"PR {key} head is {head[:10] or 'unknown'}, not the pinned {sha[:10]}; the head moved, so fetch and run merge-go-step again"
+    files: list[Any] = facts["files"]
+    if len(files) >= MAX_LISTED_FILES:
+        return f"PR {key} lists {len(files)} changed files, which may be cut short, so its paths cannot be checked; merge it with a per-PR approval"
+    hit: str | None = never_path_hit(policy, [str(f.get("path", "")) if isinstance(f, dict) else "" for f in files])
+    if hit is not None:
+        return f"PR {key} touches {hit}, a path auto-merge never covers (auto_merge_never_paths); the person approves it per PR under dts2_approvals.merge"
+    return required_checks_refusal(facts["baseRefName"], repo, cwd)
+
+
 def approval_reason(policy: dict[str, Any], words: list[str], cwd: Path) -> str | None:
     for rule in policy.get("require_approval", []):
         if not rule_matches(rule, words):
@@ -337,6 +436,11 @@ def approval_reason(policy: dict[str, Any], words: list[str], cwd: Path) -> str 
             continue
         if not keys and rule["key"] == "branch":
             continue
+        if rule["key"] == "pr":
+            refusal: str | None = auto_merge_refusal(policy, rule, words, cwd)
+            if refusal is None:
+                continue
+            return f"{rule['id']}: {refusal}"
         return f"{rule['id']}: {rule['reason']}"
     return None
 

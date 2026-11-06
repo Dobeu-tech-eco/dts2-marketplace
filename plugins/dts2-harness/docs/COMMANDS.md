@@ -266,12 +266,12 @@ lanes base-health <stamp>
 lanes merge-mutex <stamp> --lane a --op acquire
 lanes audit lanes.json a --head <sha>
 lanes merge-go lanes.json --lane a --head <sha>
-gh pr merge <pr> --merge
+gh pr merge <pr> --merge   # or, under the standing grant: gh pr merge <pr> --auto --squash --match-head-commit <sha>
 lanes merge-mutex <stamp> --lane a --op release
 lanes merge-done lanes.json --lane a
 ```
 
-`gh pr merge` passes the merge guard only because `merge-go.md` now names the head and base commit; the policy gate also needs the person's approval for the merge. After a failed post-merge walkthrough run `lanes walkthrough-failed <stamp> --lane a --reason "<why>"` and `lanes fix-attempt <stamp> --lane a --reason "<why>"`.
+`gh pr merge` passes the merge guard only because `merge-go.md` now names the head and base commit; the policy gate also needs the person's approval for the merge. The policy gate admits the merge on one of two paths. Per PR: the PR number under `dts2_approvals.merge`. Standing: once, add `"merge_policy": ["auto-when-green"]` under `dts2_approvals` in `.claude/settings.local.json` (human-only), turn on a GitHub ruleset on the default branch that requires the test and lint checks, and enable "Allow auto-merge" in the repository settings; the agent then arms `gh pr merge <n> --auto --squash --match-head-commit <sha>` after `merge-go-step`, and GitHub merges only when the checks are green. The gate refuses the `--auto` form when the sha is not the granted head, the PR touches `.github/workflows`, `policy.json`, settings files, `.env*` or migrations (`auto_merge_never_paths`), the base has no required checks, or any lookup fails. After a failed post-merge walkthrough run `lanes walkthrough-failed <stamp> --lane a --reason "<why>"` and `lanes fix-attempt <stamp> --lane a --reason "<why>"`.
 
 4. Publish a finished lane (head only; refused in a son, a voter or a council seat).
 

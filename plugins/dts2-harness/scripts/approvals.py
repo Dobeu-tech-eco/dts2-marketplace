@@ -4,7 +4,10 @@
 An approval is a key in `.claude/settings.local.json`, which the model cannot write (every son launch denies Edit and Write
 on it, and the sandbox lists it under denyWrite; the head's own instructions say never to edit it). The person edits the file:
 
-    {"dts2_approvals": {"merge": ["42"], "recorded_yes": ["step-3"], "lane_override": ["lane-a"]}}
+    {"dts2_approvals": {"merge": ["42"], "recorded_yes": ["step-3"], "lane_override": ["lane-a"], "merge_policy": ["auto-when-green"]}}
+
+`merge_policy: ["auto-when-green"]` is a standing grant: the policy gate then lets `gh pr merge <n> --auto --match-head-commit <sha>`
+through without a per-PR entry (see policy_gate.py for the conditions).
 
 `is_human_approved(kind, key)` reads only that file. Nothing an agent writes anywhere else counts, and `record_actor` only logs
 who asked (`agent:<session_id>` or `human`), so the log shows when an agent claimed an approval it did not hold."""
@@ -23,7 +26,9 @@ import state_io  # noqa: E402
 
 MARKER_REL: Final[str] = ".claude/settings.local.json"
 APPROVALS_KEY: Final[str] = "dts2_approvals"
-KINDS: Final[tuple[str, ...]] = ("recorded_yes", "unsafe_no_sandbox", "blocked_pr_done", "lane_override", "merge")
+KINDS: Final[tuple[str, ...]] = ("recorded_yes", "unsafe_no_sandbox", "blocked_pr_done", "lane_override", "merge", "merge_policy")
+MERGE_POLICY_KIND: Final[str] = "merge_policy"
+AUTO_WHEN_GREEN: Final[str] = "auto-when-green"
 ACTOR_HUMAN: Final[str] = "human"
 ACTOR_AGENT_PREFIX: Final[str] = "agent:"
 SESSION_VAR: Final[str] = "CLAUDE_CODE_SESSION_ID"
@@ -63,6 +68,12 @@ def is_human_approved(kind: str, key: str, repo: Path | None = None) -> bool:
     """True only when the person listed `key` under `kind` in `.claude/settings.local.json`."""
     check_kind(kind)
     return str(key) in read_approvals(repo).get(kind, [])
+
+
+def standing_auto_merge(repo: Path | None = None) -> bool:
+    """True when the person's standing grant `"merge_policy": ["auto-when-green"]` is in the human file. It lets the agent arm
+    GitHub auto-merge on one exact head sha; GitHub merges only when the required checks pass."""
+    return is_human_approved(MERGE_POLICY_KIND, AUTO_WHEN_GREEN, repo)
 
 
 def actor_label(session_id: str | None = None) -> str:

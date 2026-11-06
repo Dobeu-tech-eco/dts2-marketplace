@@ -163,7 +163,7 @@ Three roles appear in 3.10.0 and the words are used consistently across the skil
 2. Approval: the user under `dpp`, the three-provider vote under `autopilot`.
 3. `lanes.py preflight` pins the `claude` version and tests a real son launch; `lanes.py lease --lane <x> --epoch <n>` takes a lease per lane; `lanes.py spawn --lane <x> --worktree <dir>` starts the son with every cap (`--max-turns`, `--max-budget-usd`, fallback models, sandbox, tool allowlist, allowlisted environment).
 4. Supervise: `lanes.py status <stamp>` (stall marks past `builder_timeout_min`), `lanes.py sendback` (at most two per lane), `lanes.py transition` (the one writer of a lane's phase), and head-answered questions from `questions/<n>.md`. A son's question never reaches the user.
-5. Merge in order: `lanes.py merge-order`, then per lane `lanes.py merge-go --lane <x> --head <sha>` (refused when the branch touched files outside its owned set; `lanes.py audit` explains why), `gh pr merge` through the merge guard, `lanes.py merge-done`. Target is `merge.target` (default `dev`); the default branch needs `merge-target --yes-default-branch`.
+5. Merge in order: `lanes.py merge-order`, then per lane `lanes.py merge-go --lane <x> --head <sha>` (refused when the branch touched files outside its owned set; `lanes.py audit` explains why), `gh pr merge` through the merge guard (per-PR approval, or the standing `merge_policy: auto-when-green` grant with `--auto --match-head-commit <sha>`; see COMMANDS.md), `lanes.py merge-done`. Target is `merge.target` (default `dev`); the default branch needs `merge-target --yes-default-branch`.
 6. Fold: `lanes.py fold` groups blocked lanes into the fewest PRs; lessons and action items fold back; `dpp-report.md` (`lanes.py report-check`) and `task-ledger.py` close the run; `lanes.py shutdown` ends it gracefully.
 
 **Son.** One headless `autopilot --son <stamp>/<lane>` per lane, launched by the head in the lane's worktree on branch `dts2/<stamp>/lane-<x>`. It reads `.harness/runs/<stamp>/<lane>/brief.md` first (about 4 KB: lane id, lease epoch, branch, file set, task list, `MAX_BUNDLE`). A son:
@@ -183,7 +183,7 @@ Three roles appear in 3.10.0 and the words are used consistently across the skil
 
 - `.harness/discipline.md` (Rule 8): follow the harness, do not improvise around it. The lead reads it first.
 - `lanes.py` is the only writer of lane state; never edit `.harness/runs/<stamp>/` by hand.
-- `merge-go.md` naming the head and base commits is the only thing that lets `gh pr merge` or a push to a protected branch through the merge guard (`hooks/merge-guard.sh`). Force-push is always refused. Denials land in `.harness/merge-guard.log`.
+- `merge-go.md` naming the head and base commits is the only thing that lets `gh pr merge` or a push to a protected branch through the merge guard (`hooks/merge-guard.sh`). Force-push is always refused. The policy gate additionally needs a human approval: the PR number under `dts2_approvals.merge`, or the one-time standing grant `"merge_policy": ["auto-when-green"]` plus a GitHub ruleset requiring the test and lint checks and "Allow auto-merge", which lets the agent arm `gh pr merge <n> --auto --match-head-commit <sha>` so GitHub merges only on green. Denials land in `.harness/merge-guard.log`.
 - Branch names: `dts2/<stamp>/main`, `main-b<n>`, `lane-<x>`, `lane-<x>-b<n>`, `step-<step>`. Never nested; git 2.38 or newer.
 - Builders run the cheapest capable model at a complexity-scaled effort (`delegate.py` owns the policy; mechanical sections dispatch `haiku, low`). Frontier models sit only in advisory, review, sign-off and council seats.
 - One PR bundles at most 5 tasks. A reviewer never edits; a verifier never fixes; a builder never reviews its own work; `fixer` takes fix round 2 with an escalation seat.
@@ -199,7 +199,7 @@ How to read the changelogs: `../CHANGELOG.md` holds every released version (open
 
 Full notes: `../CHANGELOG.md` section `[3.11.0]`; per-command detail: `INVENTORY.md` section 9.
 
-- Head policy gate: `hooks/policy-gate.sh` and `templates/policy.json` deny force-push, `--admin`, deploy CLIs, `gh secret`, `vercel env` and a bare `env` for the head and every son; merges need a human approval.
+- Head policy gate: `hooks/policy-gate.sh` and `templates/policy.json` deny force-push, `--admin`, deploy CLIs, `gh secret`, `vercel env` and a bare `env` for the head and every son; merges need a human approval (per PR, or the standing `merge_policy: auto-when-green` grant for `--auto` merges pinned to a head sha).
 - Son containment: the head pushes, opens and merges son PRs (`lanes.py publish`, `head_publish.py`); protected paths; human-only approvals in `.claude/settings.local.json` (`dts2_approvals`); allowlisted provider environment; council ballots carry a `.dispatch.json` record.
 - Son lifecycle and mailbox: own process group, `son.json` and `exit.json`, stuck-loop detection, `lanes.py wait`, `gc`, `reconcile`, versioned `status.json` with epochs, the head/son mailbox with deadlines.
 - Scope policy: `override`, `dpp_full_ask_each_lane`, `fullauto_freeze_scope`, lease holds a check-in item, `max_fullauto_loops: 3` stays a resumable park.
