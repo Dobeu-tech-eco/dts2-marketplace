@@ -146,13 +146,14 @@ Also outside `scripts/`: `sdk/dts2-run.py <task> [--repo R] [--yes] [--api-key-e
 
 Library modules, not invoked directly (15): `_load.py`, `contracts.py`, `eval_stats.py`, `harness_skew.py`, `mdparse.py`, `miniyaml.py`, `model_call.py`, `ownership_audit.py`, `prep-tiers.py`, `proc.py`, `profiles.py`, `skill_pins.py`, `son_launch.py`, `son_stream.py`, `state_ids.py`. The modules of `scripts/lanes/` are libraries behind `lanes.py` and have no command line either.
 
-## 4. Skills (20 slash commands)
+## 4. Skills (21 slash commands)
 
 Typed as `/dts2:<name>`. `user only` means `disable-model-invocation: true`: the model never starts it, a person must type it.
 
 | Command | Role | What it does | Exact invocation | Writes / side effects |
 |---|---|---|---|---|
 | `/dts2:onboard` | user only | Explain the harness and recommend where to start; an optional last step adds hooks you pick. | `/dts2:onboard` | settings and `.claude/hooks/dts2/` (only on a pick) |
+| `/dts2:composio` | user only | Ask once whether you have a Composio account, connect it (plugin by default), map the full toolkit catalogue and connected accounts, and offer to disable overlapping plugins, MCP servers and skills (never deletes). | `/dts2:composio` | `~/.dts2/composio.json`, `~/.dts2/composio-tools.json`, settings with backup, archived skills |
 | `/dts2:machine-prep` | user only | Audit this computer's agent tooling and prune to the blueprint (once per machine). | `/dts2:machine-prep` | plugin settings (with backup) |
 | `/dts2:setup` | user or model | Interview to an approved end state, then scaffold harness config in one repo, many repos or a workspace. | `/dts2:setup [path ...] [--scaffold-only]` | end-state file, config, CI, gitignore |
 | `/dts2:run` | user or model | Plan, build, review and verify one task with a human at the two checkpoints; ends with a receipt. | `/dts2:run <task> \| resume \| section <#> \| add secret NAME \| review-pr <number>` | branches, receipt, state, PR |
