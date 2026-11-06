@@ -189,7 +189,7 @@ def summary(rules: dict[str, Any] | None) -> str:
 
 
 def entry_for(name: str, config: Path) -> dict[str, Any] | None:
-    """The roster entry called `name` in a config file, reduced to name, auth and typed rules; None when absent or unreadable."""
+    """The roster entry called `name` in a config file, reduced to name, auth, profile pointer and typed rules; None when absent or unreadable."""
     try:
         block: Any = miniyaml.parse(config.read_text(encoding="utf-8")).get(ROSTER_BLOCK)
     except OSError:
@@ -197,6 +197,7 @@ def entry_for(name: str, config: Path) -> dict[str, Any] | None:
     for item in block if isinstance(block, list) else []:
         if isinstance(item, dict) and item.get("name") == name:
             return {"name": name, "auth": item.get("auth") if isinstance(item.get("auth"), str) else None,
+                    "profile": item.get("profile") if isinstance(item.get("profile"), str) else None,
                     "rules": coerce_rules(item.get("rules"))}
     return None
 

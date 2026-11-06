@@ -579,9 +579,11 @@ def call_classes(payload: dict[str, Any], table: dict[str, Any], lines: list[lis
 AUTH_API_KEY: Final[str] = "api-key"
 
 
-def agent_profile_of(agent: str, cwd: Path) -> dict[str, Any]:
+def agent_profile_of(agent: str, cwd: Path, entry: dict[str, Any] | None = None) -> dict[str, Any]:
+    """The profile behind `agent`: its roster entry's `profile:` pointer when it has one (an alias), else its own name."""
     from profiles import Profiles  # noqa: PLC0415 - only a rules-limited agent needs the profiles
-    return Profiles.load(project=cwd).get(agent) or {}
+    pointer: Any = (entry or {}).get("profile")
+    return Profiles.load(project=cwd).get(pointer if isinstance(pointer, str) and pointer else agent) or {}
 
 
 def agent_profile_auth(agent: str, cwd: Path) -> str | None:
@@ -607,11 +609,12 @@ def agent_denial(payload: dict[str, Any], cwd: Path, policy: dict[str, Any], age
     """The reason the rules of agent `agent` refuse this tool call, or None. An agent with no rules is not restricted; an
     API-key agent missing from the roster (or whose roster cannot be read) gets the API-key defaults."""
     config: Path = cwd / state_io.CONFIG_REL
-    profile: dict[str, Any] = agent_profile_of(agent, cwd)
-    limited: bool = profile.get("keyRequired") is True or profile.get("auth") == AUTH_API_KEY
     if unreadable(config):
+        profile: dict[str, Any] = agent_profile_of(agent, cwd)
+        limited: bool = profile.get("keyRequired") is True or profile.get("auth") == AUTH_API_KEY
         return f"agent-rules: {agent}: the roster config cannot be read" if limited else None
     entry: dict[str, Any] | None = agent_rules.entry_for(agent, config)
+    profile = agent_profile_of(agent, cwd, entry)
     if entry is None and profile.get("keyRequired") is True:
         entry = {"name": agent, "auth": None, "rules": {}}
     if entry is None:

@@ -187,6 +187,13 @@ class GateEdgeTests(Base):
             self.assertIsNotNone(policy_gate.decide({"tool_name": "Write", "tool_input": {"file_path": "a.py"}}, self.project))
 
 
+class GateAliasTests(Base):
+    def test_alias_of_a_key_profile_is_restricted_at_tool_time(self) -> None:
+        write(self.config, "roster:\n  - name: scout\n    profile: claude-api\n    auth: subscription\n")
+        with mock.patch.dict(os.environ, {"DTS2_AGENT": "scout"}):
+            self.assertIn("read-only", policy_gate.decide({"tool_name": "Write", "tool_input": {"file_path": "a.py"}}, self.project) or "")
+
+
 class CommandRedactionTests(Base):
     def test_no_key_text_in_resolved_command(self) -> None:
         write(self.config, "roster:\n  - name: grok\n    auth: api-key\n")
