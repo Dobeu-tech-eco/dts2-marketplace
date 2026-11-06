@@ -42,6 +42,7 @@ flowchart TD
 | reviewer | read-only review on one or all axes; severity-rated findings and a verdict |
 | verifier | read-only; runs the configured commands and reports evidence |
 | auditor | read-only inventory of installed agent tooling (used by machine-prep) |
+| incident-reviewer | read-only; root cause, isolated-or-trend mark, lessons and `harness:` lines for open incidents (used by `incidents review`) |
 
 ## State under `.harness/`
 
@@ -83,10 +84,15 @@ State reads and writes from the scripts go through `scripts/state_io.py`; see "S
 | StopFailure | `hooks/stop-failure.sh` | appends a Handoff action item for the API error that ended the turn |
 | PermissionDenied | `hooks/permission-denied.sh` | appends a Handoff action item naming the denied tool |
 | PostToolUse (SubagentHandback) | `hooks/subagent-report.sh handback` | the same check for agents that finish through `SubagentHandback`, on `tool_input.message`; blocks once per agent |
+| SubagentStart, SubagentStop, PreToolUse (Agent), PostToolUse (Edit, Write, MultiEdit, Agent, SubagentHandback), Stop, SessionStart, SessionEnd | `hooks/agent-telemetry.sh` | agent telemetry and incidents (`scripts/incidents.py`): logs agent start and stop, runs the deterministic incident detectors, injects up to 3 matching lessons at spawn, queues live corrections for the lead and writes the end-of-run brief; never blocks; off with `incident_capture: false` |
 | SessionEnd (logout, prompt_input_exit, other) | `hooks/session-end.sh` | releases only the leases stamped with this session's id (`scripts/session_end.py`, through `state_io`), then runs `handoff-write.py`; best effort, lease expiry is the guarantee |
 | PreToolUse (Bash `lanes.py spawn --dry-run`, Agent) | `hooks/spawn-dry-run.sh` | prints the exact son command, env names, byte counts and the son `brief.md` (`scripts/spawn_dry_run.py`, on `briefs.dry_run`) and refuses the call so nothing starts; for Agent only when `spawn_dry_run: true` |
 
 Hooks read settings from `.claude/dts2-harness.local.md` through `hooks/lib-settings.sh`.
+
+### Incident hooks and ledgers
+
+Subagent start and stop hooks (all agents, not only builder, reviewer and verifier) append `agent-start`, `agent-stop` and `incident` events to `.harness/agents.jsonl` through `state_io`, with no model call. Deterministic detectors cover a thin brief, an empty or partial or incomplete report, rework of a file another agent wrote this session, a start without a stop past `incident_hung_minutes`, API errors, permission denials and son park reasons. A detector that fires returns `additionalContext` to the lead at once; the SubagentStart hook injects up to 3 matching lessons and logs each in `.harness/injections.jsonl`. Stop and SessionEnd write `.harness/briefs/<session>.md`. Ledgers climb a tier ladder (son run, project `.harness/ledgers/head.jsonl`, device `~/.dts2/ledgers/harness.jsonl`, knowledge store, marketplace) and only repeat trends move up, through `/dts2:incidents review`; the last step is `evolve` and a PR, never automatic. `scripts/incidents.py` reads these files; the `incident-reviewer` agent is the only model step.
 
 ## State port
 
