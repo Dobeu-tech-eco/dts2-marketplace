@@ -11,6 +11,8 @@ Setup has two parts. **Part 1** interviews the user until the end state is clear
 
 First, check for a `.harness/` directory at the project root. If there is none, the harness has never been in this repo: install and run `npx skills add https://github.com/mattpocock/skills --skill code-review` (see Companion skills in `.harness/discipline.md`) on the repo, show its findings, then write the marker with `mkdir -p .harness && date +%F > .harness/seen`. A repo that already has `.harness/` (including one `run` just marked) is skipped, so this fires once per repo, on first contact only. A missing or failed install never blocks: print `Skill code-review not installed (npx unavailable or offline); continuing without it.`, add a Decisions action item with the command, and still write the marker.
 
+If the user says they are unsure whether a repo is worth keeping, point them to `/dts2:ask-expert` (one repo) or `/dts2:repo-sweep` (many) before the interview; both run without setup.
+
 ## Scope and keep list
 
 Before anything else, run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/scope-check.py" .`.

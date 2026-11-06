@@ -71,7 +71,7 @@ Contents: 1 How to run a command, 2 `lanes.py` subcommands, 3 Standalone scripts
 | `mailbox` | either | The head/son mailbox. Son ops: ask, need-human, check, wait, park, merge-go-check, rules, request. Head ops: answer, decide (refused in a son). A wait that runs out parks the lane (`mailbox_wait_min`). | `lanes.py mailbox ask <stamp> --lane a --text "<question>"  \|  mailbox answer <stamp> --lane a --id q1 --text "<answer>"  \|  mailbox park <stamp> --lane a --reason context-guard [--session-id S]  \|  mailbox rules <stamp> --lane a --point start\|vote\|ship\|merge  \|  mailbox request <stamp> --lane a --files f1,f2 --text "<why>"  \|  mailbox decide <stamp> --lane a --id r1 --outcome escalate\|granted\|denied  \|  mailbox merge-go-check <stamp> --lane a [--worktree D]` | `questions/`, `merge-go.json`, status |
 | `report-check` | head | Check the final report against lane ids; with `--stamp` also cross-check the son run records. | `lanes.py report-check dpp-report.md --lanes a,b [--stamp <stamp>]` | none (read-only) |
 
-## 3. Standalone scripts (62 with a command line)
+## 3. Standalone scripts (63 with a command line)
 
 Invocation shown without the prefix `python3 -I "$CLAUDE_PLUGIN_ROOT/scripts/`; add it and the closing `"`. Scripts marked `hook` read the hook JSON on stdin and are called by `hooks/*.sh`.
 
@@ -93,7 +93,8 @@ Invocation shown without the prefix `python3 -I "$CLAUDE_PLUGIN_ROOT/scripts/`; 
 | `companion-gate.py` | either | Run-count gates for two costly companion skills. | `companion-gate.py check\|record --repo R --skill NAME [--base B]` | gate record |
 | `context-guard.py` | hook | PostToolUse context guard (hook JSON on stdin). | `context-guard.py --tool-calls N --mb M [--stop]` | none |
 | `context-tax.py` | maintainer | Measure always-loaded skill and agent metadata; exit 1 over budget. | `context-tax.py [--root R] [--budget N] [--max-description N]` | none |
-| `council.py` | head | Autopilot council: eligibility, dossier, tally, decision check, routing, blinding, fencing, ledger, seats, swap, next round. | `council.py eligible --votes-dir D \| dossier --votes-dir D --out F \| tally <ballots...> \| check-decision <decision> --tally T --entries E [--ledger L --head H] \| route --ledger L [--head H --votes V --decision APPROVE\|FIX\|STRIKE] \| blind --proposals P --out O --voters V --seed S \| wrap <file\|-> [--source S --max-chars N] \| ledger --ballots-dir D --tally T --decision X --step N --stamp S --out F \| seats --usable U [--config C --failed F] \| swap \| identical \| next-round --votes-dir D --step N --kind plan\|build [--retry N --revote]` | council record, vote folders |
+| `ask_expert.py` | head | Repo decision support for `ask-expert` and `repo-sweep`: goal clarity score, memo checker, sweep ledger, and the guarded archive, backup and delete. Every subcommand prints JSON. | `ask_expert.py clarity --answers F [--asked N --threshold T] \| goal record --repo R --answers F \| check-report <file> \| scorecard --report F [--goal G] \| sweep add --ledger F --repo R --verdict V --confidence C --reason T --score N --salvage T [--report P] \| sweep show --ledger F \| archive --repo OWNER/NAME \| backup --repo OWNER/NAME [--dest D] \| delete --repo OWNER/NAME --confirm NAME --bundle P` (`delete` takes one repo and refuses without the exact name and a verified bundle) | `.harness/ask-expert/`, `~/.dts2/repo-backups/` |
+| `council.py` | head | Autopilot council (with `--allow-research`, ask-expert runs may also decide `RESEARCH` with a `## Research brief`): eligibility, dossier, tally, decision check, routing, blinding, fencing, ledger, seats, swap, next round. | `council.py eligible --votes-dir D \| dossier --votes-dir D --out F \| tally <ballots...> \| check-decision <decision> --tally T --entries E [--ledger L --head H] \| route --ledger L [--head H --votes V --decision APPROVE\|FIX\|STRIKE] [--allow-research] \| blind --proposals P --out O --voters V --seed S \| wrap <file\|-> [--source S --max-chars N] \| ledger --ballots-dir D --tally T --decision X --step N --stamp S --out F \| seats --usable U [--config C --failed F] \| swap \| identical \| next-round --votes-dir D --step N --kind plan\|build [--retry N --revote]` | council record, vote folders |
 | `delegate.py` | either | Resolve model, tier and effort for a dispatch seat. | `delegate.py --agent A --seat S --complexity C [--profile-dir D --budget B --lead-provider P --effort E]` | none |
 | `deploy-detect.py` | either | Detect how a repo deploys, by file presence only. | `deploy-detect.py <repo>` | none |
 | `doctor.py` | either | Preflight checks for this machine: python, git, claude, sandbox, bwrap, socat, auth method, platform. | `doctor.py [--json]` | none |
@@ -146,7 +147,7 @@ Also outside `scripts/`: `sdk/dts2-run.py <task> [--repo R] [--yes] [--api-key-e
 
 Library modules, not invoked directly (15): `_load.py`, `contracts.py`, `eval_stats.py`, `harness_skew.py`, `mdparse.py`, `miniyaml.py`, `model_call.py`, `ownership_audit.py`, `prep-tiers.py`, `proc.py`, `profiles.py`, `skill_pins.py`, `son_launch.py`, `son_stream.py`, `state_ids.py`. The modules of `scripts/lanes/` are libraries behind `lanes.py` and have no command line either.
 
-## 4. Skills (21 slash commands)
+## 4. Skills (23 slash commands)
 
 Typed as `/dts2:<name>`. `user only` means `disable-model-invocation: true`: the model never starts it, a person must type it.
 
@@ -173,6 +174,8 @@ Typed as `/dts2:<name>`. `user only` means `disable-model-invocation: true`: the
 | `/dts2:cooldown` | user only | Pause an agent that hit a usage limit until its reset date, resume it, or list what is paused. | `/dts2:cooldown set <agent> <date or duration> [reason] \| clear <agent> \| list` | agent status file |
 | `/dts2:find-skills` | user or model | Rescan the repo, audit every improvement option (skills, hooks, MCP servers, plugins, commands, subagents, permissions, CI), ask, and wire in the picks on a yes. | `/dts2:find-skills` | keep list, settings (on a yes) |
 | `/dts2:steer` | user or model | Stop running work and redirect it. Finishes the current atomic step, dispatches nothing new, checkpoints a handoff, reviews open intake items, re-plans to the new direction, confirms in one short message and resumes. | `/dts2:steer <new direction>` | handoff file, intake queue, plan |
+| `/dts2:ask-expert` | user or model | Decide the fate of one repo: asks your goal in plain words, reads the code, compares it with what you said and with your active repos, runs a three-provider expert panel (council and research if it stalls) and writes a one-page memo: keep, fold, template, archive or delete. Changes nothing. | `/dts2:ask-expert [repo] ["what I'm unsure about"]` | `.harness/ask-expert/<repo>/` |
+| `/dts2:repo-sweep` | user or model | Quick ask-expert pass over every repo of an owner, oldest first, then one cleanup screen. Keep, fold and template write a to-do file; archive uses `gh repo archive`; delete is per repo after a backup bundle and a typed name. | `/dts2:repo-sweep [owner]` | `.harness/ask-expert/`, archived repos, `~/.dts2/repo-backups/` |
 
 ## 5. Agents (7)
 

@@ -15,6 +15,7 @@ SEAT_NAME: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 VERDICTS: Final[frozenset[str]] = frozenset({"APPROVE", "REJECT"})
 VERDICT_KEY: Final[str] = "verdict"
 DECISION_LINE: Final[re.Pattern[str]] = re.compile(r"^DECISION:\s*(APPROVE|FIX|STRIKE)\s*$")
+RESEARCH_DECISION_LINE: Final[re.Pattern[str]] = re.compile(r"^DECISION:\s*(APPROVE|FIX|STRIKE|RESEARCH)\s*$")
 ENTRIES_LINE: Final[re.Pattern[str]] = re.compile(r"^Entries reviewed:\s*(\d+)\s*$", re.MULTILINE)
 UPDATE_LINE: Final[re.Pattern[str]] = re.compile(r"^\s*-?\s*Update:\s*\S", re.MULTILINE)
 ENTRY_KINDS: Final[tuple[str, ...]] = ("plan", "build", "tiebreak", "fix", "ci", "council")
@@ -25,6 +26,7 @@ RESPONSES_HEADING: Final[str] = "## Dissent responses"
 HISTORY_HEADING: Final[str] = "## History considered"
 FIXES_HEADING: Final[str] = "## Fixes"
 STRUCK_HEADING: Final[str] = "## Struck"
+RESEARCH_HEADING: Final[str] = "## Research brief"
 LANE_HEADING: Final[re.Pattern[str]] = re.compile(r"^Lane (\S+)$")
 SECTIONS_HEADING: Final[str] = "## Sections"
 ACCEPTANCE_HEADING: Final[str] = "## Acceptance criteria"
@@ -123,8 +125,9 @@ def parse_ballot(text: str, seat: str) -> Ballot | Invalid:
     return ballot if vote else Invalid(("no strict verdict on the first line, or a plain seat name is missing, or a second verdict follows",), ballot)
 
 
-def parse_decision(text: str) -> Decision | Invalid:
-    first = DECISION_LINE.match(mdparse.first_line(text))
+def parse_decision(text: str, allow_research: bool = False) -> Decision | Invalid:
+    """A head-of-council decision. `allow_research` (ask-expert runs only) admits a fourth verdict, RESEARCH."""
+    first = (RESEARCH_DECISION_LINE if allow_research else DECISION_LINE).match(mdparse.first_line(text))
     head = mdparse.section(text, HEAD_BRIEF)
     seen = ENTRIES_LINE.search(mdparse.section(text, HISTORY_HEADING))
     decision = Decision(
@@ -134,7 +137,8 @@ def parse_decision(text: str) -> Decision | Invalid:
         fixes=tuple(b.text for b in mdparse.bullets(mdparse.section(text, FIXES_HEADING))),
         struck=tuple(b.text for b in mdparse.bullets(mdparse.section(text, STRUCK_HEADING))),
     )
-    reasons = ([] if first else ["first line is not 'DECISION: APPROVE|FIX|STRIKE'"]) + ([] if head else [f"no '{HEAD_BRIEF}'"])
+    verdicts = "APPROVE|FIX|STRIKE|RESEARCH" if allow_research else "APPROVE|FIX|STRIKE"
+    reasons = ([] if first else [f"first line is not 'DECISION: {verdicts}'"]) + ([] if head else [f"no '{HEAD_BRIEF}'"])
     return decision if not reasons else Invalid(tuple(reasons), decision)
 
 

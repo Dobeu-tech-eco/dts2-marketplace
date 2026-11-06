@@ -35,6 +35,8 @@ This skill explains only, except the optional hooks step at the end, which chang
 | `fullauto` | `/dts2:fullauto` is dpp-full with autopilot on, looping check-in between rounds until nothing is outstanding and every lane is done or blocked in the ledger. |
 | `model` | `/dts2:model` picks which agent provider leads (the lead, advisory and sign-off seats); default Claude. Builders are unaffected. |
 | `find-skills` | `/dts2:find-skills` is available any time: rescan the repo, answer one to three questions, get suggested skills, and wire the ones you pick into the project. |
+| `ask-expert` | `/dts2:ask-expert [repo]` is available any time, before setup: tell it your goal, and an expert panel reads the code and writes a one-page memo: keep, fold into another repo, sell as a template, archive or delete. |
+| `repo-sweep` | `/dts2:repo-sweep [owner]` does the same quick pass over all your repos, oldest first, then one cleanup screen. Archive is reversible; delete is one repo at a time with a backup and a typed name. |
 | `check-in` | `/dts2:check-in` is available any time: a read-only checklist from where the project started through the approved end state, each item marked complete or outstanding, with an `N of M complete` percent. |
 
 Setup and run pull in companion skills from mattpocock/skills at the moment they are needed (grill-me, improve-codebase-architecture, writing-for-agents, pr, resolve-merge-conflicts (from warpdotdev/common-skills, since mattpocock retired its version), plus ask-matt and research for your questions, improve-codebase-architecture again before tests, diagnosing-bugs again at the hard 3-round fix cap, loop-me when a run starts, setup-pre-commit once per repo at the commit gate, and code-review on first contact with a new repo), recorded in keep.yaml. A pre-check before every run command installs any that are missing, proposes updates for you to approve (it never updates them in bulk), swaps one that is gone upstream, refreshes plugin marketplaces, and when a newer harness is published saves your spot and upgrades; the next run finishes the upgrade itself (there is no separate upgrade command). After every ship, open harness lessons are offered through evolve automatically.
@@ -71,6 +73,10 @@ Only agents detected on this machine join the roster; handoff agents get a writt
 7. Optional Claude Code hooks (command guard, auto-format, tests on stop, notifications) → the Hooks step below.
 8. Many app plugins or MCP servers → `composio` (one connection, then trim overlap).
 9. Database tooling: `/dts2:find-skills` suggests database MCP servers and skills for your stack.
+10. Not sure a repo is worth keeping → `/dts2:ask-expert` for one repo, `/dts2:repo-sweep` for many.
+
+## Offer ask-expert when the user doubts a repo
+When the user's answers show doubt about keeping a repo (it is old, unused, abandoned, or they are thinking of deleting or archiving it), suggest `/dts2:ask-expert` before setup, in one sentence. For many such repos, suggest `/dts2:repo-sweep`. Only suggest; do not start either.
 
 ## Tiers the run skill picks automatically
 | Tier | Typical size | Builders | Reviewers |

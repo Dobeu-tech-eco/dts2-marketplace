@@ -8,7 +8,7 @@ Contents: 1 Talking to the harness, 2 Which command when, 3 The head, son and co
 
 ## 1. Talking to the harness
 
-The harness is a Claude Code plugin. Every entry point is a slash command `/dts2:<skill>`; there is no other interface. Twenty skills exist (section 2). Seven agents (`lead`, `builder`, `fixer`, `reviewer`, `verifier`, `scout`, `auditor`) are dispatched by the skills, never typed by the user; an agent that needs one calls the Agent tool with `subagent_type: dts2:<name>`.
+The harness is a Claude Code plugin. Every entry point is a slash command `/dts2:<skill>`; there is no other interface. Twenty-two skills exist (section 2). Seven agents (`lead`, `builder`, `fixer`, `reviewer`, `verifier`, `scout`, `auditor`) are dispatched by the skills, never typed by the user; an agent that needs one calls the Agent tool with `subagent_type: dts2:<name>`.
 
 Six skills run only when the user types them (`disable-model-invocation: true`): `dpp-full`, `fullauto`, `machine-prep`, `model`, `onboard`, `sdk`. The others may be invoked by the model when the conversation calls for them.
 
@@ -92,6 +92,8 @@ For exact syntax (required arguments, flags, who may run it, what it writes) and
 | Change the harness itself | `evolve`, `evolve deploy` | Only in the harness source repo. Edit, validate, test, bump, commit; pushes only on an explicit yes. |
 | Pick which provider leads | `model` | Lead, advisory and sign-off seats. Builders always run the cheapest capable model. |
 | Find skills the repo could use | `find-skills` | Rescan, one to three questions, ranked suggestions, keep list on a yes. |
+| Decide whether to keep, fold, sell, archive or delete one repo | `ask-expert [repo]` | Runs before setup. Asks your goal in plain words, reads the code, compares it with your active repos, then an expert panel (three providers; council and research if it stalls) writes a one-page memo. Changes nothing. |
+| Do that for all your repos | `repo-sweep [owner]` | Quick pass per repo, oldest first, then one cleanup screen. Archive is reversible; delete is one repo at a time after a backup bundle and a typed repo name. |
 | Go-to-market pass | `gtm` | Installs `marketing-skills` if missing, ends in `readiness.md`. |
 | Run the pipeline headless (CI, cron, servers) | `sdk` | Sets up and runs `sdk/dts2-run.py` with the Agent SDK. User-typed only. |
 
@@ -221,6 +223,8 @@ Release history before 3.10: 3.9 parallel autopilot (`dpp`, `dpp-full`, `fullaut
 | `.harness/state.md`, `.harness/handoff/latest.md` | Current state and the resume pointer | `run`, hooks (PreCompact, SessionEnd) |
 | `.harness/action-items.md` | Secrets, Decisions, Handoff, Deploy, Promotions | `action-items.py` |
 | `.harness/receipts/<stamp>.md` | Ship receipts | `run`, `ship`, `autopilot` |
+| `.harness/ask-expert/<repo>/` | Goal answers, `goal.json`, comparison, panel record, research, `report.md`; `sweep-<stamp>.jsonl` and `todo.md` beside them | `ask-expert`, `repo-sweep`, `ask_expert.py` |
+| `~/.dts2/repo-backups/` | `git bundle` backups written before any repo delete (outside the repo) | `ask_expert.py backup` |
 | `.harness/council.md` | Every council vote, dissent and decision | `council.py ledger` |
 | `.harness/runs/<stamp>/` | `lanes.json`, `run.json`, `builders.jsonl`, `ledger.jsonl`, `merge-journal.jsonl`, `merge-go.md`, per-lane `brief.md`, `report.md`, `questions/` | `lanes.py`, `checks.py` only |
 | `.harness/merge-guard.log` | Refused merges and pushes | `guard.py` |
