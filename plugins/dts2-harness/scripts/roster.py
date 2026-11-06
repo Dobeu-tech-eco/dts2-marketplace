@@ -556,12 +556,14 @@ def declared_auth(name: str, config: Path | None = None) -> str:
     return AUTH_SUBSCRIPTION
 
 
-def clean_env(profile: dict[str, Any], auth: str | None = None) -> dict[str, str]:
+def clean_env(profile: dict[str, Any], auth: str | None = None, workspace: Path | None = None) -> dict[str, str]:
     """What a dispatched agent CLI may see (G-67): the scrubbed son env (`son_launch.scrub_env`) and the profile's `env`.
     A subscription agent (roster `auth` absent or `subscription`) gets no API key at all, so a stray key in the parent shell
     cannot bill the API account; an `auth: api-key` agent gets only its own `apiKeyEnv`. No GH_TOKEN, SSH_AUTH_SOCK, cloud
-    credentials or other providers' keys. `DTS2_SON_ENV_PASS` is the owner's deliberate way to hand a key to a CLI."""
-    mode: str = auth or declared_auth(str(profile.get("name")))
+    credentials or other providers' keys. `DTS2_SON_ENV_PASS` is the owner's deliberate way to hand a key to a CLI.
+    The declared auth is read from `workspace`'s roster (default: cwd), the repo the agent will actually work in."""
+    config: Path | None = (workspace / state_io.CONFIG_REL) if workspace else None
+    mode: str = auth or declared_auth(str(profile.get("name")), config)
     base: dict[str, str] = provider_env(dict(os.environ), profile.get("apiKeyEnv"), claude=profile.get("name") == "claude", auth=mode)
     return {**base, **{str(k): str(v) for k, v in (profile.get("env") or {}).items()}}
 
@@ -590,7 +592,7 @@ def resolve_command(
         "effort": chosen_effort, "argv": argv, "stdin": stdin,
         "binary": resolve_binary(argv[0], probe_env(), search_paths_of(profile)),
         "env": dict(profile.get("env") or {}),
-        "clean_env": clean_env(profile),
+        "clean_env": clean_env(profile, workspace=workspace),
         "notes": list(profile.get("notes") or []),
     }
     if prompt_file is not None:

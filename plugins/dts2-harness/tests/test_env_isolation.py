@@ -103,5 +103,23 @@ class SecretShapedTests(unittest.TestCase):
             self.assertFalse(son_launch.secret_shaped(text), text)
 
 
+
+class WorkspaceAuthTest(unittest.TestCase):
+    """The declared auth comes from the --workspace roster, not the caller's cwd (Codex review on #81)."""
+
+    def test_declared_auth_reads_workspace_roster(self) -> None:
+        import tempfile
+
+        import roster
+        import state_io
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg: Path = Path(tmp) / state_io.CONFIG_REL
+            cfg.parent.mkdir(parents=True, exist_ok=True)
+            cfg.write_text("agents:\n  - name: codex\n    auth: api-key\n", encoding="utf-8")
+            with unittest.mock.patch.object(roster, "declared_auth", wraps=roster.declared_auth) as spy:
+                roster.clean_env({"name": "codex", "apiKeyEnv": "CODEX_API_KEY"}, workspace=Path(tmp))
+            self.assertEqual(spy.call_args.args[1], cfg)
+
+
 if __name__ == "__main__":
     unittest.main()
