@@ -3,6 +3,7 @@
 ## Model rule
 The lead only coordinates and signs off. Every rebase, fix or CI change is done by a worker with the model named explicitly in the dispatch: `sonnet` for code, CI and rebases, `haiku` for mechanical edits (changelog lines, version bumps, comments). One worker per PR, each in its own worktree:
 `git worktree add -b sweep/<pr> ../wt-sweep-<pr> origin/<head>`.
+Run it from a clone of the swept repo `<o>/<r>` (clone it first when the sweep targets another repo), and pass `-R <o>/<r>` to every `gh pr` and `gh run` command so nothing lands on the current checkout's repo.
 Workers never push to the default branch, never merge, never spawn agents. The lead verifies each result (diff and green CI) before merging and records who verified it.
 
 ## Order
@@ -12,10 +13,10 @@ python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/pr_sweep.py" order --inventory .harnes
 It returns `{"waves": [[...], ...]}`: stack bases before their children, PRs touching shared files one per wave, everything else in one parallel wave. Run the PRs of a wave at the same time, one worker each. Waves run in order.
 
 ## Per PR
-1. GREEN: merge with `gh pr merge <n> --merge`. If checks are still pending and the repo allows auto-merge, `gh pr merge <n> --auto --merge`; otherwise watch with `gh pr checks <n> --watch`.
+1. GREEN: merge with `gh pr merge <n> -R <o>/<r> --merge`. If checks are still pending and the repo allows auto-merge, `gh pr merge <n> -R <o>/<r> --auto --merge`; otherwise watch with `gh pr checks <n> -R <o>/<r> --watch`.
 2. NEEDS REBASE / STACKED: a worker rebases onto the updated base (retarget a stacked child to the default branch first), pushes its own PR branch, CI re-runs, then merge. Pushing a rebased PR branch uses `--force-with-lease` only on a branch this run created or that the PR's author is the signed-in user; any other branch is a hard stop.
 3. CI RED: `phase-2-ci-triage.md`.
-4. SUPERSEDED / DEAD: `gh pr close <n> --comment "<why, link to the replacement>"`.
+4. SUPERSEDED / DEAD: `gh pr close <n> -R <o>/<r> --comment "<why, link to the replacement>"`.
 5. After each merge: `git fetch`, rebase the next dependent PR, re-run its CI before merging it.
 6. Record every outcome with `pr_sweep.py record --dir <dir> --pr N --bucket B --action <merged|closed|rebased|waiting|left> [--sha S] [--reason R] [--ci V] --worker <model> --verified-by <lead|worker>`.
 

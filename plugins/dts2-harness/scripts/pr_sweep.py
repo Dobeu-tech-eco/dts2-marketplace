@@ -42,7 +42,6 @@ DRAFT: Final[str] = "DRAFT"
 PENDING: Final[str] = "PENDING"
 BUCKETS: Final[tuple[str, ...]] = (GREEN, NEEDS_REBASE, CI_RED, STACKED, DRAFT, PENDING)
 
-PASSING: Final[frozenset[str]] = frozenset({"success", "neutral", "skipped"})
 FAILING: Final[frozenset[str]] = frozenset({"failure", "cancelled", "timed_out", "action_required", "startup_failure", "stale"})
 CLEAN_STATES: Final[frozenset[str]] = frozenset({"clean", "unstable", "has_hooks"})
 REBASE_STATES: Final[frozenset[str]] = frozenset({"dirty", "behind"})
@@ -138,6 +137,21 @@ def check_rows(payload: Any) -> list[dict[str, Any]]:
             for r in runs]
 
 
+STATUS_CONCLUSION: Final[dict[str, str]] = {"success": "success", "failure": "failure", "error": "failure"}
+
+
+def status_rows(payload: Any) -> list[dict[str, Any]]:
+    """Commit statuses (the legacy status API) as check rows; a pending status is an incomplete check."""
+    statuses: list[Any] = payload.get("statuses", []) if isinstance(payload, dict) else []
+    rows: list[dict[str, Any]] = []
+    for item in statuses:
+        state: str = str(item.get("state", "pending"))
+        done: bool = state in STATUS_CONCLUSION
+        rows.append({"name": str(item.get("context", "")), "status": "completed" if done else "in_progress",
+                     "conclusion": STATUS_CONCLUSION.get(state)})
+    return rows
+
+
 def required_checks(repo: str, base: str) -> list[str] | None:
     """Required status check names for `base`; None when branch protection is unreadable, absent or lists none."""
     try:
@@ -156,12 +170,13 @@ def pr_record(repo: str, summary: dict[str, Any]) -> dict[str, Any]:
     files: Any = gh_api(f"repos/{repo}/pulls/{number}/files?per_page={PER_PAGE}", paginate=True)
     sha: str = summary["head"]["sha"]
     checks: Any = gh_api(f"repos/{repo}/commits/{sha}/check-runs?per_page={PER_PAGE}", paginate=True)
+    statuses: Any = gh_api(f"repos/{repo}/commits/{sha}/status?per_page={PER_PAGE}", paginate=True)
     return {
         "number": number, "title": summary.get("title", ""), "head": summary["head"]["ref"], "head_sha": sha,
         "base": summary["base"]["ref"], "draft": bool(summary.get("draft")), "author": (summary.get("user") or {}).get("login", ""),
         "created_at": summary.get("created_at", ""), "updated_at": summary.get("updated_at", ""),
         "mergeable": detail.get("mergeable"), "mergeable_state": detail.get("mergeable_state", "unknown"),
-        "files": [str(f.get("filename", "")) for f in files], "checks": check_rows(checks),
+        "files": [str(f.get("filename", "")) for f in files], "checks": check_rows(checks) + status_rows(statuses),
     }
 
 
@@ -267,6 +282,8 @@ def primary_bucket(pr: dict[str, Any], stacked: bool, required: list[str] | None
     pending: list[str] = pending_checks(pr, required)
     if pending:
         return PENDING, "running or not yet reported: " + ", ".join(pending), failing, failing_required
+    if not pr["checks"]:
+        return PENDING, "no checks reported yet", failing, failing_required
     if state not in CLEAN_STATES:
         return PENDING, f"mergeable_state {state} (waiting on a review or a required check)", failing, failing_required
     note: str = f"; non-required failures ignored: {', '.join(failing)}" if failing else ""
@@ -373,18 +390,21 @@ def final_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [last[n] for n in sorted(last)]
 
 
-def before_count(directory: Path, table: list[dict[str, Any]]) -> int:
+def inventory_numbers(directory: Path) -> set[int] | None:
+    """PR numbers in this sweep's inventory, or None when there is no inventory to scope by."""
     path = directory / INVENTORY_JSON
-    if path.is_file():
-        return len(json.loads(path.read_text(encoding=ENCODING)).get("prs", []))
-    return len(table)
+    if not path.is_file():
+        return None
+    return {int(pr["number"]) for pr in json.loads(path.read_text(encoding=ENCODING)).get("prs", [])}
 
 
 def report_markdown(directory: Path, rows: list[dict[str, Any]]) -> tuple[str, dict[str, Any]]:
     table = final_rows(rows)
-    before: int = before_count(directory, table)
-    merged = [r for r in table if r["action"] == MERGED]
-    closed = [r for r in table if r["action"] == CLOSED]
+    scope: set[int] | None = inventory_numbers(directory)
+    before: int = len(table) if scope is None else len(scope)
+    counted = table if scope is None else [r for r in table if r["pr"] in scope]
+    merged = [r for r in counted if r["action"] == MERGED]
+    closed = [r for r in counted if r["action"] == CLOSED]
     waiting = [r for r in table if r["action"] == WAITING or r["bucket"] == NEEDS_ME]
     kept = [r for r in rows if r["action"] == BRANCH_KEPT]
     after: int = max(before - len(merged) - len(closed), 0)

@@ -6,10 +6,10 @@ import json
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from contextlib import redirect_stdout
 from pathlib import Path
 from typing import Any, Final
-from unittest import mock
 
 from helpers import PLUGIN_ROOT
 
@@ -43,7 +43,7 @@ def buckets(inv: dict[str, Any]) -> dict[int, dict[str, Any]]:
 
 def run_cli(*argv: str) -> dict[str, Any]:
     out = io.StringIO()
-    with mock.patch.object(sys, "argv", ["pr_sweep.py", *argv]), redirect_stdout(out):
+    with unittest.mock.patch.object(sys, "argv", ["pr_sweep.py", *argv]), redirect_stdout(out):
         code: int = pr_sweep.main()
     data: dict[str, Any] = json.loads(out.getvalue())
     data["_code"] = code
@@ -96,6 +96,21 @@ class ClassifyTests(unittest.TestCase):
     def test_missing_required_check_is_pending(self) -> None:
         inv = inventory([pr(1, checks=[OK])])
         self.assertEqual(buckets(inv)[1]["bucket"], pr_sweep.PENDING)
+
+    def test_no_checks_reported_is_pending_not_green(self) -> None:
+        row = buckets(inventory([pr(1, checks=[])], required={"main": None}))[1]
+        self.assertEqual(row["bucket"], pr_sweep.PENDING)
+        self.assertIn("no checks reported", row["evidence"])
+
+    def test_commit_statuses_become_check_rows(self) -> None:
+        rows = pr_sweep.status_rows({"statuses": [{"context": "ci/a", "state": "success"}, {"context": "ci/b", "state": "error"},
+                                                  {"context": "ci/c", "state": "pending"}]})
+        self.assertEqual([(r["name"], r["status"], r["conclusion"]) for r in rows],
+                         [("ci/a", "completed", "success"), ("ci/b", "completed", "failure"), ("ci/c", "in_progress", None)])
+        self.assertEqual(buckets(inventory([pr(1, checks=[OK, LINT_OK, rows[1]])], required={"main": None}))[1]["bucket"],
+                         pr_sweep.CI_RED)
+        self.assertEqual(buckets(inventory([pr(1, checks=[OK, LINT_OK, rows[2]])], required={"main": None}))[1]["bucket"],
+                         pr_sweep.PENDING)
 
     def test_stale_flag_coexists_with_primary_bucket(self) -> None:
         inv = inventory([pr(1, updated_at=OLD), pr(2), pr(3, updated_at=OLD, mergeable=False, mergeable_state="dirty")])
@@ -201,6 +216,8 @@ def fake_gh(protection: Any) -> Any:
             return [{"filename": "src/a.py"}]
         if path.startswith("repos/o/r/commits/aaa/check-runs"):
             return {"total_count": 1, "check_runs": [{"name": "test", "status": "completed", "conclusion": "success"}]}
+        if path.startswith("repos/o/r/commits/aaa/status"):
+            return {"state": "success", "statuses": [{"context": "lint", "state": "success"}]}
         if path.endswith("/branches/main/protection"):
             if isinstance(protection, Exception):
                 raise protection
@@ -214,14 +231,14 @@ def fake_gh(protection: Any) -> Any:
 class InventoryTests(unittest.TestCase):
     def test_inventory_with_stubbed_gh(self) -> None:
         stub = fake_gh({"required_status_checks": {"contexts": ["test"], "checks": [{"context": "lint"}]}})
-        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(pr_sweep, "gh_api", stub):
+        with tempfile.TemporaryDirectory() as tmp, unittest.mock.patch.object(pr_sweep, "gh_api", stub):
             out = run_cli("inventory", "--repo", "o/r", "--head-prefix", "dts2/s1/", "--out", tmp)
             data = json.loads((Path(tmp) / "inventory.json").read_text(encoding="utf-8"))
             markdown = (Path(tmp) / "inventory.md").read_text(encoding="utf-8")
         self.assertEqual((out["_code"], out["open_total"], out["in_scope"]), (0, 2, 1))
         self.assertEqual([p["number"] for p in data["prs"]], [7])
         self.assertEqual(data["prs"][0]["files"], ["src/a.py"])
-        self.assertEqual(data["prs"][0]["checks"][0]["conclusion"], "success")
+        self.assertEqual([(c["name"], c["conclusion"]) for c in data["prs"][0]["checks"]], [("test", "success"), ("lint", "success")])
         self.assertEqual(data["required"], {"main": ["lint", "test"]})
         self.assertEqual(data["open_heads"], ["dts2/s1/a", "feat/b"])
         self.assertIn("#7", markdown)
@@ -229,7 +246,7 @@ class InventoryTests(unittest.TestCase):
 
     def test_author_filter_and_unreadable_protection(self) -> None:
         stub = fake_gh(pr_sweep.GhError("403"))
-        with mock.patch.object(pr_sweep, "gh_api", stub):
+        with unittest.mock.patch.object(pr_sweep, "gh_api", stub):
             inv = pr_sweep.build_inventory("o/r", 3, None, "dev")
             self.assertEqual([p["number"] for p in inv["prs"]], [7])
             self.assertEqual(inv["required"], {"main": None})
@@ -239,7 +256,7 @@ class InventoryTests(unittest.TestCase):
         def boom(path: str, paginate: bool = False) -> Any:
             raise pr_sweep.GhError("HTTP 401")
 
-        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(pr_sweep, "gh_api", boom):
+        with tempfile.TemporaryDirectory() as tmp, unittest.mock.patch.object(pr_sweep, "gh_api", boom):
             out = run_cli("inventory", "--repo", "o/r", "--out", tmp)
         self.assertEqual((out["ok"], out["_code"]), (False, 2))
         self.assertIn("401", out["error"])
@@ -252,9 +269,9 @@ class InventoryTests(unittest.TestCase):
 
     def test_gh_api_merges_pages(self) -> None:
         pages = '{"check_runs":[1]}\n{"check_runs":[2]}'
-        with mock.patch.object(pr_sweep, "run_gh", return_value=pages):
+        with unittest.mock.patch.object(pr_sweep, "run_gh", return_value=pages):
             self.assertEqual(pr_sweep.gh_api("x", paginate=True), {"check_runs": [1, 2]})
-        with mock.patch.object(pr_sweep, "run_gh", return_value="[1]\n[2]"):
+        with unittest.mock.patch.object(pr_sweep, "run_gh", return_value="[1]\n[2]"):
             self.assertEqual(pr_sweep.gh_api("x", paginate=True), [1, 2])
 
 
@@ -281,6 +298,16 @@ class LedgerTests(unittest.TestCase):
         self.assertIn("| #1 | GREEN | merged | abc123 | retried | sonnet | lead |", text)
         self.assertIn("- #3: touches a workflow file: approve?", text)
         self.assertIn("- PR #1: deletion denied: feat/1", text)
+
+    def test_repeat_sweep_counts_only_current_inventory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            run_cli("record", "--dir", tmp, "--pr", "1", "--bucket", "GREEN", "--action", "merged")
+            run_cli("record", "--dir", tmp, "--pr", "2", "--bucket", "GREEN", "--action", "merged")
+            (directory / "inventory.json").write_text(json.dumps(inventory([pr(3), pr(4)])), encoding="utf-8")
+            run_cli("record", "--dir", tmp, "--pr", "3", "--bucket", "GREEN", "--action", "merged")
+            out = run_cli("report", "--dir", tmp)
+        self.assertEqual((out["before"], out["after"], out["merged"]), (2, 1, 1))
 
     def test_report_without_inventory_or_ledger(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

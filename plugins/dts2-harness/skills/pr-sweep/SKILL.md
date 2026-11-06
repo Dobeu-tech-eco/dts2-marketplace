@@ -28,5 +28,5 @@ Read the file for a phase only when you reach it; do not read ahead. All files a
 - Only bucket H waits for the user. Everything else proceeds.
 - The lead coordinates and signs off; every rebase or fix is done by a worker with the model named explicitly.
 - Never delete, skip or weaken a valid test or lint rule to get green.
-- GitHub auto-merge (`gh pr merge <n> --auto --merge`) is used for a GREEN-but-pending PR only when the repo allows auto-merge; otherwise watch the checks.
+- GitHub auto-merge (`gh pr merge <n> -R <o>/<r> --auto --merge`) is used for a GREEN-but-pending PR only when the repo allows auto-merge; otherwise watch the checks.
 - The report leads with the result: open PRs before -> after, merged, closed, waiting on the user.
