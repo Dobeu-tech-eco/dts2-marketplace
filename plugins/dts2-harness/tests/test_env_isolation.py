@@ -110,7 +110,6 @@ class WorkspaceAuthTest(unittest.TestCase):
     def test_declared_auth_reads_workspace_roster(self) -> None:
         import tempfile
 
-        import roster
         import state_io
         with tempfile.TemporaryDirectory() as tmp:
             cfg: Path = Path(tmp) / state_io.CONFIG_REL
