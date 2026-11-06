@@ -68,6 +68,46 @@ class SonModelTests(unittest.TestCase):
             self.assertEqual(supervisor.session_model(status, root, resume=False), "opus")
 
 
+class PreUpgradeLaneTests(unittest.TestCase):
+    """A lane made before `start_model` existed keeps the model its recorded son argv ran on."""
+
+    def lane(self, root: Path, argv: list[str] | None) -> Path:
+        (root / ".claude").mkdir()
+        status: Path = root / "status.json"
+        if argv is not None:
+            (root / "son.json").write_text(json.dumps({"argv": argv, "session_id": "s1"}), encoding="utf-8")
+        return status
+
+    def test_resume_recovers_model_from_son_json(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root: Path = Path(tmp)
+            status: Path = self.lane(root, ["claude", "--model", "opus", "--resume", "s1"])
+            self.assertEqual(supervisor.session_model(status, root, resume=True), "opus")
+            self.assertEqual(json.loads(status.read_text(encoding="utf-8"))[supervisor.START_MODEL_KEY], "opus")
+
+    def test_resume_without_any_record_uses_the_default(self) -> None:
+        for argv in (None, ["claude", "--resume", "s1"]):
+            with tempfile.TemporaryDirectory() as tmp:
+                root: Path = Path(tmp)
+                self.assertEqual(supervisor.session_model(self.lane(root, argv), root, resume=True), "sonnet")
+
+    def test_fresh_start_ignores_the_old_record(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root: Path = Path(tmp)
+            status: Path = self.lane(root, ["claude", "--model", "opus"])
+            self.assertEqual(supervisor.session_model(status, root, resume=False), "sonnet")
+
+
+class FixLadderContractTests(unittest.TestCase):
+    def test_dispatch_and_fixer_use_the_round_model(self) -> None:
+        build: str = (PLUGIN_ROOT / "skills" / "run" / "phase-2-build.md").read_text(encoding="utf-8")
+        self.assertIn("--fix-round 2", build)
+        self.assertIn("`fixModel`", build)
+        self.assertIn("round-5 cap", build)
+        self.assertNotIn("Round 3 and the cap are unchanged", build)
+        self.assertIn("fixModel", (PLUGIN_ROOT / "agents" / "fixer.md").read_text(encoding="utf-8"))
+
+
 class WorkflowTests(unittest.TestCase):
     def test_matrix_cache_and_pytest(self) -> None:
         text: str = WORKFLOW.read_text(encoding="utf-8")

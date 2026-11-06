@@ -19,7 +19,7 @@ NON_MATTPOCOCK: Final[dict[str, str]] = {"resolve-merge-conflicts": "warpdotdev/
 INSTALL: Final[str] = "npx skills add https://github.com/mattpocock/skills --skill"
 MOMENTS: Final[dict[str, str]] = {
     "improve-codebase-architecture": "finalization pass before tests are written",
-    "diagnosing-bugs": "hard 3-round cap, bugs still failing",
+    "diagnosing-bugs": "hard 5-round cap, bugs still failing",
     "loop-me": "on /dts2:run trigger — check in with the user",
     "setup-pre-commit": "once per repo, as the last gate before `git commit`",
     "code-review": "first contact — repo the harness has never been in",
@@ -35,7 +35,7 @@ RUN_PHRASES: Final[tuple[str, ...]] = (
     "/pr", "/resolve-merge-conflicts", "PR body written by /pr",
     "## Questions from the user", "/ask-matt", "/research", "/diagnosing-bugs",
     "Finalization before tests", "Run-trigger check-in (loop-me)", "First contact (code-review, once per repo)",
-    "BEFORE writing any tests", "hard round-3 cap", "last gate before `git commit`", ".harness/seen",
+    "BEFORE writing any tests", "hard round-5 cap", "last gate before `git commit`", ".harness/seen",
 )
 
 

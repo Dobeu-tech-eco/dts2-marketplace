@@ -75,7 +75,7 @@ print_compact_pointer() {
   echo "Next: read .harness/handoff/latest.md (the rewritten handoff) before acting."
   echo "rule 1: define done first (outcome plus check method) before planning."
   echo "rule 2: end every run with a receipt listing tests, verdict and rollback point."
-  echo "rule 3: cap fix rounds at three, then escalate with what failed."
+  echo "rule 3: cap fix rounds at five, then escalate with what failed."
 }
 if [[ "$HOOK_INPUT" =~ \"source\"[[:space:]]*:[[:space:]]*\"compact\" ]]; then
   print_compact_pointer

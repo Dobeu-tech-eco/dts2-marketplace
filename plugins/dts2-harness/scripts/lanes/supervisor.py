@@ -14,7 +14,7 @@ import harness_skew
 from model_call import (
     fallback_used, invoke, is_terminated, parse_result, read_budget,
 )
-from proc import RESUME_ENV, cli_version, clear_exit, reap_old_group, record_son_start, set_option, son_session, version_problem, wrap_son, write_exit
+from proc import RESUME_ENV, SON_FILE, cli_version, clear_exit, option_index, read_record, reap_old_group, record_son_start, set_option, son_session, version_problem, wrap_son, write_exit
 from son_stream import SonWatcher
 from son_launch import auth_problem, cli_too_old, init_plugin_errors, launch_flags, prepare_lane, provider_env, sandbox_config, son_env
 from state_io import atomic_write
@@ -297,13 +297,24 @@ def start_record(status_path: Path, lane_dir: Path, pid: int) -> None:
     record_son_start(lane_dir, pid)
 
 
+def recorded_argv_model(lane_dir: Path) -> str | None:
+    """The `--model` in the lane's son.json argv: what a lane made before `start_model` existed actually ran on."""
+    argv: Any = read_record(lane_dir / SON_FILE).get("argv")
+    if not isinstance(argv, list):
+        return None
+    index: int | None = option_index(argv, "--model")
+    value: Any = argv[index + 1] if index is not None and index + 1 < len(argv) else None
+    return value if isinstance(value, str) and value else None
+
+
 def session_model(status_path: Path, cwd: Path, resume: bool) -> str:
-    """S4: one model per session. A resume reuses the model the lane started on (`start_model` in status.json); a fresh
-    start reads the `son_model` setting and records it."""
+    """S4: one model per session. A resume reuses the model the lane started on (`start_model` in status.json, else the
+    `--model` of its son.json argv, for a lane made before `start_model` existed); a fresh start reads the `son_model`
+    setting and records it."""
     recorded: Any = read_json_object(status_path).get(START_MODEL_KEY)
     if resume and isinstance(recorded, str) and recorded:
         return recorded
-    model: str = son_model(cwd)
+    model: str = (recorded_argv_model(status_path.parent) if resume else None) or son_model(cwd)
     merge_json(status_path, {START_MODEL_KEY: model})
     return model
 

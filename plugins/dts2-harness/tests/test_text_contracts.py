@@ -176,7 +176,7 @@ class RunSkillContracts(TextContractMixin):
             "Here is the receipt. Ship, fix the blocking items and re-check, or stop and revert.",
             "No end state yet; /dts2:setup interviews to one.",
             "That changes the harness itself; use `/dts2:evolve`.",
-            "Cap at 3 rounds. After 3, stop and escalate with what failed; record it in `.harness/state.md`.",
+            "Cap at 5 rounds (1-3 Sonnet, 4-5 Opus via `delegate.py --fix-round N` `fixModel`). After 5, stop and escalate with what failed; record it in `.harness/state.md`.",
             "Finish pass skipped: Impeccable not installed (github.com/pbakaus/impeccable)",
             "Both checkpoints need a human. Headless runs stop at each and write what a human would have seen.",
             ".harness/review/critique-<stamp>.md", "ensure-ignored.py", "roster.py\" resolve",

@@ -14,7 +14,7 @@ RECEIPT_HEADINGS: Final[list[str]] = [
 ]
 EXPECTED: Final[dict[str, list[str]]] = {
     "discipline.md": [
-        "Define done first", "End with a receipt", "Cap fix rounds at three",
+        "Define done first", "End with a receipt", "Cap fix rounds at five",
         "Repeat mistake", "State outside the chat", "Auto-add the receipt",
         "Where it bites", "pr-receipt.sh",
     ],
