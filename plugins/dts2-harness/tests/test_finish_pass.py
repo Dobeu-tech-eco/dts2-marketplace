@@ -27,7 +27,7 @@ class FinishPassTests(unittest.TestCase):
     def test_run_phase_3c_rules(self) -> None:
         text: str = read_run_skill()
         section: str = text[text.find("## Phase 3c"):text.find("## Phase 4")]
-        for phrase in ("simplify", "optimize", "Coverage:", "3-round cap", "never speculative"):
+        for phrase in ("simplify", "optimize", "Coverage:", "5-round cap", "never speculative"):
             self.assertIn(phrase, section)
 
     def test_plan_checkpoint_blueprint_rule(self) -> None:

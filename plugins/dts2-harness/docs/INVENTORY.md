@@ -108,7 +108,7 @@ Run as `python3 -I "$P/scripts/<x>.py" ...`. Hook-driven and internal scripts ar
 | `clarity-score.py` | `<ratings>` | none | Requirement clarity score; the weakest component bounds it. | `feature`, `setup` | |
 | `plan-gate.py` | `<plan>` | `--json` | PASS or FAIL for a lead plan before the checkpoint: Foundation section, exclusive ownership, `complexity:` per builder, token estimate. | `run` | new |
 | `state_io.py` | `migrate-all [repo]` | none | Upgrade every record under `.harness/runs/` to the current version; safe to repeat. | by hand | new |
-| `settings_cache.py` | `[repo]` | `--get` | Parsed settings from `.harness/config.yaml` and the local frontmatter, cached; `local.son_model` (default `opus`) is the model every dpp son runs on. | by hand | changed |
+| `settings_cache.py` | `[repo]` | `--get` | Parsed settings from `.harness/config.yaml` and the local frontmatter, cached; `local.son_model` (default `sonnet`) is the model every dpp son runs on. | by hand | changed |
 | `loop_guard.py` | `check`, `record`, `park`, `sweep`, `notify` | `--repo`; `record`: `--progress` (required), `--signature`; `park`: `--id --reason` (required), `--blocker-pr` or `--blocker-item` or `--blocker-file`; `sweep`: `--release`; `notify`: `--reason` | Guard for the unattended fullauto loop: STOP file or `dts2:stop` PR label, pass and hour budget, progress ledger with stall verdict, parked items, one "dts2: needs you" issue. | `fullauto` | new |
 
 ### 4.2 Repo detection and scaffolding
@@ -411,7 +411,7 @@ Keys of `templates/dts2-harness.local.md`, copied to `<repo>/.claude/dts2-harnes
 | `dpp_full_ask_each_lane` | `true` | `dpp-full` outside autopilot asks before each new lane (`approve-lane`). |
 | `fullauto_freeze_scope` | `true` | `fullauto` freezes the approved item set at its first plan. |
 | `post_merge_fix_attempts` | `2` | Post-merge fixes per lane before a revert PR opens. |
-| `son_model` | `opus` | Model every dpp son runs on. |
+| `son_model` | `sonnet` | Model every dpp son runs on. |
 | `use_worktrees` | `auto` | `auto`, `always` or `never` for builder worktrees. |
 | `second_opinion` | `none` | `none`, `codex` or `gemini` for the sdk runner. |
 | `profile` | `blueprint` | `machine-prep` profile name or path. |

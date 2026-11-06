@@ -2,6 +2,8 @@
 name: builder
 description: Implements exactly one builder section of the lead plan inside its owned file set. Several builders may run in parallel on separate file sets. Does not review its own work.
 model: sonnet
+experimental:
+  cacheTtl: 1h
 tools: Read, Write, Edit, Grep, Glob, Bash
 maxTurns: 60
 color: blue

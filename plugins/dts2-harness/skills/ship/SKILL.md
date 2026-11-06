@@ -21,8 +21,8 @@ Read `.harness/config.yaml` `commands:`. Run `verify` when it exists, else each 
 - **do_not_touch.** Any changed path matching `do_not_touch` in config blocks ship unless the user explicitly says it is intended.
 - **Repo checks.** Run `.harness/checks.sh` when it exists, and any repo-declared checker the repo's CLAUDE.md requires before a PR.
 
-A failing check → show it and ask once: fix now (a builder on the owning files, up to the 3-round cap from the run skill) or stop. Never open a PR on a red check unless the user overrides; the override goes in Open risks.
-A builder fix report whose first line is `PARTIAL: hit turn cap at <step>` is not a fix: re-dispatch the builder on the remaining steps or a fresh builder, inside the 3-round cap.
+A failing check → show it and ask once: fix now (a builder on the owning files, up to the 5-round cap from the run skill) or stop. Never open a PR on a red check unless the user overrides; the override goes in Open risks.
+A builder fix report whose first line is `PARTIAL: hit turn cap at <step>` is not a fix: re-dispatch the builder on the remaining steps or a fresh builder, inside the 5-round cap.
 
 ## 4. Review
 Dispatch, in one message, `dt:verifier` (seat: sign-off, `model: opus`) to confirm the checks against HEAD and look for stubs, and one `dt:reviewer` (seat: advisory, `standard`) on the whole diff with `.harness/review-checklist.md`. CRITICAL or HIGH findings → show them and ask: fix, ship anyway (recorded in Open risks), or stop.

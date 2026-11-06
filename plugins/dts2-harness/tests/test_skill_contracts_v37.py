@@ -59,7 +59,7 @@ class NewSkillsContract(TextContractMixin):
             "3-0 APPROVE", "2-1 APPROVE", "Split", "roster.py command", "--tier frontier",
             "--squash --delete-branch", "never `--admin`", "required_linear_history",
             "gh pr comment", ".harness/autopilot/latest.md", "autopilot resume", "park",
-            "Never build on a previous step's unmerged branch", "3-round cap",
+            "Never build on a previous step's unmerged branch", "5-round cap",
         ])
         self.assert_absent(SKILLS / "autopilot", ["--merge --admin", "force-push to"])
 

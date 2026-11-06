@@ -38,7 +38,7 @@ SCHEMA: Final[dict[str, dict[str, tuple[type, Any]]]] = {
     "local": {
         "enabled": (bool, True), "max_builders": (int, 6), "max_reviewers": (int, 4),
         "son_permission_mode": (str, "dontAsk"), "lead_provider": (str, "claude"),
-        "son_model": (str, "opus"),
+        "son_model": (str, "sonnet"),
         "incident_capture": (bool, True), "incident_hung_minutes": (int, 20), "incident_brief_min_chars": (int, 200),
         "incidents_auto_review": (bool, False), "incident_inject_max": (int, 3), "incident_inject_mode": (str, "context"),
     },

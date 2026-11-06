@@ -78,8 +78,8 @@ class ReviewerAgentTests(TextContractMixin):
 class VerifierAgentTests(TextContractMixin):
     PATH: Final[Path] = AGENTS / "verifier.md"
 
-    def test_model_is_opus(self) -> None:
-        self.assert_contains(self.PATH, ["\nmodel: opus\n"])
+    def test_model_is_sonnet(self) -> None:
+        self.assert_contains(self.PATH, ["\nmodel: sonnet\n"])
 
     def test_required_phrases(self) -> None:
         self.assert_contains(self.PATH, [
@@ -176,7 +176,7 @@ class RunSkillContracts(TextContractMixin):
             "Here is the receipt. Ship, fix the blocking items and re-check, or stop and revert.",
             "No end state yet; /dt:setup interviews to one.",
             "That changes the harness itself; use `/dt:evolve`.",
-            "Cap at 3 rounds. After 3, stop and escalate with what failed; record it in `.harness/state.md`.",
+            "Cap at 5 rounds (1-3 Sonnet, 4-5 Opus via `delegate.py --fix-round N` `fixModel`). After 5, stop and escalate with what failed; record it in `.harness/state.md`.",
             "Finish pass skipped: Impeccable not installed (github.com/pbakaus/impeccable)",
             "Both checkpoints need a human. Headless runs stop at each and write what a human would have seen.",
             ".harness/review/critique-<stamp>.md", "ensure-ignored.py", "roster.py\" resolve",

@@ -83,7 +83,7 @@ if mode == "exit143":
 if mode == "sleep":
     time.sleep(30)
 if mode == "fallback":
-    result["modelUsage"] = {"claude-sonnet-fake": {"costUSD": cost}}
+    result["modelUsage"] = {"claude-haiku-fake": {"costUSD": cost}}
 if mode == "max-turns":
     result.update({"subtype": "error_max_turns", "is_error": True})
     print(json.dumps(result))
@@ -310,8 +310,8 @@ class SpawnTests(SupervisorBase):
 
     def test_fallback_is_recorded_in_ledger_and_status(self) -> None:
         result = self.spawn(FAKE_MODE="fallback")
-        self.assertEqual(result["fallback_model"], "claude-sonnet-fake")
-        self.assertEqual(self.status_json()["fallback_model"], "claude-sonnet-fake")
+        self.assertEqual(result["fallback_model"], "claude-haiku-fake")
+        self.assertEqual(self.status_json()["fallback_model"], "claude-haiku-fake")
         self.assertIn("fallback", [e["event"] for e in self.ledger()])
 
     def test_primary_model_in_usage_is_not_a_fallback(self) -> None:
