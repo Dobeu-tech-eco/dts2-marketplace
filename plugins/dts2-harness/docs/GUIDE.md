@@ -94,6 +94,7 @@ For exact syntax (required arguments, flags, who may run it, what it writes) and
 | Find skills the repo could use | `find-skills` | Rescan, one to three questions, ranked suggestions, keep list on a yes. |
 | Decide whether to keep, fold, sell, archive or delete one repo | `ask-expert [repo]` | Runs before setup. Asks your goal in plain words, reads the code, compares it with your active repos, then an expert panel (three providers; council and research if it stalls) writes a one-page memo. Changes nothing. |
 | Do that for all your repos | `repo-sweep [owner]` | Quick pass per repo, oldest first, then one cleanup screen. Archive is reversible; delete is one repo at a time after a backup bundle and a typed repo name. |
+| Clear open and stale PRs after an autopilot run | `pr-sweep [owner/repo]` | Inventories open PRs, merges green ones, rebases, triages red CI, closes dead ones and reports what is left for you. `--optimise-ci` opens a separate PR that speeds up CI. |
 | Go-to-market pass | `gtm` | Installs `marketing-skills` if missing, ends in `readiness.md`. |
 | Run the pipeline headless (CI, cron, servers) | `sdk` | Sets up and runs `sdk/dts2-run.py` with the Agent SDK. User-typed only. |
 
@@ -219,6 +220,7 @@ New commands and surfaces:
 - Merge journal (`merge-journal.jsonl`), typed `run.json`, `builders.jsonl`; leases with TTL, heartbeat renewal and epochs.
 - Son containment: sandbox, tool allowlist and deny list, allowlisted environment, pinned CLI version, hard caps on turns, spend and model calls, `--fallback-model` chain, per-lane `PORT`, `COMPOSE_PROJECT_NAME`, `DTS2_DB_NAME`.
 - Merge guard hook and `guard.py`; `merge.target` default `dev`.
+- Project profiles (`.harness/agents`) may set display and model metadata only: executable fields (`command`, `statusCommand`, `env` and the like) are dropped with a warning unless the project's absolute path is listed in `~/.dts2/trusted-projects` (one per line).
 - Council hardening: seat swap, identical-round note, blind ballots, fenced ballots, strict verdict line, model ids per provider in `profiles/agents/<provider>.json`.
 - Checks gate (`checks.py`) before any vote; verifier split into evidence scout plus frontier verifier.
 - Plan gate (`plan-gate.py`, PLAN GATE PASS or FAIL), builder audit, mandatory `## Foundation` section at wave 0, `fixer` agent, fixed `FLAGS:` block, `rollback_ref.py`.
@@ -253,6 +255,7 @@ Release history before 3.10: 3.9 parallel autopilot (`dpp`, `dpp-full`, `fullaut
 | `.harness/receipts/<stamp>.md` | Ship receipts | `run`, `ship`, `autopilot` |
 | `.harness/ask-expert/<repo>/` | Goal answers, `goal.json`, comparison, panel record, research, `report.md`; `sweep-<stamp>.jsonl` and `todo.md` beside them | `ask-expert`, `repo-sweep`, `ask_expert.py` |
 | `~/.dts2/repo-backups/` | `git bundle` backups written before any repo delete (outside the repo) | `ask_expert.py backup` |
+| `.harness/pr-sweep/<stamp>/` | `inventory.json`, `inventory.md`, `buckets.md`, `flaky.md`, `ledger.jsonl`, `report.md` | `pr-sweep`, `pr_sweep.py` |
 | `.harness/council.md` | Every council vote, dissent and decision | `council.py ledger` |
 | `.harness/runs/<stamp>/` | `lanes.json`, `run.json`, `builders.jsonl`, `ledger.jsonl`, `merge-journal.jsonl`, `merge-go.md`, per-lane `brief.md`, `report.md`, `questions/` | `lanes.py`, `checks.py` only |
 | `.harness/merge-guard.log` | Refused merges and pushes | `guard.py` |

@@ -63,6 +63,8 @@ Every run checks which agents are usable and what budget is left (the budget che
 
 Only agents detected on this machine join the roster; handoff agents get a written brief, and the run pauses until you report it done.
 
+An agent on a pay-as-you-go API key (such as `grok-api` next to a subscription `grok`) is added with `/dts2:model`, section "Add or rename an agent"; keys live in your keyring, 1Password or Doppler and only the reference is written.
+
 ## Where to start
 1. New machine or cluttered tooling → `machine-prep`.
 2. New repo or repos → `setup`.

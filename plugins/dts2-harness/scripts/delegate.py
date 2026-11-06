@@ -222,13 +222,14 @@ def receipt_line(profile: dict[str, Any], seat: str, effort: str, model: str | N
     return f"- {profile['name']} {shown}{tier_bit} effort={effort} ({seat})"
 
 
-def load_profiles(profile_dir: Path) -> dict[str, dict[str, Any]]:
+def load_profiles(profile_dir: Path | None = None) -> dict[str, dict[str, Any]]:
+    """Layered (bundled, user, project) profiles by default; an explicit folder reads only that folder."""
     return Profiles.load(profile_dir).as_dict()
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--profile-dir", default=str(PROFILE_DIR))
+    parser.add_argument("--profile-dir", default=None, help="read only this folder (default: bundled, user and project layers)")
     parser.add_argument("--agent", required=True)
     parser.add_argument("--seat", required=True)
     parser.add_argument("--complexity", required=True)
@@ -241,7 +242,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = build_parser().parse_args()
-    profiles: dict[str, dict[str, Any]] = load_profiles(Path(args.profile_dir))
+    profiles: dict[str, dict[str, Any]] = load_profiles(Path(args.profile_dir) if args.profile_dir else None)
     if args.agent not in profiles:
         print(f"delegate error: unknown agent '{args.agent}'", file=sys.stderr)
         return 1

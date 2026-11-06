@@ -73,6 +73,7 @@ Claude Code plugin marketplace for Dobeu Tech Solutions.
 | `find-skills` | Available any time (`/dts2:find-skills`): rescan the repo, ask a few questions, suggest skills, wire in the ones you pick. |
 | `ask-expert` | Available any time, before setup (`/dts2:ask-expert [repo]`): state your goal, an expert panel reads the code and writes a one-page keep, fold, template, archive or delete memo. |
 | `repo-sweep` | Available any time (`/dts2:repo-sweep [owner]`): the quick pass over all your repos, oldest first, then one cleanup screen; archive is reversible, delete is per repo with a backup. |
+| `pr-sweep` | Available any time (`/dts2:pr-sweep [owner/repo]`): clears open and stale PRs in one pass with parallel workers; merges green PRs, triages red CI, closes dead ones, and with `--optimise-ci` opens a separate CI speed-up PR. |
 | `fleet` | Available any time (`/dts2:fleet list\|show\|logs\|broadcast\|status`): every harness session on this computer in one table, read their logs and ledgers without interrupting them, and send one note, handoff, pause or knowledge finding to all (asks first). |
 | `check-in` | Available any time (`/dts2:check-in`): a read-only checklist from where the project started through the approved end state, each item complete or outstanding. |
 | `dpp` | Run several autopilot lanes in parallel as headless sons, one worktree each, under a head that plans, supervises and serialises merges (`dpp [dry-run] [--full] [resume]`). |
