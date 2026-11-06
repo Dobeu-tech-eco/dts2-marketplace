@@ -493,6 +493,18 @@ class CloudflareBackendTests(KnowledgeCase):
         fake.CloudflareBackend.from_env.return_value.sync.assert_called_once_with(self.store)
         self.assertIn("2", out)
 
+    def test_sync_loads_sibling_module_under_isolated_python(self) -> None:
+        """SKILL.md runs the script with `python3 -I`, which drops the script directory from sys.path."""
+        self.ok("setup", "--backend", "cloudflare", "--url", "http://127.0.0.1:1")
+        env = {**os.environ, "DTS2_KNOWLEDGE_TOKEN": self.SECRET}
+        result = subprocess.run(
+            [sys.executable, "-I", str(PLUGIN_ROOT / "scripts" / "knowledge.py"), "sync"],
+            capture_output=True, text=True, env=env, cwd=self.root, check=False,
+        )
+        self.assertNotIn("ModuleNotFoundError", result.stderr)
+        self.assertIn("cloudflare sync failed", result.stderr)
+        self.assertEqual(result.returncode, knowledge.EXIT_GIT)
+
     def test_sync_without_token_exits_2(self) -> None:
         self.ok("setup", "--backend", "cloudflare", "--url", self.URL)
         os.environ.pop("DTS2_KNOWLEDGE_TOKEN", None)

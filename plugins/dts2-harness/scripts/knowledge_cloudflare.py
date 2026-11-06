@@ -9,6 +9,7 @@ CLI: python3 knowledge_cloudflare.py --url URL ping|list|pull STORE (manual test
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -113,6 +114,17 @@ def write_local(store: Path, entry: Entry, old_path: Path | None) -> None:
         old_path.unlink()
 
 
+def newer(a: Entry, b: Entry) -> bool:
+    """True when entry a should replace entry b: a later `updated`, or the same `updated` with different
+    content and the larger content hash. The hash tiebreak makes every device pick the same winner."""
+    if a["updated"] != b["updated"]:
+        return a["updated"] > b["updated"]
+    text_a, text_b = entry_text(a), entry_text(b)
+    if text_a == text_b:
+        return False
+    return hashlib.sha256(text_a.encode(ENCODING)).hexdigest() > hashlib.sha256(text_b.encode(ENCODING)).hexdigest()
+
+
 def clean_entry(raw: Any) -> Entry | None:
     """Validate an entry received from the remote; None when it must not be written locally."""
     if not isinstance(raw, dict):
@@ -196,7 +208,8 @@ class CloudflareBackend:
         return reply if isinstance(reply, dict) else {}
 
     def sync(self, store: Path) -> int:
-        """Pull remote entries into the store, then push local ones that are newer. Newer `updated` wins.
+        """Pull remote entries into the store, then push local ones that are newer. Newer `updated` wins;
+        on equal `updated` with different content the larger content hash wins (see `newer`).
 
         Returns how many entries changed (written locally plus sent to the remote). Deletions do not propagate."""
         remote = {e["key"]: e for e in self.list()}
@@ -204,12 +217,12 @@ class CloudflareBackend:
         changed = 0
         for key, theirs in remote.items():
             mine = local.get(key)
-            if mine is None or theirs["updated"] > mine[0]["updated"]:
+            if mine is None or newer(theirs, mine[0]):
                 write_local(Path(store), theirs, mine[1] if mine else None)
                 changed += 1
         for key, (mine, _path) in local.items():
             theirs = remote.get(key)
-            if theirs is None or mine["updated"] > theirs["updated"]:
+            if theirs is None or newer(mine, theirs):
                 self.put(mine)
                 changed += 1
         return changed

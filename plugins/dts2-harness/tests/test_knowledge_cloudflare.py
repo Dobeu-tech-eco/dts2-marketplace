@@ -129,13 +129,31 @@ class BackendTest(unittest.TestCase):
         kc.write_local(self.tmp, entry("local.wins", "local new", NEW), None)
         kc.write_local(self.tmp, entry("tie", "local tie", NEW), None)
         kc.write_local(self.tmp, entry("only.local", "fresh", NEW), None)
-        self.assertEqual(self.backend.sync(self.tmp), 3)
+        self.assertEqual(self.backend.sync(self.tmp), 4)
         local = kc.read_local(self.tmp)
         self.assertEqual(local["remote.wins"][0]["value"], "remote new")
-        self.assertEqual(local["tie"][0]["value"], "local tie")
         self.assertEqual(FakeWorker.entries["local.wins"]["value"], "local new")
         self.assertEqual(FakeWorker.entries["only.local"]["value"], "fresh")
-        self.assertEqual(FakeWorker.entries["tie"]["value"], "remote tie")
+        # Equal timestamps, different content: both sides converge on the same winner.
+        self.assertEqual(local["tie"][0]["value"], FakeWorker.entries["tie"]["value"])
+
+    def test_sync_tie_converges_on_same_winner_from_either_side(self) -> None:
+        a, b = entry("tie", "version a", NEW), entry("tie", "version b", NEW)
+        winner = "version a" if kc.newer(a, b) else "version b"
+        for remote, mine in ((a, b), (b, a)):
+            FakeWorker.entries.clear()
+            for path in self.tmp.rglob("*.md"):
+                path.unlink()
+            FakeWorker.entries["tie"] = dict(remote)
+            kc.write_local(self.tmp, dict(mine), None)
+            self.assertEqual(self.backend.sync(self.tmp), 1)
+            self.assertEqual(kc.read_local(self.tmp)["tie"][0]["value"], winner)
+            self.assertEqual(FakeWorker.entries["tie"]["value"], winner)
+            self.assertEqual(self.backend.sync(self.tmp), 0)
+
+    def test_newer_identical_entries_never_replace(self) -> None:
+        same = entry("same", "x", NEW)
+        self.assertFalse(kc.newer(same, dict(same)))
 
     def test_sync_moves_entry_when_remote_kind_changes(self) -> None:
         kc.write_local(self.tmp, entry("shift", "v", OLD, kind="preference"), None)

@@ -507,7 +507,12 @@ class CloudflareSync(Backend):
         if not os.environ.get(ENV_CLOUDFLARE_TOKEN):
             print(f"set {ENV_CLOUDFLARE_TOKEN} in the environment to sync with {url}", file=sys.stderr)
             return EXIT_BAD_INPUT
-        import knowledge_cloudflare  # sibling module, loaded only when this backend is used
+        # Sibling module, loaded only when this backend is used. The skill runs this script with
+        # `python3 -I`, which leaves the script directory off sys.path, so add it explicitly.
+        scripts_dir = str(Path(__file__).resolve().parent)
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+        import knowledge_cloudflare
 
         try:
             changed: int = knowledge_cloudflare.CloudflareBackend.from_env(url).sync(store)
