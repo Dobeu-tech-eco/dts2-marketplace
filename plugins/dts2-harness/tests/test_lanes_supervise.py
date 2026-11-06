@@ -18,7 +18,7 @@ from test_upgrade_check import RELEASE
 
 SCRIPT: Final[Path] = PLUGIN_ROOT / "scripts" / "lanes.py"
 REPO_ROOT: Final[Path] = PLUGIN_ROOT.parent.parent
-VERSION: Final[str] = "4.0.0"
+VERSION: Final[str] = "4.1.0"
 STAMP: Final[str] = "20261104-7"
 STALE_AGE_S: Final[int] = 4000
 SETTING_TIMEOUT_MIN: Final[int] = 1
