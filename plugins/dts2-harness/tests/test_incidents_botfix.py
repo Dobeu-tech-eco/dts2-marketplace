@@ -5,9 +5,9 @@ import os
 import re
 import sys
 import unittest
+import unittest.mock
 from pathlib import Path
 from typing import Any, Final
-from unittest import mock
 
 from helpers import PLUGIN_ROOT, make_tmp_home
 
@@ -41,15 +41,15 @@ class CaptureFlagTests(unittest.TestCase):
 
     def test_disabled_capture_writes_nothing_and_skips_cooldown(self) -> None:
         payload = {"session_id": "s1", "error": "rate_limit", "error_details": "usage limit reached, try again later"}
-        with mock.patch.object(incidents, "settings", return_value={"incident_capture": False}), \
-                mock.patch("cooldowns.record_detection") as record:
+        with unittest.mock.patch.object(incidents, "settings", return_value={"incident_capture": False}), \
+                unittest.mock.patch("cooldowns.record_detection") as record:
             agent_events.record_incident(self.repo, "stop-failure", payload)
             agent_events.record_incident(self.repo, "permission-denied", {"session_id": "s1", "tool_name": "Bash", "reason": "no"})
         self.assertEqual(incident_rows(self.repo), [])
         record.assert_not_called()
 
     def test_enabled_capture_still_writes(self) -> None:
-        with mock.patch.object(incidents, "settings", return_value={"incident_capture": True}):
+        with unittest.mock.patch.object(incidents, "settings", return_value={"incident_capture": True}):
             agent_events.record_incident(self.repo, "permission-denied", {"session_id": "s1", "tool_name": "Bash", "reason": "no"})
         self.assertEqual([r["category"] for r in incident_rows(self.repo)], ["permission-denied"])
 
@@ -60,7 +60,7 @@ class KnowledgeKeyTests(unittest.TestCase):
         log = home / "args.txt"
         fake = home / "knowledge.py"
         fake.write_text(f"import sys\nopen({str(log)!r}, 'a').write(' '.join(sys.argv[1:]) + '\\n')\n", encoding="utf-8")
-        with mock.patch.dict(os.environ, {"DTS2_KNOWLEDGE_SCRIPT": str(fake), "DTS2_KNOWLEDGE": "cf", "DTS2_HOME": str(home)}):
+        with unittest.mock.patch.dict(os.environ, {"DTS2_KNOWLEDGE_SCRIPT": str(fake), "DTS2_KNOWLEDGE": "cf", "DTS2_HOME": str(home)}):
             got = learn.promote_knowledge(repo, "L-001", None)
         self.assertTrue(got["ok"])
         return str(got["key"])
@@ -79,7 +79,7 @@ class KnowledgeKeyTests(unittest.TestCase):
         (home / "lessons.md").write_text("# Lessons\n- [H-004] Harness rule.\n", encoding="utf-8")
         fake = home / "knowledge.py"
         fake.write_text("pass\n", encoding="utf-8")
-        with mock.patch.dict(os.environ, {"DTS2_KNOWLEDGE_SCRIPT": str(fake), "DTS2_KNOWLEDGE": "cf", "DTS2_HOME": str(home)}):
+        with unittest.mock.patch.dict(os.environ, {"DTS2_KNOWLEDGE_SCRIPT": str(fake), "DTS2_KNOWLEDGE": "cf", "DTS2_HOME": str(home)}):
             got = learn.promote_knowledge(repo, "H-004", None)
         self.assertEqual(got["key"], "incident-h-004")
 
@@ -94,7 +94,7 @@ class KnowledgeIdVerdictTests(unittest.TestCase):
         repo = make_repo()
         seen: list[tuple[str, str]] = []
         row = {"kind": incidents.KIND_INJECTION, "agent_id": "a1", "lesson_id": "K-incidentl001", "tier": 4}
-        with mock.patch.object(incidents, "state_of") as state, mock.patch.object(incidents.learn, "sidecar_for") as sidecar:
+        with unittest.mock.patch.object(incidents, "state_of") as state, unittest.mock.patch.object(incidents.learn, "sidecar_for") as sidecar:
             state.return_value.events.return_value = [row]
             sidecar.return_value.update.side_effect = lambda fn: seen.append(
                 (fn.keywords["lesson_id"], fn.keywords["verdict"]))
@@ -119,7 +119,7 @@ class KnowledgeSearchTests(unittest.TestCase):
         home = make_tmp_home()
         fake = home / "knowledge.py"
         fake.write_text(self.FAKE, encoding="utf-8")
-        with mock.patch.dict(os.environ, {"DTS2_KNOWLEDGE_SCRIPT": str(fake), "DTS2_KNOWLEDGE": "cf"}):
+        with unittest.mock.patch.dict(os.environ, {"DTS2_KNOWLEDGE_SCRIPT": str(fake), "DTS2_KNOWLEDGE": "cf"}):
             lines = learn.knowledge_lines("builder src/api/client.py")
         ids = [re.match(r"- \[(K-\w+)\]", line).group(1) for line in lines]  # type: ignore[union-attr]
         self.assertEqual(ids, ["K-a1", "K-d4"])
@@ -129,7 +129,7 @@ class KnowledgeSearchTests(unittest.TestCase):
         fake = home / "knowledge.py"
         rows = [{"key": f"k{i}", "value": f"Rule {i}", "kind": "learning", "tags": []} for i in range(6)]
         fake.write_text(f"import json\nprint(json.dumps({rows!r}))\n", encoding="utf-8")
-        with mock.patch.dict(os.environ, {"DTS2_KNOWLEDGE_SCRIPT": str(fake), "DTS2_KNOWLEDGE": "cf"}):
+        with unittest.mock.patch.dict(os.environ, {"DTS2_KNOWLEDGE_SCRIPT": str(fake), "DTS2_KNOWLEDGE": "cf"}):
             self.assertEqual(len(learn.knowledge_lines("builder src/x.py")), 6)  # select() applies the cap
 
 

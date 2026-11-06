@@ -4,9 +4,9 @@ from __future__ import annotations
 import os
 import sys
 import unittest
+import unittest.mock
 from pathlib import Path
 from typing import Final
-from unittest import mock
 
 from helpers import PLUGIN_ROOT, make_tmp_home
 
@@ -38,14 +38,14 @@ class KnowledgeIdCollisionTests(unittest.TestCase):
 
     def test_long_keys_get_distinct_ids(self) -> None:
         _, env = fake_store(self.KEYS)
-        with mock.patch.dict(os.environ, env):
+        with unittest.mock.patch.dict(os.environ, env):
             ids = ids_of(learn.knowledge_lines("builder src/x.py"))
         self.assertEqual(len(ids), 2)
         self.assertEqual(len(set(ids)), 2)
 
     def test_ids_are_stable_and_parse_as_verdicts(self) -> None:
         _, env = fake_store(self.KEYS)
-        with mock.patch.dict(os.environ, env):
+        with unittest.mock.patch.dict(os.environ, env):
             first = ids_of(learn.knowledge_lines("builder src/x.py"))
             second = ids_of(learn.knowledge_lines("builder src/x.py"))
         self.assertEqual(first, second)
@@ -54,14 +54,14 @@ class KnowledgeIdCollisionTests(unittest.TestCase):
 
     def test_both_lessons_are_selected(self) -> None:
         home, env = fake_store(self.KEYS)
-        with mock.patch.dict(os.environ, env):
+        with unittest.mock.patch.dict(os.environ, env):
             chosen = learn.select(home, "builder", ["src/x.py"], 5, NOW, "builder src/x.py")
         self.assertEqual(len(chosen), 2)
         self.assertEqual(len({c["id"] for c in chosen}), 2)
 
     def test_short_key_is_unchanged(self) -> None:
         _, env = fake_store(["incident-h-004", "abcdefghijklmnop"])
-        with mock.patch.dict(os.environ, env):
+        with unittest.mock.patch.dict(os.environ, env):
             ids = ids_of(learn.knowledge_lines("builder src/x.py"))
         self.assertEqual(ids, ["K-incidenth004", "K-abcdefghijklmnop"])
 
@@ -69,7 +69,7 @@ class KnowledgeIdCollisionTests(unittest.TestCase):
 class KnowledgeCapTests(unittest.TestCase):
     def test_demoted_entries_do_not_block_an_active_one(self) -> None:
         home, env = fake_store(["k1", "k2", "k3", "k4"])
-        with mock.patch.dict(os.environ, env):
+        with unittest.mock.patch.dict(os.environ, env):
             def demote(table: dict) -> None:
                 for lid in ("K-k1", "K-k2", "K-k3"):
                     learn.record_verdict(table, lid, "not-helpful", NOW)
@@ -80,7 +80,7 @@ class KnowledgeCapTests(unittest.TestCase):
 
     def test_cap_still_limits_active_knowledge(self) -> None:
         home, env = fake_store([f"k{i}" for i in range(6)])
-        with mock.patch.dict(os.environ, env):
+        with unittest.mock.patch.dict(os.environ, env):
             chosen = learn.select(home, "builder", ["src/x.py"], 10, NOW, "builder src/x.py")
         self.assertEqual(len(chosen), learn.KNOWLEDGE_MAX_LINES)
 

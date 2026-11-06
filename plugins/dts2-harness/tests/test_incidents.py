@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import unittest
 from datetime import date
@@ -231,7 +232,8 @@ class PromoteTests(HomeCase):
         with mock.patch.dict(os.environ, {"DTS2_KNOWLEDGE_SCRIPT": str(fake), "DTS2_KNOWLEDGE": "cf"}):
             got = learn.promote_knowledge(self.repo, "L-001", None)
         self.assertTrue(got["ok"])
-        self.assertEqual(log.read_text(encoding="utf-8").strip(), f"set incident-{self.repo.name.lower()}-l-001 Rule one. --kind learning --tag incident")
+        project: str = re.sub(r"[^a-z0-9]+", "-", self.repo.resolve().name.lower()).strip("-")[: learn.PROJECT_SLUG_MAX].strip("-")
+        self.assertEqual(log.read_text(encoding="utf-8").strip(), f"set incident-{project}-l-001 Rule one. --kind learning --tag incident")
 
     def test_promote_broadcasts_to_fleet_when_present(self) -> None:
         write_lessons(self.repo, "- [L-001] Rule one.")
