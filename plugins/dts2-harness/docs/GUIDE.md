@@ -115,6 +115,16 @@ Usage limits belong to the account, so the harness keeps one shared list of paus
 - Each new session starts with a one-line note of who is paused and until when.
 - Set or lift a pause by hand with `/dts2:cooldown set <agent> <date or duration>`, `clear <agent>` and `list`.
 
+### Composio
+
+`/dts2:composio` (also offered as a step in `/dts2:onboard`) asks once whether you have a Composio account and records the answer in `~/.dts2/composio.json` (no secrets, never in a repo).
+
+- On yes, the plugin (`composio@composio`) is the default connection; MCP or the CLI only if you ask. Credentials stay with the Composio CLI and are never read or copied.
+- The full toolkit catalogue and your connected accounts are mapped into `~/.dts2/composio-tools.json`, so agents check the map before searching.
+- `/dts2:machine-prep` and `/dts2:composio` list plugins, MCP servers and user skills that a connected toolkit already covers and offer to disable them. Nothing is deleted: plugins and MCP entries are switched off with a settings backup, skills move to `skills-archive/`. `/dts2:find-skills` also stops recommending MCP servers a connected toolkit covers.
+- Routing once always-use is on: map first, one `COMPOSIO_SEARCH_TOOLS` per workflow, `COMPOSIO_MULTI_EXECUTE_TOOL` for independent calls, the remote workbench for bulk results, and never the plugin and a hosted MCP server together.
+- Memory stays in `/dts2:knowledge`; Composio is a tools integration only.
+
 ### Personal knowledge across devices
 
 `/dts2:knowledge` keeps your own standing preferences ("my standard team is 6 agents"), glossary terms (a brand and the repos in it) and cross-project lessons in a private store that is never part of the plugin.
