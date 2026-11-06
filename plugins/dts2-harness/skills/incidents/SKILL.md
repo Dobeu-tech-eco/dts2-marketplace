@@ -44,6 +44,9 @@ A signature is `category + agent class + top path glob`, so one failure is count
 | 4 Knowledge store | all devices, via `/dts2:knowledge` | plugin-caused and seen on 2+ devices or projects |
 | 5 Marketplace | all users | never automatic: `harness:` line, `evolve`, a PR, an explicit yes |
 
+## Lesson matching
+A lesson line can carry optional fields that steer injection: `{paths: src/api/**}` matches the brief's file paths, `{cat: rework-other-agent}` ties it to an incident category (used to score it harmful when that incident repeats), and `{agents: builder, reviewer}` limits it to those agent classes. A line without fields can match any spawn.
+
 ## Lesson feedback
 Agents end a report with `Lessons: L-012 helpful, L-019 not-helpful, L-020 unused`. A lesson whose harmful count reaches helpful plus 2 is demoted: no agent sees it again and it waits for review. A lesson unused 10 times in a row, or idle 30 days, expires.
 

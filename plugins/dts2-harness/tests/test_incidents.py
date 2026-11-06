@@ -179,7 +179,7 @@ class SelectionTests(HomeCase):
         fake.write_text("import json,sys\nprint(json.dumps([{'key':'abc','text':'From the store.'}]))\n", encoding="utf-8")
         with mock.patch.dict(os.environ, {"DTS2_KNOWLEDGE_SCRIPT": str(fake)}):
             self.assertEqual(learn.select(self.repo, "builder", [], 3, NOW), [])  # no store configured
-            with mock.patch.dict(os.environ, {"DTS2_KNOWLEDGE_STORE": "cf"}):
+            with mock.patch.dict(os.environ, {"DTS2_KNOWLEDGE": "cf"}):
                 got = learn.select(self.repo, "builder", [], 3, NOW)
         self.assertEqual([(g["id"], g["tier"]) for g in got], [("K-abc", 4)])
 
@@ -187,7 +187,7 @@ class SelectionTests(HomeCase):
         fake = self.home / "knowledge.py"
         fake.write_text("import sys\nsys.exit(3)\n", encoding="utf-8")
         write_lessons(self.repo, "- [L-001] Local.")
-        with mock.patch.dict(os.environ, {"DTS2_KNOWLEDGE_SCRIPT": str(fake), "DTS2_KNOWLEDGE_STORE": "cf"}):
+        with mock.patch.dict(os.environ, {"DTS2_KNOWLEDGE_SCRIPT": str(fake), "DTS2_KNOWLEDGE": "cf"}):
             self.assertEqual([g["id"] for g in learn.select(self.repo, "builder", [], 3, NOW)], ["L-001"])
 
     def test_block_lists_lessons_and_feedback_line(self) -> None:
@@ -228,10 +228,10 @@ class PromoteTests(HomeCase):
         log = self.home / "calls.txt"
         fake = self.home / "knowledge.py"
         fake.write_text(f"import sys\nopen({str(log)!r}, 'a').write(' '.join(sys.argv[1:]) + '\\n')\n", encoding="utf-8")
-        with mock.patch.dict(os.environ, {"DTS2_KNOWLEDGE_SCRIPT": str(fake), "DTS2_KNOWLEDGE_STORE": "cf"}):
+        with mock.patch.dict(os.environ, {"DTS2_KNOWLEDGE_SCRIPT": str(fake), "DTS2_KNOWLEDGE": "cf"}):
             got = learn.promote_knowledge(self.repo, "L-001", None)
         self.assertTrue(got["ok"])
-        self.assertEqual(log.read_text(encoding="utf-8").strip(), "set incident-l-001 Rule one. --kind learning --tags incident")
+        self.assertEqual(log.read_text(encoding="utf-8").strip(), "set incident-l-001 Rule one. --kind learning --tag incident")
 
     def test_promote_broadcasts_to_fleet_when_present(self) -> None:
         write_lessons(self.repo, "- [L-001] Rule one.")

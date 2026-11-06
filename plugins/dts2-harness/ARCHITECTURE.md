@@ -84,6 +84,7 @@ State reads and writes from the scripts go through `scripts/state_io.py`; see "S
 | StopFailure | `hooks/stop-failure.sh` | appends a Handoff action item for the API error that ended the turn |
 | PermissionDenied | `hooks/permission-denied.sh` | appends a Handoff action item naming the denied tool |
 | PostToolUse (SubagentHandback) | `hooks/subagent-report.sh handback` | the same check for agents that finish through `SubagentHandback`, on `tool_input.message`; blocks once per agent |
+| SubagentStart, SubagentStop, PreToolUse (Agent), PostToolUse (Edit, Write, MultiEdit, Agent, SubagentHandback), Stop, SessionStart, SessionEnd | `hooks/agent-telemetry.sh` | agent telemetry and incidents (`scripts/incidents.py`): logs agent start and stop, runs the deterministic incident detectors, injects up to 3 matching lessons at spawn, queues live corrections for the lead and writes the end-of-run brief; never blocks; off with `incident_capture: false` |
 | SessionEnd (logout, prompt_input_exit, other) | `hooks/session-end.sh` | releases only the leases stamped with this session's id (`scripts/session_end.py`, through `state_io`), then runs `handoff-write.py`; best effort, lease expiry is the guarantee |
 | PreToolUse (Bash `lanes.py spawn --dry-run`, Agent) | `hooks/spawn-dry-run.sh` | prints the exact son command, env names, byte counts and the son `brief.md` (`scripts/spawn_dry_run.py`, on `briefs.dry_run`) and refuses the call so nothing starts; for Agent only when `spawn_dry_run: true` |
 

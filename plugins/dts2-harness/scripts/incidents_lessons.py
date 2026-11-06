@@ -21,7 +21,8 @@ import state_io  # noqa: E402
 
 ENV_HOME: Final[str] = "DTS2_HOME"
 ENV_KNOWLEDGE_SCRIPT: Final[str] = "DTS2_KNOWLEDGE_SCRIPT"
-ENV_KNOWLEDGE_STORE: Final[str] = "DTS2_KNOWLEDGE_STORE"
+ENV_KNOWLEDGE_STORE: Final[str] = "DTS2_KNOWLEDGE"
+ENV_KNOWLEDGE_PROFILE: Final[str] = "DTS2_KNOWLEDGE_PROFILE"
 ENV_FLEET_SCRIPT: Final[str] = "DTS2_FLEET_SCRIPT"
 DEFAULT_HOME_DIR: Final[str] = ".dts2"
 HOME_LESSONS: Final[str] = "lessons.md"
@@ -150,7 +151,7 @@ def knowledge_ready() -> bool:
     if knowledge_script() is None:
         return False
     home: Path = home_dir()
-    return bool(os.environ.get(ENV_KNOWLEDGE_STORE)) or (home / "knowledge.json").exists() or (home / "knowledge").exists()
+    return bool(os.environ.get(ENV_KNOWLEDGE_STORE) or os.environ.get(ENV_KNOWLEDGE_PROFILE)) or (home / "knowledge.json").exists() or (home / "knowledge").exists()
 
 
 def knowledge_lines(query: str) -> list[str]:
@@ -308,7 +309,7 @@ def promote_knowledge(repo: Path, ref: str, text: str | None) -> dict[str, Any]:
     source, rule, _ = resolved
     key: str = "incident-" + re.sub(r"[^A-Za-z0-9]+", "-", source).strip("-").lower()
     try:
-        done = subprocess.run([sys.executable, "-I", str(script), "set", key, rule, "--kind", "learning", "--tags", "incident"],
+        done = subprocess.run([sys.executable, "-I", str(script), "set", key, rule, "--kind", "learning", "--tag", "incident"],
                               capture_output=True, text=True, timeout=KNOWLEDGE_TIMEOUT_S * 2, check=False)
     except (OSError, subprocess.SubprocessError) as error:
         return {"ok": False, "skipped": True, "detail": f"knowledge.py failed: {error}"}
