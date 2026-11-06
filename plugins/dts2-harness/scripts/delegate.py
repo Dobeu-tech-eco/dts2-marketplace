@@ -32,6 +32,8 @@ DEFAULT_EFFORT: Final[str] = "medium"
 LOW_BUDGET_EFFORT_CAP: Final[str] = "medium"
 EXHAUSTED_EFFORT: Final[str] = "low"
 DEFAULT_LEAD: Final[str] = "claude"
+FIX_SONNET_ROUNDS: Final[int] = 3  # fix rounds 1-3 run on Sonnet
+FIX_MAX_ROUNDS: Final[int] = 5  # rounds 4-5 run on Opus, a fresh worker one tier up
 # Roles that make a provider able to give advice: a reviewer, or an independent second opinion.
 ADVISORY_ROLES: Final[tuple[str, ...]] = ("reviewer", "second-opinion")
 SEAT_EFFORT: Final[dict[str, dict[str, str]]] = {
@@ -55,6 +57,13 @@ def assert_execution_not_frontier(tier: str) -> None:
 
 def violates_execution_policy(seat: str, tier: str) -> bool:
     return seat == "execution" and tier == FRONTIER
+
+
+def fix_round_model(round_no: int) -> str:
+    """Model alias for a fix round: sonnet for rounds 1-3, opus for rounds 4-5. Other rounds are refused."""
+    if not 1 <= round_no <= FIX_MAX_ROUNDS:
+        raise DelegationError(f"fix round {round_no} is outside 1..{FIX_MAX_ROUNDS}")
+    return "sonnet" if round_no <= FIX_SONNET_ROUNDS else "opus"
 
 
 def level_index(level: str) -> int:
@@ -250,13 +259,14 @@ def receipt_line(profile: dict[str, Any], seat: str, effort: str, model: str | N
     return f"- {profile['name']} {shown}{tier_bit} effort={effort} ({seat})"
 
 
-def load_profiles(profile_dir: Path) -> dict[str, dict[str, Any]]:
+def load_profiles(profile_dir: Path | None = None) -> dict[str, dict[str, Any]]:
+    """Layered (bundled, user, project) profiles by default; an explicit folder reads only that folder."""
     return Profiles.load(profile_dir).as_dict()
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--profile-dir", default=str(PROFILE_DIR))
+    parser.add_argument("--profile-dir", default=None, help="read only this folder (default: bundled, user and project layers)")
     parser.add_argument("--agent", required=True)
     parser.add_argument("--seat", required=True)
     parser.add_argument("--complexity", required=True)
@@ -266,6 +276,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--task-class", default=None, choices=agent_rules.TASK_CLASSES,
                         help="skip agents whose per-agent rules deny this class (rules read from --config)")
     parser.add_argument("--config", default=None, help="config.yaml holding the roster rules (default .harness/config.yaml)")
+    parser.add_argument("--fix-round", type=int, default=None, help="fix round 1-5; adds fixModel (sonnet rounds 1-3, opus 4-5)")
     return parser
 
 
@@ -281,7 +292,7 @@ def rules_by_agent(config: Path, profiles: dict[str, dict[str, Any]]) -> dict[st
 
 def main() -> int:
     args = build_parser().parse_args()
-    profiles: dict[str, dict[str, Any]] = load_profiles(Path(args.profile_dir))
+    profiles: dict[str, dict[str, Any]] = load_profiles(Path(args.profile_dir) if args.profile_dir else None)
     if args.agent not in profiles:
         print(f"delegate error: unknown agent '{args.agent}'", file=sys.stderr)
         return 1
@@ -291,6 +302,8 @@ def main() -> int:
             profiles[args.agent], args.seat, args.complexity, args.budget, args.lead_provider, profiles,
             args.effort, args.task_class, rules,
         )
+        if args.fix_round is not None:
+            result["fixModel"] = fix_round_model(args.fix_round)
     except DelegationError as error:
         print(f"delegate error: {error}", file=sys.stderr)
         return 1

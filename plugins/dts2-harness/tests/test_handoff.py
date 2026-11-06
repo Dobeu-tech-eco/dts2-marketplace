@@ -16,7 +16,7 @@ SCRIPT: Final[Path] = PLUGIN_ROOT / "scripts" / "handoff-write.py"
 TEMPLATE: Final[Path] = PLUGIN_ROOT / "templates" / "handoff-latest.md"
 SECRET_VALUE: Final[str] = "sk-test-NEVER-PRINT"
 SECTIONS: Final[list[str]] = ["## State", "## Open items", "## Next action", "## Resume", "## Recommended agent"]
-POINTER: Final[str] = "Harness state for any agent: .harness/handoff/latest.md (resume with /dts2:run resume)."
+POINTER: Final[str] = "Harness state for any agent: .harness/handoff/latest.md (resume with /dt:run resume)."
 
 
 def make_repo() -> Path:
@@ -59,7 +59,7 @@ class HandoffWriteTests(unittest.TestCase):
         positions: list[int] = [text.find(s) for s in SECTIONS]
         self.assertNotIn(-1, positions)
         self.assertEqual(positions, sorted(positions))
-        self.assertIn("/dts2:run resume", text)
+        self.assertIn("/dt:run resume", text)
 
     def test_content_comes_from_sources(self) -> None:
         repo: Path = make_repo()
@@ -104,7 +104,7 @@ class HandoffWriteTests(unittest.TestCase):
         text: str = latest(repo)
         for section in SECTIONS:
             self.assertIn(section, text)
-        self.assertIn("/dts2:run <task>", text)
+        self.assertIn("/dt:run <task>", text)
 
     def test_no_harness_dir_skips(self) -> None:
         repo: Path = make_tmp_home()

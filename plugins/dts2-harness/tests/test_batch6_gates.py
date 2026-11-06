@@ -112,12 +112,12 @@ class EventHookTests(unittest.TestCase):
         hooks = json.loads((HOOKS / "hooks.json").read_text(encoding="utf-8"))["hooks"]
         self.assertIn("StopFailure", hooks)
         self.assertIn("PermissionDenied", hooks)
-        self.assertIn("dts2:verifier", [m.get("matcher") for m in hooks["SubagentStop"]])
+        self.assertIn("dt:verifier", [m.get("matcher") for m in hooks["SubagentStop"]])
         self.assertIn("pre-compact.sh", json.dumps(hooks["PreCompact"]))
 
     def test_verifier_blocked_without_check_lines(self) -> None:
         self.ledger(CHECKS[:3])
-        done = run_hook("subagent-stop.sh", self.repo, {"agent_type": "dts2:verifier", "cwd": str(self.repo)})
+        done = run_hook("subagent-stop.sh", self.repo, {"agent_type": "dt:verifier", "cwd": str(self.repo)})
         out = json.loads(done.stdout)
         self.assertEqual(out["decision"], "block")
         self.assertIn("secret-scan", out["reason"])
@@ -125,9 +125,9 @@ class EventHookTests(unittest.TestCase):
 
     def test_verifier_passes_with_all_lines_or_active_hook(self) -> None:
         self.ledger(CHECKS)
-        self.assertEqual(run_hook("subagent-stop.sh", self.repo, {"agent_type": "dts2:verifier", "cwd": str(self.repo)}).stdout, "")
+        self.assertEqual(run_hook("subagent-stop.sh", self.repo, {"agent_type": "dt:verifier", "cwd": str(self.repo)}).stdout, "")
         self.ledger(CHECKS[:1])
-        active = {"agent_type": "dts2:verifier", "cwd": str(self.repo), "stop_hook_active": True}
+        active = {"agent_type": "dt:verifier", "cwd": str(self.repo), "stop_hook_active": True}
         self.assertEqual(run_hook("subagent-stop.sh", self.repo, active).stdout, "")
 
     def test_stop_failure_appends_once(self) -> None:

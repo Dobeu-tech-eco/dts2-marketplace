@@ -58,7 +58,7 @@ NAME_KEYS: Final[tuple[str, ...]] = ("name", "display_name", "displayName", "slu
 TOOL_COUNT_KEYS: Final[tuple[str, ...]] = ("tools", "tools_count", "toolsCount", "tool_count")
 HEADER_TOKENS: Final[frozenset[str]] = frozenset({"slug", "name", "toolkit"})
 RULE_STARTS: Final[tuple[str, ...]] = ("─", "-", "=", "|")
-HARNESS_PLUGIN: Final[str] = "dts2@*"
+HARNESS_PLUGINS: Final[tuple[str, ...]] = ("dt@*", "dts2@*", "dts2-harness@*")  # the current id, then the 4.x and pre-4.0 ids
 CLAUDE_DIR: Final[str] = ".claude"
 SETTINGS_SCOPES: Final[tuple[tuple[str, str], ...]] = (
     ("settings.json", "project"), ("settings.local.json", "local"),
@@ -346,7 +346,7 @@ def required_patterns(profile: Path) -> list[str]:
 def exclusion_reason(item_id: str, required: list[str], keep: list[str]) -> str | None:
     if matches(f"{SERVER_WORD}*", item_id):
         return "composio"
-    if matches(HARNESS_PLUGIN, item_id):
+    if any(matches(p, item_id) for p in HARNESS_PLUGINS):
         return "dts2"
     if any(matches(p, item_id) for p in required):
         return "requiredByHarness"

@@ -16,7 +16,7 @@ Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/env-detect.py"`.
 - Never sync or copy agents, skills, plugins, or rules between the Windows and WSL homes.
 
 ## 2. Audit (read-only)
-Dispatch the `dts2:auditor` agent, or run:
+Dispatch the `dt:auditor` agent, or run:
 `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/machine-prep.py" audit [--profile <path>] [--claude-home <path>]`
 The profile defaults to the plugin's `profiles/blueprint.json`. A `profile` value in `.claude/dts2-harness.local.md` overrides it.
 
@@ -54,7 +54,7 @@ Plugins added on claude.ai later arrive enabled in light and standard, so re-run
 - Global MCP servers that belong in one project.
 - Codex plugin flags above budget.
 
-If `~/.dts2/composio-tools.json` exists (set up by `/dts2:composio`), also run `python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/composio-setup.py" overlap` and include its candidates (plugins, MCP servers and skills Composio already covers) in the plan. Prune still means disable, never delete.
+If `~/.dts2/composio-tools.json` exists (set up by `/dt:composio`), also run `python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/composio-setup.py" overlap` and include its candidates (plugins, MCP servers and skills Composio already covers) in the plan. Prune still means disable, never delete.
 
 Recommend one tier and ask which to use. That is the only tier question; step 4 is the approval gate.
 
@@ -65,7 +65,7 @@ Ask once, for the chosen tier: apply the plugin change, apply and also walk thro
 Run `... machine-prep.py apply --tier <chosen>`. It backs up `settings.json` to `<claude home>/backups/` before writing. Report the backup path.
 
 ## 6. Set up the slim startup
-- Confirm `dts2@dts2` is enabled and `harness@harness` is disabled, so agents are not duplicated.
+- Confirm `dt@dts2` is enabled and `harness@harness`, `dts2@dts2` and `dts2-harness@dts2` (the old names) are disabled, so agents are not duplicated.
 - Point the user to the blueprint repo's `apply.ps1` (Windows) or `apply.sh` (WSL/Linux) for Codex agents and the weekly budget audit, if they want those too.
 - Remind them to restart Claude Code and to sign in with `claude auth login` on the binary they actually run.
 

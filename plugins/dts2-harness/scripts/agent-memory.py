@@ -20,8 +20,10 @@ LEGACY_END_MARKER: Final[str] = "<!-- dts2-harness:end -->"
 DEFAULT_RULES_FILE: Final[str] = "AGENTS.md"
 DEFAULT_AGENTS: Final[str] = "claude"
 LIST_SEPARATOR: Final[str] = ","
+LEGACY_RESUME_COMMANDS: Final[tuple[str, ...]] = ("/dts2-harness:run resume", "/dts2:run resume")
+CURRENT_RESUME_COMMAND: Final[str] = "/dt:run resume"
 HANDOFF_POINTER: Final[str] = (
-    "Harness state for any agent: .harness/handoff/latest.md (resume with /dts2:run resume)."
+    "Harness state for any agent: .harness/handoff/latest.md (resume with /dt:run resume)."
 )
 
 
@@ -60,6 +62,21 @@ def migrate_legacy(text: str, block: str) -> str | None:
     return text[:start] + block.rstrip("\n") + text[end + len(LEGACY_END_MARKER):]
 
 
+def migrate_resume_pointer(text: str) -> str | None:
+    """Rewrite pre-5.0 resume commands inside the managed block only; None when nothing changes."""
+    start: int = text.find(START_MARKER)
+    end: int = text.find(END_MARKER, start + len(START_MARKER))
+    if start < 0 or end < 0:
+        return None
+    inner: str = text[start:end]
+    updated: str = inner
+    for legacy in LEGACY_RESUME_COMMANDS:
+        updated = updated.replace(legacy, CURRENT_RESUME_COMMAND)
+    if updated == inner:
+        return None
+    return text[:start] + updated + text[end:]
+
+
 def sync_file(path: Path, project_name: str) -> str:
     """Create the file, append the managed block once, migrate a pre-4.0 block, or leave it alone. Returns the action taken."""
     block: str = managed_block(project_name)
@@ -68,7 +85,11 @@ def sync_file(path: Path, project_name: str) -> str:
         return "wrote"
     text: str = path.read_text(encoding="utf-8")
     if START_MARKER in text:
-        return "unchanged"
+        repointed: str | None = migrate_resume_pointer(text)
+        if repointed is None:
+            return "unchanged"
+        atomic_write(path, repointed)
+        return "migrated"
     if LEGACY_START_MARKER in text:
         migrated: str | None = migrate_legacy(text, block)
         if migrated is None:

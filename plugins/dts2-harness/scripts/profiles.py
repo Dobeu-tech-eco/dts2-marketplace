@@ -30,6 +30,12 @@ KEY_REF: Final[re.Pattern[str]] = re.compile(
     r"^(?:keyring:[\w.\-/]+|op://\S+|doppler:[\w.\-/]+|env:[A-Za-z_][A-Za-z0-9_]*)$"
 )
 REQUIRED_KEYS: Final[tuple[str, ...]] = ("roles", "invocation", "costTier", "statusCommand", "command", "models")
+# Profile keys that end up in argv, a subprocess environment or a file path. A project profile (repo-controlled) may not set
+# them unless the user trusts the project; see trusted_project().
+EXECUTABLE_KEYS: Final[tuple[str, ...]] = (
+    "command", "statusCommand", "loginCommand", "roleCommand", "roleCommands", "invocation", "env", "searchPaths",
+    "stdin", "headlessFlag", "apiKeyEnv", "rulesFile", "binary", "bin", "path", "cwd",
+)
 
 
 def has_raw_key(value: Any) -> bool:
@@ -54,6 +60,32 @@ def user_agents_dir() -> Path:
 
 def project_agents_dir(project: Path | str | None = None) -> Path:
     return Path(project or Path.cwd()).joinpath(*state_io.AGENT_PROFILES_REL.split("/"))
+
+
+def trusted_projects_file() -> Path:
+    """The user-owned list of trusted projects, next to the user agents folder (one absolute path per line)."""
+    return user_agents_dir().parent / state_io.TRUSTED_PROJECTS_NAME
+
+
+def trusted_project(project: Path | str | None = None) -> bool:
+    try:
+        lines: list[str] = trusted_projects_file().read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return False
+    root: str = str(Path(project or Path.cwd()).resolve())
+    return root in {line.strip() for line in lines if line.strip() and not line.lstrip().startswith("#")}
+
+
+def strip_executable(data: dict[str, Any], path: Path, warnings: list[str]) -> dict[str, Any]:
+    """`data` without its executable keys; a warning names the agent and the keys dropped."""
+    dropped: list[str] = [key for key in EXECUTABLE_KEYS if key in data]
+    if not dropped:
+        return data
+    warnings.append(
+        f"project profile '{data['name']}' ({path.name}): dropped executable fields {', '.join(dropped)}"
+        f" (list the project in {trusted_projects_file()} to allow them)"
+    )
+    return {key: value for key, value in data.items() if key not in dropped}
 
 
 def deep_merge(base: dict[str, Any], over: dict[str, Any]) -> dict[str, Any]:
@@ -91,7 +123,9 @@ def layer_files(directory: Path) -> list[tuple[Path, dict[str, Any]]]:
     return found
 
 
-def read_layer(directory: Path, layer: str, warnings: list[str]) -> dict[str, dict[str, Any]]:
+def read_layer(
+    directory: Path, layer: str, warnings: list[str], trusted: bool = True,
+) -> dict[str, dict[str, Any]]:
     """Every acceptable profile in one folder, by name. A bad one is skipped with a warning."""
     found: dict[str, dict[str, Any]] = {}
     for path, data in layer_files(directory):
@@ -99,7 +133,7 @@ def read_layer(directory: Path, layer: str, warnings: list[str]) -> dict[str, di
         if problem:
             warnings.append(f"{layer} profile '{data['name']}' ({path.name}) dropped: {problem}")
             continue
-        found[data["name"]] = data
+        found[data["name"]] = data if trusted or layer != PROJECT else strip_executable(data, path, warnings)
     return found
 
 
@@ -159,8 +193,9 @@ class Profiles:
         folders: list[tuple[str, Path]] = [(BUNDLED, Path(profile_dir or PROFILE_DIR))]
         if use_layers:
             folders += [(USER, Path(user_dir) if user_dir else user_agents_dir()), (PROJECT, project_agents_dir(project))]
+        trusted: bool = not use_layers or trusted_project(project)
         for layer, folder in folders:
-            for name, data in read_layer(folder, layer, warnings).items():
+            for name, data in read_layer(folder, layer, warnings, trusted).items():
                 raw[name] = deep_merge(raw[name], data) if name in raw else dict(data)
                 origins.setdefault(name, []).append(layer)
         profiles: Profiles = cls(resolve_extends(raw, origins, warnings))

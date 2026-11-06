@@ -141,7 +141,7 @@ class FixerTextTests(unittest.TestCase):
         front = text.split("---")[1]
         self.assertIn("name: fixer", front)
         self.assertIn("effort: high", front)
-        self.assertIn("model: opus", front)
+        self.assertIn("model: sonnet", front)
         self.assertRegex(front, r"maxTurns: \d+")
         for needle in ("PARTIAL: hit turn cap at", "FLAGS:", "Worker contract (Rule 9.5)", "Never push", "Never spawn subagents",
                        "HYPOTHESIS REFUTED", "escalation"):
@@ -156,7 +156,7 @@ class FixerTextTests(unittest.TestCase):
     def test_fix_round_two_runs_scouts_then_lead_pick_then_fixer(self) -> None:
         text = (PLUGIN_ROOT / "skills" / "run" / "phase-2-build.md").read_text(encoding="utf-8")
         step = text[text.index("7. A builder failing on the same error"):text.index("8. Run the integration task")]
-        for needle in ("2-3 candidate causes", "`Mode: hypothesis`", "The lead (`dts2:lead`) picks", "`dts2:fixer`",
+        for needle in ("2-3 candidate causes", "`Mode: hypothesis`", "The lead (`dt:lead`) picks", "`dt:fixer`",
                        "--seat escalation", "`effort: high`", "`.harness/state.md`", "`(escalation)`", "round 2 goes to the fixer"):
             self.assertIn(needle, step)
         self.assertIn("/diagnosing-bugs", step)

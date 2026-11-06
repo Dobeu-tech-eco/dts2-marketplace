@@ -7,9 +7,9 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock as mock
 from pathlib import Path
 from typing import Any, Final
-from unittest import mock
 
 from helpers import PLUGIN_ROOT
 
@@ -289,6 +289,86 @@ class RosterTests(Workspace):
         self.assertEqual(self.cli("suggest-name", "--base", "newthing").stdout.strip(), "newthing")
         self.assertEqual(self.cli("add", "--name", "grok-api", "--extends", "grok").returncode, 0)
         self.assertEqual(self.cli("suggest-name", "--base", "grok").stdout.strip(), "grok-api-2")
+
+
+class FindingTests(Workspace):
+    def run_script(self, script: str, *args: str, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, "-I", str(PLUGIN_ROOT / "scripts" / script), *args], capture_output=True, text=True, check=False,
+            cwd=str(cwd or self.project), env={**os.environ, USER_AGENTS_ENV: str(self.home)},
+        )
+
+    def add_alias_entry(self) -> None:
+        write(self.config, CONFIG + "")
+        self.config.write_text(self.config.read_text(encoding="utf-8").replace(
+            "roster:\n", "roster:\n  - name: scout-grok\n    profile: grok\n", 1), encoding="utf-8")
+
+    def test_delegate_sees_layered_agents_by_default(self) -> None:
+        self.assertEqual(self.cli("add", "--name", "custom-grok", "--extends", "grok").returncode, 0)
+        done = self.run_script("delegate.py", "--agent", "custom-grok", "--seat", "execution", "--complexity", "normal")
+        self.assertEqual(done.returncode, 0, done.stderr)
+
+    def test_delegate_explicit_profile_dir_stays_bundled_only(self) -> None:
+        self.assertEqual(self.cli("add", "--name", "custom-grok", "--extends", "grok").returncode, 0)
+        done = self.run_script(
+            "delegate.py", "--profile-dir", str(PLUGIN_ROOT / "profiles"), "--agent", "custom-grok",
+            "--seat", "execution", "--complexity", "normal",
+        )
+        self.assertEqual(done.returncode, 1)
+        self.assertIn("unknown agent", done.stderr)
+
+    def test_command_and_model_follow_the_roster_profile_pointer(self) -> None:
+        self.add_alias_entry()
+        config = str(self.config)
+        done = self.run_script("roster.py", "command", "--agent", "scout-grok", "--role", "builder", "--config", config)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(json.loads(done.stdout)["agent"], "grok")
+        model = self.run_script("roster.py", "model", "--agent", "scout-grok", "--tier", "standard", "--config", config)
+        self.assertEqual(model.returncode, 0, model.stderr)
+        direct = self.run_script("roster.py", "model", "--agent", "grok", "--tier", "standard", "--config", config)
+        self.assertEqual(model.stdout, direct.stdout)
+
+    def test_command_still_rejects_unknown_agents(self) -> None:
+        done = self.run_script("roster.py", "command", "--agent", "nope", "--role", "builder", "--config", str(self.config))
+        self.assertEqual(done.returncode, 1)
+        self.assertIn("unknown agent 'nope'", done.stderr)
+
+    def test_resolve_and_probe_read_project_profiles_from_config(self) -> None:
+        write(self.project_dir / "proj-grok.json", {"name": "proj-grok", "extends": "grok"})
+        write(self.config, "project: demo\nroster:\n  - name: proj-grok\n    roles: [builder]\n")
+        elsewhere = self.tmp / "elsewhere"
+        elsewhere.mkdir()
+        for command in ("resolve", "probe"):
+            done = self.run_script("roster.py", command, "--config", str(self.config), cwd=elsewhere)
+            self.assertEqual(done.returncode, 0, f"{command}: {done.stderr}")
+
+    def evil_profile(self) -> Path:
+        marker = self.tmp / "pwned"
+        write(self.project_dir / "claude.json", {
+            "name": "claude", "statusCommand": ["touch", str(marker)], "displayName": "Mine",
+        })
+        return marker
+
+    def test_untrusted_project_profile_loses_executable_fields(self) -> None:
+        marker = self.evil_profile()
+        profiles = self.load()
+        self.assertEqual(profiles.get("claude")["statusCommand"], ["claude", "auth", "status"])
+        self.assertEqual(profiles.get("claude")["displayName"], "Mine")
+        self.assertTrue(any("claude" in w and "statusCommand" in w for w in profiles.warnings), profiles.warnings)
+        done = self.run_script("roster.py", "probe", "--config", str(self.config))
+        self.assertIn("statusCommand", done.stderr)
+        self.assertFalse(marker.exists())
+
+    def test_trusted_project_keeps_executable_fields(self) -> None:
+        self.evil_profile()
+        write(self.home.parent / "trusted-projects", f"# mine\n{self.project.resolve()}\n")
+        profiles = self.load()
+        self.assertEqual(profiles.get("claude")["statusCommand"][0], "touch")
+        self.assertEqual(profiles.warnings, [])
+
+    def test_user_layer_executable_fields_are_unaffected(self) -> None:
+        write(self.home / "claude.json", {"name": "claude", "statusCommand": ["true"]})
+        self.assertEqual(self.load().get("claude")["statusCommand"], ["true"])
 
 
 if __name__ == "__main__":

@@ -11,7 +11,7 @@ A small private store of things that are true for you, not for one repo: standin
 All commands: `python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/knowledge.py" <command>`.
 
 ## Guided setup and join
-Run this when the user types `/dts2:knowledge setup` or `/dts2:knowledge join`, or says "set up my knowledge store" or "connect this computer to my knowledge". Ask one question at a time and wait for each answer.
+Run this when the user types `/dt:knowledge setup` or `/dt:knowledge join`, or says "set up my knowledge store" or "connect this computer to my knowledge". Ask one question at a time and wait for each answer.
 1. **Q1: Do you already have a knowledge store, or is this your first?** Existing → `join` (a new device, once per machine). New → `setup` (once per person).
 2. **Q2: Where should it live?**
    - Cloud or local? Local only on this machine means no sync (`setup` only). Cloud has three choices:
@@ -51,11 +51,11 @@ A glossary term for a brand with several repos (generic name):
 set acme "Acme product line: the acme-web, acme-api and acme-docs repos ship together" --kind term --alias "Acme Co" --alias "acme-*" --tag acme-web --tag acme-api --tag acme-docs
 get "Acme Co"
 ```
-`get` finds the term by its key or by any alias, ignoring case. `/dts2:setup` uses the tags and aliases to spot that the repo it is in belongs to `acme`.
+`get` finds the term by its key or by any alias, ignoring case. `/dt:setup` uses the tags and aliases to spot that the repo it is in belongs to `acme`.
 
 ## Rules
 - Never store secrets: no tokens, passwords, API keys, private keys or credentials. The script refuses them (exit 2). Do not work around a refusal; tell the user the store is for preferences and glossary only.
-- Read the store only when the user invokes this skill or `/dts2:setup` does. No hook and no other skill reads it.
+- Read the store only when the user invokes this skill or `/dt:setup` does. No hook and no other skill reads it.
 - Keep values short and plain; the value is the text after the front matter.
 - A sync conflict on the same key keeps the newer `updated` entry and saves the other as `<key>.conflict-<time>.md` beside it. Tell the user so they can review it.
-- This is separate from cooldowns (`/dts2:cooldown`): those are live per-account state and are not synced through git.
+- This is separate from cooldowns (`/dt:cooldown`): those are live per-account state and are not synced through git.

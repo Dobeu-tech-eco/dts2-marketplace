@@ -37,7 +37,7 @@ class DeployContractTests(unittest.TestCase):
         for phrase in (
             "Mode: production", "Investigate and troubleshoot?", "gh run rerun", "explicit yes",
             "deploy.status", "planned", "live", "Deploy watch:", "DEPLOY_COMMANDS",
-            "gh run view", "rollback point", "3-round", "prod-", "deploy.provider != none",
+            "gh run view", "rollback point", "5-round", "prod-", "deploy.provider != none",
             "follow-up PR",
         ):
             self.assertIn(phrase, body, phrase)

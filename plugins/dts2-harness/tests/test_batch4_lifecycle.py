@@ -379,10 +379,11 @@ class LeaseTests(unittest.TestCase):
         self.assertEqual(leases.lease_ttl_s(self.root), 90 * 60 * 2)
 
     def test_heartbeat_renews_the_ttl(self) -> None:
-        self.lease(now=int(time.time()), ttl=100)
+        start = int(time.time())
+        self.lease(now=start, ttl=100)
         (self.lane / "status.json").write_text(json.dumps({"lane": "a", "status": "starting"}))
         before = json.loads(self.path.read_text())["expires_at"]
-        transition(self.runs, STAMP, "a", "starting", now=int(time.time()) + 50, actor="head")
+        transition(self.runs, STAMP, "a", "starting", now=start + 50, actor="head")
         self.assertEqual(json.loads(self.path.read_text())["expires_at"], before + 50)
 
     def test_expired_lease_is_not_live(self) -> None:
@@ -485,9 +486,9 @@ class SonModelTests(unittest.TestCase):
     def settings(self, text: str) -> None:
         (self.repo / ".claude" / "dts2-harness.local.md").write_text(f"---\n{text}\n---\n", encoding="utf-8")
 
-    def test_default_is_opus(self) -> None:
-        self.assertEqual((son_model(self.repo), SON_MODEL), ("opus", "opus"))
-        self.assertEqual(settings_cache.DEFAULTS["local"]["son_model"], "opus")
+    def test_default_is_sonnet(self) -> None:
+        self.assertEqual((son_model(self.repo), SON_MODEL), ("sonnet", "sonnet"))
+        self.assertEqual(settings_cache.DEFAULTS["local"]["son_model"], "sonnet")
 
     def test_setting_overrides_it(self) -> None:
         self.settings("son_model: sonnet")
@@ -495,7 +496,7 @@ class SonModelTests(unittest.TestCase):
 
     def test_a_bad_name_falls_back(self) -> None:
         self.settings("son_model: 'opus; rm -rf /'")
-        self.assertEqual(son_model(self.repo), "opus")
+        self.assertEqual(son_model(self.repo), "sonnet")
 
     def test_council_head_and_alternate_ids_do_not_overlap(self) -> None:
         block = json.loads((PLUGIN_ROOT / "profiles" / "agents" / "claude.json").read_text())["councilModels"]
@@ -609,11 +610,11 @@ class SpawnLifecycleTests(base.SupervisorBase):
         argv = self.son_argv()
         self.assertEqual(argv[argv.index("--model") + 1], "sonnet")
 
-    def test_default_model_is_opus(self) -> None:
+    def test_default_model_is_sonnet(self) -> None:
         self.preflight()
         self.spawn(**self.stream({"line": final()}))
         argv = self.son_argv()
-        self.assertEqual(argv[argv.index("--model") + 1], "opus")
+        self.assertEqual(argv[argv.index("--model") + 1], "sonnet")
 
     def test_resume_passes_the_remaining_budget(self) -> None:
         self.config("budget:\n  max_usd: 10\n")

@@ -53,7 +53,7 @@ RETIRED: Final[dict[str, str]] = {
 }
 # Windows silently drops the symlink a bare install makes, so Claude Code never sees the skill.
 INSTALL_FLAGS: Final[tuple[str, ...]] = ("-a", "claude-code", "--copy", "-y")
-HARNESS_PLUGIN: Final[str] = "dts2@dts2"
+HARNESS_PLUGIN: Final[str] = "dt@dts2"
 TIMEOUT_S: Final[int] = 120
 # G-76: the `skills` npm CLI is pinned. A moving `latest` could change flags or lock-file shape under a run; raise this
 # constant in a reviewed commit, with the tests, when a newer CLI is wanted.
@@ -698,7 +698,9 @@ def check_harness(repo: Path, home: Path, plugin_root: Path, fix: bool, daily: b
     if marker.is_file():
         result["resume_upgrade"] = upgrade.check(marker, plugin_json)
         return result
-    plugins: list[str] = [p for p in read_keep(repo)["plugins"] if SAFE_PLUGIN.fullmatch(p)]
+    # A keep list written before 5.0 still names the old plugin ids; they are the harness itself, not an extra plugin.
+    plugins: list[str] = [p for p in read_keep(repo)["plugins"]
+                          if SAFE_PLUGIN.fullmatch(p) and p not in state_io.LEGACY_HARNESS_PLUGINS]
     claude = binary("DTS2_CLAUDE_BIN", "claude")
     # Daily: refresh the marketplace clones so the version read below sees a newly-published harness.
     if fix and daily:

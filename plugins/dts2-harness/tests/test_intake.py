@@ -59,11 +59,11 @@ class ClassifierTests(unittest.TestCase):
         self.assertEqual(intake.classify("rename undone flag")[0], intake.FOLD)  # type: ignore[index]
 
     def test_steer_prefixes_are_stripped(self) -> None:
-        self.assertEqual(intake.classify("/dts2:steer build the api first"), (intake.STEER, "build the api first"))
+        self.assertEqual(intake.classify("/dt:steer build the api first"), (intake.STEER, "build the api first"))
         self.assertEqual(intake.classify("  Steer: use postgres "), (intake.STEER, "use postgres"))
 
     def test_other_slash_commands_and_empty_are_skipped(self) -> None:
-        for text in ("/dts2:run something", "/clear", "", "   ", None):
+        for text in ("/dt:run something", "/clear", "", "   ", None):
             self.assertIsNone(intake.classify(text), text)  # type: ignore[arg-type]
 
 
@@ -199,9 +199,9 @@ class HookModeTests(unittest.TestCase):
         self.assertIn("It may change direction of running work; confirm before acting on it.", out)
 
     def test_steer_text(self) -> None:
-        out: str = self.hook(json.dumps({"prompt": "/dts2:steer ship the api first"}))
+        out: str = self.hook(json.dumps({"prompt": "/dt:steer ship the api first"}))
         self.assertIn("dts2 STEER in-1: the person's message above asks to stop and redirect.", out)
-        self.assertIn("Finish the current atomic step only, then run /dts2:steer", out)
+        self.assertIn("Finish the current atomic step only, then run /dt:steer", out)
 
     def test_prompt_text_is_never_echoed(self) -> None:
         # The message already reaches the agent as the person's own turn; echoing it would only invite injection.
@@ -255,7 +255,7 @@ class HookReplyTests(unittest.TestCase):
         self.assertEqual(items[0]["answers"], [])
 
     def test_steer_is_always_a_new_item(self) -> None:
-        self.hook("/dts2:steer yes")
+        self.hook("/dt:steer yes")
         items: list[dict[str, Any]] = intake.load_items(self.root)
         self.assertEqual([i["kind"] for i in items], [intake.CLARIFY, intake.STEER])
 

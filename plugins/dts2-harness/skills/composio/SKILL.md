@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Composio — one connection for app tools
 
-Composio is a third-party tools integration. Memory stays in the knowledge store (`/dts2:knowledge`), never in Composio. Credentials are never read, printed or pasted: the CLI keeps them in its own secure config (`~/.composio`). Prune means disable or archive with a backup, never delete.
+Composio is a third-party tools integration. Memory stays in the knowledge store (`/dt:knowledge`), never in Composio. Credentials are never read, printed or pasted: the CLI keeps them in its own secure config (`~/.composio`). Prune means disable or archive with a backup, never delete.
 
 All commands: `python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/composio-setup.py" <command>`. Each prints one JSON object. Exit 2 means a usage error or a missing binary; show the `hint`.
 
@@ -33,7 +33,7 @@ Run `composio-setup.py map` (full toolkit catalogue and connected accounts, save
 
 ## 5. Find overlap
 1. Run `composio-setup.py overlap` (add `--all` to cover every toolkit, not only connected ones).
-2. Run the `/dts2:machine-prep` flow's audit and plan (steps 2 and 3 of that skill) so the budget view and the Composio view agree.
+2. Run the `/dt:machine-prep` flow's audit and plan (steps 2 and 3 of that skill) so the budget view and the Composio view agree.
 3. Show one combined list: skills, plugins and MCP servers Composio already covers, each with kind, id, toolkit and scope, plus the `kept` entries and why (Composio itself, `dts2`, the blueprint `requiredByHarness` keep, `.harness/keep.yaml` plugins).
 
 ## 6. Approval gate
@@ -46,7 +46,7 @@ On yes run `composio-setup.py disable --ids a,b --dry-run`, show it, then run it
 3. Use `COMPOSIO_MULTI_EXECUTE_TOOL` for independent calls (up to 50 per call); run dependent calls in sequence.
 4. Use `COMPOSIO_REMOTE_WORKBENCH` or `COMPOSIO_REMOTE_BASH_TOOL` for bulk, large or file-based results. Each call has a 180 s limit, so checkpoint to `/mnt/files/` between calls.
 5. Never run the plugin and a hosted MCP server for Composio at the same time.
-6. Memory stays with the knowledge store (`/dts2:knowledge`); Composio is a tools integration only.
+6. Memory stays with the knowledge store (`/dt:knowledge`); Composio is a tools integration only.
 
 ## Guardrails
 - Never read, print, copy or write API keys or the `~/.composio` contents.

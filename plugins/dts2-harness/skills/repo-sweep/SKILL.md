@@ -5,7 +5,7 @@ description: "Review every repo of a GitHub owner, oldest first, with a quick ex
 
 # Repo-sweep — decide on all your repos in one sitting
 
-`/dts2:repo-sweep [owner]` is the batch version of `/dts2:ask-expert`. It reviews each repo quickly, collects the answers in one table, and lets you apply the cleanup in one go. Nothing is deleted automatically.
+`/dt:repo-sweep [owner]` is the batch version of `/dt:ask-expert`. It reviews each repo quickly, collects the answers in one table, and lets you apply the cleanup in one go. Nothing is deleted automatically.
 
 ## Steps
 1. **List the repos.** `gh repo list <owner> --json name,pushedAt,isArchived,description --limit 200` (no owner means the signed-in account). Sort by `pushedAt`, oldest first. Skip archived repos unless the user asks for them. Show the count and the first few names; ask to continue.
