@@ -11,9 +11,9 @@ import sys
 import tempfile
 import time
 import unittest
+import unittest.mock
 from pathlib import Path
 from typing import Any, Final
-from unittest import mock
 
 from helpers import PLUGIN_ROOT
 
@@ -46,7 +46,7 @@ class KnowledgeCase(unittest.TestCase):
         self.root: Path = Path(self.tmp.name)
         self.store: Path = self.root / "store"
         self.profile: Path = self.root / "profile.json"
-        patcher = mock.patch.dict(os.environ, {
+        patcher = unittest.mock.patch.dict(os.environ, {
             **GIT_ENV, "DTS2_KNOWLEDGE": str(self.store), "DTS2_KNOWLEDGE_PROFILE": str(self.profile),
         })
         patcher.start()
@@ -56,7 +56,7 @@ class KnowledgeCase(unittest.TestCase):
 
     def run_cli(self, *args: str, store: Path | None = None) -> tuple[int, str, str]:
         out, err = io.StringIO(), io.StringIO()
-        with mock.patch.dict(os.environ, {"DTS2_KNOWLEDGE": str(store or self.store)}):
+        with unittest.mock.patch.dict(os.environ, {"DTS2_KNOWLEDGE": str(store or self.store)}):
             with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
                 try:
                     code: int = knowledge.main(list(args))
@@ -75,7 +75,7 @@ class KnowledgeCase(unittest.TestCase):
 
 class WriteReadTests(KnowledgeCase):
     def test_init_without_git_binary_still_creates_store(self) -> None:
-        with mock.patch.dict(os.environ, {"DTS2_GIT_BIN": str(self.root / "no-such-git")}):
+        with unittest.mock.patch.dict(os.environ, {"DTS2_GIT_BIN": str(self.root / "no-such-git")}):
             self.ok("init")
         self.assertTrue((self.store / "entries" / "term").is_dir())
         self.assertTrue((self.store / "README.md").is_file())
@@ -315,7 +315,7 @@ class SyncTests(KnowledgeCase):
 class ProfileAndBackendTests(KnowledgeCase):
     def test_profile_path_override_and_home_fallback(self) -> None:
         self.assertEqual(knowledge.profile_path(), self.profile)
-        with mock.patch.dict(os.environ, {"DTS2_HOME": "/x/home"}):
+        with unittest.mock.patch.dict(os.environ, {"DTS2_HOME": "/x/home"}):
             os.environ.pop("DTS2_KNOWLEDGE_PROFILE")
             self.assertEqual(knowledge.profile_path(), Path("/x/home/knowledge.json"))
 
@@ -325,7 +325,7 @@ class ProfileAndBackendTests(KnowledgeCase):
         os.environ.pop("DTS2_KNOWLEDGE")
         self.assertEqual(knowledge.store_path(), (self.root / "from-profile").resolve())
         self.profile.unlink()
-        with mock.patch.dict(os.environ, {"DTS2_HOME": "/x/home"}):
+        with unittest.mock.patch.dict(os.environ, {"DTS2_HOME": "/x/home"}):
             self.assertEqual(knowledge.store_path(), Path("/x/home/knowledge"))
 
     def test_corrupt_profile_reads_as_absent(self) -> None:
@@ -449,7 +449,7 @@ class CloudflareBackendTests(KnowledgeCase):
         return json.loads(self.profile.read_text(encoding="utf-8"))
 
     def test_setup_records_backend_and_url_without_token(self) -> None:
-        with mock.patch.dict(os.environ, {"DTS2_KNOWLEDGE_TOKEN": self.SECRET}):
+        with unittest.mock.patch.dict(os.environ, {"DTS2_KNOWLEDGE_TOKEN": self.SECRET}):
             self.ok("setup", "--owner", "acme-team", "--backend", "cloudflare", "--url", self.URL)
         data = self.profile_data()
         self.assertEqual((data["backend"], data["remote"]), ("cloudflare", self.URL))
@@ -484,10 +484,10 @@ class CloudflareBackendTests(KnowledgeCase):
 
     def test_sync_delegates_to_cloudflare_backend(self) -> None:
         self.ok("setup", "--backend", "cloudflare", "--url", self.URL)
-        fake = mock.Mock()
+        fake = unittest.mock.Mock()
         fake.CloudflareBackend.from_env.return_value.sync.return_value = 2
-        with mock.patch.dict(os.environ, {"DTS2_KNOWLEDGE_TOKEN": self.SECRET}):
-            with mock.patch.dict(sys.modules, {"knowledge_cloudflare": fake}):
+        with unittest.mock.patch.dict(os.environ, {"DTS2_KNOWLEDGE_TOKEN": self.SECRET}):
+            with unittest.mock.patch.dict(sys.modules, {"knowledge_cloudflare": fake}):
                 out = self.ok("sync")
         fake.CloudflareBackend.from_env.assert_called_once_with(self.URL)
         fake.CloudflareBackend.from_env.return_value.sync.assert_called_once_with(self.store)

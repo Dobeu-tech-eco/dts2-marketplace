@@ -8,10 +8,10 @@ import sys
 import tempfile
 import threading
 import unittest
+import unittest.mock
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any, Final, Iterator
-from unittest import mock
 
 from helpers import PLUGIN_ROOT
 
@@ -160,17 +160,17 @@ class BackendTest(unittest.TestCase):
 
 class CliTest(unittest.TestCase):
     def test_requires_token_env(self) -> None:
-        with mock.patch.dict(os.environ, {}, clear=True):
+        with unittest.mock.patch.dict(os.environ, {}, clear=True):
             self.assertEqual(kc.main(["--url", "http://127.0.0.1:1", "ping"]), kc.EXIT_BAD_INPUT)
 
     def test_pull_and_unreachable(self) -> None:
         with serve() as url, tempfile.TemporaryDirectory() as tmp:
             FakeWorker.entries["a"] = entry("a", "alpha", NEW)
-            with mock.patch.dict(os.environ, {kc.ENV_TOKEN: TOKEN}):
+            with unittest.mock.patch.dict(os.environ, {kc.ENV_TOKEN: TOKEN}):
                 self.assertEqual(kc.main(["--url", url, "pull", tmp]), kc.EXIT_OK)
             self.assertTrue((Path(tmp) / "entries" / "preference" / "a.md").exists())
             self.assertEqual(os.listdir(tmp), ["entries"])
-        with mock.patch.dict(os.environ, {kc.ENV_TOKEN: TOKEN}):
+        with unittest.mock.patch.dict(os.environ, {kc.ENV_TOKEN: TOKEN}):
             self.assertEqual(kc.main(["--url", "http://127.0.0.1:1", "ping"]), kc.EXIT_UNREACHABLE)
 
 

@@ -11,6 +11,7 @@ CLI: python3 knowledge.py setup|join|init|set|get|find|list|rm|sync|status|conte
 from __future__ import annotations
 
 import argparse
+import contextlib
 import getpass
 import json
 import os
@@ -187,10 +188,9 @@ def atomic_write(target: Path, text: str) -> None:
         os.chmod(temp_name, 0o644)
         os.replace(temp_name, target)
     except BaseException:
-        try:
+        # Best-effort cleanup of the temp file; the original error is re-raised.
+        with contextlib.suppress(OSError):
             os.unlink(temp_name)
-        except OSError:
-            pass
         raise
 
 
