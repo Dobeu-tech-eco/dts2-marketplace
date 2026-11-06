@@ -30,6 +30,7 @@ from .runstate import attempt_usages, budget_refusal, lane_alive, pid_alive, rea
 
 
 PROBE_REF: Final[str] = "dts2-preflight-probe"
+START_MODEL_KEY: Final[str] = "start_model"  # status.json: the model a lane's son started on, reused on resume
 
 
 def claude_version(cwd: Path) -> str | None:
@@ -296,6 +297,17 @@ def start_record(status_path: Path, lane_dir: Path, pid: int) -> None:
     record_son_start(lane_dir, pid)
 
 
+def session_model(status_path: Path, cwd: Path, resume: bool) -> str:
+    """S4: one model per session. A resume reuses the model the lane started on (`start_model` in status.json); a fresh
+    start reads the `son_model` setting and records it."""
+    recorded: Any = read_json_object(status_path).get(START_MODEL_KEY)
+    if resume and isinstance(recorded, str) and recorded:
+        return recorded
+    model: str = son_model(cwd)
+    merge_json(status_path, {START_MODEL_KEY: model})
+    return model
+
+
 def prepare_son(command: dict[str, Any], lane_dir: Path, status_path: Path, cwd: Path, resume: bool,
                 emit: Any) -> tuple[list[str], dict[str, str], SonWatcher]:
     """G-52 / G-56: stop what is left of the lane's previous son, forget its exit.json, then build the launch: the son's
@@ -304,7 +316,8 @@ def prepare_son(command: dict[str, Any], lane_dir: Path, status_path: Path, cwd:
     if reap_old_group(lane_dir):
         emit({"event": "reaped", "detail": "stopped a process group left by the previous son"})
     clear_exit(lane_dir)
-    argv: list[str] = wrap_son(set_option(command["argv"], "--model", son_model(cwd)), lane_dir)
+    model: str = session_model(status_path, cwd, resume)
+    argv: list[str] = wrap_son(set_option(command["argv"], "--model", model), lane_dir)
     session: str | None = son_session(lane_dir)
     if not resume and isinstance(session, str):
         merge_json(status_path, {"session_id": session})
@@ -315,7 +328,8 @@ def prepare_son(command: dict[str, Any], lane_dir: Path, status_path: Path, cwd:
 def finish_son(runs_dir: Path, stamp: str, lane_id: str, worktree: Path, call: dict[str, Any], parsed: dict[str, Any] | None,
                emit: Any, cwd: Path | None = None) -> dict[str, Any]:
     status_path: Path = runs_dir / stamp / lane_id / STATUS_NAME
-    primary: str = son_model(cwd) if cwd is not None else SON_MODEL
+    recorded: Any = read_json_object(status_path).get(START_MODEL_KEY)
+    primary: str = recorded if isinstance(recorded, str) and recorded else (son_model(cwd) if cwd is not None else SON_MODEL)
     session: str | None = (parsed or {}).get("session_id")
     charged, all_known = record_attempts(runs_dir, stamp, lane_id, attempt_usages(call), release=lane_id)
     fallback: str | None = fallback_used(parsed, primary)

@@ -252,7 +252,7 @@ class ScoutTests(unittest.TestCase):
         self.assertIn("Mode: evidence", scout)
         self.assertIn("Never write a verdict", scout)
         self.assertIn("Evidence: <path>", verifier)
-        self.assertIn("\nmodel: opus\n", verifier)
+        self.assertIn("\nmodel: sonnet\n", verifier)
         review: str = (PLUGIN_ROOT / "skills" / "run" / "phase-3-review.md").read_text()
         self.assertLess(review.find("checks.py"), review.find("Verifier walkthrough first"))
 

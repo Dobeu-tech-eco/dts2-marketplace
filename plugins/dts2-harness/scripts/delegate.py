@@ -30,6 +30,8 @@ DEFAULT_EFFORT: Final[str] = "medium"
 LOW_BUDGET_EFFORT_CAP: Final[str] = "medium"
 EXHAUSTED_EFFORT: Final[str] = "low"
 DEFAULT_LEAD: Final[str] = "claude"
+FIX_SONNET_ROUNDS: Final[int] = 3  # fix rounds 1-3 run on Sonnet
+FIX_MAX_ROUNDS: Final[int] = 5  # rounds 4-5 run on Opus, a fresh worker one tier up
 # Roles that make a provider able to give advice: a reviewer, or an independent second opinion.
 ADVISORY_ROLES: Final[tuple[str, ...]] = ("reviewer", "second-opinion")
 SEAT_EFFORT: Final[dict[str, dict[str, str]]] = {
@@ -53,6 +55,13 @@ def assert_execution_not_frontier(tier: str) -> None:
 
 def violates_execution_policy(seat: str, tier: str) -> bool:
     return seat == "execution" and tier == FRONTIER
+
+
+def fix_round_model(round_no: int) -> str:
+    """Model alias for a fix round: sonnet for rounds 1-3, opus for rounds 4-5. Other rounds are refused."""
+    if not 1 <= round_no <= FIX_MAX_ROUNDS:
+        raise DelegationError(f"fix round {round_no} is outside 1..{FIX_MAX_ROUNDS}")
+    return "sonnet" if round_no <= FIX_SONNET_ROUNDS else "opus"
 
 
 def level_index(level: str) -> int:
@@ -226,6 +235,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--budget", default="ok")
     parser.add_argument("--lead-provider", default=None)
     parser.add_argument("--effort", default=None, help="explicit effort; max and ultra are not chosen otherwise")
+    parser.add_argument("--fix-round", type=int, default=None, help="fix round 1-5; adds fixModel (sonnet rounds 1-3, opus 4-5)")
     return parser
 
 
@@ -240,6 +250,8 @@ def main() -> int:
             profiles[args.agent], args.seat, args.complexity, args.budget, args.lead_provider, profiles,
             args.effort,
         )
+        if args.fix_round is not None:
+            result["fixModel"] = fix_round_model(args.fix_round)
     except DelegationError as error:
         print(f"delegate error: {error}", file=sys.stderr)
         return 1

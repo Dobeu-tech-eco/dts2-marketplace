@@ -141,7 +141,7 @@ class FixerTextTests(unittest.TestCase):
         front = text.split("---")[1]
         self.assertIn("name: fixer", front)
         self.assertIn("effort: high", front)
-        self.assertIn("model: opus", front)
+        self.assertIn("model: sonnet", front)
         self.assertRegex(front, r"maxTurns: \d+")
         for needle in ("PARTIAL: hit turn cap at", "FLAGS:", "Worker contract (Rule 9.5)", "Never push", "Never spawn subagents",
                        "HYPOTHESIS REFUTED", "escalation"):

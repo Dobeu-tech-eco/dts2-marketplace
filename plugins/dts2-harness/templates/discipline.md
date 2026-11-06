@@ -37,6 +37,7 @@ Applies to every agent provider the roster can dispatch; the lead is the session
 11. **Effort before escalation.** To do more without spending more, raise a cheaper model's effort before reaching for a pricier model or tier.
 12. **The lead provider is selectable.** The provider that fills the lead, advisory and sign-off seats is chosen with `/dts2:model` (default Claude, stored as `lead_provider`), but the frontier-only-for-advice-and-sign-off rule holds whichever provider leads; execution seats are never affected.
 13. **Partial output is not done.** An agent that hits its turn cap returns a first report line `PARTIAL: hit turn cap at <step>`. The head or lead treats any report carrying it as unfinished: never mark the section done or count a verdict as passed, then re-dispatch with a narrower scope (the remaining steps only) or a fresh agent, inside the Rule 9.6 fix-loop cap.
+14. **One model per agent session.** A session keeps the model it started on, including when it is resumed; to change model, start a fresh worker (fix rounds 1-3 on Sonnet, rounds 4-5 on Opus).
 
 ## Rule 10 — Branches, worktrees and pull requests
 

@@ -1,7 +1,9 @@
 ---
 name: fixer
 description: Fresh-context fixer for fix round 2 on the same failure. Applies the one hypothesis the lead picked from the scouts' read-only tests, inside the failing section's file set. Builder contract, one round.
-model: opus
+model: sonnet
+experimental:
+  cacheTtl: 1h
 effort: high
 tools: Read, Write, Edit, Grep, Glob, Bash
 maxTurns: 40

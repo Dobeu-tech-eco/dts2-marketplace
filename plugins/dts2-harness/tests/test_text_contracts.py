@@ -78,8 +78,8 @@ class ReviewerAgentTests(TextContractMixin):
 class VerifierAgentTests(TextContractMixin):
     PATH: Final[Path] = AGENTS / "verifier.md"
 
-    def test_model_is_opus(self) -> None:
-        self.assert_contains(self.PATH, ["\nmodel: opus\n"])
+    def test_model_is_sonnet(self) -> None:
+        self.assert_contains(self.PATH, ["\nmodel: sonnet\n"])
 
     def test_required_phrases(self) -> None:
         self.assert_contains(self.PATH, [
