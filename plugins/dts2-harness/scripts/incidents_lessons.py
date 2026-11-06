@@ -39,10 +39,13 @@ EXPIRE_UNUSED_STREAK: Final[int] = 10
 EXPIRE_IDLE_DAYS: Final[int] = 30
 SECONDS_PER_DAY: Final[int] = 86400
 KNOWLEDGE_TIMEOUT_S: Final[int] = 2
+KNOWLEDGE_MAX_LINES: Final[int] = 3
+PROJECT_SLUG_MAX: Final[int] = 24
 FLEET_TIMEOUT_S: Final[int] = 2
 TEXT_MAX_CHARS: Final[int] = 240
 HEADER: Final[str] = "# Lessons\n\nOne rule per line: `- [H-nnn] <rule> {paths: glob} {cat: category} (source: ..., last YYYY-MM-DD)`.\n\n"
 FIELDS_RE: Final[re.Pattern[str]] = re.compile(r"\{[^}]*\}")
+HOME_ID_ONLY_RE: Final[re.Pattern[str]] = re.compile(r"^H-\d+$")
 HOME_ID_RE: Final[re.Pattern[str]] = re.compile(r"^- \[H-(\d+)\]", re.M)
 INTRO: Final[str] = "dts2 lessons from earlier incidents (short; follow them where they apply):"
 OUTRO: Final[str] = "End your final report with one line: `Lessons: {ids}` (one verdict per lesson: helpful, not-helpful or unused)."
@@ -155,12 +158,17 @@ def knowledge_ready() -> bool:
 
 
 def knowledge_lines(query: str) -> list[str]:
-    """Tier 4 candidates as lesson lines `- [K-key] text`; any failure returns nothing."""
+    """Tier 4 candidates as lesson lines `- [K-key] text`; any failure returns nothing.
+
+    knowledge.py `find` is a literal substring search, so the multi-word query (`<agent class> <paths>`) would match nothing: list every
+    learning entry and keep the ones whose `{agents:}` and `{paths:}` fields fit the query (at most KNOWLEDGE_MAX_LINES)."""
     script: Path | None = knowledge_script()
     if script is None or not knowledge_ready():
         return []
+    tokens: list[str] = query.split()
+    klass: str = tokens[0] if tokens else ""
     try:
-        done = subprocess.run([sys.executable, "-I", str(script), "find", query, "--kind", "learning", "--json"],
+        done = subprocess.run([sys.executable, "-I", str(script), "list", "--kind", "learning", "--json"],
                               capture_output=True, text=True, timeout=KNOWLEDGE_TIMEOUT_S, check=False)
         rows: Any = json.loads(done.stdout) if done.returncode == 0 else []
     except (OSError, subprocess.SubprocessError, ValueError):
@@ -171,9 +179,10 @@ def knowledge_lines(query: str) -> list[str]:
             continue
         key: str = re.sub(r"[^A-Za-z0-9]+", "", str(row.get("key") or row.get("id") or ""))[:16]
         text: str = " ".join(str(row.get("text") or row.get("value") or "").split())
-        if key and text:
+        agents: list[str] = detect.lesson_agents(text)
+        if key and text and (not agents or not klass or klass in agents) and lessons.line_matches(text, tokens[1:]):
             out.append(f"- [K-{key}] {text}")
-    return out
+    return out[:KNOWLEDGE_MAX_LINES]
 
 
 def home_lesson_lines() -> list[str]:
@@ -294,6 +303,16 @@ def promote_harness(repo: Path, ref: str, text: str | None, today: date) -> dict
     return {"ok": True, "tier": "harness", "id": new_id, "source": source, "path": str(path), "fleet_broadcast": broadcast}
 
 
+def knowledge_key(repo: Path, source: str) -> str:
+    """Store key for a promoted lesson. Project-local ids (L-001, signatures) repeat in every repo, so they carry the repo folder name;
+    home-tier ids (H-nnn) are already unique per person and stay as they are."""
+    slug: str = re.sub(r"[^A-Za-z0-9]+", "-", source).strip("-").lower()
+    if HOME_ID_ONLY_RE.match(source):
+        return f"incident-{slug}"
+    project: str = re.sub(r"[^A-Za-z0-9]+", "-", repo.resolve().name).strip("-").lower()[:PROJECT_SLUG_MAX].strip("-")
+    return f"incident-{project}-{slug}" if project else f"incident-{slug}"
+
+
 def promote_knowledge(repo: Path, ref: str, text: str | None) -> dict[str, Any]:
     """Tier 3/2 -> 4 via knowledge.py; skipped with a note when it is missing or no store is set up."""
     script: Path | None = knowledge_script()
@@ -307,7 +326,7 @@ def promote_knowledge(repo: Path, ref: str, text: str | None) -> dict[str, Any]:
     if resolved is None:
         return {"ok": False, "detail": f"no lesson or signature {ref!r}"}
     source, rule, _ = resolved
-    key: str = "incident-" + re.sub(r"[^A-Za-z0-9]+", "-", source).strip("-").lower()
+    key: str = knowledge_key(repo, source)
     try:
         done = subprocess.run([sys.executable, "-I", str(script), "set", key, rule, "--kind", "learning", "--tag", "incident"],
                               capture_output=True, text=True, timeout=KNOWLEDGE_TIMEOUT_S * 2, check=False)

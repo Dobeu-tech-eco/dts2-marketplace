@@ -289,11 +289,11 @@ def score_outcomes(repo: Path, agent_id: str, now: int) -> None:
 
 def feed_back(repo: Path, agent_id: str, report: str, now: int) -> None:
     """Parse the `Lessons:` line: an injected lesson the agent did not mention counts as unused."""
-    verdicts: dict[str, str] = detect.parse_lessons_line(report)
+    verdicts: dict[str, str] = {k.casefold(): v for k, v in detect.parse_lessons_line(report).items()}
     for row in state_of(repo).events(state_io.INJECTIONS_REL, KIND_INJECTION):
         if row.get("agent_id") != agent_id:
             continue
-        verdict: str = verdicts.get(str(row["lesson_id"]), "unused")
+        verdict: str = verdicts.get(str(row["lesson_id"]).casefold(), "unused")
         learn.sidecar_for(int(row["tier"]), repo).update(
             functools.partial(learn.record_verdict, lesson_id=row["lesson_id"], verdict=verdict, now=now))
 

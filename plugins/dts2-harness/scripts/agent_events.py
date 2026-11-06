@@ -106,7 +106,7 @@ def record_incident(cwd: Path, event: str, payload: dict[str, Any]) -> None:
     import incidents  # noqa: PLC0415 - loaded only for these two events, keeping the hook start cheap
 
     session: str = str(payload.get("session_id") or "unknown")
-    if not (cwd / state_io.HARNESS).is_dir():
+    if not (cwd / state_io.HARNESS).is_dir() or not incidents.settings(cwd)["incident_capture"]:
         return
     if event == "stop-failure":
         text: str = " ".join(str(payload.get(k) or "") for k in ("error", "error_details", "last_assistant_message"))

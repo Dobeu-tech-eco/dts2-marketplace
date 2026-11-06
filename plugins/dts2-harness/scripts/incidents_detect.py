@@ -37,7 +37,7 @@ DONE_RE: Final[re.Pattern[str]] = re.compile(
 PATH_RE: Final[re.Pattern[str]] = re.compile(
     r"(?<![\w/:.-])(?:[\w.-]+/)+[\w.*-]+|(?<![\w/.-])[\w-]+\.(?:py|js|ts|tsx|jsx|md|json|ya?ml|sh|toml|go|rs|java|css|html)\b")
 LESSONS_LINE: Final[re.Pattern[str]] = re.compile(r"^\s*Lessons:\s*(?P<body>.+)$", re.M | re.I)
-LESSON_VERDICT: Final[re.Pattern[str]] = re.compile(r"(?P<id>[A-Z]-\d+)\W+(?P<verdict>not-helpful|helpful|unused)\b", re.I)
+LESSON_VERDICT: Final[re.Pattern[str]] = re.compile(r"(?P<id>[A-Za-z]-[A-Za-z0-9]+)\W+(?P<verdict>not-helpful|helpful|unused)\b", re.I)
 VERDICTS: Final[frozenset[str]] = frozenset({"helpful", "not-helpful", "unused"})
 CAT_FIELD: Final[re.Pattern[str]] = re.compile(r"\{cat(?:egory)?:\s*(?P<cat>[a-z-]+)\s*\}")
 AGENTS_FIELD: Final[re.Pattern[str]] = re.compile(r"\{agents:\s*(?P<names>[^}]*)\}")
@@ -89,11 +89,11 @@ def report_findings(text: str, kind: str, required: dict[str, tuple[str, ...]], 
 
 
 def parse_lessons_line(text: str) -> dict[str, str]:
-    """`Lessons: L-012 helpful, L-019 not-helpful` -> {id: verdict}; the last mention of an id wins."""
+    """`Lessons: L-012 helpful, K-abc1 not-helpful` -> {id: verdict}; ids keep the case they were injected in, the last mention wins."""
     out: dict[str, str] = {}
     for line in LESSONS_LINE.finditer(text or ""):
         for hit in LESSON_VERDICT.finditer(line.group("body")):
-            out[hit.group("id").upper()] = hit.group("verdict").lower()
+            out[hit.group("id")] = hit.group("verdict").lower()
     return out
 
 
