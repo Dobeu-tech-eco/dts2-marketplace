@@ -6,6 +6,16 @@ All notable changes to dts2-harness are recorded here, newest first, in the [Kee
 Released versions live in this file. Work that has not been released yet is listed under `## Unreleased` in `README.md` until the release step joins it here.
 Entries carry no dates: the repository holds no release tags to take them from.
 
+## [5.0.0]
+
+Plugin renamed from `dts2` to `dt` so every command reads `/dt:<command>`.
+
+### Changed
+
+- Breaking: plugin renamed `dts2` -> `dt` (version 5.0.0); commands are now `/dt:<command>` and agents `dt:<agent>`. The marketplace keeps the name `dts2` (install with `/plugin install dt@dts2`), and the plugin folder, the settings file `.claude/dts2-harness.local.md`, the `.harness/` and `~/.dts2/` paths, the `DTS2_*` variables and the `<!-- dts2:start -->` / `<!-- dts2:end -->` markers keep their names.
+- Migration: existing installs run `/plugin uninstall dts2@dts2` (`dts2-harness@dts2` on a version before 4.0), `/plugin marketplace update dts2`, `/plugin install dt@dts2`, `/reload-plugins`; settings and `.harness/` state need no change.
+- A keep list, profile or composio overlap check that still names the old ids (`dts2@dts2`, `dts2-harness@dts2`) is handled: the pre-check no longer tries to update them as an extra plugin, machine-prep no longer protects them from being disabled, and composio-setup still never offers to disable the harness under any of its names.
+
 ## [4.1.0]
 
 Minor release: personal knowledge store, repo review, Composio, agent incidents, fleet view, cooldowns, prompt intake and hooks setup, plus the 3.11.1 son-sandbox fix. Nothing breaking; the 4.0.0 migration steps are unchanged.

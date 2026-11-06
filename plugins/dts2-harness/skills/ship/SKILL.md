@@ -5,10 +5,10 @@ description: "Ship the current branch as a pull request: pre-check, repo checks,
 
 # Ship — pre-check, verify, PR, then tidy branches and PRs
 
-`/dts2:ship [base]` takes whatever is on the current branch and turns it into a reviewed pull request. `base` defaults to `dev` when it exists on the remote, else the default branch. Ship never merges; merging is the user's call (or `autopilot`'s, under its own gate).
+`/dt:ship [base]` takes whatever is on the current branch and turns it into a reviewed pull request. `base` defaults to `dev` when it exists on the remote, else the default branch. Ship never merges; merging is the user's call (or `autopilot`'s, under its own gate).
 
 ## 1. Pre-check
-Run the run skill's **Pre-check (every run command)** exactly as written there (`scripts/skills-check.py <repo> --fix`). An upgrade it starts stops ship until the user reloads; the handoff records `Next action: /dts2:ship <base>` so the re-run resumes here.
+Run the run skill's **Pre-check (every run command)** exactly as written there (`scripts/skills-check.py <repo> --fix`). An upgrade it starts stops ship until the user reloads; the handoff records `Next action: /dt:ship <base>` so the re-run resumes here.
 
 ## 2. Branch and tree
 1. `git status --porcelain`. Uncommitted work → show `git status --short` and ask once: commit it into this PR, leave it out (stash with `git stash push -u -m dts2-ship-<stamp>`, record the stash SHA from `git stash list --format='%H %gs'`), or stop. That stash is restored with `git stash apply <sha>` (then dropped by its tag) whenever ship ends, including every early stop below, never only at step 8.
@@ -25,7 +25,7 @@ A failing check → show it and ask once: fix now (a builder on the owning files
 A builder fix report whose first line is `PARTIAL: hit turn cap at <step>` is not a fix: re-dispatch the builder on the remaining steps or a fresh builder, inside the 5-round cap.
 
 ## 4. Review
-Dispatch, in one message, `dts2:verifier` (seat: sign-off, `model: opus`) to confirm the checks against HEAD and look for stubs, and one `dts2:reviewer` (seat: advisory, `standard`) on the whole diff with `.harness/review-checklist.md`. CRITICAL or HIGH findings → show them and ask: fix, ship anyway (recorded in Open risks), or stop.
+Dispatch, in one message, `dt:verifier` (seat: sign-off, `model: opus`) to confirm the checks against HEAD and look for stubs, and one `dt:reviewer` (seat: advisory, `standard`) on the whole diff with `.harness/review-checklist.md`. CRITICAL or HIGH findings → show them and ask: fix, ship anyway (recorded in Open risks), or stop.
 
 A verifier or reviewer report whose first line is `PARTIAL: hit turn cap at <step>` has not passed: treat it as no verdict, re-run that agent (narrower scope or a fresh agent), and do not continue to step 5 until a complete report comes back.
 

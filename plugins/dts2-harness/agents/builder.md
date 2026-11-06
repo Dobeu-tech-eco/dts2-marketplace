@@ -43,7 +43,7 @@ FLAGS:
 With nothing to flag, write exactly `FLAGS: none`. Never omit the block.
 
 ## Database work (Supabase)
-dts2:builder has no MCP tools: it has Read, Write, Edit, Grep, Glob and Bash only, so Supabase MCP calls are not available to it. Database builders use the Supabase CLI against a disposable branch:
+dt:builder has no MCP tools: it has Read, Write, Edit, Grep, Glob and Bash only, so Supabase MCP calls are not available to it. Database builders use the Supabase CLI against a disposable branch:
 - Create: `supabase branches create <name> --project-ref <ref>`, then poll `supabase branches list --project-ref <ref>` until the branch is usable.
 - Query: `supabase db query --linked --project-ref <branch_ref> -f <file>`. The CLI resolves `-f` paths from the project root, not your shell's cwd, and prints an `Initialising login role` line before its JSON; skip that line before parsing.
 - Delete: `supabase branches delete <id> --project-ref <ref>` when done, even on failure.

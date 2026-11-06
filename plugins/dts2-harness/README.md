@@ -22,11 +22,11 @@ Second-generation Dobeu Tech Solutions agent harness. It supersedes `harness@har
 ## Parallel autopilot
 | Skill | What it does |
 | --- | --- |
-| `dpp` | `/dts2:dpp [dry-run]` plans lanes from the check-in list (`lanes.py plan` + feasibility `check`, `estimated_spend` per lane), gets approval, starts one headless autopilot son per lane in its own worktree, supervises (status, head-answered questions, two send-backs, second opinion), serialises merges with `merge-go.md`, rolls lessons up, and ends with `dpp-report.md` plus the task ledger. |
+| `dpp` | `/dt:dpp [dry-run]` plans lanes from the check-in list (`lanes.py plan` + feasibility `check`, `estimated_spend` per lane), gets approval, starts one headless autopilot son per lane in its own worktree, supervises (status, head-answered questions, two send-backs, second opinion), serialises merges with `merge-go.md`, rolls lessons up, and ends with `dpp-report.md` plus the task ledger. |
 | `dpp-full` | `dpp --full`: a delegation scan adds sons' questions, parked items and new action items as lane candidates; continuous dispatch starts the next lane without asking. |
 | `fullauto` | `dpp-full` with autopilot forced on, re-running check-in between rounds until nothing is outstanding and every lane is done or blocked with its items in the ledger. |
 
-Model calls that the harness scripts start go through `scripts/model_call.py` (one machine-wide limit, `supervisor.max_model_calls`); Agent-tool seats (`dts2:reviewer`) run inside the host session and cannot be gated by that limit. The `max_usd` cap covers Claude spend only: a call from a non-Claude CLI prints no cost, is counted as `unreported_calls` in `budget.json` and shown by `lanes.py budget`, and never stops a run. Full notes are in CHANGELOG.md under 3.10.0.
+Model calls that the harness scripts start go through `scripts/model_call.py` (one machine-wide limit, `supervisor.max_model_calls`); Agent-tool seats (`dt:reviewer`) run inside the host session and cannot be gated by that limit. The `max_usd` cap covers Claude spend only: a call from a non-Claude CLI prints no cost, is counted as `unreported_calls` in `budget.json` and shown by `lanes.py budget`, and never stops a run. Full notes are in CHANGELOG.md under 3.10.0.
 
 ## Agent roster
 One profile per agent in `profiles/agents/`. `tokenBurn` is a relative, user-editable weight, not a price or a quota; it only ranks agents for a seat (lower is cheaper to run). Effort support beyond `medium` is verified only for claude and codex; every other row is a user-editable default.
@@ -46,7 +46,7 @@ One profile per agent in `profiles/agents/`. `tokenBurn` is a relative, user-edi
 ## Delegation
 Frontier-tier models are reserved for advice and sign-off: the lead (planning), the reviewers' final whole-diff review, and the verifier. Execution never uses a frontier model. Every builder takes the cheapest capable model and raises effort (low, medium, high, max) for harder work instead of escalating to a pricier model: mechanical is economy at low effort, normal is standard at medium, design is standard at high. Effort before escalation keeps token burn down without cutting the work. `scripts/delegate.py` resolves model and effort for a seat, `violates_execution_policy` flags a builder that ran frontier, and the receipt records a `Delegation policy` line that the final review blocks on.
 
-The provider that fills the lead, advisory and sign-off seats is selectable with `/dts2:model` (default Claude); the rule holds whichever provider leads. If the lead hits a usage or token limit or stalls, the harness writes the handoff and fails over to the next eligible provider (`scripts/failover.py`). The pre-check before every run command (`scripts/skills-check.py`) keeps companion and keep-list skills installed and current, refreshes marketplaces, and upgrades the harness in place when a newer version is published (handoff first; the next run finishes the upgrade). `/dts2:find-skills` is available any time to rescan the repo and suggest skills. Every detected agent gets a seeded project memory file (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`) at scaffold.
+The provider that fills the lead, advisory and sign-off seats is selectable with `/dt:model` (default Claude); the rule holds whichever provider leads. If the lead hits a usage or token limit or stalls, the harness writes the handoff and fails over to the next eligible provider (`scripts/failover.py`). The pre-check before every run command (`scripts/skills-check.py`) keeps companion and keep-list skills installed and current, refreshes marketplaces, and upgrades the harness in place when a newer version is published (handoff first; the next run finishes the upgrade). `/dt:find-skills` is available any time to rescan the repo and suggest skills. Every detected agent gets a seeded project memory file (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`) at scaffold.
 
 ## Settings
 Copy `templates/dts2-harness.local.md` to `<repo>/.claude/dts2-harness.local.md`. Keys: `enabled`, `stop_checks`, `stop_checks_block`, `lessons_inject`, `lessons_max`, `pr_receipt_template_push`, `auto_scale`, `max_builders`, `max_reviewers`, `continuous_dispatch`, `builder_timeout_min`, `son_permission_mode`, `use_worktrees`, `second_opinion`, `profile`, `end_state_threshold`, `auto_learn`, `context_guard`, `context_guard_tool_calls`, `context_guard_mb`, `context_guard_stop`, `policy_gate` (the declarative policy hook; default `true`), `max_execution_effort`, `delegation_strict`, `lead_provider`, `mailbox_wait_min` (minutes a son waits on the head before it parks), `dpp_full_ask_each_lane` (dpp-full outside autopilot asks before each new lane), `fullauto_freeze_scope` (fullauto freezes the approved item set), `post_merge_fix_attempts` (post-merge fixes per lane before a revert PR opens; default 2), `son_model` (the model every dpp son runs on; default `sonnet`; set `opus` per task for hard lanes). Restart Claude Code after editing.
@@ -85,24 +85,24 @@ dts2-harness builds on patterns from these projects. We learned from them and wr
 Inside Claude Code:
 ```
 /plugin marketplace add Dobeu-tech-eco/dts2-marketplace
-/plugin install dts2@dts2
+/plugin install dt@dts2
 ```
 On Claude Code 2.1.275 or later this also works in one step:
 ```
 /plugin install dts2 --marketplace Dobeu-tech-eco/dts2-marketplace
 ```
-Restart Claude Code, then run `/dts2:onboard`.
+Restart Claude Code, then run `/dt:onboard`.
 
-## Migrating from dts2-harness
+## Migrating from dts2 or dts2-harness
 
-The plugin is now named `dts2`: commands are `/dts2:<command>`, agents `dts2:<agent>`.
+The plugin is now named `dt`: commands are `/dt:<command>`, agents `dt:<agent>`. The marketplace keeps the name `dts2`.
 ```
-/plugin uninstall dts2-harness@dts2
+/plugin uninstall dts2@dts2
 /plugin marketplace update dts2
-/plugin install dts2@dts2
+/plugin install dt@dts2
 /reload-plugins
 ```
-Settings (`.claude/dts2-harness.local.md`) and `.harness/` state are unchanged.
+On a version before 4.0 the installed plugin is `dts2-harness`: run `/plugin uninstall dts2-harness@dts2` first. Settings (`.claude/dts2-harness.local.md`) and `.harness/` state are unchanged.
 
 ## Tests
 Run the suite from the plugin folder: `cd plugins/dts2-harness && python3 -m unittest discover -s tests` (or `make test` from the repo root). `make doctor` checks git, Python, the claude CLI and sandbox tooling first. The property tests (`tests/test_hypothesis_*.py`) need Hypothesis, which is not part of the plugin runtime: run `pip install -r requirements-dev.txt` (ideally in a virtualenv) to enable them; without it they are skipped.

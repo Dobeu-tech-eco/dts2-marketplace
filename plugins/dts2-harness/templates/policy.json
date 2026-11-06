@@ -19,10 +19,11 @@
   ],
   "require_approval": [
     {"id": "pr-merge", "kind": "merge", "cmd": ["gh"], "sub": ["pr", "merge"], "key": "pr",
-     "reason": "gh pr merge needs the person's approval: add the PR number under dts2_approvals.merge in .claude/settings.local.json"},
+     "reason": "gh pr merge needs the person's approval: add the PR number under dts2_approvals.merge in .claude/settings.local.json, or add the standing grant \"merge_policy\": [\"auto-when-green\"] under dts2_approvals once and merge directly with `gh pr merge <n> --squash --match-head-commit <sha>` after `lanes.py merge-go-step`, once the required checks are green"},
     {"id": "push-default", "kind": "merge", "cmd": ["git"], "sub": ["push"], "key": "branch",
      "reason": "a push to the default branch needs the person's approval: add the branch name under dts2_approvals.merge in .claude/settings.local.json"}
   ],
+  "auto_merge_never_paths": [".github/workflows/**", "**/policy.json", "**/settings*.json", "**/*.env*", "migrations/**", "**/migrations/**"],
   "scanner_required": [
     {"id": "add-all", "cmd": ["git"], "sub": ["add"], "flags": ["-A", "--all"], "operands": ["."],
      "reason": "no secret scanner (gitleaks or trufflehog) is installed, so an unattended run may not stage everything"}

@@ -49,11 +49,11 @@ class HookCase(unittest.TestCase):
     def lessons(self, *lines: str) -> None:
         (self.repo / ".harness" / "lessons.md").write_text("# Lessons\n\n" + "\n".join(lines) + "\n", encoding="utf-8")
 
-    def spawn(self, agent_id: str, brief: str = BRIEF, agent_type: str = "dts2:builder") -> dict[str, Any]:
+    def spawn(self, agent_id: str, brief: str = BRIEF, agent_type: str = "dt:builder") -> dict[str, Any]:
         self.out("pre-agent", {"tool_name": "Agent", "tool_input": {"subagent_type": agent_type, "prompt": brief}})
         return self.out("subagent-start", {"agent_id": agent_id, "agent_type": agent_type})
 
-    def stop(self, agent_id: str, report: str, agent_type: str = "dts2:builder") -> dict[str, Any]:
+    def stop(self, agent_id: str, report: str, agent_type: str = "dt:builder") -> dict[str, Any]:
         return self.out("subagent-stop", {"agent_id": agent_id, "agent_type": agent_type, "last_assistant_message": report})
 
     def stats(self) -> dict[str, Any]:
@@ -63,7 +63,7 @@ class HookCase(unittest.TestCase):
 class RegistrationTests(unittest.TestCase):
     def test_hooks_registered_without_reordering(self) -> None:
         hooks = json.loads((HOOKS / "hooks.json").read_text(encoding="utf-8"))["hooks"]
-        self.assertIn("dts2:builder", hooks["SubagentStop"][0]["matcher"])
+        self.assertIn("dt:builder", hooks["SubagentStop"][0]["matcher"])
         for event in ("SubagentStart", "SubagentStop", "PreToolUse", "PostToolUse", "Stop", "SessionStart", "SessionEnd"):
             commands = [h["command"] for g in hooks[event] for h in g["hooks"]]
             self.assertTrue(any("agent-telemetry.sh" in c for c in commands), event)
@@ -86,7 +86,7 @@ class StartTests(HookCase):
         self.assertIn("Lessons: L-001 helpful|not-helpful|unused", hook["additionalContext"])
         start = [r for r in self.rows(".harness/agents.jsonl") if r["kind"] == "agent-start"][0]
         self.assertEqual((start["agent_id"], start["agent_name"], start["agent_class"], start["session_id"]),
-                         ("agent-aaaa1111", "dts2:builder", "builder", SESSION))
+                         ("agent-aaaa1111", "dt:builder", "builder", SESSION))
         self.assertEqual(start["brief_chars"], len(BRIEF.strip()))
         inj = self.rows(".harness/injections.jsonl")[0]
         for field in ("inj_id", "ts", "session_id", "run", "agent_id", "agent_class", "lesson_id", "tier", "reason"):
@@ -116,11 +116,11 @@ class StartTests(HookCase):
         self.lessons("- [L-001] Validate input.")
         (self.repo / ".claude").mkdir()
         (self.repo / ".claude" / "dts2-harness.local.md").write_text("---\nincident_inject_mode: prompt\n---\n", encoding="utf-8")
-        pre = self.out("pre-agent", {"tool_name": "Agent", "tool_input": {"subagent_type": "dts2:builder", "prompt": BRIEF}})
+        pre = self.out("pre-agent", {"tool_name": "Agent", "tool_input": {"subagent_type": "dt:builder", "prompt": BRIEF}})
         updated = pre["hookSpecificOutput"]["updatedInput"]
         self.assertTrue(updated["prompt"].startswith(BRIEF))
         self.assertIn("[L-001] Validate input.", updated["prompt"])
-        self.assertEqual(self.out("subagent-start", {"agent_id": "agent-aaaa1111", "agent_type": "dts2:builder"}), {})
+        self.assertEqual(self.out("subagent-start", {"agent_id": "agent-aaaa1111", "agent_type": "dt:builder"}), {})
         self.assertEqual(self.rows(".harness/injections.jsonl")[0]["lesson_id"], "L-001")
 
     def test_disabled_or_unset_up_repo_does_nothing(self) -> None:
@@ -129,7 +129,7 @@ class StartTests(HookCase):
         self.spawn("agent-aaaa1111", "fix it")
         self.assertFalse((self.repo / ".harness" / "agents.jsonl").exists())
         bare = make_tmp_home()
-        done = self.run_hook("subagent-start", {"agent_id": "x", "agent_type": "dts2:builder"}, repo=bare)
+        done = self.run_hook("subagent-start", {"agent_id": "x", "agent_type": "dt:builder"}, repo=bare)
         self.assertEqual((done.returncode, done.stdout), (0, ""))
         self.assertFalse((bare / ".harness").exists())
 
@@ -151,7 +151,7 @@ class StartTests(HookCase):
         timings: list[float] = []
         for run in range(HOOK_TIMING_RUNS):
             started = time.perf_counter()
-            incidents.run_hook("subagent-start", {"session_id": SESSION, "cwd": str(self.repo), "agent_id": f"z{run}", "agent_type": "dts2:builder"})
+            incidents.run_hook("subagent-start", {"session_id": SESSION, "cwd": str(self.repo), "agent_id": f"z{run}", "agent_type": "dt:builder"})
             timings.append(time.perf_counter() - started)
         self.assertLess(min(timings), HOOK_BUDGET_S)
 
@@ -185,8 +185,8 @@ class StopTests(HookCase):
         self.assertEqual(found[0]["evidence"]["missing_sections"], ["commands run", "concerns"])
 
     def test_other_agents_are_not_held_to_a_contract(self) -> None:
-        self.spawn("agent-bbbb2222", agent_type="dts2:scout")
-        self.stop("agent-bbbb2222", "free text findings that are long enough", agent_type="dts2:scout")
+        self.spawn("agent-bbbb2222", agent_type="dt:scout")
+        self.stop("agent-bbbb2222", "free text findings that are long enough", agent_type="dt:scout")
         self.assertEqual(self.incidents(), [])
 
     def test_stop_twice_is_counted_once(self) -> None:
@@ -245,11 +245,11 @@ class ReworkTests(HookCase):
 
     def test_second_agent_editing_a_file_is_rework_and_main_session_edits_are_ignored(self) -> None:
         self.spawn("agent-aaaa1111")
-        self.spawn("agent-bbbb2222", agent_type="dts2:reviewer")
-        self.edit("agent-aaaa1111", "dts2:builder")
+        self.spawn("agent-bbbb2222", agent_type="dt:reviewer")
+        self.edit("agent-aaaa1111", "dt:builder")
         self.out("post-tool-use", {"tool_name": "Edit", "tool_input": {"file_path": str(self.repo / "src/x.py")}})
         self.assertEqual(self.incidents(), [])
-        self.edit("agent-bbbb2222", "dts2:reviewer")
+        self.edit("agent-bbbb2222", "dt:reviewer")
         found = self.incidents()
         self.assertEqual([(i["category"], i["agent_id"]) for i in found], [("rework-other-agent", "agent-bbbb2222")])
         note = self.out("post-tool-use", {"tool_name": "Agent", "tool_input": {}})["hookSpecificOutput"]["additionalContext"]
@@ -257,8 +257,8 @@ class ReworkTests(HookCase):
         self.assertIn("reviewer", note)
 
     def test_different_files_are_fine(self) -> None:
-        self.edit("agent-aaaa1111", "dts2:builder", "src/a.py")
-        self.edit("agent-bbbb2222", "dts2:reviewer", "src/b.py")
+        self.edit("agent-aaaa1111", "dt:builder", "src/a.py")
+        self.edit("agent-bbbb2222", "dt:reviewer", "src/b.py")
         self.assertEqual(self.incidents(), [])
 
     def test_other_tools_do_nothing(self) -> None:
@@ -268,7 +268,7 @@ class ReworkTests(HookCase):
 class SessionTests(HookCase):
     def old_start(self, agent_id: str, minutes: int) -> None:
         row = {"v": 1, "ts": int(time.time()) - minutes * 60, "run": "-", "lane": "-", "kind": "agent-start", "id": f"s-{agent_id}",
-               "agent_id": agent_id, "agent_class": "builder", "agent_name": "dts2:builder", "session_id": "old-session",
+               "agent_id": agent_id, "agent_class": "builder", "agent_name": "dt:builder", "session_id": "old-session",
                "parent_agent_id": None}
         with (self.repo / ".harness" / "agents.jsonl").open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(row) + "\n")
@@ -300,8 +300,8 @@ class SessionTests(HookCase):
     def test_session_end_debriefs_and_marks_trend(self) -> None:
         for n in range(3):
             payload = {"session_id": f"s{n}", "cwd": str(self.repo)}
-            self.run_hook("pre-agent", {**payload, "tool_name": "Agent", "tool_input": {"subagent_type": "dts2:builder", "prompt": "fix it"}})
-            self.run_hook("subagent-start", {**payload, "agent_id": f"agent-{n}", "agent_type": "dts2:builder"})
+            self.run_hook("pre-agent", {**payload, "tool_name": "Agent", "tool_input": {"subagent_type": "dt:builder", "prompt": "fix it"}})
+            self.run_hook("subagent-start", {**payload, "agent_id": f"agent-{n}", "agent_type": "dt:builder"})
             self.run_hook("session-end", payload)
         labels = [r["label"] for r in self.rows(".harness/ledgers/head.jsonl")]
         self.assertEqual(labels, ["isolated", "isolated", "trend"])

@@ -72,11 +72,11 @@ class SonLaunchChecks(unittest.TestCase):
 
     def test_g60_plugin_errors_in_the_init_event_are_found(self) -> None:
         stream = "\n".join([
-            json.dumps({"type": "system", "subtype": "init", "plugin_errors": ["dts2: hooks.json invalid"]}),
+            json.dumps({"type": "system", "subtype": "init", "plugin_errors": ["dt: hooks.json invalid"]}),
             json.dumps({"type": "system", "subtype": "other", "plugin_errors": ["ignored"]}), "not json",
             json.dumps({"type": "system", "subtype": "init", "plugin_errors": []}),
         ])
-        self.assertEqual(son_launch.init_plugin_errors(stream), ["dts2: hooks.json invalid"])
+        self.assertEqual(son_launch.init_plugin_errors(stream), ["dt: hooks.json invalid"])
         self.assertEqual(son_launch.init_plugin_errors(json.dumps({"type": "system", "subtype": "init"})), [])
 
     def test_g60_auth_status_preflight_uses_the_fake_binary(self) -> None:
@@ -171,7 +171,7 @@ class ApprovalTests(unittest.TestCase):
 
     def test_marker_path_and_kinds(self) -> None:
         self.assertEqual(approvals.human_marker_path(self.repo), self.repo / ".claude" / "settings.local.json")
-        self.assertEqual(set(approvals.KINDS), {"recorded_yes", "unsafe_no_sandbox", "blocked_pr_done", "lane_override", "merge"})
+        self.assertEqual(set(approvals.KINDS), {"recorded_yes", "unsafe_no_sandbox", "blocked_pr_done", "lane_override", "merge", "merge_policy"})
 
     def test_nothing_is_approved_without_the_file(self) -> None:
         self.assertFalse(approvals.is_human_approved("merge", "42", self.repo))

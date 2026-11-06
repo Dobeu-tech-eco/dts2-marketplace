@@ -1,7 +1,7 @@
 # Phase 1 — standing rules, inventory, buckets
 
 ## Standing rules
-Invoking `/dts2:pr-sweep` is the user's approval to:
+Invoking `/dt:pr-sweep` is the user's approval to:
 - Merge a PR with a merge commit as soon as its required checks (test and lint at least) are green. No extra review rounds.
 - Close a PR that is superseded, duplicate, already merged in substance, or dead, with a comment that says why and links the PR that replaces it.
 - Delete a head branch after its PR is merged or closed, where the API allows it. If deletion is denied, list the branch in the report.
