@@ -1,8 +1,4 @@
 ### Added
-
-- `/dts2:composio` skill (user only): asks once whether you have a Composio account, connects it (plugin by default), maps the toolkit catalogue and connected accounts, and offers to disable overlapping tools. Nothing is deleted.
-- `scripts/composio-setup.py` with `status`, `decide`, `map`, `overlap` and `disable`; state lives in `~/.dts2/composio.json` and `~/.dts2/composio-tools.json`, credentials are never read.
-- `onboard` gains an optional Composio step that records the yes or no answer.
-- `machine-prep` lists plugins, MCP servers and skills that a connected Composio toolkit covers and offers to disable or archive them, with backups.
-- `improve-scan.py` drops MCP recommendations (github, vercel, supabase, neon) that a connected Composio toolkit covers and reports them under `info` as "covered by Composio (<toolkit>)"; `find-skills` prefers Composio toolkits over duplicate servers.
-- Discipline routing rule for Composio: check the cached tool map first, one search per workflow, batch independent calls, use the workbench for bulk results, and never run the plugin and a hosted MCP server together.
+- `/dts2:knowledge` skill (user only): a personal, private store of standing preferences, glossary terms with aliases and tags, and cross-project learnings, kept as Markdown files in a private git repo you own and synced between devices with `sync`; guided `setup` (new person) and `join` (new device) with git, synced-folder or local backends. Secrets are refused. Nothing reads it except the skill and `/dts2:setup`.
+- `/dts2:setup` reads the store (`knowledge.py context`) when it exists, shows matching preferences and terms, and asks before applying one such as the standard agent count. A missing store never blocks setup.
+- Cloudflare backend for `/dts2:knowledge`: `setup`/`join --backend cloudflare --url URL` tie a device to a Worker + D1 store (template in `templates/knowledge-cloudflare/`, client `scripts/knowledge_cloudflare.py`) that also works from claude.ai web and phone; `sync` pulls and pushes by newer `updated`; the token comes only from `DTS2_KNOWLEDGE_TOKEN` and is never stored.
