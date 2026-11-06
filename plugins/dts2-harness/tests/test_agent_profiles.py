@@ -323,7 +323,7 @@ class FindingTests(Workspace):
         config = str(self.config)
         done = self.run_script("roster.py", "command", "--agent", "scout-grok", "--role", "builder", "--config", config)
         self.assertEqual(done.returncode, 0, done.stderr)
-        self.assertEqual(json.loads(done.stdout)["agent"], "grok")
+        self.assertEqual(json.loads(done.stdout)["agent"], "scout-grok")  # the roster name, so its rules apply
         model = self.run_script("roster.py", "model", "--agent", "scout-grok", "--tier", "standard", "--config", config)
         self.assertEqual(model.returncode, 0, model.stderr)
         direct = self.run_script("roster.py", "model", "--agent", "grok", "--tier", "standard", "--config", config)
