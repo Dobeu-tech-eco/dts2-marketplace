@@ -22,7 +22,7 @@ PLUGIN_ROOT: Final[Path] = Path(__file__).resolve().parent.parent
 GUARD: Final[Path] = PLUGIN_ROOT / "scripts" / "guard.py"
 ENV_ALLOW: Final[frozenset[str]] = frozenset({
     "PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "TERM", "TMPDIR", "TZ", "PWD",
-    "CLAUDE_CODE_OAUTH_TOKEN",
+    "CLAUDE_CODE_OAUTH_TOKEN", "DTS2_AGENT",
     "HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY", "https_proxy", "http_proxy", "no_proxy",
     "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE",
 })
@@ -104,6 +104,7 @@ def allowed_tools(cwd: Path) -> list[str]:
 
 AUTH_SUBSCRIPTION: Final[str] = "subscription"
 AUTH_API_KEY: Final[str] = "api-key"
+AGENT_VAR: Final[str] = "DTS2_AGENT"  # the roster name of the agent a child runs as; policy_gate.py applies that agent's rules
 OAUTH_VAR: Final[str] = "CLAUDE_CODE_OAUTH_TOKEN"  # the Max login token: kept only for a Claude subscription agent
 CREDENTIAL_SUFFIXES: Final[tuple[str, ...]] = ("_API_KEY",)
 CREDENTIAL_PREFIXES: Final[tuple[str, ...]] = (
@@ -132,8 +133,18 @@ def pass_patterns(source: dict[str, str]) -> list[str]:
     return [p.strip() for p in source.get(PASS_VAR, "").split(",") if p.strip()]
 
 
+SECRET_NAME: Final[re.Pattern[str]] = re.compile(r"(?:^|_)(?:TOKEN|SECRET|PASSWORD|PASSWD|KEY|CREDENTIALS?)$", re.I)
+
+
+def passable(name: str, value: str, no_secrets: bool) -> bool:
+    """Whether an owner-chosen `DTS2_SON_ENV_PASS` variable may pass: always, except for an agent with `no_secrets`, which gets
+    nothing credential-named (`*_TOKEN`, `*_SECRET`, `*_KEY`, `*_PASSWORD`, `*_API_KEY`, provider prefixes) or key-shaped
+    through the escape hatch."""
+    return not (no_secrets and (credential_name(name) or SECRET_NAME.search(name) or secret_shaped(value)))
+
+
 def scrub_env(source: dict[str, str], *, auth: str | None = AUTH_SUBSCRIPTION, key_env: str | None = None,
-              claude: bool = True) -> dict[str, str]:
+              claude: bool = True, agent: str | None = None, no_secrets: bool = False) -> dict[str, str]:
     """The one child-environment builder for every agent CLI (a son, a council seat, a dispatched second opinion).
 
     Only allowlisted variables survive, so GH_TOKEN, GITHUB_TOKEN, SSH_AUTH_SOCK and cloud credentials are absent. On top of
@@ -143,7 +154,9 @@ def scrub_env(source: dict[str, str], *, auth: str | None = AUTH_SUBSCRIPTION, k
         `CLAUDE_CODE_OAUTH_TOKEN`; any other CLI drops it and the rest of `CLAUDE_CODE_*`.
       - api-key: only that agent's own key variable (`key_env`, the profile's `apiKeyEnv`) is added, and only when set.
     Escape hatch: names matching a `DTS2_SON_ENV_PASS` pattern (comma-separated, chosen by the owner) always pass. This is
-    the documented way to hand a son an API key on purpose; it is the owner's choice, so it is not filtered."""
+    the documented way to hand a son an API key on purpose; it is the owner's choice, so it is not filtered, unless the
+    agent's rules say `no_secrets`: then nothing credential-named or key-shaped passes that way (its own `key_env` still does).
+    `agent` is the roster name, set as `DTS2_AGENT` so the policy gate can apply that agent's rules inside the child."""
     extra: list[str] = pass_patterns(source)
     api_key: bool = auth == AUTH_API_KEY
     env: dict[str, str] = {}
@@ -151,7 +164,8 @@ def scrub_env(source: dict[str, str], *, auth: str | None = AUTH_SUBSCRIPTION, k
         if k.startswith(ENV_DENY_PREFIXES):
             continue
         if any(fnmatch.fnmatchcase(k, p) for p in extra):
-            env[k] = v
+            if passable(k, v, no_secrets):
+                env[k] = v
         elif (k in ENV_ALLOW or k.startswith(ENV_ALLOW_PREFIXES)) and not credential_name(k):
             if k == OAUTH_VAR and (not claude or api_key):
                 continue
@@ -160,6 +174,8 @@ def scrub_env(source: dict[str, str], *, auth: str | None = AUTH_SUBSCRIPTION, k
             env[k] = v
     if api_key and key_env and source.get(key_env):
         env[key_env] = source[key_env]
+    if agent:
+        env[AGENT_VAR] = agent
     return env
 
 
@@ -169,10 +185,11 @@ def allowed_env(source: dict[str, str]) -> dict[str, str]:
 
 
 def provider_env(source: dict[str, str], key_env: str | None = None, claude: bool = False,
-                 auth: str | None = None) -> dict[str, str]:
+                 auth: str | None = None, agent: str | None = None, no_secrets: bool = False) -> dict[str, str]:
     """The environment for a dispatched agent CLI (codex, gemini, muse, agy, grok, or Claude as a council seat): `scrub_env`.
     `auth` defaults to api-key when a `key_env` is named (the caller chose a key agent) and to subscription otherwise (G-67)."""
-    return scrub_env(source, auth=auth or (AUTH_API_KEY if key_env else AUTH_SUBSCRIPTION), key_env=key_env, claude=claude)
+    return scrub_env(source, auth=auth or (AUTH_API_KEY if key_env else AUTH_SUBSCRIPTION), key_env=key_env, claude=claude,
+                     agent=agent, no_secrets=no_secrets)
 
 
 def slug(text: str) -> str:

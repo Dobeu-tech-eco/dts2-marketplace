@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import agent_rules  # noqa: E402
+import state_io  # noqa: E402
 from profiles import PROFILE_DIR, Profiles  # noqa: E402
 
 EFFORT_LEVELS: Final[tuple[str, ...]] = ("low", "medium", "high", "xhigh", "max", "ultra")
@@ -168,31 +170,66 @@ def seat_plan(profile: dict[str, Any], seat: str, complexity: str, budget: str) 
     )
 
 
+def seat_candidates(
+    profile: dict[str, Any], seat: str, lead_provider: str | None, profiles: dict[str, dict[str, Any]] | None,
+) -> list[dict[str, Any]]:
+    """Profiles that may fill a seat, best first. Execution and escalation seats are the given profile alone; advisory and
+    sign-off seats start with the lead provider's profile (Claude when it is not eligible), then the other eligible ones."""
+    if seat in OWN_PROFILE_SEATS or lead_provider is None:
+        return [profile]
+    pool: dict[str, dict[str, Any]] = profiles if profiles is not None else load_profiles(PROFILE_DIR)
+    chosen: str = signoff_agent(pool, lead_provider)
+    first: dict[str, Any] = pool.get(chosen, profile)
+    others: list[str] = [n for n in dict.fromkeys([DEFAULT_LEAD, *lead_eligible(pool)]) if n in pool and n != first["name"]]
+    return [first, *[pool[name] for name in others]]
+
+
+def rules_denial(rules: dict[str, dict[str, Any]], name: str, task_class: str | None, tier: str | None) -> str | None:
+    """Why the effective rules of agent `name` refuse the task class or tier, or None (an agent without rules is free)."""
+    allowed, why = agent_rules.permits(rules.get(name), task_class, tier)
+    return None if allowed else why
+
+
 def pick_profile(
     profile: dict[str, Any], seat: str, lead_provider: str | None,
     profiles: dict[str, dict[str, Any]] | None,
+    task_class: str | None = None, tier: str | None = None, rules: dict[str, dict[str, Any]] | None = None,
+    skipped: list[dict[str, str]] | None = None, complexity: str | None = None, budget: str = "ok",
 ) -> dict[str, Any]:
-    """Advisory and sign-off seats follow the chosen lead provider; execution and escalation never do."""
-    if seat in OWN_PROFILE_SEATS or lead_provider is None:
-        return profile
-    pool: dict[str, dict[str, Any]] = profiles if profiles is not None else load_profiles(PROFILE_DIR)
-    chosen: str = signoff_agent(pool, lead_provider)
-    return pool.get(chosen, profile)
+    """Advisory and sign-off seats follow the chosen lead provider; execution and escalation never do. With `rules` (the
+    effective rules by agent name) and a `task_class` or `tier`, a candidate whose rules deny it is skipped (recorded in
+    `skipped` as {name, reason}) and the next eligible one is used; none left raises DelegationError naming every reason.
+    Without `tier`, the tier the seat would run on (from `complexity`) is checked."""
+    options: list[dict[str, Any]] = seat_candidates(profile, seat, lead_provider, profiles)
+    if not rules or (task_class is None and tier is None and complexity is None):
+        return options[0]
+    found: list[dict[str, str]] = []
+    for option in options:
+        wanted: str | None = tier or (seat_plan(option, seat, complexity, budget)[0] if complexity else None)
+        why: str | None = rules_denial(rules, option["name"], task_class, wanted)
+        if why is None:
+            if skipped is not None:
+                skipped.extend(found)
+            return option
+        found.append({"name": option["name"], "reason": why})
+    raise DelegationError(f"no eligible agent for seat '{seat}': " + "; ".join(f"{f['name']}: {f['reason']}" for f in found))
 
 
 def delegate(
     profile: dict[str, Any], seat: str, complexity: str, budget: str = "ok",
     lead_provider: str | None = None, profiles: dict[str, dict[str, Any]] | None = None,
-    effort: str | None = None,
+    effort: str | None = None, task_class: str | None = None, rules: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     check_inputs(seat, complexity, budget)
-    chosen: dict[str, Any] = pick_profile(profile, seat, lead_provider, profiles)
+    skipped: list[dict[str, str]] = []
+    chosen: dict[str, Any] = pick_profile(profile, seat, lead_provider, profiles, task_class, None, rules, skipped, complexity, budget)
     tier, planned = seat_plan(chosen, seat, complexity, budget)
     resolved: str = explicit_effort(chosen, tier, effort) if effort else planned
-    return {
+    result: dict[str, Any] = {
         "agent": chosen["name"], "seat": seat, "model": chosen["models"][tier], "tier": tier,
         "effort": resolved, "tokenBurn": chosen.get("tokenBurn", {}).get(tier),
     }
+    return {**result, "skipped": skipped} if skipped else result
 
 
 def observed_model(profile: dict[str, Any], model: str | None) -> str | None:
@@ -236,8 +273,21 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--budget", default="ok")
     parser.add_argument("--lead-provider", default=None)
     parser.add_argument("--effort", default=None, help="explicit effort; max and ultra are not chosen otherwise")
+    parser.add_argument("--task-class", default=None, choices=agent_rules.TASK_CLASSES,
+                        help="skip agents whose per-agent rules deny this class (rules read from --config)")
+    parser.add_argument("--config", default=None, help="config.yaml holding the roster rules (default .harness/config.yaml)")
     parser.add_argument("--fix-round", type=int, default=None, help="fix round 1-5; adds fixModel (sonnet rounds 1-3, opus 4-5)")
     return parser
+
+
+def rules_by_agent(config: Path, profiles: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Effective rules of every roster agent in `config` (a missing file: none)."""
+    import roster  # noqa: PLC0415 - only the rules path needs the roster reader
+    found: dict[str, dict[str, Any]] = {}
+    for entry in roster.read_roster(config) if config.exists() else []:
+        profile: dict[str, Any] = profiles.get(entry.get("profile") or entry["name"]) or {}
+        found[entry["name"]] = roster.entry_rules(entry, profile)[0]
+    return found
 
 
 def main() -> int:
@@ -247,9 +297,10 @@ def main() -> int:
         print(f"delegate error: unknown agent '{args.agent}'", file=sys.stderr)
         return 1
     try:
+        rules: dict[str, dict[str, Any]] = rules_by_agent(Path(args.config or state_io.CONFIG_REL), profiles)
         result: dict[str, Any] = delegate(
             profiles[args.agent], args.seat, args.complexity, args.budget, args.lead_provider, profiles,
-            args.effort,
+            args.effort, args.task_class, rules,
         )
         if args.fix_round is not None:
             result["fixModel"] = fix_round_model(args.fix_round)

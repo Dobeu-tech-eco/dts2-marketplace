@@ -58,5 +58,7 @@
       "claude-fable-5-0",
       "claude-opus-5"
     ]
-  }
+  },
+  "budgetFlag": "--max-budget-usd",
+  "readOnlyCommand": ["claude", "-p", "--permission-mode", "plan", "--model", "{model}", "{prompt}"]
 }

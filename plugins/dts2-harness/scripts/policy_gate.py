@@ -2,6 +2,11 @@
 """Declarative policy gate (G-70): one JSON file (`templates/policy.json`) evaluated by `hooks/policy-gate.sh` for the head and
 for every son.
 
+Per-agent rules (batch D): when `DTS2_AGENT` names a roster agent, a tool call is also refused if its task class (the
+`taskClasses` table: `gh pr merge` is `merge`, `vercel deploy` is `deploy`, an Edit is `build`) is denied by that agent's rules
+(`scripts/agent_rules.py`), if a `read_only` agent edits, or if a path (a file tool's `file_path`, a Bash word) matches
+`paths_deny`. That only adds to the tables below, and without `DTS2_AGENT` nothing changes.
+
 Three tables: `deny` (always refused: force-push, `--admin`, deploy CLIs, `gh secret`, `vercel env`, a bare `env`, repo
 deletes), `require_approval` (`gh pr merge` and a push to the default branch pass only when `approvals.is_human_approved`
 holds the PR number or branch; a direct `gh pr merge <n> --squash --match-head-commit <sha>` also passes under the standing grant
@@ -24,8 +29,10 @@ from pathlib import Path
 from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import agent_rules  # noqa: E402
 import approvals  # noqa: E402
 import guard  # noqa: E402
+import state_io  # noqa: E402
 from state_io import append_text, rel  # noqa: E402
 
 POLICY_PATH: Final[Path] = Path(__file__).resolve().parent.parent / "templates" / "policy.json"
@@ -47,6 +54,8 @@ HEAD_SHA: Final[re.Pattern[str]] = re.compile(r"^[0-9a-f]{7,40}$")
 REPO_FROM_URL: Final[re.Pattern[str]] = re.compile(r"^https://[^/\s]+/([^/\s]+/[^/\s]+)/pull/\d+")
 MAX_LISTED_FILES: Final[int] = 100  # gh lists at most this many changed files; a full list may be cut short
 HIDDEN_WORDS: Final[tuple[str, ...]] = ("push", "merge", "deploy", "publish", "secret")
+WRITE_TOOLS: Final[frozenset[str]] = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit"})
+PATH_KEYS: Final[tuple[str, ...]] = ("file_path", "notebook_path", "path")
 POLICY_TOOLS: Final[frozenset[str]] = frozenset({"git", "gh", "vercel", "wrangler", "fly", "flyctl", "netlify", "ntl", "supabase",
                                                  "env", "printenv"})
 
@@ -514,14 +523,90 @@ def scanner_denial(policy: dict[str, Any], command: str) -> str | None:
     return None
 
 
-def decide(payload: dict[str, Any], cwd: Path, policy: dict[str, Any] | None = None) -> str | None:
-    """The reason to refuse this PreToolUse payload, or None."""
+def bash_denial(payload: dict[str, Any], cwd: Path, policy: dict[str, Any]) -> str | None:
+    """The reason the global tables refuse this Bash payload, or None (any other tool passes)."""
     tool_input: Any = payload.get("tool_input")
     if payload.get("tool_name") != "Bash" or not isinstance(tool_input, dict):
         return None
     command: str = str(tool_input.get("command", ""))
+    return deny_reason(policy, command) or approval_denial(policy, command, cwd) or scanner_denial(policy, command)
+
+
+def tool_path(payload: dict[str, Any], key: str) -> str:
+    tool_input: Any = payload.get("tool_input")
+    value: Any = tool_input.get(key) if isinstance(tool_input, dict) else None
+    return value if isinstance(value, str) else ""
+
+
+def relative_path(path: str, cwd: Path) -> str:
+    """`path` relative to the repo when it sits inside it, so `paths_deny` globs written for the repo match absolute paths."""
+    try:
+        return str(Path(path).resolve().relative_to(cwd.resolve())) if Path(path).is_absolute() else path
+    except (ValueError, OSError):
+        return path
+
+
+def call_paths(payload: dict[str, Any], lines: list[list[str]], cwd: Path) -> list[str]:
+    """Paths a call touches: a file tool's path fields, or every word (and `--flag=value` value) of a Bash command."""
+    found: list[str] = [tool_path(payload, key) for key in PATH_KEYS]
+    for words in lines:
+        for word in words:
+            found.append(word.split("=", 1)[1] if word.startswith("-") and "=" in word else "" if word.startswith("-") else word)
+    return [relative_path(path, cwd) for path in found if path]
+
+
+def docs_write(spec: dict[str, Any], path: str) -> bool:
+    return agent_rules.path_denied(path, spec.get("docs_paths", [])) is not None
+
+
+def call_classes(payload: dict[str, Any], table: dict[str, Any], lines: list[list[str]], cwd: Path) -> list[str]:
+    """Task classes this call belongs to, by the `taskClasses` table: file tools by name (a write to a docs path is `docs`,
+    not `build`), Bash by the same cmd / sub / flags rules the deny table uses."""
+    tool: Any = payload.get("tool_name")
+    classes: dict[str, Any] = table.get("taskClasses") or {}
+    found: list[str] = [name for name in agent_rules.TASK_CLASSES if tool in (classes.get(name) or {}).get("tools", [])]
+    if tool in WRITE_TOOLS and "build" in found and docs_write(classes.get("docs") or {}, relative_path(tool_path(payload, "file_path") or tool_path(payload, "notebook_path"), cwd)):
+        found = ["docs" if name == "build" else name for name in found]
+    if tool == "Bash":
+        found += [name for name in agent_rules.TASK_CLASSES
+                  if any(rule_matches(rule, words) for rule in (classes.get(name) or {}).get("rules", []) for words in lines)]
+    return list(dict.fromkeys(found))
+
+
+def agent_profile_auth(agent: str, cwd: Path) -> str | None:
+    from profiles import Profiles  # noqa: PLC0415 - only a rules-limited agent needs the profiles
+    profile: dict[str, Any] = Profiles.load(project=cwd).get(agent) or {}
+    return profile.get("auth") if isinstance(profile.get("auth"), str) else None
+
+
+def agent_denial(payload: dict[str, Any], cwd: Path, policy: dict[str, Any], agent: str) -> str | None:
+    """The reason the rules of agent `agent` refuse this tool call, or None. An agent with no rules is not restricted."""
+    config: Path = cwd / state_io.CONFIG_REL
+    if agent_rules.entry_for(agent, config) is None:
+        return None
+    rules: dict[str, Any] = agent_rules.agent_rules(agent, config, agent_profile_auth(agent, cwd))
+    if not rules:
+        return None
+    command: str = guard.command_of(payload)
+    lines: list[list[str]] = expand(command) if payload.get("tool_name") == "Bash" else []
+    if rules.get("read_only") is True and payload.get("tool_name") in WRITE_TOOLS:
+        return f"agent-rules: {agent} is read-only and may not use {payload['tool_name']}"
+    for task in call_classes(payload, policy, lines, cwd):
+        allowed, why = agent_rules.permits(rules, task_class=task)
+        if not allowed:
+            return f"agent-rules: {agent}: {why}"
+    allowed, why = agent_rules.permits(rules, paths=call_paths(payload, lines, cwd))
+    return None if allowed else f"agent-rules: {agent}: {why}"
+
+
+def decide(payload: dict[str, Any], cwd: Path, policy: dict[str, Any] | None = None) -> str | None:
+    """The reason to refuse this PreToolUse payload, or None. The global tables apply to Bash; the calling agent's own rules
+    (`DTS2_AGENT`) then apply to every guarded tool, on top of them."""
+    agent: str = os.environ.get(agent_rules.AGENT_VAR, "")
+    if payload.get("tool_name") != "Bash" and not agent:
+        return None
     table: dict[str, Any] = policy if policy is not None else load_policy()
-    return deny_reason(table, command) or approval_denial(table, command, cwd) or scanner_denial(table, command)
+    return bash_denial(payload, cwd, table) or (agent_denial(payload, cwd, table, agent) if agent else None)
 
 
 def deny_output(reason: str) -> str:
@@ -544,7 +629,9 @@ def main() -> int:
         reason: str | None = decide(payload, cwd)
     except Exception as exc:  # noqa: BLE001 - a crash must not let a command naming a policy tool through silently
         named: bool = any(re.search(rf"\b{tool}\b", guard.command_of(payload)) for tool in POLICY_TOOLS)
-        reason = f"the policy gate failed ({type(exc).__name__}) on a command naming a policy tool" if named else None
+        limited: bool = bool(os.environ.get(agent_rules.AGENT_VAR))  # a rules-limited agent fails closed on every tool
+        reason = (f"the policy gate failed ({type(exc).__name__}) on a command naming a policy tool" if named
+                  else f"the policy gate failed ({type(exc).__name__}) for a rules-limited agent" if limited else None)
     if reason is not None:
         print(deny_output(reason))
         command: str = guard.command_of(payload)[:300]

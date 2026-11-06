@@ -116,6 +116,28 @@ Usage limits belong to the account, so the harness keeps one shared list of paus
 - Each new session starts with a one-line note of who is paused and until when.
 - Set or lift a pause by hand with `/dt:cooldown set <agent> <date or duration>`, `clear <agent>` and `list`.
 
+### Per-agent rules
+
+Each roster entry in `.harness/config.yaml` may carry a `rules:` block that limits what that agent is called for:
+
+```yaml
+roster:
+  - name: grok-api
+    auth: api-key
+    rules:
+      allow_tasks: [review, docs, research]
+      max_tier: standard
+      paths_deny: ["**/.env*", "infra/**"]
+      read_only: true
+      max_cost_usd_per_run: 0.5
+      max_cost_usd_per_day: 5
+```
+
+- Task classes are fixed: review, build, test, docs, research, deploy, merge, release, secrets, delete, infra (`templates/policy.json`, `taskClasses`, maps each to the commands it covers). Also `deny_tasks` and `no_secrets`.
+- An API-key agent with no `rules:` is read-only, may do review, docs and research, stays at `standard` or below, and has $0.50 a run and $5 a day. deploy, merge, release, secrets and delete are always denied for it, even if you allow them. A subscription agent has no rules unless you add some.
+- Four places enforce them. Dispatch skips an agent whose rules deny the task or tier and tries the next one (`roster.py resolve --task-class`, `delegate.py --task-class`; nothing eligible is an error naming each reason). Launch passes `DTS2_AGENT=<name>`, `--max-budget-usd` where the CLI has it, no secret env with `no_secrets`, and refuses a read-only agent whose profile has no read-only command. The policy gate denies a tool call whose class or path the rules forbid. The spend ledger (`.harness/spend.jsonl`) sums each run's cost and takes the agent out of dispatch for the day at its daily cap.
+- Edit with `/dt:model` ("Edit agent rules") or `roster.py rules <name> --show | --set key=value | --reset`. A bad block (unknown key, a class in both lists) is reported at session start and by `doctor.py`.
+
 ### Watching and messaging all your sessions
 
 Running many sessions at once (for example one per terminal tab)?

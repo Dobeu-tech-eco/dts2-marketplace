@@ -135,6 +135,7 @@ MERGE_GUARD_LOG_REL: Final[str] = f"{HARNESS}/merge-guard.log"
 SETTINGS_CACHE_REL: Final[str] = f"{HARNESS}/settings.cache.json"
 CHECKS_SH_REL: Final[str] = f"{HARNESS}/checks.sh"
 AGENTS_REL: Final[str] = f"{HARNESS}/agents.jsonl"
+SPEND_REL: Final[str] = f"{HARNESS}/spend.jsonl"
 AGENT_PROFILES_REL: Final[str] = f"{HARNESS}/agents"
 TRUSTED_PROJECTS_NAME: Final[str] = "trusted-projects"  # in the user DTS2 home: one absolute project path per line
 INJECTIONS_REL: Final[str] = f"{HARNESS}/injections.jsonl"

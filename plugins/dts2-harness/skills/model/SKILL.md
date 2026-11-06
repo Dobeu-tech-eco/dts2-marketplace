@@ -27,4 +27,15 @@ Use this when the user wants a second agent on the same provider, such as `grok`
 3. **Collision.** `roster.py add` exits 2 and names the layer (bundled, user or project) that already has the name. Say which layer, suggest `<name>-2`, and ask again. Never overwrite unless the user picks "edit existing", then pass `--edit-existing`.
 4. **Key.** For `api-key`, tell the user to store the key in the system keyring, 1Password (`op`) or Doppler, and give only the reference: `keyring:dts2/<name>`, `op://vault/item/field`, `doppler:NAME` or `env:VAR`. Never ask for or write a raw key.
 5. **Write it:** `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/roster.py" add --name <name> --extends <provider> [--auth api-key --api-key-ref <ref>] [--scope project|user] [--display-name X] [--roles a,b]`. It writes the profile (`.harness/agents/` or `~/.dts2/agents/`) and appends the roster entry; only the reference is stored.
-6. **Rename** with `roster.py rename <old> <new>`; it rewrites the profile, roster entries, and other profiles' `extends` and `fallback` in one step. Bundled profiles cannot be renamed.
+6. **Rules (api-key agents only).** Show the defaults and let the user change them with "Edit agent rules" below: read-only, tasks review, docs and research, tier at most standard, $0.50 a run, $5 a day. deploy, merge, release, secrets and delete stay denied whatever they pick.
+7. **Rename** with `roster.py rename <old> <new>`; it rewrites the profile, roster entries, and other profiles' `extends` and `fallback` in one step. Bundled profiles cannot be renamed.
+
+## Edit agent rules
+Use this to change what an agent may be called for. Run `roster.py rules <name> --show` and print the `written` and `effective` rules, so each question below names its current value. Ask them together, one line each, and change only what the user answers:
+1. Tasks it may do (`allow_tasks`) and may not do (`deny_tasks`), from: review, build, test, docs, research, deploy, merge, release, secrets, delete, infra.
+2. Highest model tier (`max_tier`): economy, standard or frontier.
+3. Paths it must never touch (`paths_deny`), such as `**/.env*`, `infra/**`.
+4. Read-only (`read_only`) and no secrets (`no_secrets`): yes or no.
+5. Dollar caps per run and per day (`max_cost_usd_per_run`, `max_cost_usd_per_day`).
+
+Then run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/roster.py" rules <name> --set key=value [--set ...]` (lists are comma-separated; exit 2 prints what to fix). `--reset` removes the block. Report the `warnings` from the output: for an API-key agent deploy, merge, release, secrets and delete stay denied even if allowed. A subscription agent has no rules unless you add some.

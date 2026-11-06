@@ -93,5 +93,6 @@
     "frontier": 7,
     "standard": 3,
     "economy": 1
-  }
+  },
+  "readOnlyRoles": ["second-opinion"]
 }

@@ -15,6 +15,7 @@ import re
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 from typing import Any, Final
 
 PASS: Final[str] = "pass"
@@ -149,8 +150,18 @@ def check_fake_env() -> dict[str, str]:
     return check("fake-binaries", PASS, "none set; real binaries are used")
 
 
+def check_agent_rules() -> dict[str, str]:
+    """The roster's per-agent `rules:` blocks in this repo's config: unknown keys or classes, a class in both lists, a bad tier."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import agent_rules  # noqa: PLC0415 - only this check needs them
+    import state_io  # noqa: PLC0415
+    problems: list[str] = agent_rules.config_problems(Path(state_io.CONFIG_REL))
+    return check("agent-rules", FAIL, "; ".join(problems)) if problems else check("agent-rules", PASS, "no invalid rules in the roster")
+
+
 def run_checks() -> list[dict[str, str]]:
-    return [check_python(), check_git(), check_claude(), check_sandbox(), *check_helper_tools(), check_auth(), check_platform(), check_fake_env()]
+    return [check_python(), check_git(), check_claude(), check_sandbox(), *check_helper_tools(), check_auth(), check_platform(), check_fake_env(),
+            check_agent_rules()]
 
 
 def render_table(checks: list[dict[str, str]]) -> str:
