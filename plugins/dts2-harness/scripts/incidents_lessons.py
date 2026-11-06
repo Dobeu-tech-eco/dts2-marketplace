@@ -5,6 +5,7 @@ lesson files are never rewritten here. Tier 4 goes through knowledge.py when it 
 Tier 5 (the marketplace) is never touched: `harness:` lines go through `evolve`."""
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -40,6 +41,9 @@ EXPIRE_IDLE_DAYS: Final[int] = 30
 SECONDS_PER_DAY: Final[int] = 86400
 KNOWLEDGE_TIMEOUT_S: Final[int] = 2
 KNOWLEDGE_MAX_LINES: Final[int] = 3
+KNOWLEDGE_ID_MAX: Final[int] = 16
+KNOWLEDGE_ID_PREFIX: Final[int] = 10
+KNOWLEDGE_ID_HASH: Final[int] = 6
 PROJECT_SLUG_MAX: Final[int] = 24
 FLEET_TIMEOUT_S: Final[int] = 2
 TEXT_MAX_CHARS: Final[int] = 240
@@ -157,11 +161,20 @@ def knowledge_ready() -> bool:
     return bool(os.environ.get(ENV_KNOWLEDGE_STORE) or os.environ.get(ENV_KNOWLEDGE_PROFILE)) or (home / "knowledge.json").exists() or (home / "knowledge").exists()
 
 
+def knowledge_id(raw_key: str) -> str:
+    """A stable id body in [A-Za-z0-9]+: the cleaned key when it fits, else a cleaned prefix plus a short sha1 of the full key."""
+    cleaned: str = re.sub(r"[^A-Za-z0-9]+", "", raw_key)
+    if len(cleaned) <= KNOWLEDGE_ID_MAX:
+        return cleaned
+    digest: str = hashlib.sha1(raw_key.encode("utf-8")).hexdigest()[:KNOWLEDGE_ID_HASH]
+    return cleaned[:KNOWLEDGE_ID_PREFIX] + digest
+
+
 def knowledge_lines(query: str) -> list[str]:
     """Tier 4 candidates as lesson lines `- [K-key] text`; any failure returns nothing.
 
     knowledge.py `find` is a literal substring search, so the multi-word query (`<agent class> <paths>`) would match nothing: list every
-    learning entry and keep the ones whose `{agents:}` and `{paths:}` fields fit the query (at most KNOWLEDGE_MAX_LINES)."""
+    learning entry and keep the ones whose `{agents:}` and `{paths:}` fields fit the query. No cap here: select() caps after dropping demoted and expired entries."""
     script: Path | None = knowledge_script()
     if script is None or not knowledge_ready():
         return []
@@ -177,12 +190,12 @@ def knowledge_lines(query: str) -> list[str]:
     for row in rows if isinstance(rows, list) else []:
         if not isinstance(row, dict):
             continue
-        key: str = re.sub(r"[^A-Za-z0-9]+", "", str(row.get("key") or row.get("id") or ""))[:16]
+        key: str = knowledge_id(str(row.get("key") or row.get("id") or ""))
         text: str = " ".join(str(row.get("text") or row.get("value") or "").split())
         agents: list[str] = detect.lesson_agents(text)
         if key and text and (not agents or not klass or klass in agents) and lessons.line_matches(text, tokens[1:]):
             out.append(f"- [K-{key}] {text}")
-    return out[:KNOWLEDGE_MAX_LINES]
+    return out
 
 
 def home_lesson_lines() -> list[str]:
@@ -224,6 +237,8 @@ def select(repo: Path, klass: str, paths: list[str], limit: int, now: int, query
                 continue
             if lesson_status(tables[tier].get(lid), now) != "active":
                 continue
+            if tier == TIER_KNOWLEDGE and len(candidates) >= KNOWLEDGE_MAX_LINES:
+                break
             has_globs: bool = bool(lessons.lesson_globs(row))
             candidates.append({"id": lid, "tier": tier, "text": lesson_text(row), "category": detect.lesson_category(row),
                                "reason": "matches brief paths" if has_globs else "applies everywhere", "rank": (not has_globs, -index)})
