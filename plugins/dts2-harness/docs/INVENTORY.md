@@ -10,7 +10,7 @@ Contents: 1 Skills, 2 Agents, 3 Hooks, 4 CLI scripts (4.1 state and progress, 4.
 
 ## 1. Skills (slash commands)
 
-Invoke as `/dts2:<name>`. Skills with `disable-model-invocation: true` in their frontmatter (`cooldown`, `dpp-full`, `fullauto`, `machine-prep`, `model`, `onboard`, `sdk`) run only when the user types them. "Runs" lists the scripts the skill's own files name; "Hands off to" lists the skills it names.
+Invoke as `/dts2:<name>`. Skills with `disable-model-invocation: true` in their frontmatter (`cooldown`, `dpp-full`, `fullauto`, `knowledge`, `machine-prep`, `model`, `onboard`, `sdk`) run only when the user types them. "Runs" lists the scripts the skill's own files name; "Hands off to" lists the skills it names.
 
 | Command | Purpose | Usage and arguments | Runs | Hands off to |
 |---|---|---|---|---|
@@ -32,6 +32,7 @@ Invoke as `/dts2:<name>`. Skills with `disable-model-invocation: true` in their 
 | `/dts2:check-in` | Read-only progress against the approved end state: checklist, `N of M complete`, percent. | no arguments | `check-in.py`, `scope-check.py`, `action-items.py` | `action-items`, `autopilot`, `run`, `setup` |
 | `/dts2:model` | Choose which agent provider fills the lead, advisory and sign-off seats; records `lead_provider`. Builders are unaffected. | no arguments | `roster.py`, `delegate.py`, `failover.py` | none |
 | `/dts2:cooldown` | Pause an agent that hit a usage limit until its reset date, resume it, or list what is paused. | `set <agent> <date or duration> [reason]`, `clear <agent>`, `list` | `cooldowns.py` | none |
+| `/dts2:knowledge` | Keep your own standing preferences, glossary terms and cross-project learnings in a private store that syncs across devices. | `setup`, `join`, `set <key> <value>`, `get <key>`, `find <text>`, `list`, `rm <key>`, `sync`, `status` | `knowledge.py` | none |
 | `/dts2:find-skills` | Rescan the repo, audit every improvement option (skills, hooks, MCP servers, plugins, commands, subagents, permissions, CI), ask, and on a yes wire in the picks. | no arguments | `env-detect.py`, `repo-size.py`, `scope-check.py`, `skill-suggest.py`, `improve-scan.py`, `hooks-setup.py` | none |
 | `/dts2:steer` | Stop running work and redirect it: the only command that stops a run. Finishes the current atomic step, dispatches nothing new, checkpoints a handoff, reviews open intake items, re-plans to the new direction, confirms in one short message, then resumes. | `<new direction>` (required; quote it when it has spaces) | `intake.py`, `handoff-write.py` | `run`, `autopilot` |
 | `/dts2:ask-expert` | Decide the fate of one repo: goal questions with a clarity gate, a code read, what-you-said versus what-the-code-shows, overlap with your active repos, a three-provider expert panel (council and research when it stalls) and a one-page memo (keep, fold, template, archive, delete). A short router plus `phase-1-goal.md` to `phase-5-report.md`. | `[repo] ["what I'm unsure about"]` | `ask_expert.py` (`clarity`, `goal record`, `check-report`), `roster.py`, `ballot_dispatch.py`, `council.py` | `repo-sweep` |
@@ -129,6 +130,8 @@ Run as `python3 -I "$P/scripts/<x>.py" ...`. Hook-driven and internal scripts ar
 | `delegate.py` | none | `--agent --seat --complexity` (required), `--profile-dir`, `--budget`, `--lead-provider`, `--effort` | Resolve model, tier and effort for a dispatch seat (includes the `escalation` seat for the fixer). | `model`, `run`, `onboard`; `lead`, `fixer`, `reviewer` agents | changed |
 | `failover.py` | none | `--current` (required), `--profile-dir`, `--exclude` | Pick the next lead provider on a usage or token limit. | `model`, `run` | |
 | `cooldowns.py` | `set`, `clear`, `list`, `check`, `detect`, `expire`, `session-note` | `set`: `--until` or `--in`, `--reason`, `--by`, `--source`; `detect`: `--agent`, `--provider`, `--exit-code`, `--record`, `--by` | Per-account agent cooldowns in `~/.dts2/agent-status.json` (`DTS2_AGENT_STATUS` overrides): record a usage limit, read its reset date, skip the agent until then. `roster.py` probe and `classify`, `failover.py` and the SessionStart hook use it. | `cooldown`; `roster.py`, `failover.py`; session-cooldowns hook | new |
+| `knowledge.py` | `setup`, `join`, `init`, `set`, `get`, `find`, `list`, `rm`, `sync`, `status`, `context` | `setup`: `--owner`, `--backend` (`git`, `folder`, `local`, `cloudflare`), `--remote`, `--path`, `--url`, `--force`; `join`: `--backend`, `--remote`, `--path`, `--url`; `init`: alias of `setup --backend git`; `set`: `--kind`, `--alias`, `--tag`, `--by`; `get`, `find`, `list`, `status`, `context`: `--json`; `find`, `list`: `--kind`; `context`: `--repo` | Personal preferences, glossary terms and learnings as Markdown files in `~/.dts2/knowledge` (`DTS2_KNOWLEDGE` overrides), a private git repo, a Cloudflare Worker + D1 (`--url`; token only from `DTS2_KNOWLEDGE_TOKEN`), a drive-synced folder or local only (device profile in `~/.dts2/knowledge.json`). Rejects secrets. Read only on user request and by `setup`. | `knowledge`, `setup` | new |
+| `knowledge_cloudflare.py` | `ping`, `list`, `pull <store>` (run directly; `--url` is required) | `--url`; token from env `DTS2_KNOWLEDGE_TOKEN` | Client for the Cloudflare Worker + D1 knowledge backend; `knowledge.py sync` delegates to it. Never writes the token to disk. | `knowledge.py` | new |
 | `ask_expert.py` | `clarity`, `goal record`, `check-report`, `scorecard`, `sweep add`, `sweep show`, `archive`, `backup`, `delete` | `clarity`: `--answers --asked --threshold`; `goal record`: `--repo --answers`; `scorecard`: `--report --goal`; `sweep add`: `--ledger --repo --verdict --confidence --reason --score --salvage --report`; `archive`, `backup`: `--repo OWNER/NAME`, `--dest`; `delete`: `--repo --confirm --bundle` | Repo decision support: slot-scored goal clarity (threshold 95), strict memo checker, nine-factor weighted scorecard, sweep ledger sorted by score, and archive, backup (verified `git bundle`) and delete with guards (exact typed name plus verified bundle, one repo per call). | `ask-expert`, `repo-sweep` | new |
 | `agent_events.py` | `subagent-stop`, `stop-failure`, `permission-denied` | event name; hook JSON on stdin | Hook handlers: verifier stop gate on the N3 check lines; StopFailure and PermissionDenied append a Handoff action item. | `hooks/subagent-stop.sh`, `stop-failure.sh`, `permission-denied.sh` | new |
 | `seat_swap.py` | `swap`, `identical` | `swap`: `--seats --failed`, `--ledger`, `--step`, `--reason`; `identical`: `--votes-dir --ledger --step --prev --curr` | Council seat substitution and identical-findings ledger note. | `council.py swap` and `identical` (in-process) | new |
@@ -304,6 +307,7 @@ Files under `templates/`, copied or filled by setup and the scripts named here.
 | `templates/handoff-latest.md` | Layout of `handoff/latest.md` written by `handoff-write.py`. | 3.10.0 |
 | `templates/harness-lessons.md` | Empty `.harness/lessons.md`. | 3.10.0 |
 | `templates/keep.yaml` | Keep list for `machine-prep` and `skills-check.py`. | 3.10.0 |
+| `templates/knowledge-cloudflare/` | Worker + D1 backend for the personal knowledge store (`wrangler.toml`, `schema.sql`, `src/index.ts`, `README.md`); the user deploys it with wrangler. | new |
 | `templates/ops/` | Production runbooks (`backups.md`, `credential-handoff.md`, `monitoring.md`, `release.md`, `rollback.md`) copied by `prod-scaffold.py`. | 3.10.0 |
 | `templates/policy.json` | Declarative deny and require-approval rules read by `policy_gate.py` (`hooks/policy-gate.sh`). | 3.11.0 |
 | `templates/pr-template.md` | PR body with the change receipt and the "Decisions and declined findings" section. | changed |
@@ -311,6 +315,12 @@ Files under `templates/`, copied or filled by setup and the scripts named here.
 | `templates/renovate.json` | Renovate config the setup skill offers. | 3.10.0 |
 | `templates/son-brief.md` | The ~4 KB `brief.md` a son reads first, filled by `briefs.py son-brief`. | 3.10.0 |
 | `templates/state.md` | Empty `.harness/state.md`. | 3.10.0 |
+
+Tests for the knowledge store: `tests/test_knowledge.py` (CLI, backends, profile) and `tests/test_knowledge_cloudflare.py` (Cloudflare client with a fake server; no network). Run with `python3 -m unittest discover -s tests -p <file>`.
+
+| Test file | Covers | Since |
+|---|---|---|
+| `tests/test_knowledge_cloudflare.py` | `knowledge_cloudflare.py`: entry format, pull and push by newer `updated`, token handling | new |
 
 ## 6. Makefile targets and CI
 
