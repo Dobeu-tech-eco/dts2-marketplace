@@ -12,6 +12,11 @@
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session-cooldowns.sh\"",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/fleet-session.sh\" SessionStart",
+            "timeout": 5
           }
         ]
       }
@@ -25,6 +30,15 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/fleet-session.sh\" UserPromptSubmit",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "Stop": [
@@ -34,6 +48,15 @@
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/stop-checks.sh\"",
             "timeout": 45
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/fleet-session.sh\" Stop",
+            "timeout": 5
           }
         ]
       }
@@ -83,6 +106,15 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/subagent-report.sh\" handback",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/fleet-session.sh\" PostToolUse",
             "timeout": 5
           }
         ]
@@ -172,6 +204,15 @@
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session-end.sh\"",
             "timeout": 25
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/fleet-session.sh\" SessionEnd",
+            "timeout": 5
           }
         ]
       }
