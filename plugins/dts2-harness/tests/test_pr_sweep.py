@@ -322,6 +322,24 @@ class LedgerTests(unittest.TestCase):
             lines = (Path(tmp) / "ledger.jsonl").read_text(encoding="utf-8").splitlines()
         self.assertEqual([json.loads(line)["pr"] for line in lines], [5, 6])
 
+    def test_reason_file_is_stored_literally(self) -> None:
+        hostile = "error: $(touch pwned) `id` ; rm -rf x"
+        with tempfile.TemporaryDirectory() as tmp:
+            reason = Path(tmp) / "reason-7.txt"
+            reason.write_text(hostile + "\n", encoding="utf-8")
+            out = run_cli("record", "--dir", tmp, "--pr", "7", "--bucket", "C", "--action", "escalate",
+                          "--reason", "ignored", "--reason-file", str(reason))
+            self.assertFalse((Path(tmp) / "pwned").exists())
+        self.assertEqual(out["row"]["reason"], hostile)
+
+    def test_ci_triage_docs_route_untrusted_text_through_a_file(self) -> None:
+        skill = Path(__file__).resolve().parents[1] / "skills" / "pr-sweep"
+        triage = (skill / "phase-2-ci-triage.md").read_text(encoding="utf-8")
+        execute = (skill / "phase-3-execute.md").read_text(encoding="utf-8")
+        self.assertIn("--reason-file", triage)
+        self.assertNotIn('--reason "<log line>"', triage)
+        self.assertIn("git check-ref-format --branch", execute)
+
 
 if __name__ == "__main__":
     unittest.main()

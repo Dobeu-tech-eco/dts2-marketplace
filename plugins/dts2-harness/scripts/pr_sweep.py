@@ -5,7 +5,7 @@ Every subcommand prints one JSON object.
   inventory --repo OWNER/NAME [--stale-days N] [--head-prefix P] [--author A] --out DIR   read-only `gh api` REST inventory
   classify  --inventory FILE [--now ISO]                                                     bucket per PR, stale flag, overlaps, candidates
   order     --inventory FILE [--now ISO]                                                     merge waves: stack bases first, shared files one at a time
-  record    --dir DIR --pr N --bucket B --action A [--sha S] [--reason R] [--ci V] [--worker M] [--verified-by W]
+  record    --dir DIR --pr N --bucket B --action A [--sha S] [--reason R | --reason-file F] [--ci V] [--worker M] [--verified-by W]
   report    --dir DIR                                                                        write report.md from DIR/ledger.jsonl
 gh runs through DTS2_GH_BIN. Every gh call goes through `gh_api`."""
 from __future__ import annotations
@@ -358,11 +358,18 @@ def cmd_order(args: argparse.Namespace) -> int:
 
 # ---- ledger and report ---------------------------------------------------------------------------------------------
 
+def record_reason(args: argparse.Namespace) -> str:
+    """Untrusted text (CI log lines, titles) comes from a file, read literally, so no shell ever expands it."""
+    if args.reason_file:
+        return Path(args.reason_file).read_text(encoding=ENCODING).strip()
+    return args.reason or ""
+
+
 def cmd_record(args: argparse.Namespace) -> int:
     directory = Path(args.dir)
     directory.mkdir(parents=True, exist_ok=True)
     row: dict[str, Any] = {"at": now_utc().isoformat(timespec="seconds"), "pr": args.pr, "bucket": args.bucket,
-                           "action": args.action, "sha": args.sha or "", "reason": args.reason or "", "ci": args.ci or "",
+                           "action": args.action, "sha": args.sha or "", "reason": record_reason(args), "ci": args.ci or "",
                            "worker": args.worker or "", "verified_by": args.verified_by or ""}
     with (directory / LEDGER).open("a", encoding=ENCODING) as handle:
         handle.write(json.dumps(row) + "\n")
@@ -453,7 +460,7 @@ def build_parser() -> argparse.ArgumentParser:
     rec.add_argument("--pr", type=int, required=True)
     rec.add_argument("--bucket", required=True)
     rec.add_argument("--action", required=True)
-    for flag in ("sha", "reason", "ci", "worker", "verified-by"):
+    for flag in ("sha", "reason", "reason-file", "ci", "worker", "verified-by"):
         rec.add_argument(f"--{flag}", default=None)
     sub.add_parser("report").add_argument("--dir", required=True)
     return parser

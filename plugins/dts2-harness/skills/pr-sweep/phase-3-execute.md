@@ -2,7 +2,8 @@
 
 ## Model rule
 The lead only coordinates and signs off. Every rebase, fix or CI change is done by a worker with the model named explicitly in the dispatch: `sonnet` for code, CI and rebases, `haiku` for mechanical edits (changelog lines, version bumps, comments). One worker per PR, each in its own worktree:
-`git worktree add -b sweep/<pr> ../wt-sweep-<pr> origin/<head>`.
+`git worktree add -b 'sweep/<pr>' '../wt-sweep-<pr>' 'origin/<head>'`.
+Take `<head>` and every branch name from `inventory.json`, check it with `git check-ref-format --branch '<head>'` (a failure is a hard stop for that PR), and single-quote it in every command.
 Run it from a clone of the swept repo `<o>/<r>` (clone it first when the sweep targets another repo), and pass `-R <o>/<r>` to every `gh pr` and `gh run` command so nothing lands on the current checkout's repo.
 Workers never push to the default branch, never merge, never spawn agents. The lead verifies each result (diff and green CI) before merging and records who verified it.
 
@@ -18,10 +19,10 @@ It returns `{"waves": [[...], ...]}`: stack bases before their children, PRs tou
 3. CI RED: `phase-2-ci-triage.md`.
 4. SUPERSEDED / DEAD: `gh pr close <n> -R <o>/<r> --comment "<why, link to the replacement>"`.
 5. After each merge: `git fetch`, rebase the next dependent PR, re-run its CI before merging it.
-6. Record every outcome with `pr_sweep.py record --dir <dir> --pr N --bucket B --action <merged|closed|rebased|waiting|left> [--sha S] [--reason R] [--ci V] --worker <model> --verified-by <lead|worker>`.
+6. Record every outcome with `pr_sweep.py record --dir <dir> --pr N --bucket B --action <merged|closed|rebased|waiting|left> [--sha S] [--reason-file F] [--ci V] --worker <model> --verified-by <lead|worker>`.
 
 ## Close out
-- Delete head branches of merged and closed PRs where permitted (`gh api -X DELETE repos/<o>/<r>/git/refs/heads/<branch>`); a denial goes in the report, not around it.
+- Delete head branches of merged and closed PRs where permitted (`gh api -X DELETE 'repos/<o>/<r>/git/refs/heads/<branch>'`, branch checked and quoted as above); a denial goes in the report, not around it.
 - `git worktree remove` every `../wt-sweep-*` and `git worktree prune`.
 - Write the report: `pr_sweep.py report --dir .harness/pr-sweep/<stamp>`.
 
