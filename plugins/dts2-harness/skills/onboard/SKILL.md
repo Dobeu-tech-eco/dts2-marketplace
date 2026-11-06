@@ -69,7 +69,8 @@ Only agents detected on this machine join the roster; handoff agents get a writt
 5. CI, cron, or a second machine without the desktop app → `sdk`.
 6. Changing the harness itself → `evolve`. Launching a product → `gtm`.
 7. Optional Claude Code hooks (command guard, auto-format, tests on stop, notifications) → the Hooks step below.
-8. Database tooling: `/dts2:find-skills` suggests database MCP servers and skills for your stack.
+8. Many app plugins or MCP servers → `composio` (one connection, then trim overlap).
+9. Database tooling: `/dts2:find-skills` suggests database MCP servers and skills for your stack.
 
 ## Tiers the run skill picks automatically
 | Tier | Typical size | Builders | Reviewers |
@@ -82,6 +83,9 @@ Only agents detected on this machine join the roster; handoff agents get a writt
 Worktrees are used only in workspace mode or when `use_worktrees: always` is set; single mode shares the tree on separate file sets.
 
 Builders never exceed the number of builder sections the lead planned, and never exceed `max_builders` in `.claude/dts2-harness.local.md`.
+
+## Composio (optional)
+Ask once with AskUserQuestion: "Do you have a Composio account?" (yes or no). Composio is one connection to 1000+ apps, so agents need fewer separate plugins and MCP servers. On either answer, hand off to `/dts2:composio`, which records the answer, installs and maps on yes, and offers a signup link on no. Skip the question if `~/.dts2/composio.json` already holds a decision. Nothing is changed here; `/dts2:composio` asks before it disables anything.
 
 ## Hooks (optional last step)
 The plugin's own hooks are already active: the policy gate, the merge guard, the stop checks and the context guard. Toggles are in `.claude/dts2-harness.local.md`. This step offers extra hooks for the user's project.
