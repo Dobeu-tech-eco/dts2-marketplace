@@ -545,10 +545,24 @@ def prompt_values(prompt_file: Path, workspace: Path) -> dict[str, str]:
     }
 
 
-def clean_env(profile: dict[str, Any]) -> dict[str, str]:
-    """What a dispatched agent CLI may see (G-67): the son allowlist, the profile's own API-key variable and its `env`.
-    No GH_TOKEN, SSH_AUTH_SOCK, cloud credentials or other providers' keys."""
-    base: dict[str, str] = provider_env(dict(os.environ), profile.get("apiKeyEnv"), claude=profile.get("name") == "claude")
+def declared_auth(name: str, config: Path | None = None) -> str:
+    """The `auth:` the project roster declares for `name`; absent or unreadable means subscription."""
+    try:
+        for entry in read_roster(config or Path(state_io.CONFIG_REL)):
+            if entry["name"] == name:
+                return str(entry.get("auth") or AUTH_SUBSCRIPTION)
+    except OSError:
+        pass
+    return AUTH_SUBSCRIPTION
+
+
+def clean_env(profile: dict[str, Any], auth: str | None = None) -> dict[str, str]:
+    """What a dispatched agent CLI may see (G-67): the scrubbed son env (`son_launch.scrub_env`) and the profile's `env`.
+    A subscription agent (roster `auth` absent or `subscription`) gets no API key at all, so a stray key in the parent shell
+    cannot bill the API account; an `auth: api-key` agent gets only its own `apiKeyEnv`. No GH_TOKEN, SSH_AUTH_SOCK, cloud
+    credentials or other providers' keys. `DTS2_SON_ENV_PASS` is the owner's deliberate way to hand a key to a CLI."""
+    mode: str = auth or declared_auth(str(profile.get("name")))
+    base: dict[str, str] = provider_env(dict(os.environ), profile.get("apiKeyEnv"), claude=profile.get("name") == "claude", auth=mode)
     return {**base, **{str(k): str(v) for k, v in (profile.get("env") or {}).items()}}
 
 

@@ -22,7 +22,7 @@ PLUGIN_ROOT: Final[Path] = Path(__file__).resolve().parent.parent
 GUARD: Final[Path] = PLUGIN_ROOT / "scripts" / "guard.py"
 ENV_ALLOW: Final[frozenset[str]] = frozenset({
     "PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "TERM", "TMPDIR", "TZ", "PWD",
-    "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "CLAUDE_CODE_OAUTH_TOKEN",
+    "CLAUDE_CODE_OAUTH_TOKEN",
     "HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY", "https_proxy", "http_proxy", "no_proxy",
     "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE",
 })
@@ -74,14 +74,6 @@ GIT_TIMEOUT_S: Final[int] = 20
 GUARDED_TOOLS: Final[str] = "Bash|Read|Edit|Write|Glob|Grep|NotebookEdit"
 
 
-def allowed_env(source: dict[str, str]) -> dict[str, str]:
-    """Only allowlisted variables survive, so GH_TOKEN, GITHUB_TOKEN, SSH_AUTH_SOCK and cloud credentials are absent."""
-    extra: list[str] = [p.strip() for p in source.get(PASS_VAR, "").split(",") if p.strip()]
-    return {k: v for k, v in source.items()
-            if (k in ENV_ALLOW or k.startswith(ENV_ALLOW_PREFIXES) or any(fnmatch.fnmatchcase(k, p) for p in extra))
-            and not k.startswith(ENV_DENY_PREFIXES)}
-
-
 def safe_permission_mode(mode: str | None) -> str:
     """`mode` when it is on the allowlist, else `dontAsk`. `bypassPermissions` is never accepted (G-61)."""
     return mode if mode in PERMISSION_MODES else DEFAULT_MODE
@@ -110,18 +102,77 @@ def allowed_tools(cwd: Path) -> list[str]:
     return [*BASE_ALLOWED, *GIT_ALLOWED, *HARNESS_ALLOWED, *check_rules(cwd)]
 
 
-CLAUDE_CREDENTIALS: Final[frozenset[str]] = frozenset({"ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN"})
+AUTH_SUBSCRIPTION: Final[str] = "subscription"
+AUTH_API_KEY: Final[str] = "api-key"
+OAUTH_VAR: Final[str] = "CLAUDE_CODE_OAUTH_TOKEN"  # the Max login token: kept only for a Claude subscription agent
+CREDENTIAL_SUFFIXES: Final[tuple[str, ...]] = ("_API_KEY",)
+CREDENTIAL_PREFIXES: Final[tuple[str, ...]] = (
+    "ANTHROPIC_", "CODEX_", "XAI_", "OPENAI_", "GEMINI_", "GOOGLE_", "AWS_", "AZURE_", "CLAUDE_CODE_USE_",
+)
+CREDENTIAL_NAMES: Final[frozenset[str]] = frozenset({"GOOGLE_APPLICATION_CREDENTIALS"})
 
 
-def provider_env(source: dict[str, str], key_env: str | None = None, claude: bool = False) -> dict[str, str]:
-    """The environment for a non-Claude agent CLI (codex, gemini, muse, agy, grok): the son allowlist, minus the Anthropic
-    credentials unless the agent is Claude, plus the one API-key variable that agent's own profile names (G-67)."""
-    env: dict[str, str] = allowed_env(source)
-    if not claude:
-        env = {k: v for k, v in env.items() if k not in CLAUDE_CREDENTIALS and not k.startswith("CLAUDE_CODE_")}
-    if key_env and source.get(key_env):
+def credential_name(name: str) -> bool:
+    """True for a variable that carries a credential or switches the billing route: `*_API_KEY`, `ANTHROPIC_*`, `CODEX_*`,
+    `XAI_*`, `OPENAI_*`, `AWS_*`, `GOOGLE_APPLICATION_CREDENTIALS`, `CLAUDE_CODE_USE_*` (Bedrock/Vertex/Foundry switches)."""
+    return name in CREDENTIAL_NAMES or name.endswith(CREDENTIAL_SUFFIXES) or name.startswith(CREDENTIAL_PREFIXES)
+
+
+SECRET_SHAPES: Final[re.Pattern[str]] = re.compile(
+    r"sk-ant-[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9_-]{20,}|xai-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{30,}")  # key-shaped, never a real value here
+
+
+def secret_shaped(text: str) -> bool:
+    """True when `text` holds something shaped like an API key or token (sk-..., sk-ant-..., xai-..., ghp_...). A receipt or
+    state writer calls this before writing a free-text value, so a key never lands in a file."""
+    return bool(SECRET_SHAPES.search(text))
+
+
+def pass_patterns(source: dict[str, str]) -> list[str]:
+    return [p.strip() for p in source.get(PASS_VAR, "").split(",") if p.strip()]
+
+
+def scrub_env(source: dict[str, str], *, auth: str | None = AUTH_SUBSCRIPTION, key_env: str | None = None,
+              claude: bool = True) -> dict[str, str]:
+    """The one child-environment builder for every agent CLI (a son, a council seat, a dispatched second opinion).
+
+    Only allowlisted variables survive, so GH_TOKEN, GITHUB_TOKEN, SSH_AUTH_SOCK and cloud credentials are absent. On top of
+    that every credential or billing variable is dropped (see `credential_name`), because in `claude -p` an API key always
+    wins over the Max login and a stray key in the parent shell would silently bill the API account.
+      - subscription (the default; a roster `auth` that is absent or `subscription`): no key at all. A Claude agent keeps
+        `CLAUDE_CODE_OAUTH_TOKEN`; any other CLI drops it and the rest of `CLAUDE_CODE_*`.
+      - api-key: only that agent's own key variable (`key_env`, the profile's `apiKeyEnv`) is added, and only when set.
+    Escape hatch: names matching a `DTS2_SON_ENV_PASS` pattern (comma-separated, chosen by the owner) always pass. This is
+    the documented way to hand a son an API key on purpose; it is the owner's choice, so it is not filtered."""
+    extra: list[str] = pass_patterns(source)
+    api_key: bool = auth == AUTH_API_KEY
+    env: dict[str, str] = {}
+    for k, v in source.items():
+        if k.startswith(ENV_DENY_PREFIXES):
+            continue
+        if any(fnmatch.fnmatchcase(k, p) for p in extra):
+            env[k] = v
+        elif (k in ENV_ALLOW or k.startswith(ENV_ALLOW_PREFIXES)) and not credential_name(k):
+            if k == OAUTH_VAR and (not claude or api_key):
+                continue
+            if not claude and k.startswith("CLAUDE_CODE_"):
+                continue
+            env[k] = v
+    if api_key and key_env and source.get(key_env):
         env[key_env] = source[key_env]
     return env
+
+
+def allowed_env(source: dict[str, str]) -> dict[str, str]:
+    """The scrubbed environment of a Claude subscription agent: the son allowlist, no API key, no provider switch."""
+    return scrub_env(source)
+
+
+def provider_env(source: dict[str, str], key_env: str | None = None, claude: bool = False,
+                 auth: str | None = None) -> dict[str, str]:
+    """The environment for a dispatched agent CLI (codex, gemini, muse, agy, grok, or Claude as a council seat): `scrub_env`.
+    `auth` defaults to api-key when a `key_env` is named (the caller chose a key agent) and to subscription otherwise (G-67)."""
+    return scrub_env(source, auth=auth or (AUTH_API_KEY if key_env else AUTH_SUBSCRIPTION), key_env=key_env, claude=claude)
 
 
 def slug(text: str) -> str:
@@ -163,7 +214,8 @@ def lane_env(manifest: dict[str, Any], lane_id: str, cwd: Path) -> dict[str, str
 
 
 def son_env(manifest: dict[str, Any], lane_id: str, cwd: Path, source: dict[str, str] | None = None) -> dict[str, str]:
-    return {**allowed_env(dict(os.environ) if source is None else source), **lane_env(manifest, lane_id, cwd)}
+    """A son runs on the Max subscription: `scrub_env` of the parent env, plus the lane's own variables."""
+    return {**scrub_env(dict(os.environ) if source is None else source), **lane_env(manifest, lane_id, cwd)}
 
 
 def sandbox_config(cwd: Path) -> dict[str, Any]:

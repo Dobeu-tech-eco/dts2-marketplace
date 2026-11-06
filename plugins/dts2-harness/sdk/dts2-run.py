@@ -314,7 +314,7 @@ def second_opinion_env(profile_env: dict[str, str] | None) -> dict[str, str]:
     sys.path.insert(0, str(PLUGIN_ROOT / "scripts"))
     from son_launch import provider_env
     source: dict[str, str] = dict(os.environ)
-    keys: list[str] = [k for k in ("OPENAI_API_KEY", "GEMINI_API_KEY", "XAI_API_KEY") if source.get(k)]
+    keys: list[str] = [k for k in ("CODEX_API_KEY", "GEMINI_API_KEY", "XAI_API_KEY") if source.get(k)]
     env: dict[str, str] = provider_env(source)
     env.update({k: source[k] for k in keys})
     merged: dict[str, str] = {**env, **(profile_env or {})}
