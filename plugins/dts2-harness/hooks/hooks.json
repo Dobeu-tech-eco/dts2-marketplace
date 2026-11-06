@@ -14,6 +14,15 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/agent-telemetry.sh\" session-start",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [
@@ -34,6 +43,15 @@
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/stop-checks.sh\"",
             "timeout": 45
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/agent-telemetry.sh\" stop",
+            "timeout": 10
           }
         ]
       }
@@ -86,6 +104,16 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit|Agent|SubagentHandback",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/agent-telemetry.sh\" post-tool-use",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "PreToolUse": [
@@ -129,6 +157,16 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/agent-telemetry.sh\" pre-agent",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "PreCompact": [
@@ -163,6 +201,15 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/agent-telemetry.sh\" subagent-stop",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "SessionEnd": [
@@ -172,6 +219,15 @@
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session-end.sh\"",
             "timeout": 25
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/agent-telemetry.sh\" session-end",
+            "timeout": 10
           }
         ]
       }
@@ -205,6 +261,17 @@
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/permission-denied.sh\"",
             "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/agent-telemetry.sh\" subagent-start",
+            "timeout": 5
           }
         ]
       }
