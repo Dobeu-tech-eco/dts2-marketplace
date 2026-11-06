@@ -351,19 +351,19 @@ class SecondOpinionTests(ApiCase):
         self.set_env({"GH_TOKEN": "g", "ANTHROPIC_API_KEY": "a", "CODEX_API_KEY": "c-FAKE", "XAI_API_KEY": "x-FAKE",
                       "OPENAI_API_KEY": "o", "AWS_SECRET_ACCESS_KEY": "s", "SSH_AUTH_SOCK": "/s"})
         module = self.module()
-        codex = module.second_opinion_env({"GROK_WORKFLOWS": "0", "XAI_API_KEY": "from-profile"}, "codex")
+        codex = module.second_opinion_env({"GROK_WORKFLOWS": "0", "XAI_API_KEY": "from-profile"}, "codex-api")
         self.assertEqual(codex["CODEX_API_KEY"], "c-FAKE")
         self.assertEqual(codex["GROK_WORKFLOWS"], "0")
         for name in ("GH_TOKEN", "ANTHROPIC_API_KEY", "XAI_API_KEY", "OPENAI_API_KEY", "AWS_SECRET_ACCESS_KEY", "SSH_AUTH_SOCK"):
             self.assertNotIn(name, codex)
-        grok = module.second_opinion_env(None, "grok")
+        grok = module.second_opinion_env(None, "grok-api")
         self.assertEqual(grok["XAI_API_KEY"], "x-FAKE")
         self.assertNotIn("CODEX_API_KEY", grok)
 
     def test_key_comes_through_api_keys_ref(self) -> None:
         self.user_profile("codex-api", apiKeyRef="env:MY_CODEX_VAR")
         self.set_env({"MY_CODEX_VAR": "ref-FAKE", "CODEX_API_KEY": "ignored-FAKE"})
-        env = self.module().second_opinion_env(None, "codex")
+        env = self.module().second_opinion_env(None, "codex-api")
         self.assertEqual(env["CODEX_API_KEY"], "ref-FAKE")
         self.assertNotIn("MY_CODEX_VAR", env)
 

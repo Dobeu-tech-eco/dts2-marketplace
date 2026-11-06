@@ -314,17 +314,19 @@ SECOND_OPINION_KEYS: Final[dict[str, str]] = {"codex": "CODEX_API_KEY", "gemini"
 def second_opinion_env(profile_env: dict[str, str] | None, backend: str = "codex") -> dict[str, str]:
     """The scrubbed son env (`son_launch.provider_env`) plus the profile env (G-67): a second-opinion CLI never sees GH_TOKEN,
     cloud credentials, the Anthropic key or another provider's key. It gets only its own provider key, resolved through
-    api_keys (the `<backend>-api` profile's apiKeyRef, else the key variable in our environment), when one is found."""
+    api_keys (the profile's apiKeyRef, else the key variable in our environment), and only when the backend itself is an explicit
+    `<x>-api` profile; `codex` and `grok` keep their subscription login."""
     sys.path.insert(0, str(PLUGIN_ROOT / "scripts"))
     import api_keys
     from profiles import Profiles
     from son_launch import credential_name, provider_env
     source: dict[str, str] = dict(os.environ)
-    key_env: str | None = SECOND_OPINION_KEYS.get(backend)
+    key_env: str | None = SECOND_OPINION_KEYS.get(backend.removesuffix("-api")) if backend.endswith("-api") else None
     env: dict[str, str] = provider_env(source)
-    if key_env:
+    if key_env:  # only an explicit `<x>-api` backend gets a key; the subscription CLI must not be switched to API billing
+        # bundled + user profiles only: the cwd project layer must not choose where a key comes from
         own: dict[str, Any] = {"name": backend, "apiKeyEnv": key_env, **{
-            k: v for k, v in (Profiles.load().get(f"{backend}-api") or {}).items() if k == "apiKeyRef"}}
+            k: v for k, v in (Profiles.load(project=PLUGIN_ROOT).get(backend) or {}).items() if k == "apiKeyRef"}}
         value: str | None = api_keys.resolve_key(own, source)[0]
         if value:
             env[key_env] = value

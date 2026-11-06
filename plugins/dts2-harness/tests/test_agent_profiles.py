@@ -276,7 +276,7 @@ class RosterTests(Workspace):
         self.assertEqual(rows["grok-pay"]["base"], "grok")
         self.assertEqual(rows["grok-pay"]["layer"], "project")
         self.assertEqual(rows["grok-pay"]["auth"], "api-key")
-        self.assertEqual(rows["grok-pay"]["rules"], "ro review,docs,research \u2264standard $0.5/$5")  # the api-key defaults
+        self.assertEqual(rows["grok-pay"]["rules"], "ro review,docs,research \u2264standard no-secrets $0.5/$5")  # the api-key defaults
         self.assertEqual(rows["grok"]["rules"], "-")
         self.assertEqual(rows["grok-pay"]["spent_today"], "-")
         self.assertTrue(rows["grok-pay"]["inRoster"])
