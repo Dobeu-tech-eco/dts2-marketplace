@@ -108,6 +108,7 @@ Run as `python3 -I "$P/scripts/<x>.py" ...`. Hook-driven and internal scripts ar
 | `plan-gate.py` | `<plan>` | `--json` | PASS or FAIL for a lead plan before the checkpoint: Foundation section, exclusive ownership, `complexity:` per builder, token estimate. | `run` | new |
 | `state_io.py` | `migrate-all [repo]` | none | Upgrade every record under `.harness/runs/` to the current version; safe to repeat. | by hand | new |
 | `settings_cache.py` | `[repo]` | `--get` | Parsed settings from `.harness/config.yaml` and the local frontmatter, cached; `local.son_model` (default `opus`) is the model every dpp son runs on. | by hand | changed |
+| `loop_guard.py` | `check`, `record`, `park`, `sweep`, `notify` | `--repo`; `record`: `--progress` (required), `--signature`; `park`: `--id --reason` (required), `--blocker-pr` or `--blocker-item` or `--blocker-file`; `sweep`: `--release`; `notify`: `--reason` | Guard for the unattended fullauto loop: STOP file or `dts2:stop` PR label, pass and hour budget, progress ledger with stall verdict, parked items, one "dts2: needs you" issue. | `fullauto` | new |
 
 ### 4.2 Repo detection and scaffolding
 

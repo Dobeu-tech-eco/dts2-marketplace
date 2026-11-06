@@ -1,6 +1,7 @@
 # Run caps and supervisor settings for parallel autopilot (dpp, dpp-full, fullauto).
 # Merge these blocks into .harness/config.yaml; every key is optional and the value shown is the default.
-# Only scripts/lanes.py reads them. A missing block means the defaults.
+# scripts/lanes.py reads them (scripts/loop_guard.py reads loop:). A missing block means the defaults.
+# autonomy: unattended    # lifts the max_fullauto_loops cap; scripts/loop_guard.py then stops the loop on no progress, a repeated failure, STOP or the loop: budget below
 budget:
   max_turns: 80            # --max-turns for every son; a lane that hits it parks as incomplete (max-turns)
   max_wall_minutes: 90     # wall clock for the whole run; a son still running at the limit is stopped (exit 143, timeout)
@@ -15,6 +16,10 @@ supervisor:
   backoff_base_s: 2        # first backoff step in seconds; doubles each retry up to backoff_cap_s
   backoff_cap_s: 60
   fallback_models: sonnet  # --fallback-model for sons: comma-separated chain of up to 3 models, tried in order; empty turns it off
+loop:                      # read by scripts/loop_guard.py (the unattended fullauto outer loop)
+  no_progress_limit: 3     # passes in a row with the same progress hash before the verdict is stall
+  max_passes: 200          # most passes one loop may record before it stops
+  max_hours: 24            # wall clock from the first recorded pass before the loop stops
 sandbox:
   enabled: true            # sons run in the Claude Code sandbox (Seatbelt on macOS, bubblewrap on Linux) with default-deny egress
   # extra_domains: example.internal,registry.example.com   # added to the package registry, GitHub and model API allowlist

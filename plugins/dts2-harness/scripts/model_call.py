@@ -37,6 +37,9 @@ BLOCK_BUDGET: Final[str] = "budget"
 BLOCK_SUPERVISOR: Final[str] = "supervisor"
 DEFAULT_BUDGET: Final[dict[str, int]] = {"max_turns": 80, "max_rounds": 4, "max_fullauto_loops": 3}
 DEFAULT_WALL_MINUTES: Final[float] = 90.0
+AUTONOMY_KEY: Final[str] = "autonomy"
+AUTONOMY_UNATTENDED: Final[str] = "unattended"
+UNLIMITED_LOOPS: Final[int] = 1_000_000  # unattended: the loop cap is lifted; loop_guard stops on no progress or budget
 DEFAULT_SUPERVISOR: Final[dict[str, Any]] = {"max_model_calls": 4, "stall_minutes": 10, "retry_max": 4,
                                               "backoff_base_s": 2.0, "backoff_cap_s": 60.0, "fallback_models": "sonnet"}
 POLL_S: Final[float] = 0.2
@@ -60,6 +63,16 @@ def read_block(cwd: Path, block: str) -> dict[str, str]:
     return {key: value for key, value in section.items() if isinstance(value, str) and re.fullmatch(r"[a-z_]+", key)}
 
 
+def read_autonomy(cwd: Path) -> str:
+    """The top-level `autonomy:` of .harness/config.yaml, lower-cased; "" when unset (the default, attended mode)."""
+    try:
+        text: str = (cwd / CONFIG_FILE).read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    value: Any = miniyaml.parse(text).get(AUTONOMY_KEY)
+    return value.strip().lower() if isinstance(value, str) else ""
+
+
 def as_int(raw: str | None, default: int) -> int:
     return int(raw) if raw is not None and raw.isdigit() and int(raw) > 0 else default
 
@@ -73,13 +86,16 @@ def as_float(raw: str | None, default: float) -> float:
 
 
 def read_budget(cwd: Path) -> dict[str, Any]:
-    """The `budget:` caps; `max_usd` is None unless set to a positive number."""
+    """The `budget:` caps; `max_usd` is None unless set to a positive number. With `autonomy: unattended` the
+    max_fullauto_loops cap is lifted (UNLIMITED_LOOPS); scripts/loop_guard.py stops the loop instead."""
     raw: dict[str, str] = read_block(cwd, BLOCK_BUDGET)
     caps: dict[str, Any] = {key: as_int(raw.get(key), default) for key, default in DEFAULT_BUDGET.items()}
     wall: float = as_float(raw.get("max_wall_minutes"), DEFAULT_WALL_MINUTES)
     caps["max_wall_minutes"] = wall if wall > 0 else DEFAULT_WALL_MINUTES
     usd: float = as_float(raw.get("max_usd"), 0.0)
     caps["max_usd"] = usd if usd > 0 else None
+    if read_autonomy(cwd) == AUTONOMY_UNATTENDED:
+        caps["max_fullauto_loops"] = UNLIMITED_LOOPS
     return caps
 
 
