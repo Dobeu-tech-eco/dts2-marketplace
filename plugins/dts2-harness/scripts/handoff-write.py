@@ -132,7 +132,41 @@ def open_items_text(items: list[dict[str, Any]], repo: Path) -> str:
     return redact("\n".join(lines)) if lines else "none"
 
 
-def next_action(items: list[dict[str, Any]], receipt: str, end_state: str) -> str:
+CHECKPOINT: Final[str] = "Checkpoint"
+SECTION_START: Final[re.Pattern[str]] = re.compile(r"^## ")
+
+
+def without_checkpoint(state: str) -> str:
+    """state.md with its `## Checkpoint` section (heading to the next `## ` heading) removed."""
+    out: list[str] = []
+    skipping: bool = False
+    for line in state.splitlines():
+        if SECTION_START.match(line):
+            skipping = line.strip() == f"## {CHECKPOINT}"
+        if not skipping:
+            out.append(line)
+    return "\n".join(out).rstrip("\n") + "\n" if out else ""
+
+
+def set_checkpoint(repo: Path, text: str | None) -> None:
+    """Record (or with None clear) the one pending checkpoint in .harness/state.md, so a resume names it (H-003)."""
+    path: Path = repo / HARNESS / "state.md"
+    state: str = without_checkpoint(read(path))
+    if text:
+        line: str = " ".join(text.split())
+        state = f"{state.rstrip(chr(10))}\n\n## {CHECKPOINT}\n- {line}\n" if state.strip() else f"## {CHECKPOINT}\n- {line}\n"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write(path, state)
+
+
+def pending_checkpoint(repo: Path) -> str | None:
+    bullets: list[str] = section_bullets(read(repo / HARNESS / "state.md"), CHECKPOINT)
+    return redact(bullets[-1][2:]) if bullets else None
+
+
+def next_action(items: list[dict[str, Any]], receipt: str, end_state: str, checkpoint: str | None = None) -> str:
+    if checkpoint:
+        return f"Checkpoint pending: {checkpoint}. Finish it with `{RESUME_COMMAND}` before the open items below."
     if items:
         return f"Resolve {items[0]['id']} ({items[0]['item']}): `{items[0]['resolve_command']}`"
     if receipt and RECEIPT_PLACEHOLDER in receipt:
@@ -168,7 +202,7 @@ def render(repo: Path, items: list[dict[str, Any]]) -> str:
         "<run>": run.name if run else "none",
         "<state>": state_summary(repo, run),
         "<open_items>": open_items_text(items, repo),
-        "<next_action>": next_action(items, receipt, read(repo / HARNESS / "end-state.md")),
+        "<next_action>": next_action(items, receipt, read(repo / HARNESS / "end-state.md"), pending_checkpoint(repo)),
         "<recommended_agent>": recommended_agent(run),
     }
     text: str = TEMPLATE.read_text(encoding="utf-8")
@@ -194,7 +228,12 @@ def write_handoff(repo: Path) -> dict[str, Any]:
 def main() -> int:
     parser: argparse.ArgumentParser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("repo", help="repo root")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--checkpoint", metavar="TEXT", help="record the pending checkpoint in .harness/state.md first")
+    group.add_argument("--clear-checkpoint", action="store_true", help="clear the pending checkpoint first")
     args: argparse.Namespace = parser.parse_args()
+    if (args.checkpoint or args.clear_checkpoint) and (Path(args.repo) / HARNESS).is_dir():
+        set_checkpoint(Path(args.repo), args.checkpoint if args.checkpoint else None)
     json.dump(write_handoff(Path(args.repo)), sys.stdout)
     sys.stdout.write("\n")
     return 0

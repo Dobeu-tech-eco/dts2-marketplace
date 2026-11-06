@@ -186,3 +186,53 @@ class SkillTextTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def write_with(repo: Path, *flags: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(["python3", "-I", str(SCRIPT), str(repo), *flags], capture_output=True, text=True, check=False)
+
+
+def next_action_line(repo: Path) -> str:
+    text: str = latest(repo)
+    return text.split("## Next action", 1)[1].split("##", 1)[0].strip()
+
+
+class CheckpointTests(unittest.TestCase):  # H-003
+    def test_a_pending_checkpoint_beats_the_first_action_item(self) -> None:
+        repo: Path = make_repo()
+        self.assertEqual(write_with(repo, "--checkpoint", "ship checkpoint, run 20261020-101500: receipt shown").returncode, 0)
+        line: str = next_action_line(repo)
+        self.assertTrue(line.startswith("Checkpoint pending: ship checkpoint, run 20261020-101500"), line)
+        self.assertNotIn("STRIPE_KEY", line)
+
+    def test_clearing_restores_the_item_list(self) -> None:
+        repo: Path = make_repo()
+        write_with(repo, "--checkpoint", "plan checkpoint, run x")
+        write_with(repo, "--clear-checkpoint")
+        self.assertIn("STRIPE_KEY", next_action_line(repo))
+        state: str = (repo / ".harness" / "state.md").read_text(encoding="utf-8")
+        self.assertNotIn("## Checkpoint", state)
+        self.assertIn("## Open items", state)  # the other sections survive
+        self.assertIn("## Decisions", state)
+
+    def test_only_one_checkpoint_is_kept(self) -> None:
+        repo: Path = make_repo()
+        write_with(repo, "--checkpoint", "plan checkpoint, run a")
+        write_with(repo, "--checkpoint", "ship checkpoint, run a")
+        state: str = (repo / ".harness" / "state.md").read_text(encoding="utf-8")
+        self.assertEqual(state.count("## Checkpoint"), 1)
+        self.assertIn("ship checkpoint", state)
+        self.assertNotIn("plan checkpoint", state)
+
+    def test_checkpoint_text_is_redacted(self) -> None:
+        repo: Path = make_repo()
+        write_with(repo, "--checkpoint", f"ship checkpoint with STRIPE_KEY={SECRET_VALUE}")
+        self.assertNotIn(SECRET_VALUE, latest(repo))
+
+    def test_run_skill_records_both_checkpoints(self) -> None:
+        plan: str = (PLUGIN_ROOT / "skills" / "run" / "phase-1-plan.md").read_text(encoding="utf-8")
+        ship: str = (PLUGIN_ROOT / "skills" / "run" / "phase-4-ship.md").read_text(encoding="utf-8")
+        for text in (plan, ship):
+            self.assertIn("handoff-write.py\" <repo> --checkpoint", text)
+            self.assertIn("--clear-checkpoint", text)
+        self.assertIn("Checkpoint pending: plan checkpoint", read_run_skill())

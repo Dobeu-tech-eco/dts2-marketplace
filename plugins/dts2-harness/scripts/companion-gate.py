@@ -114,7 +114,19 @@ def changed_lines(repo: Path, base: str) -> int | None:
     return None if stat is None or extra is None else numstat_total(stat) + extra
 
 
+def skill_installed(repo: Path, skill: str) -> bool:
+    """True when Claude Code already sees the skill (the repo's or the user's .claude/skills/<name>/SKILL.md), so a
+    builder never needs `npx skills add` inside its checkout, which rewrote tracked skill files (H-006)."""
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", skill):
+        return False
+    return any((base / ".claude" / "skills" / skill / "SKILL.md").is_file() for base in (repo, Path.home()))
+
+
 def check(repo: Path, skill: str, base: str | None = None) -> dict[str, Any]:
+    return {**gate(repo, skill, base), "installed": skill_installed(repo, skill)}
+
+
+def gate(repo: Path, skill: str, base: str | None = None) -> dict[str, Any]:
     if skill == ONCE_PER_REPO:
         ran: str | None = read_state(repo).get(skill)
         return {"skill": skill, "run": ran is None, "reason": "first-run" if ran is None else "already-ran", "ran_on": ran}

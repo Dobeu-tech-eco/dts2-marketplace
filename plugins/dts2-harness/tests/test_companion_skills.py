@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 from typing import Final
 
 from helpers import PLUGIN_ROOT, read_run_skill
@@ -118,3 +119,31 @@ class CompanionSkills(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CompanionInstalledTests(unittest.TestCase):  # H-006
+    def setUp(self) -> None:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("companion_gate", PLUGIN_ROOT / "scripts" / "companion-gate.py")
+        assert spec and spec.loader
+        self.gate = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.gate)
+
+    def test_installed_reflects_the_repo_skill_folder(self) -> None:
+        import tempfile
+        from unittest import mock
+        repo = Path(tempfile.mkdtemp())
+        home = Path(tempfile.mkdtemp())
+        with mock.patch.object(Path, "home", return_value=home):
+            self.assertFalse(self.gate.skill_installed(repo, "improve-codebase-architecture"))
+            folder = repo / ".claude" / "skills" / "improve-codebase-architecture"
+            folder.mkdir(parents=True)
+            (folder / "SKILL.md").write_text("x\n", encoding="utf-8")
+            self.assertTrue(self.gate.skill_installed(repo, "improve-codebase-architecture"))
+            self.assertIn("installed", self.gate.check(repo, "setup-pre-commit"))
+            self.assertFalse(self.gate.skill_installed(repo, "../escape"))
+
+    def test_builders_never_install_inside_their_checkout(self) -> None:
+        text: str = read_run_skill()
+        self.assertIn("A builder never installs a skill inside its checkout", text)
+        self.assertIn("`installed: true`", text)

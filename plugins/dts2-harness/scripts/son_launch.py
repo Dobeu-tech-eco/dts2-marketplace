@@ -151,6 +151,12 @@ def lane_env(manifest: dict[str, Any], lane_id: str, cwd: Path) -> dict[str, str
         BUILDERS_VAR: str(builders_dir(cwd, lane_id)),
         "npm_config_cache": f"{cache}/npm", "PIP_CACHE_DIR": f"{cache}/pip", "UV_CACHE_DIR": f"{cache}/uv",
         "YARN_CACHE_FOLDER": f"{cache}/yarn", "PNPM_HOME": f"{cache}/pnpm",
+        # pnpm's content store, its operation lock and its state dir default to the home dir, outside the sandbox's
+        # writable paths, so install and the pre-commit hook failed in every son (D74); keep them in the run cache.
+        "npm_config_store_dir": f"{cache}/pnpm-store", "pnpm_config_store_dir": f"{cache}/pnpm-store",
+        "npm_config_state_dir": f"{cache}/pnpm-state", "pnpm_config_state_dir": f"{cache}/pnpm-state",
+        # skills and hooks address harness scripts as "${CLAUDE_PLUGIN_ROOT}/scripts/..."; the allowlisted env dropped it (D74)
+        "CLAUDE_PLUGIN_ROOT": str(PLUGIN_ROOT),
         CACHE_TTL_VAR: CACHE_TTL,
         "GIT_TERMINAL_PROMPT": "0", "GIT_CONFIG_NOSYSTEM": "1",
     }
