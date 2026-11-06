@@ -7,12 +7,12 @@ Subcommands print one JSON object each:
                                                    (ok only when `eligible` is true)
   tally          BALLOT [BALLOT ...]                majority, dissenters, and dissenters missing a brief; a ballot without a
                                                    valid <ballot>.dispatch.json (ballot_dispatch.py) is not counted
-  check-decision DECISION --tally FILE --entries N  the head of council answered every dissent and read every entry
+  check-decision DECISION --tally FILE --entries N [--allow-research]  the head of council answered every dissent and read every entry
   ledger         --ballots-dir DIR --tally FILE --decision FILE --step S --stamp X --out FILE
                  append the vote, every member's reasons, the decision and the head's brief to the harness record
   seats          --usable a,b,c [--config FILE] [--failed provider:model,...]
                  seat five council members across as many providers as possible, one model per seat
-  route          --ledger FILE [--votes V,V,V] [--decision APPROVE|FIX|STRIKE]
+  route          --ledger FILE [--votes V,V,V] [--decision APPROVE|FIX|STRIKE] [--allow-research]
                  deterministic checks first: a red check means a fix round with zero votes and no approval
   blind          --proposals DIR --out DIR --voters a,b,c --seed S [--ledger FILE] [--authors a,b]
                  strip author identity from proposals and shuffle option order per voter; the seed and each voter's
@@ -60,10 +60,12 @@ VOTE_KINDS: Final[tuple[str, ...]] = ("plan", "build")
 KINDS: Final[tuple[str, ...]] = ("plan", "build", "tiebreak", "fix", "ci", "council")
 ENTRY_NAME: Final[re.Pattern[str]] = re.compile(r"^(\d+)-(" + "|".join(KINDS) + r")-r(\d+)-(.+)\.md$")
 VOTE_LINE: Final[re.Pattern[str]] = re.compile(r"^VOTE:\s*(APPROVE|REJECT)\s*$")
-DECISION_LINE: Final[re.Pattern[str]] = re.compile(r"^DECISION:\s*(APPROVE|FIX|STRIKE)\s*$")
+DECISION_LINE: Final[re.Pattern[str]] = re.compile(r"^DECISION:\s*(APPROVE|FIX|STRIKE|RESEARCH)\s*$")
 ENTRIES_LINE: Final[re.Pattern[str]] = re.compile(r"^Entries reviewed:\s*(\d+)\s*$", re.MULTILINE)
 BRIEF_HEADING: Final[str] = "## Dissent brief"
 HEAD_BRIEF: Final[str] = "## Head of council brief"
+RESEARCH_DECISION: Final[str] = "RESEARCH"
+RESEARCH_BRIEF: Final[str] = contracts.RESEARCH_HEADING
 REQUIRED_LIST: Final[dict[str, str]] = {"FIX": "## Fixes", "STRIKE": "## Struck"}
 DEFAULT_ORDER: Final[tuple[str, ...]] = ("claude", "codex", "gemini", "grok", "cursor", "muse")
 CLAUDE_AGENT_ALIASES: Final[frozenset[str]] = frozenset({"opus", "sonnet", "haiku", "fable"})
@@ -231,8 +233,8 @@ def dissent_problems(text: str, dissenters: list[str]) -> list[str]:
 
 
 def check_decision(path: Path, tally_result: dict[str, Any], entries: int, red: list[str] | None = None,
-                   gate: dict[str, Any] | None = None) -> dict[str, Any]:
-    parsed = contracts.parse_decision(path.read_text(encoding="utf-8"))
+                   gate: dict[str, Any] | None = None, allow_research: bool = False) -> dict[str, Any]:
+    parsed = contracts.parse_decision(path.read_text(encoding="utf-8"), allow_research)
     decision_record = parsed if isinstance(parsed, contracts.Decision) else parsed.partial
     decision: str | None = decision_record.decision
     problems: list[str] = list(parsed.reasons) if isinstance(parsed, contracts.Invalid) else []
@@ -243,6 +245,8 @@ def check_decision(path: Path, tally_result: dict[str, Any], entries: int, red: 
     listed = decision_record.fixes if decision == "FIX" else decision_record.struck
     if heading and not listed:
         problems.append(f"{decision} needs at least one item under '{heading}'")
+    if decision == RESEARCH_DECISION and not mdparse.section(path.read_text(encoding="utf-8"), RESEARCH_BRIEF):
+        problems.append(f"RESEARCH needs a non-empty '{RESEARCH_BRIEF}' listing the open questions")
     if decision == "APPROVE" and red:
         problems.append(f"APPROVE over red deterministic checks ({', '.join(red)}); a vote cannot override a red check")
     elif decision == "APPROVE" and gate is not None and not gate.get("votes_allowed"):
@@ -250,8 +254,15 @@ def check_decision(path: Path, tally_result: dict[str, Any], entries: int, red: 
     return {"ok": not problems, "decision": decision, "problems": problems}
 
 
-def route(records: list[dict[str, Any]], votes: list[str], decision: str | None, head: str | None = None) -> dict[str, Any]:
+def route(records: list[dict[str, Any]], votes: list[str], decision: str | None, head: str | None = None,
+          allow_research: bool = False) -> dict[str, Any]:
     """Where a step goes next. Red or missing checks come first: zero votes, and no head approval over them."""
+    if decision == RESEARCH_DECISION:
+        # ask-expert runs have no build checks to be red; RESEARCH is admitted only with the flag.
+        if not allow_research:
+            return {"ok": False, "action": "reject", "votes": 0, "red": [],
+                    "reason": "DECISION: RESEARCH is valid only on ask-expert runs (--allow-research)"}
+        return {"ok": True, "action": "research", "votes": 0, "red": [], "reason": "head decision RESEARCH"}
     gate: dict[str, Any] = checks_gate(records, head)
     if not gate["votes_allowed"]:
         return {"ok": False, "action": gate["action"], "votes": 0, "red": gate["red"], "reason": gate["reason"]}
@@ -549,11 +560,13 @@ def main() -> int:
     c.add_argument("--entries", required=True, type=int)
     c.add_argument("--ledger", default=None, help="run ledger; a red deterministic check blocks an APPROVE decision (build ballot only)")
     c.add_argument("--head", default=None, help="commit SHA; checks recorded on another commit count as missing")
+    c.add_argument("--allow-research", action="store_true", help="ask-expert runs only: admit DECISION: RESEARCH (needs '## Research brief')")
     r = sub.add_parser("route")
     r.add_argument("--ledger", required=True)
     r.add_argument("--head", default=None, help="commit SHA; checks recorded on another commit count as missing")
     r.add_argument("--votes", default="")
-    r.add_argument("--decision", default=None, choices=["APPROVE", "FIX", "STRIKE"])
+    r.add_argument("--decision", default=None, choices=["APPROVE", "FIX", "STRIKE", RESEARCH_DECISION])
+    r.add_argument("--allow-research", action="store_true", help="ask-expert runs only: admit --decision RESEARCH (route -> research)")
     b = sub.add_parser("blind")
     b.add_argument("--proposals", required=True)
     b.add_argument("--out", required=True)
@@ -592,6 +605,8 @@ def main() -> int:
     nr.add_argument("--retry", default=None, help="why the last attempt produced no vote (dispatch error, malformed ballot, 429)")
     nr.add_argument("--revote", action="store_true", help="the post-merge re-vote: its own instance, not a failed round")
     args = parser.parse_args()
+    if args.cmd == "route" and args.decision == RESEARCH_DECISION and not args.allow_research:
+        parser.error("argument --decision: invalid choice: 'RESEARCH' (choose from 'APPROVE', 'FIX', 'STRIKE'; RESEARCH needs --allow-research)")
     if args.cmd == "next-round":
         print(json.dumps(next_round(Path(args.votes_dir), args.step, args.kind, args.retry, args.revote)))
         return 0
@@ -625,7 +640,8 @@ def main() -> int:
         tally_json: dict[str, Any] = json.loads(Path(args.tally).read_text(encoding="utf-8"))
         result = write_ledger(Path(args.ballots_dir), tally_json, Path(args.decision), args.step, args.stamp, Path(args.out), args.attempt)
     elif args.cmd == "route":
-        result = route(read_ledger(Path(args.ledger)), [v.strip() for v in args.votes.split(",") if v.strip()], args.decision, args.head)
+        result = route(read_ledger(Path(args.ledger)), [v.strip() for v in args.votes.split(",") if v.strip()], args.decision, args.head,
+                       args.allow_research)
     elif args.cmd == "blind":
         result = blind_ballots(Path(args.proposals), Path(args.out), [v.strip() for v in args.voters.split(",") if v.strip()],
                                args.seed, Path(args.ledger) if args.ledger else None,
@@ -634,7 +650,7 @@ def main() -> int:
         tally_result: dict[str, Any] = json.loads(Path(args.tally).read_text(encoding="utf-8"))
         gate_result: dict[str, Any] | None = checks_gate(read_ledger(Path(args.ledger)), args.head) if args.ledger else None
         result = check_decision(Path(args.decision), tally_result, args.entries,
-                                gate_result["red"] if gate_result else [], gate_result)
+                                gate_result["red"] if gate_result else [], gate_result, args.allow_research)
     print(json.dumps(result))
     return 0
 
