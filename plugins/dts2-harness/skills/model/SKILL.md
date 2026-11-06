@@ -19,3 +19,12 @@ Frontier-tier seats (lead planning, advisory review, sign-off) default to Claude
 - A stalled lead fails over to the next eligible provider automatically (`scripts/failover.py`); the handoff file is the same one the run Pre-check writes before an upgrade.
 - Restart Claude Code after editing so hooks pick up the setting.
 - A provider outside the eligible list is ignored and Claude is used instead.
+
+## Add or rename an agent
+Use this when the user wants a second agent on the same provider, such as `grok` on the subscription plus `grok-api` on a pay-as-you-go key. Lead-provider steps above are unchanged.
+1. **Pick provider and auth.** Provider is any profile from `roster.py list` (the base); auth is `subscription` or `api-key`.
+2. **Show the suggested name:** `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/roster.py" suggest-name --base <provider>` (the base name when free, else `<base>-api`, `<base>-api-2`, ...). Let the user type another. Names are lowercase kebab-case, 2-32 characters, and not a role or tier word (lead, builder, reviewer, verifier, scout, auditor, fixer, all, none, frontier, standard, economy).
+3. **Collision.** `roster.py add` exits 2 and names the layer (bundled, user or project) that already has the name. Say which layer, suggest `<name>-2`, and ask again. Never overwrite unless the user picks "edit existing", then pass `--edit-existing`.
+4. **Key.** For `api-key`, tell the user to store the key in the system keyring, 1Password (`op`) or Doppler, and give only the reference: `keyring:dts2/<name>`, `op://vault/item/field`, `doppler:NAME` or `env:VAR`. Never ask for or write a raw key.
+5. **Write it:** `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/roster.py" add --name <name> --extends <provider> [--auth api-key --api-key-ref <ref>] [--scope project|user] [--display-name X] [--roles a,b]`. It writes the profile (`.harness/agents/` or `~/.dts2/agents/`) and appends the roster entry; only the reference is stored.
+6. **Rename** with `roster.py rename <old> <new>`; it rewrites the profile, roster entries, and other profiles' `extends` and `fallback` in one step. Bundled profiles cannot be renamed.

@@ -220,6 +220,7 @@ New commands and surfaces:
 - Merge journal (`merge-journal.jsonl`), typed `run.json`, `builders.jsonl`; leases with TTL, heartbeat renewal and epochs.
 - Son containment: sandbox, tool allowlist and deny list, allowlisted environment, pinned CLI version, hard caps on turns, spend and model calls, `--fallback-model` chain, per-lane `PORT`, `COMPOSE_PROJECT_NAME`, `DTS2_DB_NAME`.
 - Merge guard hook and `guard.py`; `merge.target` default `dev`.
+- Project profiles (`.harness/agents`) may set display and model metadata only: executable fields (`command`, `statusCommand`, `env` and the like) are dropped with a warning unless the project's absolute path is listed in `~/.dts2/trusted-projects` (one per line).
 - Council hardening: seat swap, identical-round note, blind ballots, fenced ballots, strict verdict line, model ids per provider in `profiles/agents/<provider>.json`.
 - Checks gate (`checks.py`) before any vote; verifier split into evidence scout plus frontier verifier.
 - Plan gate (`plan-gate.py`, PLAN GATE PASS or FAIL), builder audit, mandatory `## Foundation` section at wave 0, `fixer` agent, fixed `FLAGS:` block, `rollback_ref.py`.
