@@ -28,7 +28,7 @@ SKILL_KEYS: Final[frozenset[str]] = frozenset({
     "metadata", "license", "compatibility"})
 COLORS: Final[frozenset[str]] = frozenset({"red", "blue", "green", "yellow", "purple", "orange", "pink", "cyan"})
 EFFORTS: Final[frozenset[str]] = frozenset({"low", "medium", "high", "xhigh", "max"})
-USER_ONLY_SKILLS: Final[tuple[str, ...]] = ("dpp-full", "fullauto", "machine-prep", "sdk", "onboard", "model", "knowledge")
+USER_ONLY_SKILLS: Final[tuple[str, ...]] = ("dpp-full", "fullauto", "machine-prep", "sdk", "onboard", "model", "composio", "knowledge")
 MAX_TURNS: Final[dict[str, int]] = {"scout": 15, "lead": 25, "reviewer": 30, "verifier": 40, "builder": 60, "auditor": 20}
 LOW_EFFORT: Final[tuple[str, ...]] = ("scout", "auditor")
 READ_ONLY_AGENTS: Final[tuple[str, ...]] = ("lead", "reviewer", "scout", "auditor", "verifier")

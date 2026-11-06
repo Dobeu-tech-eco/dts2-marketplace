@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any, Final
@@ -39,6 +40,12 @@ MIGRATION_DIRS: Final[tuple[str, ...]] = ("migrations", "prisma/migrations", "su
 DB_DENY: Final[str] = "Bash(*prisma migrate reset*), Bash(*supabase db reset*), Bash(*DROP TABLE*)"
 TOKEN_NOTE: Final[str] = "put tokens in environment variables, never in args or files"
 HOOKS_SETUP: Final[str] = 'python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/hooks-setup.py" recommend'
+
+# MCP recommendation id -> Composio toolkit slug that already covers it (postgres, playwright, context7, prisma: none).
+COMPOSIO_TOOLKIT: Final[dict[str, str]] = {
+    "mcp-github": "github", "mcp-vercel": "vercel", "mcp-supabase": "supabase", "mcp-neon": "neon",
+}
+TOOL_MAP_FILE: Final[str] = "composio-tools.json"
 
 Rec = dict[str, Any]
 
@@ -416,6 +423,33 @@ def skills_rec(facts: dict[str, bool]) -> Rec:
                f"python3 -I \"${{CLAUDE_PLUGIN_ROOT}}/scripts/skill-suggest.py\" --facts '{facts_json}'", 2)
 
 
+def composio_connected() -> set[str]:
+    """Connected toolkit slugs from the user-level Composio tool map; missing or corrupt means none."""
+    base: str = os.environ.get("DTS2_HOME") or str(Path.home() / ".dts2")
+    try:
+        data: Any = json.loads((Path(base) / TOOL_MAP_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    connected: Any = data.get("connected") if isinstance(data, dict) else None
+    if not isinstance(connected, list):
+        return set()
+    return {str(item).lower() for item in connected if isinstance(item, str)}
+
+
+def split_covered(recs: list[Rec], connected: set[str]) -> tuple[list[Rec], list[Rec]]:
+    """Drop MCP recommendations whose toolkit Composio already serves; return (kept, info items)."""
+    kept: list[Rec] = []
+    info: list[Rec] = []
+    for item in recs:
+        toolkit: str = COMPOSIO_TOOLKIT.get(item["id"], "")
+        if toolkit and toolkit in connected:
+            info.append({"category": item["category"], "id": f"covered-{item['id']}",
+                         "title": f"covered by Composio ({toolkit})", "skipped": item["id"]})
+        else:
+            kept.append(item)
+    return kept, info
+
+
 def recommend(state: dict[str, Any], facts: dict[str, bool], inventory: dict[str, Any]) -> list[Rec]:
     recs: list[Rec] = [skills_rec(facts)]
     recs += broken_json_recs(state) + hook_recs(state, inventory) + mcp_recs(state, facts)
@@ -435,7 +469,11 @@ def main() -> int:
     state: dict[str, Any] = scan_state(cwd, home)
     facts: dict[str, bool] = build_facts(state)
     inventory: dict[str, Any] = build_inventory(state)
-    print(json.dumps({"facts": facts, "inventory": inventory, "recommendations": recommend(state, facts, inventory)}))
+    recs, covered = split_covered(recommend(state, facts, inventory), composio_connected())
+    output: dict[str, Any] = {"facts": facts, "inventory": inventory, "recommendations": recs}
+    if covered:
+        output["info"] = covered
+    print(json.dumps(output))
     return 0
 
 

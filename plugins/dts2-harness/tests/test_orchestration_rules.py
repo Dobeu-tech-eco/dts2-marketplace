@@ -14,9 +14,8 @@ LEAD: Final[Path] = PLUGIN_ROOT / "agents" / "lead.md"
 LOCAL_TEMPLATE: Final[Path] = PLUGIN_ROOT / "templates" / "dts2-harness.local.md"
 ONBOARD: Final[Path] = PLUGIN_ROOT / "skills" / "onboard" / "SKILL.md"
 PERSONAL_STRINGS: Final[tuple[str, ...]] = (
-    "Jeremy", "Neptune", "07753", "Composio", "Baldor", "Unique Staffing", "Dobeu Tech Solutions LLC",
+    "Jeremy", "Neptune", "07753", "Baldor", "Unique Staffing", "Dobeu Tech Solutions LLC",
 )
-# Prose and rule files only: profiles/blueprint.json names the third-party Composio plugin as data.
 SUFFIXES: Final[frozenset[str]] = frozenset({".md", ".py", ".sh"})  # G-77: scripts and hooks are scanned too
 # Scripts, hooks and skills must not hard-code the org that owns the marketplace; they read it from plugin.json or the git remote.
 ORG_STRINGS: Final[tuple[str, ...]] = ("Dobeu-tech-eco",)
