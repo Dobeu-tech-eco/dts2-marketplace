@@ -62,3 +62,28 @@ class LegacyPluginIdTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ResumePointerMigrationTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.mod: ModuleType = load_script("agent-memory")
+        self.tmp = tempfile.TemporaryDirectory()
+        self.path: Path = Path(self.tmp.name) / "CLAUDE.md"
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def test_4x_block_resume_pointer_is_rewritten_and_user_text_kept(self) -> None:
+        old_block: str = self.mod.managed_block("demo").replace("/dt:run resume", "/dts2:run resume")
+        user_text: str = "# Mine\n\nRun /dts2:run resume by hand if you like.\n\n"
+        self.path.write_text(user_text + old_block, encoding="utf-8")
+        self.assertEqual(self.mod.sync_file(self.path, "demo"), "migrated")
+        text: str = self.path.read_text(encoding="utf-8")
+        self.assertTrue(text.startswith(user_text))
+        self.assertIn("(resume with /dt:run resume)", text)
+        self.assertEqual(text.count(self.mod.START_MARKER), 1)
+        self.assertEqual(self.mod.sync_file(self.path, "demo"), "unchanged")
+
+    def test_current_block_is_left_alone(self) -> None:
+        self.path.write_text(self.mod.managed_block("demo"), encoding="utf-8")
+        self.assertEqual(self.mod.sync_file(self.path, "demo"), "unchanged")
