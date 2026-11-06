@@ -438,7 +438,7 @@ class ShowAndLogsTests(FleetCase):
         document = json.loads(cli("show", SID_A, "--json")[1])
         self.assertEqual(document["session"]["session_id"], SID_A)
         self.assertEqual(len(document["intake_open"]), 1)
-        self.assertIsNone(document["incidents"])
+        self.assertEqual(document["incidents"], [])
         self.assertEqual(before, sorted(p.name for p in self.repo.rglob("*")))
 
     def transcript(self) -> Path:
@@ -674,7 +674,7 @@ class CheckinTests(FleetCase):
         self.send("note", "unseen", now=now)
         derived = json.loads(cli("checkins", "--json")[1])["sessions"][0]["derived"]
         self.assertEqual((derived["open_intake"], derived["handoff_present"], derived["pending_broadcasts"]), (1, True, 1))
-        self.assertIsNone(derived["incidents"])
+        self.assertEqual(derived["incidents"], 0)
 
     def test_report_is_read_only(self) -> None:
         self.seed(SID_A, last_seen=fleet.to_iso(fleet.utc_now()))

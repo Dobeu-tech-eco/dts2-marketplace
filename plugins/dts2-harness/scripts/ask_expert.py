@@ -9,7 +9,7 @@ Every subcommand prints one JSON object.
   sweep add     [--ledger FILE] --repo NAME --verdict V --confidence C --score N --reason TEXT --salvage TEXT [--report PATH]
   sweep show    --ledger FILE                                 the ledger rows (best score first) plus a markdown table
   archive       --repo OWNER/NAME                             gh repo archive (reversible)
-  panel-tally   --plans SEAT=FILE ... [--votes SEAT=FILE ...] [--record DIR --round N]   three-seat panel: majority verdict and cross-review votes
+  panel-tally   --plans SEAT=FILE ... [--votes SEAT=FILE ...] [--blind-key FILE] [--record DIR --round N]   three-seat panel: majority verdict and cross-review votes
   backup        --repo OWNER/NAME [--dest DIR]                mirror clone, git bundle, bundle verify
   delete        --repo OWNER/NAME --confirm NAME --bundle PATH  one repo per call; refused without the typed name and a verified bundle
 gh and git run through DTS2_GH_BIN and DTS2_GIT_BIN."""
@@ -461,6 +461,9 @@ def cmd_delete(args: argparse.Namespace) -> int:
 PLAN_LINE: Final[re.Pattern[str]] = re.compile(
     r"^VERDICT:\s*(KEEP|FOLD(?:\s+INTO\b.*)?|(?:SELL\s+AS\s+)?TEMPLATE|ARCHIVE|DELETE)\s*$", re.IGNORECASE)
 VOTE_LINE: Final[re.Pattern[str]] = re.compile(r"^VOTE\s+([A-Za-z0-9_.-]+):\s*(AGREE|DISAGREE)\s*$", re.IGNORECASE | re.MULTILINE)
+BLIND_VOTE_LINE: Final[re.Pattern[str]] = re.compile(
+    r"^VOTE\s+(?:Option\s+)?([A-Za-z])\s*:\s*(AGREE|DISAGREE)\s*$", re.IGNORECASE | re.MULTILINE)
+PLAN_STEM_PREFIX: Final[str] = "plan-"
 NO_MAJORITY: Final[str] = "no-majority"
 PANEL_MIN: Final[int] = 2
 
@@ -485,10 +488,40 @@ def seat_files(pairs: list[str]) -> tuple[dict[str, Path], list[str]]:
     return files, problems
 
 
-def panel_tally(plans: dict[str, Path], votes: dict[str, Path]) -> dict[str, Any]:
+def blind_seat(key: dict[str, dict[str, str]], voter: str, label: str, plans: dict[str, Path]) -> str | None:
+    """The seat behind `label` on `voter`'s ballot (blind key label -> plan file stem -> seat), or None when it cannot be resolved."""
+    stem: str | None = key.get(voter, {}).get(label.upper())
+    if stem is None:
+        return None
+    seat: str = stem[len(PLAN_STEM_PREFIX):] if stem.startswith(PLAN_STEM_PREFIX) else stem
+    return seat if seat in plans else None
+
+
+def blind_votes(voter: str, text: str, key: dict[str, dict[str, str]], plans: dict[str, Path]) -> tuple[list[tuple[str, str]], int, list[str]]:
+    """One voter's blind ballot as (seat, AGREE|DISAGREE) pairs without the vote on the voter's own option, how many own-option
+    votes were dropped, and the problems found."""
+    if voter not in key:
+        return [], 0, [f"voter {voter!r} is not in the blind key"]
+    cast: list[tuple[str, str]] = []
+    ignored: int = 0
+    problems: list[str] = []
+    for label, how in BLIND_VOTE_LINE.findall(text):
+        seat: str | None = blind_seat(key, voter, label, plans)
+        if seat is None:
+            problems.append(f"voter {voter!r} voted on unknown option {label.upper()!r}")
+        elif seat == voter:
+            ignored += 1
+        else:
+            cast.append((seat, how))
+    return cast, ignored, problems
+
+
+def panel_tally(plans: dict[str, Path], votes: dict[str, Path], blind_key: dict[str, Any] | None = None) -> dict[str, Any]:
     """Majority verdict of the panel plans (a plan counts only with a strict first-line VERDICT) and, when given, the cross-review
-    votes: every seat casts one `VOTE <seat>: AGREE|DISAGREE` line per other plan. The round passes when the plans are unanimous
-    and nobody disagrees."""
+    votes: every seat casts one `VOTE <seat>: AGREE|DISAGREE` line per other plan, or with `blind_key` (the `key` of
+    council.py's blind-key.json) one `VOTE Option <L>: AGREE|DISAGREE` line per option other than its own; a vote on the
+    voter's own option is ignored and counted in `selfVotesIgnored`. The round passes when the plans are unanimous and nobody
+    disagrees."""
     problems: list[str] = [] if len(plans) >= PANEL_MIN else [f"need at least {PANEL_MIN} plans, got {len(plans)}"]
     verdicts: dict[str, str] = {}
     for seat, path in plans.items():
@@ -497,13 +530,22 @@ def panel_tally(plans: dict[str, Path], votes: dict[str, Path]) -> dict[str, Any
             problems.append(f"plan of {seat!r} has no strict first line 'VERDICT: KEEP|FOLD INTO <repo>|SELL AS TEMPLATE|ARCHIVE|DELETE'")
         else:
             verdicts[seat] = verdict
-    agree = disagree = 0
+    agree = disagree = self_ignored = 0
     if votes:
         for voter in plans:
             if voter not in votes:
                 problems.append(f"no vote file for seat {voter!r}")
         for voter, path in votes.items():
-            cast = VOTE_LINE.findall(path.read_text(encoding=ENCODING)) if path.is_file() and voter in plans else []
+            text: str = path.read_text(encoding=ENCODING) if path.is_file() and voter in plans else ""
+            cast: list[tuple[str, str]]
+            if blind_key is None:
+                cast = VOTE_LINE.findall(text)
+            else:
+                cast, ignored, found = blind_votes(voter, text, blind_key.get("key", blind_key), plans)
+                self_ignored += ignored
+                problems.extend(found)
+                if found:
+                    continue
             targets: list[str] = sorted(seat for seat, _ in cast)
             if targets != sorted(seat for seat in plans if seat != voter):
                 problems.append(f"votes of {voter!r} must name each other seat exactly once, got {targets}")
@@ -517,15 +559,28 @@ def panel_tally(plans: dict[str, Path], votes: dict[str, Path]) -> dict[str, Any
     majority: bool = counts[top] * 2 > len(verdicts) and sum(1 for n in counts.values() if n == counts[top]) == 1
     unanimous: bool = len(counts) == 1
     return {"ok": True, "verdict": top if majority else NO_MAJORITY, "unanimous": unanimous, "counts": counts, "plans": verdicts,
-            "agree": agree, "disagree": disagree, "pass": bool(votes) and unanimous and disagree == 0}
+            "agree": agree, "disagree": disagree, "selfVotesIgnored": self_ignored,
+            "pass": bool(votes) and unanimous and disagree == 0}
+
+
+def ballot_legend(blind_key: dict[str, Any] | None, voter: str) -> str:
+    """Which seat's plan each option label meant on `voter`'s blind ballot, so the council can follow `Option <L>` references."""
+    labels: dict[str, str] = (blind_key or {}).get("key", blind_key or {}).get(voter) or {}
+    if not isinstance(labels, dict) or not labels:
+        return ""
+    rows: list[str] = [f"- Option {label} = plan of {stem[len(PLAN_STEM_PREFIX):] if stem.startswith(PLAN_STEM_PREFIX) else stem}"
+                       for label, stem in sorted(labels.items())]
+    return "\n## Option labels on this ballot\n\n" + "\n".join(rows) + "\n"
 
 
 ENTRY_ORDER: Final[re.Pattern[str]] = re.compile(r"^(\d+)-")
 
 
-def record_round(folder: Path, number: int, result: dict[str, Any]) -> list[str]:
+def record_round(folder: Path, number: int, result: dict[str, Any], plans: dict[str, Path] | None = None,
+                 votes: dict[str, Path] | None = None, blind_key: dict[str, Any] | None = None) -> list[str]:
     """One council-format entry per seat (`<NN>-plan-r<round>-<seat>.md`, first line `VOTE: APPROVE|REJECT`) so that
-    `council.py eligible` sees the round: every seat approves a passed round and rejects a failed one."""
+    `council.py eligible` sees the round: every seat approves a passed round and rejects a failed one. Each entry then carries
+    the seat's plan and, when it has one, its cross-review votes verbatim, because `council.py dossier` reads only these files."""
     folder.mkdir(parents=True, exist_ok=True)
     used: list[int] = [int(m.group(1)) for p in folder.glob("*.md") if (m := ENTRY_ORDER.match(p.name))]
     order: int = max(used, default=0)
@@ -536,7 +591,13 @@ def record_round(folder: Path, number: int, result: dict[str, Any]) -> list[str]
     for seat in result["plans"]:
         order += 1
         entry: Path = folder / f"{order:02d}-plan-r{number}-{seat}.md"
-        entry.write_text(f"VOTE: {vote}\n\n{body}", encoding=ENCODING)
+        text: str = f"VOTE: {vote}\n\n{body}"
+        if plans and seat in plans:
+            text += f"\n## Plan (verbatim)\n\n{plans[seat].read_text(encoding=ENCODING).strip()}\n"
+        if votes and seat in votes and votes[seat].is_file():
+            text += f"\n## Cross-review votes (verbatim)\n\n{votes[seat].read_text(encoding=ENCODING).strip()}\n"
+            text += ballot_legend(blind_key, seat)
+        entry.write_text(text, encoding=ENCODING)
         written.append(str(entry))
     return written
 
@@ -547,12 +608,23 @@ def cmd_panel_tally(args: argparse.Namespace) -> int:
     if bad_plans or bad_votes:
         emit({"ok": False, "problems": bad_plans + bad_votes})
         return EXIT_REFUSED
-    result: dict[str, Any] = panel_tally(plans, votes)
+    blind_key: dict[str, Any] | None = None
+    if args.blind_key:
+        try:
+            loaded: Any = json.loads(Path(args.blind_key).read_text(encoding=ENCODING))
+        except (OSError, ValueError) as exc:
+            emit({"ok": False, "problems": [f"cannot read --blind-key {args.blind_key}: {exc}"]})
+            return EXIT_REFUSED
+        if not isinstance(loaded, dict) or not isinstance(loaded.get("key", loaded), dict):
+            emit({"ok": False, "problems": ["--blind-key must hold the blind-key.json object"]})
+            return EXIT_REFUSED
+        blind_key = loaded
+    result: dict[str, Any] = panel_tally(plans, votes, blind_key)
     if result["ok"] and args.record:
         if args.round is None or args.round < 1:
             emit({"ok": False, "problems": ["--record needs --round N (1 or more)"]})
             return EXIT_REFUSED
-        result["recorded"] = record_round(Path(args.record), args.round, result)
+        result["recorded"] = record_round(Path(args.record), args.round, result, plans, votes, blind_key)
     emit(result)
     return EXIT_OK if result["ok"] else EXIT_REFUSED
 
@@ -593,6 +665,7 @@ def build_parser() -> argparse.ArgumentParser:
     pt = sub.add_parser("panel-tally")
     pt.add_argument("--plans", nargs="+", required=True)
     pt.add_argument("--votes", nargs="+", default=None)
+    pt.add_argument("--blind-key", default=None)
     pt.add_argument("--record", default=None)
     pt.add_argument("--round", type=int, default=None)
     sub.add_parser("archive").add_argument("--repo", required=True)
