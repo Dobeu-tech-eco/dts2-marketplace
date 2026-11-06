@@ -31,7 +31,7 @@ BOOL_KEYS: Final[tuple[str, ...]] = ("no_secrets", "read_only")
 COST_KEYS: Final[tuple[str, ...]] = ("max_cost_usd_per_run", "max_cost_usd_per_day")
 KEYS: Final[tuple[str, ...]] = (*LIST_KEYS, "max_tier", *BOOL_KEYS, *COST_KEYS)
 DEFAULTS: Final[dict[str, Any]] = {
-    "read_only": True, "allow_tasks": ["review", "docs", "research"], "max_tier": "standard",
+    "read_only": True, "no_secrets": True, "allow_tasks": ["review", "docs", "research"], "max_tier": "standard",
     "max_cost_usd_per_run": 0.5, "max_cost_usd_per_day": 5.0,
 }
 TRUE_WORDS: Final[frozenset[str]] = frozenset({"true", "yes", "on"})
@@ -103,6 +103,14 @@ def validate(rules: Any) -> list[str]:
 
 def names_of(value: Any, default: Iterable[str] = ()) -> list[str]:
     return [item for item in value if isinstance(item, str)] if isinstance(value, list) else list(default)
+
+
+def forced_auth(profile: dict[str, Any] | None, declared: str | None) -> str:
+    """The auth that decides the rules: `api-key` whenever the profile needs a key (a roster saying `subscription` for such an
+    agent changes nothing), else what the entry declared, else subscription."""
+    if (profile or {}).get("keyRequired") is True:
+        return "api-key"
+    return declared or AUTH_SUBSCRIPTION
 
 
 def effective_rules_with_warnings(entry: dict[str, Any] | None, auth: str | None) -> tuple[dict[str, Any], list[str]]:

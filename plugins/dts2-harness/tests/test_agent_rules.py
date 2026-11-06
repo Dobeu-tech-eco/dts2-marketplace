@@ -154,7 +154,7 @@ class EffectiveRulesTests(unittest.TestCase):
 
     def test_summary(self) -> None:
         rules = agent_rules.effective_rules({"name": "x"}, "api-key")
-        self.assertEqual(agent_rules.summary(rules), "ro review,docs,research ≤standard $0.5/$5")
+        self.assertEqual(agent_rules.summary(rules), "ro review,docs,research ≤standard no-secrets $0.5/$5")
         self.assertEqual(agent_rules.summary({}), "-")
 
 
@@ -486,7 +486,7 @@ class RulesCliTests(TempProject):
         self.assertEqual(again["written"]["allow_tasks"], ["review", "docs"])
         self.assertIs(again["effective"]["read_only"], False)
         self.assertEqual(again["effective"]["max_tier"], "economy")
-        self.assertEqual(again["summary"], "review,docs \u2264economy $0.5/$2.5")
+        self.assertEqual(again["summary"], "review,docs \u2264economy no-secrets $0.5/$2.5")
         self.assertTrue(text.startswith(CONFIG.split("    rules:")[0].split("  - name: codex")[0]))  # everything above is untouched
         self.assertIn("  - name: codex\n    roles: [builder]\n\nbudget:\n  codex:\n    status: ok\n", text)  # and below
         self.assertEqual(self.cli("rules", "grok", "--reset").returncode, 0)
@@ -529,7 +529,7 @@ class RulesCliTests(TempProject):
         self.assertEqual(self.cli("rules", "grok", "--set", "allow_tasks=review", "--set", "max_cost_usd_per_run=1").returncode, 0)
         agent_rules.record_spend("grok", 1.25, "r", self.root)
         rows = {r["name"]: r for r in json.loads(self.cli("list", "--json", "--config", str(self.config)).stdout)}
-        self.assertEqual(rows["grok"]["rules"], "ro review ≤standard $1/$5")
+        self.assertEqual(rows["grok"]["rules"], "ro review ≤standard no-secrets $1/$5")
         self.assertEqual(rows["grok"]["spent_today"], "$1.25")
         self.assertEqual((rows["claude"]["rules"], rows["claude"]["spent_today"]), ("-", "-"))
         table = self.cli("list", "--config", str(self.config)).stdout
