@@ -8,9 +8,9 @@ Contents: 1 Talking to the harness, 2 Which command when, 3 The head, son and co
 
 ## 1. Talking to the harness
 
-The harness is a Claude Code plugin. Every entry point is a slash command `/dts2:<skill>`; there is no other interface. Twenty-two skills exist (section 2). Seven agents (`lead`, `builder`, `fixer`, `reviewer`, `verifier`, `scout`, `auditor`) are dispatched by the skills, never typed by the user; an agent that needs one calls the Agent tool with `subagent_type: dts2:<name>`.
+The harness is a Claude Code plugin. Every entry point is a slash command `/dts2:<skill>`; there is no other interface. Twenty-five skills exist (section 2). Seven agents (`lead`, `builder`, `fixer`, `reviewer`, `verifier`, `scout`, `auditor`) are dispatched by the skills, never typed by the user; an agent that needs one calls the Agent tool with `subagent_type: dts2:<name>`.
 
-Six skills run only when the user types them (`disable-model-invocation: true`): `dpp-full`, `fullauto`, `machine-prep`, `model`, `onboard`, `sdk`. The others may be invoked by the model when the conversation calls for them.
+Eight skills run only when the user types them (`disable-model-invocation: true`): `composio`, `dpp-full`, `fullauto`, `knowledge`, `machine-prep`, `model`, `onboard`, `sdk`. The others may be invoked by the model when the conversation calls for them.
 
 Install and update:
 
@@ -114,6 +114,15 @@ Usage limits belong to the account, so the harness keeps one shared list of paus
 - A paused agent is skipped by the roster probe and by lead failover, and is never re-probed; it comes back by itself when the time passes.
 - Each new session starts with a one-line note of who is paused and until when.
 - Set or lift a pause by hand with `/dts2:cooldown set <agent> <date or duration>`, `clear <agent>` and `list`.
+
+### Watching and messaging all your sessions
+
+Running many sessions at once (for example one per terminal tab)?
+
+- See them all: `/dts2:fleet list`. Read one without interrupting it: `/dts2:fleet show <ref>` and `/dts2:fleet logs <ref>`.
+- Tell them all something: `/dts2:fleet broadcast --kind handoff --text "..."`. You are shown how many sessions match and asked first. Kinds: `note`, `handoff`, `pause`, `knowledge`, `checkin`. `/dts2:fleet status` shows who has picked it up.
+- Ask them all where they stand: `/dts2:check-in all` makes one report across the machine, with what needs you at the top.
+- Limit: a session idle at the prompt gets the message only when it is next touched; a crashed one shows `stale`.
 
 ### Incidents and learning
 
