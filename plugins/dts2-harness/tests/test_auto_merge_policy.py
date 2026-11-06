@@ -1,5 +1,6 @@
-"""Phase 1 autonomy: the standing `merge_policy: auto-when-green` grant lets `gh pr merge <n> --auto --match-head-commit <sha>` pass
-the policy gate when the sha was granted by merge-go-step, no hard-stop path is touched and the base requires checks. No network:
+"""Phase 1 autonomy: the standing `merge_policy: auto-when-green` grant lets a direct `gh pr merge <n> --match-head-commit <sha>` pass
+the policy gate when the sha was granted by merge-go-step, no hard-stop path is touched, the base requires checks and every
+required check is green on the head. `--auto` is always refused. No network:
 gh is a fake script behind DTS2_GH_BIN."""
 from __future__ import annotations
 
@@ -27,6 +28,10 @@ args = sys.argv[1:]
 cfg = json.load(open(os.environ["FAKE_GH_CONFIG"]))
 if args[:2] == ["pr", "view"]:
     out = cfg.get("view")
+elif args[:1] == ["api"] and "/check-runs" in args[1]:
+    out = cfg.get("check_runs")
+elif args[:1] == ["api"] and args[1].endswith("/status"):
+    out = cfg.get("status")
 elif args[:1] == ["api"] and "required_status_checks" in args[1]:
     out = cfg.get("protection")
 elif args[:1] == ["api"] and "/rules/branches/" in args[1]:
@@ -38,6 +43,9 @@ if out is None:
 print(json.dumps(out))
 '''
 CHECKS: Final[dict[str, Any]] = {"contexts": ["test", "lint"], "checks": []}
+GREEN_RUNS: Final[dict[str, Any]] = {"check_runs": [{"name": "test", "conclusion": "success"}, {"name": "lint", "conclusion": "success"}]}
+NO_STATUS: Final[dict[str, Any]] = {"statuses": []}
+VIEW: Final[dict[str, Any]] = {"baseRefName": "main", "headRefOid": SHA, "files": [{"path": "src/app.py"}]}
 
 
 class AutoMergePolicyTests(unittest.TestCase):
@@ -54,6 +62,8 @@ class AutoMergePolicyTests(unittest.TestCase):
         self.set_approvals({"merge_policy": ["auto-when-green"]})
 
     def set_gh(self, **config: Any) -> None:
+        """Write the fake gh answers; the head's checks are green unless a test passes its own `check_runs` / `status`."""
+        config = {"check_runs": GREEN_RUNS, "status": NO_STATUS, **config}
         self.config.write_text(json.dumps(config), encoding="utf-8")
 
     def set_approvals(self, table: dict[str, list[str]]) -> None:
@@ -71,7 +81,7 @@ class AutoMergePolicyTests(unittest.TestCase):
             return policy_gate.decide({"tool_name": "Bash", "tool_input": {"command": command}}, self.repo, self.policy)
 
     def auto(self, sha: str = SHA, pr: str = "42") -> str:
-        return f"gh pr merge {pr} --auto --squash --match-head-commit {sha}"
+        return f"gh pr merge {pr} --squash --match-head-commit {sha}"
 
     def test_standing_grant_helper(self) -> None:
         self.assertTrue(approvals.standing_auto_merge(self.repo))
@@ -86,21 +96,65 @@ class AutoMergePolicyTests(unittest.TestCase):
         self.assertIn("merge_policy", reason)
         self.assertIn("auto-when-green", reason)
 
-    def test_grant_with_auto_and_matching_sha_allows(self) -> None:
+    def test_grant_with_direct_merge_and_matching_sha_allows(self) -> None:
         self.assertIsNone(self.decide(self.auto()))
-        self.assertIsNone(self.decide(f"gh pr merge 42 --auto --squash --match-head-commit={SHA}"))
-        self.assertIsNone(self.decide(f"gh pr merge 42 --auto --match-head-commit {SHA[:9]}"))
-        self.assertIsNone(self.decide(f"env -i gh -R o/r pr merge 42 --auto --match-head-commit {SHA}"))
+        self.assertIsNone(self.decide(f"gh pr merge 42 --squash --match-head-commit={SHA}"))
+        self.assertIsNone(self.decide(f"gh pr merge 42 --match-head-commit {SHA[:9]}"))
+        self.assertIsNone(self.decide(f"env -i gh -R o/r pr merge 42 --match-head-commit {SHA}"))
 
-    def test_missing_auto_falls_back_to_the_per_pr_path(self) -> None:
-        reason = str(self.decide(f"gh pr merge 42 --squash --match-head-commit {SHA}"))
-        self.assertIn("pr-merge", reason)
-        self.assertIn("--auto", reason)
+    def test_auto_flag_is_refused_under_the_grant(self) -> None:
+        for command in (f"gh pr merge 42 --auto --squash --match-head-commit {SHA}", f"gh pr merge 42 --squash --auto --match-head-commit={SHA}"):
+            reason = str(self.decide(command))
+            self.assertIn("pr-merge", reason)
+            self.assertIn("never armed", reason)
+            self.assertIn("--match-head-commit", reason)
+
+    def test_missing_sha_falls_back_to_a_refusal_naming_the_flag(self) -> None:
         self.assertIn("pr-merge", str(self.decide("gh pr merge 42 --squash")))
+        self.assertIn("--match-head-commit", str(self.decide("gh pr merge 42 --squash")))
+
+    def test_required_check_pending_failing_or_missing_denies(self) -> None:
+        cases = {
+            "pending": {"check_runs": [{"name": "test", "conclusion": "success"}, {"name": "lint", "conclusion": None}]},
+            "failing": {"check_runs": [{"name": "test", "conclusion": "success"}, {"name": "lint", "conclusion": "failure"}]},
+            "missing": {"check_runs": [{"name": "test", "conclusion": "success"}]},
+        }
+        for label, config in cases.items():
+            self.set_gh(view=VIEW, protection=CHECKS, check_runs=config)
+            reason = str(self.decide(self.auto()))
+            self.assertIn("wait for lint", reason, label)
+            self.assertIn(SHA[:10], reason, label)
+
+    def test_required_checks_green_through_runs_and_statuses(self) -> None:
+        for conclusion in ("success", "neutral", "skipped"):
+            self.set_gh(view=VIEW, protection=CHECKS,
+                        check_runs={"check_runs": [{"name": "test", "conclusion": conclusion}, {"name": "lint", "conclusion": "success"}]})
+            self.assertIsNone(self.decide(self.auto()), conclusion)
+        self.set_gh(view=VIEW, protection=CHECKS, check_runs={"check_runs": [{"name": "test", "conclusion": "success"}]},
+                    status={"statuses": [{"context": "lint", "state": "success"}]})
+        self.assertIsNone(self.decide(self.auto()))
+        self.set_gh(view=VIEW, protection=CHECKS, check_runs={"check_runs": [{"name": "test", "conclusion": "success"}]},
+                    status={"statuses": [{"context": "lint", "state": "pending"}]})
+        self.assertIn("wait for lint", str(self.decide(self.auto())))
+
+    def test_checks_lookup_failure_denies(self) -> None:
+        self.set_gh(view=VIEW, protection=CHECKS, check_runs=None)
+        self.assertIn("cannot read the checks", str(self.decide(self.auto())))
+        self.set_gh(view=VIEW, protection=CHECKS, status=None)
+        self.assertIn("cannot read the checks", str(self.decide(self.auto())))
+        self.set_gh(view=VIEW, protection=CHECKS, check_runs={"unexpected": 1})
+        self.assertIn("cannot read the checks", str(self.decide(self.auto())))
+
+    def test_required_check_names_come_from_checks_and_rulesets(self) -> None:
+        self.set_gh(view=VIEW, protection={"contexts": [], "checks": [{"context": "test"}, {"context": "lint"}]})
+        self.assertIsNone(self.decide(self.auto()))
+        ruleset = [{"type": "required_status_checks", "parameters": {"required_status_checks": [{"context": "test"}, {"context": "e2e"}]}}]
+        self.set_gh(view=VIEW, rules=ruleset)
+        self.assertIn("wait for e2e", str(self.decide(self.auto())))
 
     def test_missing_or_mismatched_sha_denies(self) -> None:
-        self.assertIn("--match-head-commit", str(self.decide("gh pr merge 42 --auto --squash")))
-        self.assertIn("--match-head-commit", str(self.decide("gh pr merge 42 --auto --match-head-commit abc")))
+        self.assertIn("--match-head-commit", str(self.decide("gh pr merge 42 --squash")))
+        self.assertIn("--match-head-commit", str(self.decide("gh pr merge 42 --match-head-commit abc")))
         self.assertIn("merge-go-step", str(self.decide(self.auto(OTHER_SHA))))
 
     def test_no_merge_go_record_denies_naming_merge_go_step(self) -> None:
@@ -150,12 +204,14 @@ class AutoMergePolicyTests(unittest.TestCase):
 
     def test_ruleset_required_checks_count(self) -> None:
         view = {"baseRefName": "main", "headRefOid": SHA, "files": [{"path": "src/app.py"}]}
-        self.set_gh(view=view, rules=[{"type": "pull_request"}, {"type": "required_status_checks"}])
+        rules = [{"type": "pull_request"},
+                 {"type": "required_status_checks", "parameters": {"required_status_checks": [{"context": "test"}, {"context": "lint"}]}}]
+        self.set_gh(view=view, rules=rules)
         self.assertIsNone(self.decide(self.auto()))
 
     def test_branch_or_current_branch_form_denies(self) -> None:
-        self.assertIn("by number or URL", str(self.decide(f"gh pr merge feature --auto --match-head-commit {SHA}")))
-        self.assertIn("by number or URL", str(self.decide(f"gh pr merge --auto --match-head-commit {SHA}")))
+        self.assertIn("by number or URL", str(self.decide(f"gh pr merge feature --match-head-commit {SHA}")))
+        self.assertIn("by number or URL", str(self.decide(f"gh pr merge --match-head-commit {SHA}")))
 
     def test_pr_url_form_allows(self) -> None:
         self.assertIsNone(self.decide(self.auto(pr="https://github.com/o/r/pull/42")))
@@ -165,7 +221,7 @@ class AutoMergePolicyTests(unittest.TestCase):
         self.assertIsNone(self.decide("gh pr merge 42 --squash"))
         self.assertIn("pr-merge", str(self.decide("gh pr merge 43 --squash")))
 
-    def test_per_pr_approval_wins_over_a_failing_auto_path(self) -> None:
+    def test_per_pr_approval_wins_over_a_failing_grant_path(self) -> None:
         self.set_approvals({"merge": ["42"], "merge_policy": ["auto-when-green"]})
         self.set_gh()  # every gh lookup fails
         self.assertIsNone(self.decide("gh pr merge 42 --squash"))

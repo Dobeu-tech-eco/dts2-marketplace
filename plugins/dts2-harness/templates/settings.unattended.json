@@ -9,7 +9,7 @@
       "Bash(git merge*)", "Bash(git stash*)", "Bash(git worktree*)", "Bash(git ls-files*)",
       "Bash(git add *)", "Bash(git commit *)", "Bash(git push*)",
       "Bash(gh pr view*)", "Bash(gh pr list*)", "Bash(gh pr status*)", "Bash(gh pr create*)", "Bash(gh pr checks*)",
-      "Bash(gh pr merge --auto*)", "Bash(gh run list*)", "Bash(gh run view*)",
+      "Bash(gh pr merge*)", "Bash(gh run list*)", "Bash(gh run view*)",
       "Bash(python3 -I */scripts/*)", "Bash(python3 -m unittest*)", "Bash(python3 -m pytest*)",
       "Bash(ruff *)", "Bash(shellcheck *)", "Bash(npm test*)", "Bash(npm run test*)", "Bash(npm run lint*)",
       "Bash(npm run typecheck*)", "Bash(pnpm test*)", "Bash(go test*)", "Bash(cargo test*)"

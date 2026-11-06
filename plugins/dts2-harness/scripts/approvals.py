@@ -6,8 +6,8 @@ on it, and the sandbox lists it under denyWrite; the head's own instructions say
 
     {"dts2_approvals": {"merge": ["42"], "recorded_yes": ["step-3"], "lane_override": ["lane-a"], "merge_policy": ["auto-when-green"]}}
 
-`merge_policy: ["auto-when-green"]` is a standing grant: the policy gate then lets `gh pr merge <n> --auto --match-head-commit <sha>`
-through without a per-PR entry (see policy_gate.py for the conditions).
+`merge_policy: ["auto-when-green"]` is a standing grant: the policy gate then lets a direct `gh pr merge <n> --squash --match-head-commit <sha>`
+through without a per-PR entry once the required checks are green (see policy_gate.py for the conditions).
 
 `is_human_approved(kind, key)` reads only that file. Nothing an agent writes anywhere else counts, and `record_actor` only logs
 who asked (`agent:<session_id>` or `human`), so the log shows when an agent claimed an approval it did not hold."""
@@ -71,8 +71,8 @@ def is_human_approved(kind: str, key: str, repo: Path | None = None) -> bool:
 
 
 def standing_auto_merge(repo: Path | None = None) -> bool:
-    """True when the person's standing grant `"merge_policy": ["auto-when-green"]` is in the human file. It lets the agent arm
-    GitHub auto-merge on one exact head sha; GitHub merges only when the required checks pass."""
+    """True when the person's standing grant `"merge_policy": ["auto-when-green"]` is in the human file. It lets the agent merge
+    directly, pinned to one exact head sha, once the required checks are green (GitHub auto-merge is never armed)."""
     return is_human_approved(MERGE_POLICY_KIND, AUTO_WHEN_GREEN, repo)
 
 
