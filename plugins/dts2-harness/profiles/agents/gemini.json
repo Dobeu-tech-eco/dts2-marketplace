@@ -83,5 +83,6 @@
     "frontier": 6,
     "standard": 2,
     "economy": 1
-  }
+  },
+  "readOnlyRoles": ["reviewer"]
 }

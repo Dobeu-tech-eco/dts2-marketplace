@@ -170,6 +170,16 @@
         ]
       },
       {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Read|Glob|Grep|WebFetch|WebSearch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/policy-gate.sh\" files",
+            "timeout": 15
+          }
+        ]
+      },
+      {
         "matcher": "Bash",
         "hooks": [
           {

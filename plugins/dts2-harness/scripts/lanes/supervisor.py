@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Final
 
 import harness_skew
+from agent_rules import agent_of, record_spend
 from model_call import (
     fallback_used, invoke, is_terminated, parse_result, read_budget,
 )
@@ -279,6 +280,7 @@ def start_son(manifest: dict[str, Any], lane_id: str, worktree: Path, runs_dir: 
     lane_dir: Path = status_path.parent
     try:
         argv, env, watcher = prepare_son(command, lane_dir, status_path, cwd, resume, emit)
+        agent: str | None = agent_of(env, argv)
         call: dict[str, Any] = invoke(argv, worktree, max(left_s, 1.0), f"son:{lane_id}", emit, root=cwd,
                                       halt_on_session=True, env=env, on_line=watcher.feed,
                                       on_start=lambda pid: start_record(status_path, lane_dir, pid))
@@ -286,7 +288,7 @@ def start_son(manifest: dict[str, Any], lane_id: str, worktree: Path, runs_dir: 
             call = {**call, "stuck": watcher.stuck}
             emit({"event": "stuck", "detail": watcher.stuck})
         parsed: dict[str, Any] | None = parse_result(call["stdout"])
-        return finish_son(runs_dir, stamp, lane_id, worktree, call, parsed, emit, cwd)
+        return finish_son(runs_dir, stamp, lane_id, worktree, call, parsed, emit, cwd, agent)
     finally:
         release_share(runs_dir, stamp, lane_id)
 
@@ -312,12 +314,20 @@ def prepare_son(command: dict[str, Any], lane_dir: Path, status_path: Path, cwd:
     return argv, {**command["env"], RESUME_ENV: "1"}, SonWatcher(beat)
 
 
+def note_spend(cwd: Path | None, agent: str | None, usd: float | None, run_id: str) -> None:
+    """Add the run's cost to the spend ledger when it ran as a named agent (`DTS2_AGENT`); roster probe then marks the agent
+    exhausted once it reaches its daily cap."""
+    if agent and cwd is not None:
+        record_spend(agent, usd, run_id, cwd)
+
+
 def finish_son(runs_dir: Path, stamp: str, lane_id: str, worktree: Path, call: dict[str, Any], parsed: dict[str, Any] | None,
-               emit: Any, cwd: Path | None = None) -> dict[str, Any]:
+               emit: Any, cwd: Path | None = None, agent: str | None = None) -> dict[str, Any]:
     status_path: Path = runs_dir / stamp / lane_id / STATUS_NAME
     primary: str = son_model(cwd) if cwd is not None else SON_MODEL
     session: str | None = (parsed or {}).get("session_id")
     charged, all_known = record_attempts(runs_dir, stamp, lane_id, attempt_usages(call), release=lane_id)
+    note_spend(cwd, agent, charged, f"{stamp}/{lane_id}")
     fallback: str | None = fallback_used(parsed, primary)
     changes: dict[str, Any] = {"lane": lane_id, "worktree": str(worktree), "heartbeat": int(time.time()),
                                **dict.fromkeys(PID_KEYS)}
@@ -380,6 +390,7 @@ def model_call(runs_dir: Path, stamp: str, cwd: Path, label: str, argv: list[str
         charged, all_known = None, False
     else:
         charged, all_known = record_attempts(runs_dir, stamp, f"call:{label}", attempt_usages(call))
+        note_spend(cwd, agent_of(env, argv), charged, f"{stamp}/{label}")
     if out is not None:
         atomic_write(out, call["stdout"])
     return {"ok": call["code"] == 0 and not (parsed or {}).get("is_error"), "label": label, "code": call["code"],

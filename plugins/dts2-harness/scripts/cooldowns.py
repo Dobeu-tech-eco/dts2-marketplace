@@ -447,6 +447,18 @@ def note_line(name: str, entry: dict[str, Any]) -> str:
     return f"dts2: cooling down, do not call: {name} until {when} ({reason}){tail}"
 
 
+def rule_problems() -> list[str]:
+    """Errors in the roster's per-agent `rules:` blocks of the project config: the SessionStart validator (batch D). A failure
+    to check is not a session problem."""
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import agent_rules  # noqa: PLC0415 - only the session note needs these
+        import state_io  # noqa: PLC0415
+        return [f"dts2: invalid agent rules in {state_io.CONFIG_REL}: {p}" for p in agent_rules.config_problems(Path(state_io.CONFIG_REL))]
+    except Exception:  # noqa: BLE001
+        return []
+
+
 def session_note(now: datetime | None = None) -> str:
     moment: datetime = now or utc_now()
     lines: list[str] = []
@@ -455,6 +467,7 @@ def session_note(now: datetime | None = None) -> str:
         lines.append(f"dts2: re-enabled {', '.join(back)} (cooldown ended).")
     agents: dict[str, Any] = load()["agents"]
     lines.extend(note_line(name, agents[name]) for name in cooling_names(now=moment))
+    lines.extend(rule_problems())
     return "\n".join(lines)
 
 

@@ -63,7 +63,7 @@ Every run checks which agents are usable and what budget is left (the budget che
 
 Only agents detected on this machine join the roster; handoff agents get a written brief, and the run pauses until you report it done.
 
-An agent on a pay-as-you-go API key (such as `grok-api` next to a subscription `grok`) is added with `/dts2:model`, section "Add or rename an agent"; keys live in your keyring, 1Password or Doppler and only the reference is written.
+An agent on a pay-as-you-go API key (such as `grok-api` next to a subscription `grok`) is added with `/dts2:model`, section "Add or rename an agent"; keys live in your keyring, 1Password or Doppler and only the reference is written. A new API-key agent starts read-only (review, docs and research only, no deploy, merge, release, secrets or delete, $0.50 a run, $5 a day); the same section shows and edits these per-agent rules.
 
 ## Where to start
 1. New machine or cluttered tooling → `machine-prep`.

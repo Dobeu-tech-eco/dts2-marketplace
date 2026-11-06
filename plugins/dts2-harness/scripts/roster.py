@@ -15,6 +15,7 @@ from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import agent_names  # noqa: E402
+import agent_rules  # noqa: E402
 import miniyaml  # noqa: E402
 import state_io  # noqa: E402
 from profiles import BUNDLED, PROFILE_DIR, PROJECT, USER, Profiles, layer_files, project_agents_dir, user_agents_dir, valid_key_ref  # noqa: E402
@@ -50,6 +51,8 @@ SECOND_OPINION: Final[str] = "second-opinion"
 BUDGET_UNKNOWN: Final[str] = "unknown"
 MODEL_TIERS: Final[tuple[str, ...]] = ("frontier", "standard", "economy")
 PROMPT_TOKEN: Final[str] = "{prompt}"
+READ_ONLY_KEYS: Final[tuple[str, ...]] = ("read-only", "plan")
+PROMPT_TOKENS: Final[tuple[str, ...]] = (PROMPT_TOKEN, "{promptFile}")
 MODEL_TOKEN: Final[str] = "{model}"
 EFFORT_TOKEN: Final[str] = "{effort}"
 PROMPT_FILE_TOKEN: Final[str] = "{promptFile}"
@@ -137,6 +140,8 @@ def roster_entry(item: Any) -> dict[str, Any] | None:
         entry["profile"] = item["profile"]
     if isinstance(item.get("included"), str):
         entry["included"] = item["included"].strip().lower() != "false"
+    if isinstance(item.get("rules"), dict):
+        entry["rules"] = agent_rules.coerce_rules(item["rules"])
     return entry
 
 
@@ -151,8 +156,8 @@ def parse_roster(text: str) -> list[dict[str, Any]]:
             included: false
 
     Each item is `- name: X` optionally followed by `roles: [a, b]`, `auth: <mode>` (`subscription` or `api-key`),
-    `included: true|false` and `profile: <name>` (the profile to use when it differs from the entry name). Anything
-    else is ignored. Missing block -> default.
+    `included: true|false`, `profile: <name>` (the profile to use when it differs from the entry name) and a `rules:`
+    block (see agent_rules.py). Anything else is ignored. Missing block -> default.
     """
     block: Any = miniyaml.parse(text).get("roster")
     entries: list[dict[str, Any]] = [e for e in map(roster_entry, block) if e] if isinstance(block, list) else []
@@ -173,32 +178,79 @@ def profile_of(entry: dict[str, Any], profiles: dict[str, dict[str, Any]]) -> di
     return profiles[wanted]
 
 
-def entry_roles(entry: dict[str, Any], profile: dict[str, Any]) -> list[str]:
+def auth_for_entry(entry: dict[str, Any], profile: dict[str, Any]) -> str:
+    """The auth an entry runs under: its own `auth:`, else the profile's, else subscription."""
+    return str(entry.get("auth") or profile.get("auth") or AUTH_SUBSCRIPTION)
+
+
+def entry_rules(entry: dict[str, Any], profile: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    """(rules in force, warnings) for a roster entry: see agent_rules.effective_rules_with_warnings."""
+    return agent_rules.effective_rules_with_warnings(entry, auth_for_entry(entry, profile))
+
+
+def dispatch_denial(entry: dict[str, Any], profile: dict[str, Any], task_class: str | None, tier: str | None) -> str | None:
+    """Why this agent's rules refuse the task class or tier, or None. With neither given nothing is checked."""
+    if task_class is None and tier is None:
+        return None
+    allowed, why = agent_rules.permits(entry_rules(entry, profile)[0], task_class, tier)
+    return None if allowed else why
+
+
+def entry_roles(
+    entry: dict[str, Any], profile: dict[str, Any], task_class: str | None = None, tier: str | None = None,
+    skipped: list[dict[str, str]] | None = None,
+) -> list[str]:
+    """The roles an entry fills. When its rules deny the task class or tier it fills none: the denial is appended to
+    `skipped` as {name, reason}."""
     roles: list[str] = entry.get("roles") or list(profile["roles"])
     for role in roles:
         if role not in profile["roles"]:
             raise RosterError(f"role '{role}' is not supported by agent '{entry['name']}'")
-    return roles
+    why: str | None = dispatch_denial(entry, profile, task_class, tier)
+    if why is None:
+        return roles
+    if skipped is not None:
+        skipped.append({"name": entry["name"], "reason": why})
+    return []
 
 
-def resolve(roster: list[dict[str, Any]], profiles: dict[str, dict[str, Any]]) -> dict[str, Any]:
+def no_eligible_error(skipped: list[dict[str, str]], task_class: str | None, tier: str | None) -> RosterError:
+    asked: str = ", ".join(f"{label} '{value}'" for label, value in (("task", task_class), ("tier", tier)) if value)
+    return RosterError(f"no eligible agent for {asked}: " + "; ".join(f"{s['name']}: {s['reason']}" for s in skipped))
+
+
+def resolve(
+    roster: list[dict[str, Any]], profiles: dict[str, dict[str, Any]],
+    task_class: str | None = None, tier: str | None = None,
+) -> dict[str, Any]:
+    """Role assignments for the roster. With `task_class` or `tier`, an agent whose rules deny it is left out and listed under
+    `skipped` with the reason, so the next eligible agent takes the seat; when every agent is denied it raises a RosterError
+    naming each reason."""
     enabled: list[str] = []
     assignments: dict[str, list[str]] = {}
     by_name: dict[str, dict[str, Any]] = {}
+    skipped: list[dict[str, str]] = []
     for entry in roster:
         name: str = entry["name"]
         profile: dict[str, Any] = profile_of(entry, profiles)
+        before: int = len(skipped)
+        roles: list[str] = entry_roles(entry, profile, task_class, tier, skipped)
+        if len(skipped) > before:
+            continue
         enabled.append(name)
         by_name[name] = profile
-        for role in entry_roles(entry, profile):
+        for role in roles:
             assignments.setdefault(role, []).append(name)
+    if skipped and not enabled:
+        raise no_eligible_error(skipped, task_class, tier)
     handoff: list[str] = [n for n in enabled if by_name[n]["invocation"] == "handoff"]
     live: list[str] = [n for n in enabled if by_name[n]["invocation"] == "live"]
     cost_order: list[str] = sorted(enabled, key=lambda n: by_name[n]["costTier"])
-    return {
+    result: dict[str, Any] = {
         "enabled": enabled, "assignments": assignments, "handoff": handoff,
         "live": live, "costOrder": cost_order,
     }
+    return {**result, "skipped": skipped} if skipped else result
 
 
 def parse_budget(text: str) -> dict[str, str]:
@@ -432,14 +484,23 @@ def probe_entry(
     }
 
 
+def ledger_budget(entry: dict[str, Any], profile: dict[str, Any], budget: str, root: Path | None) -> str:
+    """`exhausted` when the spend ledger says the agent reached its `max_cost_usd_per_day` today, else the configured budget.
+    This is the same `exhausted` the `budget:` block sets, so probe drops the agent for the day and dispatch skips it."""
+    rules: dict[str, Any] = entry_rules(entry, profile)[0]
+    return "exhausted" if agent_rules.day_exhausted(entry["name"], rules, root) else budget
+
+
 def probe(
     roster: list[dict[str, Any]], profiles: dict[str, dict[str, Any]], budgets: dict[str, str],
+    root: Path | None = None,
 ) -> dict[str, Any]:
     env: dict[str, str] = probe_env()
     agents: dict[str, dict[str, Any]] = {}
     for entry in roster:
         name: str = entry["name"]
-        agents[name] = probe_entry(entry, profile_of(entry, profiles), budgets.get(name, ""), env)
+        profile: dict[str, Any] = profile_of(entry, profiles)
+        agents[name] = probe_entry(entry, profile, ledger_budget(entry, profile, budgets.get(name, ""), root), env)
     usable: list[str] = [n for n, a in agents.items() if a["available"]]
     dropped: list[dict[str, str]] = [
         {"name": n, "reason": a["reason"]} for n, a in agents.items() if not a["available"]
@@ -489,9 +550,9 @@ def detect(project: Path) -> dict[str, Any]:
     }
 
 
-def run_resolve(config: Path) -> int:
+def run_resolve(config: Path, task_class: str | None = None, tier: str | None = None) -> int:
     try:
-        result: dict[str, Any] = resolve(read_roster(config), load_profiles())
+        result: dict[str, Any] = resolve(read_roster(config), load_profiles(), task_class, tier)
     except RosterError as error:
         print(f"roster error: {error}", file=sys.stderr)
         return 1
@@ -501,7 +562,7 @@ def run_resolve(config: Path) -> int:
 
 def run_probe(config: Path) -> int:
     try:
-        result: dict[str, Any] = probe(read_roster(config), load_profiles(), read_budget(config))
+        result: dict[str, Any] = probe(read_roster(config), load_profiles(), read_budget(config), project_of(config))
     except RosterError as error:
         print(f"roster error: {error}", file=sys.stderr)
         return 1
@@ -585,15 +646,29 @@ def declared_auth(name: str, config: Path | None = None) -> str:
     return AUTH_SUBSCRIPTION
 
 
-def clean_env(profile: dict[str, Any], auth: str | None = None, workspace: Path | None = None) -> dict[str, str]:
+def launch_rules(profile: dict[str, Any], workspace: Path | None = None) -> tuple[dict[str, Any], list[str]]:
+    """(rules in force, warnings) for the roster agent a profile launches, read from `workspace`'s config (default: cwd).
+    An agent that is not in that roster is not restricted."""
+    config: Path = (workspace or Path.cwd()) / state_io.CONFIG_REL
+    entry: dict[str, Any] | None = agent_rules.entry_for(str(profile.get("name")), config)
+    if entry is None:
+        return {}, []
+    return agent_rules.effective_rules_with_warnings(entry, entry.get("auth") or profile.get("auth"))
+
+
+def clean_env(profile: dict[str, Any], auth: str | None = None, workspace: Path | None = None,
+              rules: dict[str, Any] | None = None) -> dict[str, str]:
     """What a dispatched agent CLI may see (G-67): the scrubbed son env (`son_launch.scrub_env`) and the profile's `env`.
     A subscription agent (roster `auth` absent or `subscription`) gets no API key at all, so a stray key in the parent shell
     cannot bill the API account; an `auth: api-key` agent gets only its own `apiKeyEnv`. No GH_TOKEN, SSH_AUTH_SOCK, cloud
-    credentials or other providers' keys. `DTS2_SON_ENV_PASS` is the owner's deliberate way to hand a key to a CLI.
+    credentials or other providers' keys. `DTS2_SON_ENV_PASS` is the owner's deliberate way to hand a key to a CLI, except
+    for an agent whose rules say `no_secrets`. `DTS2_AGENT` carries the agent's name so the policy gate applies its rules.
     The declared auth is read from `workspace`'s roster (default: cwd), the repo the agent will actually work in."""
     config: Path | None = (workspace / state_io.CONFIG_REL) if workspace else None
     mode: str = auth or declared_auth(str(profile.get("name")), config)
-    base: dict[str, str] = provider_env(dict(os.environ), profile.get("apiKeyEnv"), claude=profile.get("name") == "claude", auth=mode)
+    limits: dict[str, Any] = launch_rules(profile, workspace)[0] if rules is None else rules
+    base: dict[str, str] = provider_env(dict(os.environ), profile.get("apiKeyEnv"), claude=profile.get("name") == "claude", auth=mode,
+                                        agent=str(profile.get("name")), no_secrets=limits.get("no_secrets") is True)
     return {**base, **{str(k): str(v) for k, v in (profile.get("env") or {}).items()}}
 
 
@@ -605,6 +680,36 @@ def shell_line(argv: list[str], stdin: str | None, env: dict[str, str] | None = 
     return f"{line} < {shlex.quote(stdin)}" if stdin else line
 
 
+def read_only_template(profile: dict[str, Any], role: str) -> list[str]:
+    """The argv template of a read-only launch: a `read-only` or `plan` roleCommand, else the role's own roleCommand when the
+    profile lists the role under `readOnlyRoles`, else the profile's `readOnlyCommand`. RosterError when it has none."""
+    templates: dict[str, list[str]] = profile.get("roleCommands") or {}
+    for key in READ_ONLY_KEYS:
+        if key in templates:
+            return list(templates[key])
+    if role in (profile.get("readOnlyRoles") or []) or base_role(role) in {base_role(r) for r in profile.get("readOnlyRoles") or []}:
+        return role_template(profile, role)
+    if profile.get("readOnlyCommand"):
+        return list(profile["readOnlyCommand"])
+    raise RosterError(
+        f"agent '{profile['name']}' is read-only by its rules, but its profile has no read-only command for role '{role}'; "
+        "run it for a role it can do read-only, or set read_only=false with `roster.py rules`")
+
+
+def with_flags(template: list[str], flags: list[str]) -> list[str]:
+    """`flags` placed before the `--` (or the prompt token) that ends the options, else at the end."""
+    stops: list[int] = [i for i, part in enumerate(template) if part == "--" or part in PROMPT_TOKENS]
+    at: int = stops[0] if stops else len(template)
+    return [*template[:at], *flags, *template[at:]]
+
+
+def budget_flags(profile: dict[str, Any], rules: dict[str, Any]) -> list[str]:
+    """`--max-budget-usd <cap>` for a profile that names a `budgetFlag` (claude and agents built on it) when the rules cap a run."""
+    cap: Any = rules.get("max_cost_usd_per_run")
+    flag: Any = profile.get("budgetFlag")
+    return [flag, agent_rules.number_text(cap)] if isinstance(flag, str) and flag and agent_rules.is_number(cap) else []
+
+
 def resolve_command(
     profile: dict[str, Any], role: str, tier: str,
     prompt_file: Path | None = None, workspace: Path | None = None,
@@ -612,18 +717,22 @@ def resolve_command(
 ) -> dict[str, Any]:
     if not supports_role(profile, role):
         raise RosterError(f"role '{role}' is not supported by agent '{profile['name']}'")
+    rules, warnings = launch_rules(profile, workspace)
     model: str | None = model_override or profile["models"][tier]
     chosen_effort: str | None = effort or tier_effort(profile, tier)
-    argv: list[str] = fill_effort(fill_model(role_template(profile, role), model), chosen_effort)
+    template: list[str] = read_only_template(profile, role) if rules.get("read_only") is True else role_template(profile, role)
+    argv: list[str] = fill_effort(fill_model(with_flags(template, budget_flags(profile, rules)), model), chosen_effort)
     stdin: str | None = profile.get("stdin")
     result: dict[str, Any] = {
         "agent": profile["name"], "role": role, "tier": tier, "model": model,
         "effort": chosen_effort, "argv": argv, "stdin": stdin,
         "binary": resolve_binary(argv[0], probe_env(), search_paths_of(profile)),
         "env": dict(profile.get("env") or {}),
-        "clean_env": clean_env(profile, workspace=workspace),
+        "clean_env": clean_env(profile, workspace=workspace, rules=rules),
         "notes": list(profile.get("notes") or []),
     }
+    if rules:
+        result.update({"rules": rules, "ruleWarnings": warnings})
     if prompt_file is not None:
         values: dict[str, str] = prompt_values(prompt_file, workspace or Path.cwd())
         argv = [values.get(part, part) for part in argv]
@@ -807,7 +916,64 @@ def entry_lines(entry: dict[str, Any], indent: str) -> list[str]:
         lines.append(f"{indent}  auth: {entry['auth']}")
     if entry.get("included") is not None:
         lines.append(f"{indent}  included: {'true' if entry['included'] else 'false'}")
+    if entry.get("rules"):
+        lines += rules_lines(entry["rules"], f"{indent}  ")
     return lines
+
+
+RULES_RE: Final[re.Pattern[str]] = re.compile(r"^(\s*)rules:\s*(#.*)?$")
+BARE_ITEM: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_./-]*$")
+
+
+def rules_value(value: Any) -> str:
+    """A rules value as one line of config: `[a, b]` lists (globs quoted), true/false, numbers."""
+    if isinstance(value, list):
+        return "[" + ", ".join(item if BARE_ITEM.match(item) else json.dumps(item) for item in map(str, value)) + "]"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return agent_rules.number_text(value)
+
+
+def rules_lines(rules: dict[str, Any], indent: str) -> list[str]:
+    """The `rules:` block of an entry, keys in schema order; `indent` is where the `rules:` key sits."""
+    return [f"{indent}rules:", *(f"{indent}  {key}: {rules_value(rules[key])}" for key in agent_rules.KEYS if key in rules)]
+
+
+def rules_span(lines: list[str], start: int, end: int) -> tuple[int, int] | None:
+    """[from, to) of the `rules:` block inside the roster item at lines[start:end] (blank lines after it excluded)."""
+    for index in range(start + 1, end):
+        match: re.Match[str] | None = RULES_RE.match(lines[index])
+        if not match:
+            continue
+        indent: int = len(match.group(1))
+        stop: int = index + 1
+        for follow in range(index + 1, end):
+            if lines[follow].strip() and len(lines[follow]) - len(lines[follow].lstrip()) <= indent:
+                break
+            stop = follow + 1 if lines[follow].strip() else stop
+        return index, stop
+    return None
+
+
+def set_rules_in_config(text: str, name: str, rules: dict[str, Any] | None) -> str:
+    """Replace (or with None, remove) the `rules:` block of roster item `name`, leaving every other line byte for byte.
+    RosterError when the roster has no such item."""
+    eol: str = "\r\n" if "\r\n" in text else "\n"
+    lines: list[str] = text.splitlines()
+    span: tuple[int, int] | None = roster_span(lines)
+    spans: dict[str, tuple[int, int]] = entry_spans(lines, span) if span else {}
+    if name not in spans:
+        raise RosterError(f"agent '{name}' is not in the roster")
+    start, end = spans[name]
+    item: re.Match[str] | None = ITEM_RE.match(lines[start])
+    block: tuple[int, int] | None = rules_span(lines, start, end)
+    if block:
+        del lines[block[0]:block[1]]
+        end -= block[1] - block[0]
+    if rules:
+        last: int = max(i for i in range(start, end) if lines[i].strip() and not lines[i].lstrip().startswith("#"))
+        lines[last + 1:last + 1] = rules_lines(rules, (item.group(1) if item else "  ") + "  ")
+    return eol.join(lines) + (eol if text.endswith(("\n", "\r")) or not text else "")
 
 
 def add_roster_entry(text: str, entry: dict[str, Any]) -> str:
@@ -825,6 +991,8 @@ def add_roster_entry(text: str, entry: dict[str, Any]) -> str:
     new: list[str] = entry_lines(entry, first.group(1) if first else "  ")
     if entry["name"] in spans:
         start, end = spans[entry["name"]]
+        kept: tuple[int, int] | None = None if entry.get("rules") else rules_span(lines, start, end)
+        new += lines[kept[0]:kept[1]] if kept else []  # an edit of the entry keeps the rules block it already had
         lines[start:end] = new
     else:
         lines[span[1]:span[1]] = new
@@ -862,10 +1030,12 @@ def list_rows(config: Path) -> list[dict[str, Any]]:
     for name in profiles.names():
         profile: dict[str, Any] = profiles.as_dict()[name]
         roles: list[str] = list(entries.get(name, {}).get("roles") or profile.get("roles") or [])
+        rules: dict[str, Any] = entry_rules(entries[name], profile)[0] if name in entries else {}
+        spent: float = agent_rules.spent_today(name, project_of(config))
         rows.append({
             "name": name, "base": profiles.base_of(name), "layer": profiles.layer_of(name),
             "auth": auth_of(name, profile, roster), "roles": roles, "inRoster": name in entries,
-            "rules": NO_VALUE, "spent_today": NO_VALUE,
+            "rules": agent_rules.summary(rules), "spent_today": f"${spent:.2f}" if spent > 0 else NO_VALUE,
         })
     return rows
 
@@ -882,6 +1052,57 @@ def format_table(rows: list[dict[str, Any]]) -> str:
 def run_list(config: Path, as_json: bool) -> int:
     rows: list[dict[str, Any]] = list_rows(config)
     print(json.dumps(rows) if as_json else format_table(rows))
+    return 0
+
+
+def parse_setting(pair: str) -> tuple[str, Any]:
+    """`key=value` as (key, typed value): lists split on commas, bools are true/false, costs are numbers. ValueError says why not."""
+    key, sep, raw = pair.partition("=")
+    key = key.strip()
+    if not sep or key not in agent_rules.KEYS:
+        raise ValueError(f"'{pair}' is not key=value with a key from: {', '.join(agent_rules.KEYS)}")
+    if key in agent_rules.LIST_KEYS:
+        return key, agent_rules.split_list(raw)
+    if key in agent_rules.BOOL_KEYS:
+        value: Any = agent_rules.coerce_value(key, raw)
+        if not isinstance(value, bool):
+            raise ValueError(f"{key} must be true or false, not '{raw}'")
+        return key, value
+    if key in agent_rules.COST_KEYS:
+        value = agent_rules.coerce_value(key, raw)
+        if not agent_rules.is_number(value):
+            raise ValueError(f"{key} must be a number of dollars, not '{raw}'")
+        return key, value
+    return key, raw.strip()
+
+
+def rules_report(name: str, entry: dict[str, Any], profile: dict[str, Any], project: Path) -> dict[str, Any]:
+    """What `rules --show` prints: the rules as written, the rules in force, the warnings and today's spend."""
+    effective, warnings = entry_rules(entry, profile)
+    return {"agent": name, "auth": auth_for_entry(entry, profile), "written": entry.get("rules") or {}, "effective": effective,
+            "warnings": warnings, "summary": agent_rules.summary(effective), "spent_today": agent_rules.spent_today(name, project)}
+
+
+def run_rules(args: argparse.Namespace, config: Path) -> int:
+    """`roster.py rules <name> --show | --set key=value ... | --reset`."""
+    project: Path = project_of(config)
+    profiles: Profiles = layered_profiles(project)
+    entry: dict[str, Any] | None = next((e for e in read_roster(config) if e["name"] == args.name), None)
+    if entry is None or not config.exists():
+        return refuse(f"agent '{args.name}' is not in the roster in {config}; add it first with `roster.py add`")
+    profile: dict[str, Any] = profiles.get(entry.get("profile") or args.name) or {}
+    if not args.show:
+        try:
+            updates: dict[str, Any] = {} if args.reset else dict(parse_setting(pair) for pair in args.set)
+        except ValueError as error:
+            return refuse(str(error))
+        written: dict[str, Any] = {} if args.reset else {**(entry.get("rules") or {}), **updates}
+        problems: list[str] = [] if args.reset else agent_rules.validate(written)
+        if problems:
+            return refuse("; ".join(problems))
+        state_io.atomic_write(config, set_rules_in_config(config.read_text(encoding="utf-8"), args.name, written or None))
+        entry = {**entry, "rules": written}
+    print(json.dumps(rules_report(args.name, entry, profile, project), indent=2))
     return 0
 
 
@@ -1005,6 +1226,8 @@ def main() -> int:
     det.add_argument("--project", default=".")
     res = sub.add_parser("resolve")
     res.add_argument("--config", default=state_io.CONFIG_REL)
+    res.add_argument("--task-class", default=None, choices=agent_rules.TASK_CLASSES, help="skip agents whose rules deny this class")
+    res.add_argument("--tier", default=None, choices=MODEL_TIERS, help="skip agents whose rules cap the tier below this")
     prb = sub.add_parser("probe")
     prb.add_argument("--config", default=state_io.CONFIG_REL)
     mdl = sub.add_parser("model")
@@ -1041,6 +1264,13 @@ def main() -> int:
     ren.add_argument("old")
     ren.add_argument("new")
     ren.add_argument("--config", default=state_io.CONFIG_REL)
+    rul = sub.add_parser("rules", help="show, set or reset what an agent may be called for (its roster `rules:` block)")
+    rul.add_argument("name")
+    mode = rul.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--show", action="store_true", help="print the rules as written, the rules in force and the warnings")
+    mode.add_argument("--set", action="append", metavar="KEY=VALUE", help="set a key (repeatable); lists are comma-separated")
+    mode.add_argument("--reset", action="store_true", help="remove the rules block")
+    rul.add_argument("--config", default=state_io.CONFIG_REL)
     sug = sub.add_parser("suggest-name", help="a free name for an agent built on --base")
     sug.add_argument("--base", required=True)
     sug.add_argument("--config", default=state_io.CONFIG_REL)
@@ -1049,6 +1279,8 @@ def main() -> int:
         return run_list(Path(args.config), args.json)
     if args.command == "add":
         return run_add(args, Path(args.config))
+    if args.command == "rules":
+        return run_rules(args, Path(args.config))
     if args.command == "rename":
         return run_rename(args.old, args.new, Path(args.config))
     if args.command == "suggest-name":
@@ -1064,7 +1296,7 @@ def main() -> int:
         return run_command(args.agent, args.role, args.tier, args.prompt_file, args.workspace, args.effort, args.model)
     if args.command == "classify":
         return run_classify(args.agent, args.role, args.exit_code, args.usable, args.axis)
-    return run_resolve(Path(args.config))
+    return run_resolve(Path(args.config), args.task_class, args.tier)
 
 
 if __name__ == "__main__":
