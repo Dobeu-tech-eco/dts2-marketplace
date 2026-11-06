@@ -67,3 +67,12 @@ Installed with `npx skills add https://github.com/mattpocock/skills --skill <nam
 | `code-review` | setup/run: first contact — repo the harness has never been in (no `.harness/` marker); fires once per repo (`npx skills add https://github.com/mattpocock/skills --skill code-review`) |
 
 A missing or failed install never blocks: print `Skill <name> not installed (npx unavailable or offline); continuing without it.`, add a Decisions action item with the command, continue.
+
+## Composio routing (only when `~/.dts2/composio.json` has `always_use: true`)
+
+1. **Cache first.** Check the cached tool map (`~/.dts2/composio-tools.json`) for the toolkit; search only when it is missing.
+2. **One search per workflow.** Call `COMPOSIO_SEARCH_TOOLS` once with a session `generate_id` and reuse the returned `session_id` for every later meta call.
+3. **Batch independent calls.** `COMPOSIO_MULTI_EXECUTE_TOOL` takes up to 50 independent calls; dependent calls run in sequence.
+4. **Bulk work goes remote.** Use `COMPOSIO_REMOTE_WORKBENCH` or `COMPOSIO_REMOTE_BASH_TOOL` for large or file-based results (180 s per call; checkpoint to `/mnt/files/`).
+5. **One connection.** Never run the Composio plugin and a hosted Composio MCP server at the same time.
+6. **Memory is separate.** Memory stays with the knowledge store; Composio is a tools integration only. Credentials stay in the CLI's own config and never enter a repo, a chat or a log.
