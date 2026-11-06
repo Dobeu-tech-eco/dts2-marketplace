@@ -5,9 +5,9 @@ description: "Clear open and stale PRs in one pass with parallel workers: merge 
 
 # PR-sweep — get open PRs down to the ones that need you
 
-`/dts2:pr-sweep [owner/repo] [--stale-days N] [--mine|--author A|--head-prefix P] [--optimise-ci]`. The repo defaults to the current one (`gh repo view --json nameWithOwner`); `--stale-days` defaults to 3. `--mine` is the signed-in user (`gh api user`), `--author A` one login, `--head-prefix P` only branches starting with `P`.
+`/dt:pr-sweep [owner/repo] [--stale-days N] [--mine|--author A|--head-prefix P] [--optimise-ci]`. The repo defaults to the current one (`gh repo view --json nameWithOwner`); `--stale-days` defaults to 3. `--mine` is the signed-in user (`gh api user`), `--author A` one login, `--head-prefix P` only branches starting with `P`.
 
-`/dts2:pr-sweep --run <stamp>` is the autopilot form: it limits the sweep to PRs whose head starts with `dts2/<stamp>/` and runs phases 1 to 3 only. No CI optimisation, no question.
+`/dt:pr-sweep --run <stamp>` is the autopilot form: it limits the sweep to PRs whose head starts with `dts2/<stamp>/` and runs phases 1 to 3 only. No CI optimisation, no question.
 
 Invoking the command is the standing approval for everything in the phase files, and for nothing else. Helper: `python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/pr_sweep.py"` (`inventory`, `classify`, `order`, `record`, `report`; every subcommand prints JSON).
 

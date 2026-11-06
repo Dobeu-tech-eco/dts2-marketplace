@@ -52,7 +52,7 @@ class HomeCase(unittest.TestCase):
 
 class DetectorTests(unittest.TestCase):
     def test_agent_class_strips_prefix(self) -> None:
-        self.assertEqual(detect.agent_class("dts2:builder"), "builder")
+        self.assertEqual(detect.agent_class("dt:builder"), "builder")
         self.assertEqual(detect.agent_class("Explore"), "Explore")
         self.assertEqual(detect.agent_class(""), detect.UNKNOWN_CLASS)
 
@@ -364,10 +364,10 @@ class LibraryTests(HomeCase):
         self.start("a1", NOW)
         self.start("b2", NOW)
         edit = {"session_id": "s1", "tool_name": "Edit", "tool_input": {"file_path": str(self.repo / "src" / "x.py")}}
-        incidents.rework_check(self.repo, {**edit, "agent_id": "a1", "agent_type": "dts2:builder"}, NOW)
-        incidents.rework_check(self.repo, {**edit, "agent_id": "a1", "agent_type": "dts2:builder"}, NOW)
+        incidents.rework_check(self.repo, {**edit, "agent_id": "a1", "agent_type": "dt:builder"}, NOW)
+        incidents.rework_check(self.repo, {**edit, "agent_id": "a1", "agent_type": "dt:builder"}, NOW)
         self.assertEqual(incidents.incidents_merged(self.repo), [])
-        incidents.rework_check(self.repo, {**edit, "agent_id": "b2", "agent_type": "dts2:reviewer"}, NOW)
+        incidents.rework_check(self.repo, {**edit, "agent_id": "b2", "agent_type": "dt:reviewer"}, NOW)
         found = incidents.incidents_merged(self.repo)
         self.assertEqual([(i["category"], i["agent_id"]) for i in found], [("rework-other-agent", "b2")])
         self.assertEqual(found[0]["evidence"]["paths"], ["src/x.py"])
@@ -417,7 +417,7 @@ class LibraryTests(HomeCase):
             self.incident(session=f"x{n}", agent=f"x{n}")
         nudged = incidents.session_note(self.repo, {**self.CFG, "incidents_auto_review": True}, NOW)
         assert nudged is not None
-        self.assertIn("run /dts2:incidents review", nudged)
+        self.assertIn("run /dt:incidents review", nudged)
 
     def test_settings_registered_with_defaults(self) -> None:
         cfg = incidents.settings(self.repo)

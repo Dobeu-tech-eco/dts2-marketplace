@@ -67,7 +67,7 @@ class DppSkillTextTests(TextContractMixin):
                                         "hard stop", "council", "remaining items", "lanes.py stop-check"])
 
     def test_fullauto_reruns_check_in_between_rounds(self) -> None:
-        self.assert_contains(FULLAUTO, ["/dts2:check-in", "after each son reports", "before the next dispatch"])
+        self.assert_contains(FULLAUTO, ["/dt:check-in", "after each son reports", "before the next dispatch"])
 
     def test_resume_merges_resolved_prs(self) -> None:
         self.assert_contains(DPP, ["task-ledger.py <stamp> --resolved", "merge son", "resume"])

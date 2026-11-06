@@ -346,7 +346,7 @@ class ProcessRules(unittest.TestCase):
         """P2: the router and its phase files keep the text other files point at."""
         router: str = (SKILLS / "run" / "SKILL.md").read_text(encoding="utf-8")
         for phrase in ("Follow the phases in order", "## Phase files", "## Companion skills", "## Preflight", "## Guardrails",
-                       "subagent_type: dts2:<role>", "Rule 9.2"):
+                       "subagent_type: dt:<role>", "Rule 9.2"):
             self.assertIn(phrase, router)
         for name in ("phase-0-size.md", "phase-1-plan.md", "phase-2-build.md", "phase-3-review.md", "phase-4-ship.md",
                      "modes.md", "operations.md"):

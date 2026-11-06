@@ -9,7 +9,7 @@ from typing import Final
 from helpers import PLUGIN_ROOT
 
 DIR: Final[Path] = PLUGIN_ROOT / "skills" / "autopilot"
-SWEEP: Final[str] = "/dts2:pr-sweep --run <stamp>"
+SWEEP: Final[str] = "/dt:pr-sweep --run <stamp>"
 
 
 def _read(name: str) -> str:

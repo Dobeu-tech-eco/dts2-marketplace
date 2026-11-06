@@ -1,7 +1,7 @@
 {
   "name": "agent-startup-blueprint",
   "source": "https://origin.cursor.com/dobeu/agent-startup-blueprint (commit a62a599)",
-  "note": "dts2@dts2 replaces harness@harness. Enable one, not both. Tiers (machine-prep --tier, default claude.defaultTier): light disables only plugins with no use in the usage window; standard keeps the marketplace keep-set plus the top keepSyncedTopN used synced plugins plus keepSyncedPlugins; strict also sets syncClaudeAiPlugins and syncClaudeAiSkills to false. requiredByHarness ids (glob) are never disabled. claude.ai and Cowork keep their plugins in every tier.",
+  "note": "dt@dts2 replaces harness@harness, dts2@dts2 (4.x) and dts2-harness@dts2 (before 4.0). Enable one, not several. Tiers (machine-prep --tier, default claude.defaultTier): light disables only plugins with no use in the usage window; standard keeps the marketplace keep-set plus the top keepSyncedTopN used synced plugins plus keepSyncedPlugins; strict also sets syncClaudeAiPlugins and syncClaudeAiSkills to false. requiredByHarness ids (glob) are never disabled. claude.ai and Cowork keep their plugins in every tier.",
   "requiredByHarness": ["marketing-skills@synced", "impeccable@*"],
   "budget": {
     "claudeEnabledPlugins": 6,
@@ -14,13 +14,15 @@
   },
   "claude": {
     "enabledPlugins": [
-      "dts2@dts2",
+      "dt@dts2",
       "composio@composio",
       "gitkraken-hooks@gitkraken",
       "terminal-title@2389-research"
     ],
     "installedButDisabled": [
       "harness@harness",
+      "dts2@dts2",
+      "dts2-harness@dts2",
       "figma@claude-plugins-official",
       "thrifty@2389-research"
     ],
