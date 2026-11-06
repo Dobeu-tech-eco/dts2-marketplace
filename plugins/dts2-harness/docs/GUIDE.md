@@ -123,6 +123,16 @@ The harness watches its own agents without spending model tokens.
 - **Where the files live.** `.harness/agents.jsonl` (events and incidents), `.harness/injections.jsonl` (which lessons were injected), `.harness/briefs/<session>.md` (end-of-run brief), `.harness/lessons.md` and `.harness/lessons-inbox.md` (lessons). Turn capture off with `incident_capture: false` in `.claude/dts2-harness.local.md`.
 - **How to run a review.** `/dts2:incidents list --open` shows what is open and `/dts2:incidents live` shows agents still running. `/dts2:incidents review` sends the open incidents to a read-only reviewer once, then records root causes, queues lessons for `learn`, promotes repeat trends one tier up and lists plugin-wide fixes for `evolve`. Nothing edits the plugin without your yes.
 
+### Composio
+
+`/dts2:composio` (also offered as a step in `/dts2:onboard`) asks once whether you have a Composio account and records the answer in `~/.dts2/composio.json` (no secrets, never in a repo).
+
+- On yes, the plugin (`composio@composio`) is the default connection; MCP or the CLI only if you ask. Credentials stay with the Composio CLI and are never read or copied.
+- The full toolkit catalogue and your connected accounts are mapped into `~/.dts2/composio-tools.json`, so agents check the map before searching.
+- `/dts2:machine-prep` and `/dts2:composio` list plugins, MCP servers and user skills that a connected toolkit already covers and offer to disable them. Nothing is deleted: plugins and MCP entries are switched off with a settings backup, skills move to `skills-archive/`. `/dts2:find-skills` also stops recommending MCP servers a connected toolkit covers.
+- Routing once always-use is on: map first, one `COMPOSIO_SEARCH_TOOLS` per workflow, `COMPOSIO_MULTI_EXECUTE_TOOL` for independent calls, the remote workbench for bulk results, and never the plugin and a hosted MCP server together.
+- Memory stays in `/dts2:knowledge`; Composio is a tools integration only.
+
 ### Personal knowledge across devices
 
 `/dts2:knowledge` keeps your own standing preferences ("my standard team is 6 agents"), glossary terms (a brand and the repos in it) and cross-project lessons in a private store that is never part of the plugin.

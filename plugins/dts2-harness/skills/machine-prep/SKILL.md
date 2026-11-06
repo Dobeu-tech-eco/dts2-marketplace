@@ -54,6 +54,8 @@ Plugins added on claude.ai later arrive enabled in light and standard, so re-run
 - Global MCP servers that belong in one project.
 - Codex plugin flags above budget.
 
+If `~/.dts2/composio-tools.json` exists (set up by `/dts2:composio`), also run `python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/composio-setup.py" overlap` and include its candidates (plugins, MCP servers and skills Composio already covers) in the plan. Prune still means disable, never delete.
+
 Recommend one tier and ask which to use. That is the only tier question; step 4 is the approval gate.
 
 ## 4. Approval gate
