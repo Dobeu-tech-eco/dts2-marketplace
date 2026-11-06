@@ -1,4 +1,4 @@
-"""The /dts2:composio skill and its wiring: text contracts only. Does not import scripts/composio-setup.py."""
+"""The /dt:composio skill and its wiring: text contracts only. Does not import scripts/composio-setup.py."""
 
 from __future__ import annotations
 
@@ -52,8 +52,8 @@ class ComposioSkill(unittest.TestCase):
         self.assertIn("Ask once", self.text)
 
     def test_mentions_machine_prep_and_memory_split(self) -> None:
-        self.assertIn("/dts2:machine-prep", self.text)
-        self.assertIn("/dts2:knowledge", self.text)
+        self.assertIn("/dt:machine-prep", self.text)
+        self.assertIn("/dt:knowledge", self.text)
 
     def test_routing_rule(self) -> None:
         for needle in (
@@ -83,7 +83,7 @@ class ComposioWiring(unittest.TestCase):
     def test_onboard_offers_composio_before_hooks(self) -> None:
         text: str = _read("skills/onboard/SKILL.md")
         self.assertIn("## Composio (optional)", text)
-        self.assertIn("/dts2:composio", text)
+        self.assertIn("/dt:composio", text)
         self.assertLess(
             text.index("## Composio (optional)"),
             text.index("## Hooks (optional last step)"),

@@ -24,7 +24,7 @@ All commands: `python3 "$CLAUDE_PLUGIN_ROOT/scripts/incidents.py" <sub>`.
 
 ## review
 1. Run `python3 "$CLAUDE_PLUGIN_ROOT/scripts/incidents.py" review-input`. When it lists no open incidents, say so and stop; no model is spawned.
-2. Spawn the `incident-reviewer` agent (`Agent(subagent_type: dts2:incident-reviewer)`, model `sonnet`; `haiku` is allowed for a short list) with that JSON as the whole brief.
+2. Spawn the `incident-reviewer` agent (`Agent(subagent_type: dt:incident-reviewer)`, model `sonnet`; `haiku` is allowed for a short list) with that JSON as the whole brief.
 3. Read its report and apply it in this order:
    - `## Incidents`: for each id run `resolve <id> --root-cause "<text>" --how "<text>"`. "none found" is a valid root cause. Keep the isolated or trend mark.
    - `## Lessons`: append each local lesson line to `.harness/lessons-inbox.md`, then run the normal `learn` flow so the user approves it into `lessons.md`.
@@ -41,7 +41,7 @@ A signature is `category + agent class + top path glob`, so one failure is count
 | 1 Son | one run or lane | always summarized up at run end |
 | 2 Project | this repo, the lead | same signature in 3+ sessions within 14 days |
 | 3 Harness | this device, all projects | same signature in 2+ projects |
-| 4 Knowledge store | all devices, via `/dts2:knowledge` | plugin-caused and seen on 2+ devices or projects |
+| 4 Knowledge store | all devices, via `/dt:knowledge` | plugin-caused and seen on 2+ devices or projects |
 | 5 Marketplace | all users | never automatic: `harness:` line, `evolve`, a PR, an explicit yes |
 
 ## Lesson matching

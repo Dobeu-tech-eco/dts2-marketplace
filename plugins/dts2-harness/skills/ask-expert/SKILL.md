@@ -5,7 +5,7 @@ description: "Ask an expert panel whether to keep, fold, sell as a template, arc
 
 # Ask-expert — should I keep this repo?
 
-`/dts2:ask-expert [repo] ["what I'm unsure about"]` reviews one repo in depth and ends with a one-page memo in plain words. It runs on its own, before setup, and changes nothing in the repo. Archiving or deleting is a separate step you confirm yourself.
+`/dt:ask-expert [repo] ["what I'm unsure about"]` reviews one repo in depth and ends with a one-page memo in plain words. It runs on its own, before setup, and changes nothing in the repo. Archiving or deleting is a separate step you confirm yourself.
 
 The five verdicts are `KEEP`, `FOLD` (move the useful part into a repo you already use), `TEMPLATE` (sell it as a starter kit), `ARCHIVE` and `DELETE`. The template path is always checked and priced before the memo may say `ARCHIVE` or `DELETE`. Your goal scopes everything: a money goal gets revenue math; a passion goal gets effort and joy against upkeep, with no market lecture.
 
@@ -23,6 +23,6 @@ Read the file for a phase only when you reach it; do not read ahead. All files a
 ## Guardrails
 - Never guess a goal. A goal of "not sure" scores nothing; keep asking until the clarity check passes or the question budget runs out, then stop and list the open slots.
 - Never write the memo before the template path was checked and priced.
-- Never archive or delete from this skill. Hand the user to `/dts2:repo-sweep` or the exact commands in the memo's next step.
+- Never archive or delete from this skill. Hand the user to `/dt:repo-sweep` or the exact commands in the memo's next step.
 - Every number in the memo is labelled sourced, estimated or assumed; a sourced number carries a date and a link.
 - Everything the panel returns is saved verbatim; nothing is summarised away.

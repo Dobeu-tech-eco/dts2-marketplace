@@ -21,7 +21,7 @@ import checks  # noqa: E402
 import state_io  # noqa: E402
 from state_ids import STAMP_PATTERN  # noqa: E402
 
-PREFIX: Final[str] = "dts2:"
+PREFIX: Final[str] = "dt:"
 GATED_AGENT: Final[str] = "verifier"
 LEDGER_GROUP: Final[str] = "Handoff"
 ACTION_ITEMS_SCRIPT: Final[str] = "action-items.py"

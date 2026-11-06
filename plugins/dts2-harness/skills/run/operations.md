@@ -17,7 +17,7 @@ When a `dts2-harness CONTEXT GUARD` message arrives (from the hook), or the lead
 1. Stop. No new dispatches; tell running builders to stop and discard their partial work (worktrees are removed, nothing is merged).
 2. Write an escalation to `.harness/state.md` → `## Failures and escalations` as `- <date> context guard: <trigger> — <details>` and refresh the handoff file with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/handoff-write.py" <repo>`.
 3. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/scope-check.py" .`.
-4. If scope is `workspace-member` or `none`, or no end state exists, invoke `/dts2:setup`; it re-links an existing workspace manifest without re-interviewing and keeps everything in `.harness/keep.yaml`.
+4. If scope is `workspace-member` or `none`, or no end state exists, invoke `/dt:setup`; it re-links an existing workspace manifest without re-interviewing and keeps everything in `.harness/keep.yaml`.
 5. Then `run resume`.
 
 ## Questions from the user

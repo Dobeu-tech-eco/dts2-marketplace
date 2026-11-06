@@ -5,7 +5,7 @@ description: "Run harness steps end to end without human plan or ship approval: 
 
 # Autopilot — the harness pipeline with a consensus gate instead of a human
 
-`/dts2:autopilot <steps>` where `<steps>` is any mix of end-state section numbers (`3,4,7` or `3-5`), action-item ids (`D2`, `S1` when the secret is already present), `feature "<description>"`, or quoted free-text tasks. `autopilot resume` continues the last autopilot run. `autopilot status` prints the progress table and stops.
+`/dt:autopilot <steps>` where `<steps>` is any mix of end-state section numbers (`3,4,7` or `3-5`), action-item ids (`D2`, `S1` when the secret is already present), `feature "<description>"`, or quoted free-text tasks. `autopilot resume` continues the last autopilot run. `autopilot status` prints the progress table and stops.
 
 Invoking autopilot is the user's standing approval for exactly the listed steps: their plans, builds, PRs and merges. It is not approval for anything else.
 

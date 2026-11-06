@@ -117,6 +117,8 @@ HARNESS: Final[str] = ".harness"
 RUNS: Final[str] = "runs"
 CONFIG_REL: Final[str] = f"{HARNESS}/config.yaml"
 KEEP_REL: Final[str] = f"{HARNESS}/keep.yaml"
+# Plugin ids this harness has shipped under: `dt@dts2` now, `dts2@dts2` in 4.x and `dts2-harness@dts2` before 4.0.
+LEGACY_HARNESS_PLUGINS: Final[tuple[str, ...]] = ("dts2@dts2", "dts2-harness@dts2")
 END_STATE_REL: Final[str] = f"{HARNESS}/end-state.md"
 DISCIPLINE_REL: Final[str] = f"{HARNESS}/discipline.md"
 STATE_MD_REL: Final[str] = f"{HARNESS}/state.md"
