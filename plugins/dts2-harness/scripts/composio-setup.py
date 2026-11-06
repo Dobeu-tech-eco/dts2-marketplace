@@ -483,14 +483,15 @@ def cmd_disable(args: argparse.Namespace) -> int:
     if result is None:
         return missing_map()
     wanted: list[str] = [i.strip() for i in args.ids.split(",") if i.strip()]
-    known: dict[tuple[str, str], str] = {(c["kind"], c["id"]): c["scope"] for c in result["candidates"]}
+    known: list[tuple[str, str, str]] = list(dict.fromkeys(
+        (c["kind"], c["id"], c["scope"]) for c in result["candidates"]))
     disabler = Disabler(args.home, args.cwd, args.dry_run)
     for item_id in wanted:
-        hits: list[tuple[str, str]] = [key for key in known if key[1] == item_id]
+        hits: list[tuple[str, str, str]] = [key for key in known if key[1] == item_id]
         if not hits:
             disabler.skipped.append(item_id)
-        for kind, _id in hits:
-            disabler.apply(kind, item_id, known[(kind, item_id)])
+        for kind, _id, scope in hits:
+            disabler.apply(kind, item_id, scope)
     return emit({"changed": disabler.changed, "manual": disabler.manual,
                  "backups": [str(p) for p in disabler.backups.values()],
                  "skipped": disabler.skipped, "dry_run": args.dry_run})

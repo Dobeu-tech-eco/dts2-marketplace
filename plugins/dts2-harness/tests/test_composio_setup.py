@@ -7,9 +7,9 @@ import stat
 import subprocess
 import tempfile
 import unittest
+import unittest.mock as mock
 from pathlib import Path
 from typing import Any
-from unittest import mock
 
 from helpers import PLUGIN_ROOT
 
@@ -353,6 +353,13 @@ class DisableTests(ComposioCase):
         self.assertEqual(sorted(out["manual"]), ["claude mcp remove notion-local --scope local",
                                                  "claude mcp remove slack-user --scope user"])
         self.assertEqual((self.home / ".claude.json").read_text(), before)
+
+    def test_mcp_in_project_and_user_scope_handles_both(self) -> None:
+        write(self.home / ".claude.json", json.dumps({"mcpServers": {"github-mcp": {}, "slack-user": {}}}))
+        out = self.run_cli("disable", "--ids", "github-mcp")
+        self.assertEqual(out["changed"], [{"kind": "mcp", "id": "github-mcp", "file": str(self.local_settings)}])
+        self.assertEqual(json.loads(self.local_settings.read_text())["disabledMcpjsonServers"], ["github-mcp"])
+        self.assertEqual(out["manual"], ["claude mcp remove github-mcp --scope user"])
 
     def test_second_run_is_idempotent(self) -> None:
         ids = "github@official,github-mcp,github-helper"
