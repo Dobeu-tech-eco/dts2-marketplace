@@ -64,9 +64,9 @@ class TempProject(unittest.TestCase):
     def write_config(self, text: str) -> None:
         self.config.write_text(text, encoding="utf-8")
 
-    def cli(self, *args: str) -> subprocess.CompletedProcess[str]:
+    def cli(self, *args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
         return subprocess.run([sys.executable, "-I", str(ROSTER_CLI), *args], capture_output=True, text=True, check=False,
-                              cwd=str(self.root), env={**os.environ, USER_AGENTS_ENV: str(self.home)})
+                              cwd=str(self.root), env={**os.environ, USER_AGENTS_ENV: str(self.home), **(env or {})})
 
 
 class ValidatorTests(unittest.TestCase):
@@ -437,7 +437,12 @@ class SpendLedgerTests(TempProject):
         profile.write_text(json.dumps({"name": "grok-api", "extends": "grok", "statusCommand": None, "loginCommand": None}), encoding="utf-8")
         self.write_config("roster:\n  - name: claude\n  - name: grok-api\n    auth: api-key\n    included: true\n")
         agent_rules.record_spend("grok-api", 5.0, "r", self.root)
-        done = self.cli("probe", "--config", str(self.config))
+        bin_dir = self.root / "bin"
+        bin_dir.mkdir()
+        fake = bin_dir / "grok"
+        fake.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        fake.chmod(0o755)
+        done = self.cli("probe", "--config", str(self.config), env={roster.PROBE_PATH_ENV: str(bin_dir)})
         self.assertEqual(done.returncode, 0, done.stderr)
         agents = json.loads(done.stdout)["agents"]
         self.assertEqual((agents["grok-api"]["available"], agents["grok-api"]["reason"]), (False, "budget exhausted"))
