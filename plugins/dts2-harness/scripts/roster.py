@@ -580,7 +580,7 @@ def detect(project: Path) -> dict[str, Any]:
 
 def run_resolve(config: Path, task_class: str | None = None, tier: str | None = None) -> int:
     try:
-        result: dict[str, Any] = resolve(read_roster(config), load_profiles(), task_class, tier)
+        result: dict[str, Any] = resolve(read_roster(config), load_profiles(project_of(config)), task_class, tier)
     except RosterError as error:
         print(f"roster error: {error}", file=sys.stderr)
         return 1
@@ -590,7 +590,7 @@ def run_resolve(config: Path, task_class: str | None = None, tier: str | None = 
 
 def run_probe(config: Path) -> int:
     try:
-        result: dict[str, Any] = probe(read_roster(config), load_profiles(), read_budget(config), project_of(config))
+        result: dict[str, Any] = probe(read_roster(config), load_profiles(project_of(config)), read_budget(config), project_of(config))
     except RosterError as error:
         print(f"roster error: {error}", file=sys.stderr)
         return 1
@@ -856,11 +856,18 @@ def run_exec(
     return code
 
 
+def agent_profile(agent: str, config: Path) -> dict[str, Any] | None:
+    """The profile `agent` runs: through its roster entry's `profile:` pointer when it has one, else by its own name."""
+    profiles: dict[str, dict[str, Any]] = load_profiles(project_of(config))
+    entry: dict[str, Any] | None = next((item for item in read_roster(config) if item["name"] == agent), None)
+    return profiles.get((entry or {}).get("profile") or agent)
+
+
 def run_command(
     agent: str, role: str, tier: str, prompt_file: str | None, workspace: str | None,
-    effort: str | None, model: str | None = None,
+    effort: str | None, model: str | None = None, config: Path = Path(state_io.CONFIG_REL),
 ) -> int:
-    profile: dict[str, Any] | None = load_profiles().get(agent)
+    profile: dict[str, Any] | None = agent_profile(agent, config)
     try:
         if profile is None:
             raise RosterError(f"unknown agent '{agent}'")
@@ -959,8 +966,8 @@ def run_classify(agent: str, role: str, exit_code: int, usable: str | None, axis
     return 0
 
 
-def run_model(agent: str, tier: str) -> int:
-    profile: dict[str, Any] | None = load_profiles().get(agent)
+def run_model(agent: str, tier: str, config: Path = Path(state_io.CONFIG_REL)) -> int:
+    profile: dict[str, Any] | None = agent_profile(agent, config)
     if profile is None:
         print(f"roster error: unknown agent '{agent}'", file=sys.stderr)
         return 1
@@ -1348,6 +1355,7 @@ def main() -> int:
     mdl = sub.add_parser("model")
     mdl.add_argument("--agent", required=True)
     mdl.add_argument("--tier", required=True, choices=MODEL_TIERS)
+    mdl.add_argument("--config", default=state_io.CONFIG_REL)
     cmd = sub.add_parser("command", help="argv and a quoted shell line for one seat")
     cmd.add_argument("--agent", required=True)
     cmd.add_argument("--role", required=True)
@@ -1356,6 +1364,7 @@ def main() -> int:
     cmd.add_argument("--prompt-file", default=None, help="file holding the brief or review prompt")
     cmd.add_argument("--workspace", default=None, help="repo the agent works in (default: cwd)")
     cmd.add_argument("--model", default=None, help="exact model id; overrides the --tier model (council doubled seats)")
+    cmd.add_argument("--config", default=state_io.CONFIG_REL, help="roster config whose `profile:` pointers name the agent")
     run = sub.add_parser("exec", help="launch one seat with its own environment (a key agent gets its key here, and no one else does)")
     run.add_argument("--agent", required=True)
     run.add_argument("--role", required=True)
@@ -1414,9 +1423,9 @@ def main() -> int:
     if args.command == "probe":
         return run_probe(Path(args.config))
     if args.command == "model":
-        return run_model(args.agent, args.tier)
+        return run_model(args.agent, args.tier, Path(args.config))
     if args.command == "command":
-        return run_command(args.agent, args.role, args.tier, args.prompt_file, args.workspace, args.effort, args.model)
+        return run_command(args.agent, args.role, args.tier, args.prompt_file, args.workspace, args.effort, args.model, Path(args.config))
     if args.command == "exec":
         return run_exec(args.agent, args.role, args.tier, args.prompt_file, args.workspace, args.effort, args.model)
     if args.command == "classify":

@@ -10,7 +10,7 @@ Rules for the whole interview:
 ### Round 1 — Greenfield or brownfield
 
 1. Look at the repo root. **Greenfield** if there is no source code yet (empty, or only README, LICENSE, `.gitignore`, config stubs). Otherwise **brownfield**.
-2. Brownfield: dispatch the `dts2:scout` agent on the repo and keep its output. You need its `Harnesses:` line, its `Marketing surface:` line, and the stack and modules it reports. Also read any existing `.harness/` files (config, lessons, state) for context.
+2. Brownfield: dispatch the `dt:scout` agent on the repo and keep its output. You need its `Harnesses:` line, its `Marketing surface:` line, and the stack and modules it reports. Also read any existing `.harness/` files (config, lessons, state) for context.
    A scout report whose first line is `PARTIAL: hit turn cap at <step>` is incomplete: re-dispatch the scout with a narrower scope or a fresh agent before using its output.
 3. Tell the user in one line what you found, for example: `Brownfield: TypeScript monorepo, 4 packages, marketing site found.`
 
@@ -36,7 +36,7 @@ Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/deploy-detect.py" <repo>` (it only r
 - `provider` found and `productionUrl` set → say it in one line and ask nothing.
 - `provider` is `none` → ask once: `Where does this deploy? (a) existing — tell me the provider and production URL (b) none — skip verification (c) build one: pick a plan or type your own`
   - (a) → record the provider and URL.
-  - (b) → record `provider: none`; change it later with `/dts2:evolve deploy`.
+  - (b) → record `provider: none`; change it later with `/dt:evolve deploy`.
   - (c) → show `PRODUCTION_PLANS` from `deploy-detect.py` for the stack signal that fits the repo (`nextjs`, `react` or `static` → vercel, cloudflare-pages; `node-api`, `python-api` or `docker` → fly, render; `supabase` → vercel; `workers` → cloudflare) and accept a free-text plan line. Write the chosen or typed plan to the end state as `deploy.plan: <text>` with `deploy.provider` and `deploy.status: planned`.
 
 Record the answer for the end state's `deploy:` block. A `planned` deploy is built by `run` as its own run before any feature run; see **Deployment verification** in the run skill.

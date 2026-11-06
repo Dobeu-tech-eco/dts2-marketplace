@@ -19,7 +19,7 @@ from typing import Any, Final
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import contracts  # noqa: E402
 
-PREFIX: Final[str] = "dts2:"
+PREFIX: Final[str] = "dt:"
 REQUIRED: Final[dict[str, tuple[str, ...]]] = {
     "builder": ("files changed", "commands run", "concerns"),
     "reviewer": ("findings", "verdict"),

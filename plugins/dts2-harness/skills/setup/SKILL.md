@@ -11,7 +11,7 @@ Setup has two parts. **Part 1** interviews the user until the end state is clear
 
 First, check for a `.harness/` directory at the project root. If there is none, the harness has never been in this repo: install and run `npx skills add https://github.com/mattpocock/skills --skill code-review` (see Companion skills in `.harness/discipline.md`) on the repo, show its findings, then write the marker with `mkdir -p .harness && date +%F > .harness/seen`. A repo that already has `.harness/` (including one `run` just marked) is skipped, so this fires once per repo, on first contact only. A missing or failed install never blocks: print `Skill code-review not installed (npx unavailable or offline); continuing without it.`, add a Decisions action item with the command, and still write the marker.
 
-If the user says they are unsure whether a repo is worth keeping, point them to `/dts2:ask-expert` (one repo) or `/dts2:repo-sweep` (many) before the interview; both run without setup.
+If the user says they are unsure whether a repo is worth keeping, point them to `/dt:ask-expert` (one repo) or `/dt:repo-sweep` (many) before the interview; both run without setup.
 
 ## Scope and keep list
 
@@ -23,7 +23,7 @@ Before anything else, run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/scope-check.py
 ## Personal knowledge (optional, never blocks)
 
 Run `python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/knowledge.py" context --repo <repo path> --json`. Any failure or empty result: continue without a word.
-- `store` is null → say once `No personal knowledge store yet; /dts2:knowledge setup creates one (new person) or /dts2:knowledge join connects this device to an existing one (private GitHub repo, Cloudflare Worker + D1, or a synced folder).` and continue.
+- `store` is null → say once `No personal knowledge store yet; /dt:knowledge setup creates one (new person) or /dt:knowledge join connects this device to an existing one (private GitHub repo, Cloudflare Worker + D1, or a synced folder).` and continue.
 - Otherwise show the `preferences` and the `terms` named in `repo_matches`, then ASK before using any of them. On a yes, apply mapped ones: `agents.standard` answers the roster and builder-count questions in the interview, so skip them. Without a yes, ask as usual.
 
 ## Mode
@@ -35,7 +35,7 @@ Run `python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/knowledge.py" context --repo <rep
 
 If batch vs workspace is unclear, ask once. Default to batch.
 
-If `.harness/end-state.md` already exists, show its status and ask once: revise it, keep it and scaffold (only if its status is `approved`), or start over. For revise and keep-and-scaffold, read `roster` from its metadata and the decisions from its Other harnesses table, and re-run `dts2:scout` for fresh `Harnesses:` and `Marketing surface:` lines. Revise resumes the interview from the file's contents; keep-and-scaffold goes straight to Part 2.
+If `.harness/end-state.md` already exists, show its status and ask once: revise it, keep it and scaffold (only if its status is `approved`), or start over. For revise and keep-and-scaffold, read `roster` from its metadata and the decisions from its Other harnesses table, and re-run `dt:scout` for fresh `Harnesses:` and `Marketing surface:` lines. Revise resumes the interview from the file's contents; keep-and-scaffold goes straight to Part 2.
 
 ## Phase files
 Read the file for a part only when you reach it; do not read ahead. All files are in this folder.

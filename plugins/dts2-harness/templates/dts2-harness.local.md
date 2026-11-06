@@ -17,7 +17,7 @@ mailbox_wait_min: 30           # minutes a son waits for the head's answer or a 
 dpp_full_ask_each_lane: true   # dpp-full outside autopilot asks the user before each new lane is leased
 fullauto_freeze_scope: true    # fullauto freezes the approved item set at its first plan; new check-in items wait in a pending list
 post_merge_fix_attempts: 2     # post-merge fixes the head may try per lane before it opens a revert PR
-son_model: opus            # model every dpp son runs on (alias or full model id)
+son_model: sonnet          # model every dpp son runs on (alias or full model id)
 use_worktrees: auto        # auto = one worktree per builder in a git repo (scratch dir per builder without git) | always | never
 # Headless runner (sdk skill)
 second_opinion: none       # none | codex | gemini

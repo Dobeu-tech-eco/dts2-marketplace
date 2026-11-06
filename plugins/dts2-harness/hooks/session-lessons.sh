@@ -75,7 +75,7 @@ print_compact_pointer() {
   echo "Next: read .harness/handoff/latest.md (the rewritten handoff) before acting."
   echo "rule 1: define done first (outcome plus check method) before planning."
   echo "rule 2: end every run with a receipt listing tests, verdict and rollback point."
-  echo "rule 3: cap fix rounds at three, then escalate with what failed."
+  echo "rule 3: cap fix rounds at five, then escalate with what failed."
 }
 if [[ "$HOOK_INPUT" =~ \"source\"[[:space:]]*:[[:space:]]*\"compact\" ]]; then
   print_compact_pointer
@@ -104,8 +104,8 @@ print_scope() {
   scope="$(printf '%s' "$info" | python3 -I -c 'import json,sys; print(json.load(sys.stdin).get("scope",""))' 2>/dev/null)" || return 0
   root="$(printf '%s' "$info" | python3 -I -c 'import json,sys; print(json.load(sys.stdin).get("workspaceRoot") or "")' 2>/dev/null)" || return 0
   case "$scope" in
-    workspace-member) echo "dts2-harness scope: you are inside $(basename "$PWD"), a member of workspace $root. Run /dts2:run from $root (run pivots there automatically)." ;;
-    none) echo "dts2-harness scope: no harness in this folder; /dts2:setup to start." ;;
+    workspace-member) echo "dts2-harness scope: you are inside $(basename "$PWD"), a member of workspace $root. Run /dt:run from $root (run pivots there automatically)." ;;
+    none) echo "dts2-harness scope: no harness in this folder; /dt:setup to start." ;;
   esac
 }
 print_scope || true

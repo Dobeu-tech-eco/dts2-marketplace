@@ -18,7 +18,7 @@ Latest run: <run>
 
 ## Resume
 
-`/dts2:run resume` reads this file first, then continues from the next action above.
+`/dt:run resume` reads this file first, then continues from the next action above.
 
 ## Recommended agent
 

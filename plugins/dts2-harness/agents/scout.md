@@ -2,6 +2,9 @@
 name: scout
 description: Read-only sizing scout. Measures a repo, detects other agent harnesses and a marketing surface, and recommends a team tier (S, M, L, XL), builder count and reviewer axes before planning. Collects evidence (configured commands only) when asked.
 model: haiku
+omitClaudeMd: true
+experimental:
+  cacheTtl: 1h
 tools: Read, Grep, Glob, Bash
 maxTurns: 15
 effort: low

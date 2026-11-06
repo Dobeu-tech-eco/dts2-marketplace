@@ -7,7 +7,7 @@ import hashlib
 import re
 from typing import Any, Final
 
-PREFIX: Final[str] = "dts2:"
+PREFIX: Final[str] = "dt:"
 UNKNOWN_CLASS: Final[str] = "agent"
 
 # category -> (MAST code, default severity)
@@ -45,7 +45,7 @@ MAX_PATHS: Final[int] = 12
 
 
 def agent_class(agent_type: Any) -> str:
-    """`builder` for `dts2:builder`; other agent names are kept as given."""
+    """`builder` for `dt:builder`; other agent names are kept as given."""
     name: str = str(agent_type or "").strip().removeprefix(PREFIX)
     return name or UNKNOWN_CLASS
 

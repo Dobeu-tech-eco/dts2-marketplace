@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 This skill explains only, except the optional hooks step at the end, which changes files only after the user picks hooks. Do not invoke agents.
 
-## Agents (all prefixed `dts2:`)
+## Agents (all prefixed `dt:`)
 - `lead` plans a DAG of tasks and gives each builder a separate file set.
 - `builder` implements one builder section; several builders can run at once on separate file sets.
 - `reviewer` returns severity-rated findings on one axis or all axes. Never edits.
@@ -27,19 +27,19 @@ This skill explains only, except the optional hooks step at the end, which chang
 | `evolve` | Change the harness itself in its source repo: edit, validate, test, bump both manifests, commit; push only on an explicit yes. |
 | `action-items` | List open secrets, decisions, handoffs, deploy steps and promotions with the command that resolves each; `done`, `add`, `assign`. Pass-off for any agent: `.harness/handoff/latest.md`, resumed with `run resume`. |
 | `gtm` | Go-to-market in one seamless pass: auto-installs `marketing-skills` if missing, runs a deep-dive, picks the applicable skills, and ends in a `readiness.md` scorecard. |
-| `ship` | `/dts2:ship` opens a PR on your own initiative: pre-check, type/lint/test/build, secret and do-not-touch scan, verifier and reviewer, receipt, PR template, push and open; then sweeps PRs and branches so only main and dev remain. Never merges. |
-| `feature` | `/dts2:feature <idea>` adds a feature to the roadmap: clarity score, a scoped deep interview when it is unclear, the lead writes it into the end state and every plan doc, then a PR. |
-| `autopilot` | `/dts2:autopilot <steps>` runs steps unattended: three frontier providers must agree on the plan and the build (Claude Fable 5.1 breaks a split), one PR per step merged on green CI before the next. Progress shows in check-in. |
-| `dpp` | `/dts2:dpp [dry-run]` runs up to five autopilot lanes in parallel as headless sons under one head: lane plan and feasibility from the check-in list, approval, supervision, serialised merges, one report and the task ledger. |
-| `dpp-full` | `/dts2:dpp-full` is dpp with `--full`: delegation scan for extra lanes and continuous dispatch without a new approval. |
-| `fullauto` | `/dts2:fullauto` is dpp-full with autopilot on, looping check-in between rounds until nothing is outstanding and every lane is done or blocked in the ledger. |
-| `model` | `/dts2:model` picks which agent provider leads (the lead, advisory and sign-off seats); default Claude. Builders are unaffected. |
-| `find-skills` | `/dts2:find-skills` is available any time: rescan the repo, answer one to three questions, get suggested skills, and wire the ones you pick into the project. |
-| `ask-expert` | `/dts2:ask-expert [repo]` is available any time, before setup: tell it your goal, and an expert panel reads the code and writes a one-page memo: keep, fold into another repo, sell as a template, archive or delete. |
-| `repo-sweep` | `/dts2:repo-sweep [owner]` does the same quick pass over all your repos, oldest first, then one cleanup screen. Archive is reversible; delete is one repo at a time with a backup and a typed name. |
-| `check-in` | `/dts2:check-in` is available any time: a read-only checklist from where the project started through the approved end state, each item marked complete or outstanding, with an `N of M complete` percent. |
+| `ship` | `/dt:ship` opens a PR on your own initiative: pre-check, type/lint/test/build, secret and do-not-touch scan, verifier and reviewer, receipt, PR template, push and open; then sweeps PRs and branches so only main and dev remain. Never merges. |
+| `feature` | `/dt:feature <idea>` adds a feature to the roadmap: clarity score, a scoped deep interview when it is unclear, the lead writes it into the end state and every plan doc, then a PR. |
+| `autopilot` | `/dt:autopilot <steps>` runs steps unattended: three frontier providers must agree on the plan and the build (Claude Fable 5.1 breaks a split), one PR per step merged on green CI before the next. Progress shows in check-in. |
+| `dpp` | `/dt:dpp [dry-run]` runs up to five autopilot lanes in parallel as headless sons under one head: lane plan and feasibility from the check-in list, approval, supervision, serialised merges, one report and the task ledger. |
+| `dpp-full` | `/dt:dpp-full` is dpp with `--full`: delegation scan for extra lanes and continuous dispatch without a new approval. |
+| `fullauto` | `/dt:fullauto` is dpp-full with autopilot on, looping check-in between rounds until nothing is outstanding and every lane is done or blocked in the ledger. |
+| `model` | `/dt:model` picks which agent provider leads (the lead, advisory and sign-off seats); default Claude. Builders are unaffected. |
+| `find-skills` | `/dt:find-skills` is available any time: rescan the repo, answer one to three questions, get suggested skills, and wire the ones you pick into the project. |
+| `ask-expert` | `/dt:ask-expert [repo]` is available any time, before setup: tell it your goal, and an expert panel reads the code and writes a one-page memo: keep, fold into another repo, sell as a template, archive or delete. |
+| `repo-sweep` | `/dt:repo-sweep [owner]` does the same quick pass over all your repos, oldest first, then one cleanup screen. Archive is reversible; delete is one repo at a time with a backup and a typed name. |
+| `check-in` | `/dt:check-in` is available any time: a read-only checklist from where the project started through the approved end state, each item marked complete or outstanding, with an `N of M complete` percent. |
 
-Setup and run pull in companion skills from mattpocock/skills at the moment they are needed (grill-me, improve-codebase-architecture, writing-for-agents, pr, resolve-merge-conflicts (from warpdotdev/common-skills, since mattpocock retired its version), plus ask-matt and research for your questions, improve-codebase-architecture again before tests, diagnosing-bugs again at the hard 3-round fix cap, loop-me when a run starts, setup-pre-commit once per repo at the commit gate, and code-review on first contact with a new repo), recorded in keep.yaml. A pre-check before every run command installs any that are missing, proposes updates for you to approve (it never updates them in bulk), swaps one that is gone upstream, refreshes plugin marketplaces, and when a newer harness is published saves your spot and upgrades; the next run finishes the upgrade itself (there is no separate upgrade command). After every ship, open harness lessons are offered through evolve automatically.
+Setup and run pull in companion skills from mattpocock/skills at the moment they are needed (grill-me, improve-codebase-architecture, writing-for-agents, pr, resolve-merge-conflicts (from warpdotdev/common-skills, since mattpocock retired its version), plus ask-matt and research for your questions, improve-codebase-architecture again before tests, diagnosing-bugs again at the hard 5-round fix cap, loop-me when a run starts, setup-pre-commit once per repo at the commit gate, and code-review on first contact with a new repo), recorded in keep.yaml. A pre-check before every run command installs any that are missing, proposes updates for you to approve (it never updates them in bulk), swaps one that is gone upstream, refreshes plugin marketplaces, and when a newer harness is published saves your spot and upgrades; the next run finishes the upgrade itself (there is no separate upgrade command). After every ship, open harness lessons are offered through evolve automatically.
 
 Setup maps the whole project into sections; `run` keeps builders busy on ready sections and parks stuck ones instead of stopping. The `run` skill pivots to the workspace root when started inside a member repo, and a context guard stops it and re-runs setup on a context spike.
 
@@ -63,7 +63,7 @@ Every run checks which agents are usable and what budget is left (the budget che
 
 Only agents detected on this machine join the roster; handoff agents get a written brief, and the run pauses until you report it done.
 
-Built-in API agents `claude-api`, `codex-api` and `grok-api` need only a key (`docs/API-AGENTS.md`). Another agent on a pay-as-you-go API key is added with `/dts2:model`, section "Add or rename an agent"; keys live in your keyring, 1Password or Doppler and only the reference is written. A new API-key agent starts read-only (review, docs and research only, no deploy, merge, release, secrets or delete, $0.50 a run, $5 a day); the same section shows and edits these per-agent rules.
+Built-in API agents `claude-api`, `codex-api` and `grok-api` need only a key (`docs/API-AGENTS.md`). Another agent on a pay-as-you-go API key is added with `/dt:model`, section "Add or rename an agent"; keys live in your keyring, 1Password or Doppler and only the reference is written. A new API-key agent starts read-only (review, docs and research only, no deploy, merge, release, secrets or delete, $0.50 a run, $5 a day); the same section shows and edits these per-agent rules.
 
 ## Where to start
 1. New machine or cluttered tooling → `machine-prep`.
@@ -74,11 +74,11 @@ Built-in API agents `claude-api`, `codex-api` and `grok-api` need only a key (`d
 6. Changing the harness itself → `evolve`. Launching a product → `gtm`.
 7. Optional Claude Code hooks (command guard, auto-format, tests on stop, notifications) → the Hooks step below.
 8. Many app plugins or MCP servers → `composio` (one connection, then trim overlap).
-9. Database tooling: `/dts2:find-skills` suggests database MCP servers and skills for your stack.
-10. Not sure a repo is worth keeping → `/dts2:ask-expert` for one repo, `/dts2:repo-sweep` for many.
+9. Database tooling: `/dt:find-skills` suggests database MCP servers and skills for your stack.
+10. Not sure a repo is worth keeping → `/dt:ask-expert` for one repo, `/dt:repo-sweep` for many.
 
 ## Offer ask-expert when the user doubts a repo
-When the user's answers show doubt about keeping a repo (it is old, unused, abandoned, or they are thinking of deleting or archiving it), suggest `/dts2:ask-expert` before setup, in one sentence. For many such repos, suggest `/dts2:repo-sweep`. Only suggest; do not start either.
+When the user's answers show doubt about keeping a repo (it is old, unused, abandoned, or they are thinking of deleting or archiving it), suggest `/dt:ask-expert` before setup, in one sentence. For many such repos, suggest `/dt:repo-sweep`. Only suggest; do not start either.
 
 ## Tiers the run skill picks automatically
 | Tier | Typical size | Builders | Reviewers |
@@ -93,7 +93,7 @@ Worktrees are used only in workspace mode or when `use_worktrees: always` is set
 Builders never exceed the number of builder sections the lead planned, and never exceed `max_builders` in `.claude/dts2-harness.local.md`.
 
 ## Composio (optional)
-Ask once with AskUserQuestion: "Do you have a Composio account?" (yes or no). Composio is one connection to 1000+ apps, so agents need fewer separate plugins and MCP servers. On either answer, hand off to `/dts2:composio`, which records the answer, installs and maps on yes, and offers a signup link on no. Skip the question if `~/.dts2/composio.json` already holds a decision. Nothing is changed here; `/dts2:composio` asks before it disables anything.
+Ask once with AskUserQuestion: "Do you have a Composio account?" (yes or no). Composio is one connection to 1000+ apps, so agents need fewer separate plugins and MCP servers. On either answer, hand off to `/dt:composio`, which records the answer, installs and maps on yes, and offers a signup link on no. Skip the question if `~/.dts2/composio.json` already holds a decision. Nothing is changed here; `/dt:composio` asks before it disables anything.
 
 ## Hooks (optional last step)
 The plugin's own hooks are already active: the policy gate, the merge guard, the stop checks and the context guard. Toggles are in `.claude/dts2-harness.local.md`. This step offers extra hooks for the user's project.

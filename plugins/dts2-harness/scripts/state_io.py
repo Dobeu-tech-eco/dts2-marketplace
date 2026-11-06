@@ -117,6 +117,8 @@ HARNESS: Final[str] = ".harness"
 RUNS: Final[str] = "runs"
 CONFIG_REL: Final[str] = f"{HARNESS}/config.yaml"
 KEEP_REL: Final[str] = f"{HARNESS}/keep.yaml"
+# Plugin ids this harness has shipped under: `dt@dts2` now, `dts2@dts2` in 4.x and `dts2-harness@dts2` before 4.0.
+LEGACY_HARNESS_PLUGINS: Final[tuple[str, ...]] = ("dts2@dts2", "dts2-harness@dts2")
 END_STATE_REL: Final[str] = f"{HARNESS}/end-state.md"
 DISCIPLINE_REL: Final[str] = f"{HARNESS}/discipline.md"
 STATE_MD_REL: Final[str] = f"{HARNESS}/state.md"
@@ -135,6 +137,7 @@ CHECKS_SH_REL: Final[str] = f"{HARNESS}/checks.sh"
 AGENTS_REL: Final[str] = f"{HARNESS}/agents.jsonl"
 SPEND_REL: Final[str] = f"{HARNESS}/spend.jsonl"
 AGENT_PROFILES_REL: Final[str] = f"{HARNESS}/agents"
+TRUSTED_PROJECTS_NAME: Final[str] = "trusted-projects"  # in the user DTS2 home: one absolute project path per line
 INJECTIONS_REL: Final[str] = f"{HARNESS}/injections.jsonl"
 BRIEFS_DIR_REL: Final[str] = f"{HARNESS}/briefs"
 HEAD_LEDGER_REL: Final[str] = f"{HARNESS}/ledgers/head.jsonl"

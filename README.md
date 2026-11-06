@@ -33,8 +33,8 @@ Claude Code plugin marketplace for Dobeu Tech Solutions.
 
 ## What's new in 3.6.0
 - Strict delegation: frontier models only for advisory and sign-off, builders run the cheapest capable model at a complexity-scaled effort; Muse delegation fields (`effortLevels`, `tokenBurn`) join every profile.
-- Automatic in-place upgrades from the pre-check (no separate upgrade command), `/dts2:model` (selectable lead provider), and lead failover on a stall that prefers verified providers.
-- Per-agent project memory, `/dts2:find-skills`, `/dts2:check-in`, and companion-skill hooks (improve-codebase-architecture before tests, diagnosing-bugs at the fix cap, loop-me, setup-pre-commit, code-review).
+- Automatic in-place upgrades from the pre-check (no separate upgrade command), `/dt:model` (selectable lead provider), and lead failover on a stall that prefers verified providers.
+- Per-agent project memory, `/dt:find-skills`, `/dt:check-in`, and companion-skill hooks (improve-codebase-architecture before tests, diagnosing-bugs at the fix cap, loop-me, setup-pre-commit, code-review).
 
 ## What's new in 3.5.0
 - muse joins the roster as a builder and second opinion (never a review seat), and every agent seat gets its own headless command from `roster.py command`.
@@ -69,12 +69,13 @@ Claude Code plugin marketplace for Dobeu Tech Solutions.
 | `ship` | Open a PR on your own initiative: pre-checks, review, receipt, PR template, then tidy PRs and branches down to main and dev. |
 | `feature` | Add a feature to the roadmap; deep interview when unclear; every plan doc updated; PR. |
 | `autopilot` | Run steps unattended behind a 3-provider frontier consensus gate (Fable 5.1 tiebreak); one merged PR per step. |
-| `model` | Pick which agent provider leads the lead, advisory and sign-off seats (`/dts2:model`); builders always run the cheapest capable model. |
-| `find-skills` | Available any time (`/dts2:find-skills`): rescan the repo, ask a few questions, suggest skills, wire in the ones you pick. |
-| `ask-expert` | Available any time, before setup (`/dts2:ask-expert [repo]`): state your goal, an expert panel reads the code and writes a one-page keep, fold, template, archive or delete memo. |
-| `repo-sweep` | Available any time (`/dts2:repo-sweep [owner]`): the quick pass over all your repos, oldest first, then one cleanup screen; archive is reversible, delete is per repo with a backup. |
-| `fleet` | Available any time (`/dts2:fleet list\|show\|logs\|broadcast\|status`): every harness session on this computer in one table, read their logs and ledgers without interrupting them, and send one note, handoff, pause or knowledge finding to all (asks first). |
-| `check-in` | Available any time (`/dts2:check-in`): a read-only checklist from where the project started through the approved end state, each item complete or outstanding. |
+| `model` | Pick which agent provider leads the lead, advisory and sign-off seats (`/dt:model`); builders always run the cheapest capable model. |
+| `find-skills` | Available any time (`/dt:find-skills`): rescan the repo, ask a few questions, suggest skills, wire in the ones you pick. |
+| `ask-expert` | Available any time, before setup (`/dt:ask-expert [repo]`): state your goal, an expert panel reads the code and writes a one-page keep, fold, template, archive or delete memo. |
+| `repo-sweep` | Available any time (`/dt:repo-sweep [owner]`): the quick pass over all your repos, oldest first, then one cleanup screen; archive is reversible, delete is per repo with a backup. |
+| `pr-sweep` | Available any time (`/dt:pr-sweep [owner/repo]`): clears open and stale PRs in one pass with parallel workers; merges green PRs, triages red CI, closes dead ones, and with `--optimise-ci` opens a separate CI speed-up PR. |
+| `fleet` | Available any time (`/dt:fleet list\|show\|logs\|broadcast\|status`): every harness session on this computer in one table, read their logs and ledgers without interrupting them, and send one note, handoff, pause or knowledge finding to all (asks first). |
+| `check-in` | Available any time (`/dt:check-in`): a read-only checklist from where the project started through the approved end state, each item complete or outstanding. |
 | `dpp` | Run several autopilot lanes in parallel as headless sons, one worktree each, under a head that plans, supervises and serialises merges (`dpp [dry-run] [--full] [resume]`). |
 | `dpp-full` | `dpp --full`: also fills lanes from a delegation scan and keeps dispatching without a new approval. |
 | `fullauto` | `dpp-full` with autopilot forced on, looping check-in until nothing is outstanding. |
@@ -88,23 +89,23 @@ Inside Claude Code:
 
 ```
 /plugin marketplace add Dobeu-tech-eco/dts2-marketplace
-/plugin install dts2@dts2
+/plugin install dt@dts2
 ```
 
-Then turn off older copies so agents are not duplicated: `/plugin`, Installed, disable `harness` and `harness-ops` if present. Or run `/dts2:machine-prep`, which does it with a settings backup.
+Then turn off older copies so agents are not duplicated: `/plugin`, Installed, disable `harness` and `harness-ops` if present. Or run `/dt:machine-prep`, which does it with a settings backup.
 
-Restart Claude Code and run `/dts2:onboard`.
+Restart Claude Code and run `/dt:onboard`.
 
-## Migrating from dts2-harness
+## Migrating from dts2 or dts2-harness
 
-The plugin is now named `dts2`: commands are `/dts2:<command>`, agents `dts2:<agent>`.
+The plugin is now named `dt`: commands are `/dt:<command>`, agents `dt:<agent>`. The marketplace keeps the name `dts2`.
 ```
-/plugin uninstall dts2-harness@dts2
+/plugin uninstall dts2@dts2
 /plugin marketplace update dts2
-/plugin install dts2@dts2
+/plugin install dt@dts2
 /reload-plugins
 ```
-Settings (`.claude/dts2-harness.local.md`) and `.harness/` state are unchanged.
+On a version before 4.0 the installed plugin is `dts2-harness`: run `/plugin uninstall dts2-harness@dts2` first. Settings (`.claude/dts2-harness.local.md`) and `.harness/` state are unchanged.
 
 ## Update
 

@@ -199,7 +199,7 @@ class OverlapTests(ComposioCase):
         super().setUp()
         self.settings("user", {"enabledPlugins": {
             "github@claude-plugins-official": True, "slack@mkt": True, "composio@composio": True,
-            "dts2@dts2": True, "linear@mkt": False, "keepme@mkt": True, "impeccable@x": True}})
+            "dt@dts2": True, "linear@mkt": False, "keepme@mkt": True, "impeccable@x": True}})
         self.settings("project", {"enabledPlugins": {"notion@mkt": True}})
         write(self.cwd / ".mcp.json", json.dumps({"mcpServers": {"github-mcp": {}, "composio-github": {}, "Slack": {}}}))
         write(self.home / ".claude.json", json.dumps({"mcpServers": {"notion-server": {}}}))
@@ -235,7 +235,7 @@ class OverlapTests(ComposioCase):
         listed = {c["id"] for c in out["candidates"]}
         self.assertNotIn("composio-github", listed)
         self.assertNotIn("composio@composio", listed)
-        self.assertNotIn("dts2@dts2", listed)
+        self.assertNotIn("dt@dts2", listed)
         self.assertIn({"id": "composio-github", "reason": "composio"}, out["kept"])
 
     def test_required_by_harness_and_keep_yaml_are_kept(self) -> None:

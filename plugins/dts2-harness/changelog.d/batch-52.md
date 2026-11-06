@@ -6,4 +6,4 @@
 - Runtime: `policy-gate.sh` also runs for file tools (`policy-gate.sh files`, a no-op without `DTS2_AGENT`); with `DTS2_AGENT` set, `policy_gate.py` denies a tool call whose task class or path (`paths_deny`) that agent's rules forbid, or any edit by a read-only agent, on top of the global deny list.
 - Spend: `.harness/spend.jsonl` records each named agent's run cost (`agent_rules.record_spend`, written by `lanes.py` after a son or a `call`); `roster.py probe` marks an agent `exhausted` for the day once it reaches `max_cost_usd_per_day`, so dispatch skips it.
 - CLI: `roster.py rules <name> --show | --set key=value [--set ...] | --reset` edits the entry's `rules:` block without reformatting the rest of the config (exit 2 on a validation error); `roster.py list` fills the `rules` and `spent_today` columns.
-- Skills: `/dts2:model` gains "Edit agent rules" and asks the rules questions when adding an API-key agent; `docs/GUIDE.md` has a "Per-agent rules" section.
+- Skills: `/dt:model` gains "Edit agent rules" and asks the rules questions when adding an API-key agent; `docs/GUIDE.md` has a "Per-agent rules" section.

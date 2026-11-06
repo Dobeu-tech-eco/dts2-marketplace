@@ -57,16 +57,16 @@ class MachinePrepKeepListTests(unittest.TestCase):
         project: Path = Path(tempfile.mkdtemp(prefix="dts2-keep-"))
         (project / ".harness").mkdir()
         (project / ".harness" / "keep.yaml").write_text(
-            "plugins:\n  - dts2@dts2\n  - impeccable@impeccable  # ui\nskills:\n  - name: x\n",
+            "plugins:\n  - dt@dts2\n  - impeccable@impeccable  # ui\nskills:\n  - name: x\n",
             encoding="utf-8",
         )
         self.assertEqual(
-            mod.keep_list_plugins(project), ["dts2@dts2", "impeccable@impeccable"]
+            mod.keep_list_plugins(project), ["dt@dts2", "impeccable@impeccable"]
         )
         merged: dict = mod.with_keep_list({"requiredByHarness": ["marketing-skills@synced"]}, project)
         self.assertEqual(
             merged["requiredByHarness"],
-            ["marketing-skills@synced", "dts2@dts2", "impeccable@impeccable"],
+            ["marketing-skills@synced", "dt@dts2", "impeccable@impeccable"],
         )
 
     def test_no_keep_file_leaves_profile_unchanged(self) -> None:

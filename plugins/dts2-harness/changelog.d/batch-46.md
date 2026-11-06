@@ -1,9 +1,10 @@
-### Changed
-
-- Env: one scrubbed child-environment builder (`son_launch.scrub_env`) now serves every son, council seat, second opinion and `roster.py command` env. A subscription agent (the default; roster `auth` absent or `subscription`) never receives `*_API_KEY`, `ANTHROPIC_*`, `CODEX_*`, `XAI_*`, `OPENAI_*`, `AWS_*`, `GOOGLE_APPLICATION_CREDENTIALS` or the `CLAUDE_CODE_USE_*` provider switches, so a stray key in the parent shell can no longer bill the API account instead of the Max login. `CLAUDE_CODE_OAUTH_TOKEN` is kept for Claude subscription agents only.
-- Env: an `auth: api-key` agent receives only its own key variable (the profile's `apiKeyEnv`). `DTS2_SON_ENV_PASS` still hands a named variable to a child on purpose.
-- Codex: the profile's `apiKeyEnv` is now `CODEX_API_KEY` (what `codex exec` reads); `OPENAI_API_KEY` is no longer detected for codex.
-
 ### Added
 
-- `son_launch.secret_shaped(text)` flags key-shaped strings for receipt and state writers, and `tests/test_secret_scan.py` fails when a key-shaped string ships in templates, profiles, skills, agents or docs.
+- `scripts/loop_guard.py`: the guard for an unattended `/dt:fullauto` loop. `check` stops on a `.harness/STOP` file, an open PR labelled `dts2:stop`, or a spent budget (`loop.max_passes`, `loop.max_hours`). `record` appends each pass to a progress ledger and answers `stall` when the progress hash is unchanged for `loop.no_progress_limit` passes (default 3) or the same failure signature repeats three times in a row. `park` and `sweep` keep items that need a person and list those whose blocker (PR, action item or file) is resolved. `notify` opens or updates one GitHub issue titled "dts2: needs you" and always writes `.harness/loop/need-human.md`; a gh failure never stops the loop.
+- `templates/loop.md`: the `.claude/loop.md` for `/loop`, one pass per round (check, sweep, pick, do, record; on stall notify and exit).
+- `/dt:fullauto` documents the outer loop: the `/goal` condition text and the per-pass order.
+
+### Changed
+
+- `autonomy: unattended` in `.harness/config.yaml` lifts the `max_fullauto_loops` cap (`lanes.py loop`, `model_call.read_budget`, `settings_cache`); loop_guard's no-progress and budget stops replace it. Without it `max_fullauto_loops: 3` behaves exactly as before.
+- `templates/config-supervisor.yaml` documents the `loop:` block and the `autonomy` line.
