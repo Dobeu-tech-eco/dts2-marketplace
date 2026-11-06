@@ -112,7 +112,7 @@ class ApplyTests(unittest.TestCase):
         self.assertEqual(merged["permissions"]["allow"][0], "Bash(make *)")
         self.assertEqual(merged["permissions"]["deny"][0], "Bash(rm -rf *)")
         for key in ("allow", "deny"):
-            self.assertTrue(set(template()["permissions"][key]) <= set(merged["permissions"][key]))
+            self.assertLessEqual(set(template()["permissions"][key]), set(merged["permissions"][key]))
         self.assertEqual(merged["permissions"]["disableBypassPermissionsMode"], "disable")
         self.assertTrue(merged["sandbox"]["enabled"])
 
