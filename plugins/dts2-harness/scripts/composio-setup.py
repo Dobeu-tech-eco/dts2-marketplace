@@ -2,7 +2,8 @@
 """Set up the hosted-tools (composio) integration and retire local tools it makes redundant.
 
 status   : CLI, login, plugin and MCP-server state plus the saved decision and tool map (read-only)
-decide   : record the user's one-time answer (account yes/no, always use, connection kind)
+decide   : record the user's one-time answer (account yes/no, always use, connection kind);
+           always use defaults to on for --account yes (--no-always-use opts out)
 map      : cache the toolkit list and the connected toolkits, from the CLI or from a JSON file
            (connected accounts fall back to `composio connections list` when the dev project is not set up)
 overlap  : list enabled plugins, MCP servers and user skills that duplicate a connected toolkit
@@ -241,6 +242,9 @@ def user_skills(home: Path) -> list[str]:
     return sorted(p.name for p in root.iterdir() if p.is_dir()) if root.is_dir() else []
 
 
+ACCOUNT_YES = "yes"
+
+
 # ---- status / decide ---------------------------------------------------------------------------------------------
 
 def tool_map_summary() -> dict[str, Any]:
@@ -271,7 +275,8 @@ def cmd_status(args: argparse.Namespace) -> int:
 
 
 def cmd_decide(args: argparse.Namespace) -> int:
-    decision: dict[str, Any] = {"account": args.account, "always_use": bool(args.always_use),
+    always_use: bool = args.account == ACCOUNT_YES if args.always_use is None else args.always_use
+    decision: dict[str, Any] = {"account": args.account, "always_use": always_use,
                                 "connection": args.connection, "decided_at": now_iso()}
     write_json(decision_path(), decision)
     return emit(decision)
@@ -615,7 +620,8 @@ def build_parser() -> argparse.ArgumentParser:
     add_scope_args(sub.add_parser("status", help="show integration state"))
     decide = sub.add_parser("decide", help="record the user's decision")
     decide.add_argument("--account", required=True, choices=["yes", "no"])
-    decide.add_argument("--always-use", action="store_true")
+    decide.add_argument("--always-use", action=argparse.BooleanOptionalAction, default=None,
+                        help="default: on when --account yes; pass --no-always-use to opt out")
     decide.add_argument("--connection", choices=["plugin", "mcp", "cli"])
     mapper = sub.add_parser("map", help="cache the toolkit list and connected toolkits")
     mapper.add_argument("--from-json", help="import {toolkits, connected} instead of running the CLI")
