@@ -18,6 +18,7 @@ Patch release: the plugin passes the Claude plugin directory's static checks, sh
 - Docs: rewrote the root and plugin READMEs for people (what it is, the problem it solves, requirements, install, wiring, day-to-day commands, update, uninstall, troubleshooting), added "More from Dobeu Tech Solutions" and Support sections, an "All commands" table covering all 27 slash commands, and fixed stale counts (27 skills, 8 agents) in `docs/COMMANDS.md`, `docs/GUIDE.md` and the onboard description.
 - Listing: `plugin.json` and `marketplace.json` carry the publisher (Dobeu Tech Solutions, https://dobeu.net), homepage, a human description and a display name. Added `.claude-plugin/icon.png` and `.github/FUNDING.yml` (comments only until a handle is set).
 - Repository: `.github/CODEOWNERS` requests a review from `@dobeutech` on every PR without making it required. `main` is protected: a PR is required, `test (3.12)` and `lint` must pass, force-push and deletion are blocked, and workflow runs from outside contributors need approval.
+- `COMMAND-GUIDE.md` at the plugin root: the one-page list of every command, with install, update and requirements (python3 is needed for the safety hooks).
 - `composio-setup.py` finds a `composio` CLI installed inside WSL when run on Windows without one on PATH. `DTS2_COMPOSIO_WSL=0` turns the lookup off. `composio-setup.py status` checks for the login directory inside WSL (existence only) when the CLI is only installed there.
 
 ### Changed
@@ -30,6 +31,7 @@ Patch release: the plugin passes the Claude plugin directory's static checks, sh
 - Hook scripts are statically readable by the plugin directory validator: every script path is spelled `${CLAUDE_PLUGIN_ROOT}/...`, `lib-settings.sh` reads settings in pure bash, inline `python3 -c` and `awk` programs moved to `scripts/hook_util.py`, and the PR-receipt logic moved to `scripts/pr_receipt.py` behind a thin wrapper.
 - `composio-setup.py map` no longer reports zero connected toolkits when `composio connections list` prints an object keyed by toolkit slug. Toolkits with at least one active account are kept.
 - `composio-setup.py map` falls back to `composio connections list` (active accounts only) when `composio dev connected-accounts list` fails, and records `connected_source` in its output and the tool map.
+- Stop hook works on stock macOS: when GNU `timeout` is missing it uses Homebrew's `gtimeout`, or runs the step with the hook's own timeout as the backstop. Before, every step failed with "command not found", the handoff note was never written, and each Stop re-ran the checks as red. `xargs -r` (GNU only) dropped from the change fingerprint.
 - Lanes: when an old son's process group ignores SIGINT and gets SIGKILL, re-dispatch waits (up to 5 seconds) until the group is gone, so a lane is never restarted while the old processes are still exiting.
 
 ## [5.1.0]

@@ -47,7 +47,7 @@ _Released 2026-11-05_
 
 - The plugin is renamed from `dts2-harness` to `dts2`. Commands became `/dts2:<command>`.
 
-## [Earlier]
+## [2.0.0]
 
 _Released 2026-10-17 (first publish) and 2026-11-04 (CI)_
 
