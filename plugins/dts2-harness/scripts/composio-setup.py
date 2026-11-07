@@ -30,6 +30,8 @@ from state_io import atomic_write  # noqa: E402
 ENV_HOME: Final[str] = "DTS2_HOME"
 ENV_BIN: Final[str] = "DTS2_COMPOSIO_BIN"
 ENV_CACHE: Final[str] = "COMPOSIO_CACHE_DIR"
+ENV_WSL: Final[str] = "DTS2_COMPOSIO_WSL"
+WSL_OFF: Final[str] = "0"
 DEFAULT_HOME_DIR: Final[str] = ".dts2"
 DECISION_FILE: Final[str] = "composio.json"
 MAP_FILE: Final[str] = "composio-tools.json"
@@ -63,6 +65,7 @@ ACTIVE_STATUS: Final[str] = "active"
 WSL_NAME: Final[str] = "wsl"
 WSL_LOOKUP: Final[tuple[str, ...]] = ("-e", "sh", "-lc", f"command -v {BIN_NAME}")
 WSL_LABEL: Final[str] = "wsl:"
+WSL_CREDENTIAL_TEST: Final[str] = f'test -d "$HOME/{CREDENTIAL_DIR}"'
 TOOLKITS_WORDS: Final[tuple[str, ...]] = ("dev", "toolkits", "list")
 DEV_CONNECTED_WORDS: Final[tuple[str, ...]] = ("dev", "connected-accounts", "list")
 CONNECTIONS_WORDS: Final[tuple[str, ...]] = ("connections", "list")
@@ -142,7 +145,7 @@ def is_windows() -> bool:
 
 def wsl_binary() -> list[str] | None:
     """Command prefix for a CLI installed inside WSL, or None when WSL or the CLI is absent."""
-    if shutil.which(WSL_NAME) is None:
+    if os.environ.get(ENV_WSL) == WSL_OFF or shutil.which(WSL_NAME) is None:
         return None
     try:
         result = subprocess.run([WSL_NAME, *WSL_LOOKUP], capture_output=True, text=True,
@@ -174,6 +177,18 @@ def binary_label(binary: list[str] | None) -> str | None:
 def credential_dir(home: Path) -> Path:
     explicit: str | None = os.environ.get(ENV_CACHE)
     return Path(explicit) if explicit else home / CREDENTIAL_DIR
+
+
+def logged_in(home: Path, binary: list[str] | None) -> bool:
+    """Whether the CLI has a credential directory; a WSL-only CLI keeps it in the WSL home (existence check only)."""
+    if not binary or binary[0] != WSL_NAME or os.environ.get(ENV_CACHE):
+        return credential_dir(home).is_dir()
+    try:
+        result = subprocess.run([WSL_NAME, "-e", "sh", "-c", WSL_CREDENTIAL_TEST], capture_output=True,
+                                timeout=WSL_TIMEOUT, check=False)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0
 
 
 # ---- Claude Code configuration readers ----------------------------------------------------------------------------
@@ -240,13 +255,14 @@ def tool_map_summary() -> dict[str, Any]:
 
 def cmd_status(args: argparse.Namespace) -> int:
     home, cwd = args.home, args.cwd
-    binary: str | None = binary_label(find_binary())
+    command: list[str] | None = find_binary()
+    binary: str | None = binary_label(command)
     plugin_on: bool = any(pid.startswith(PLUGIN_PREFIX) for pid, _s, _p in enabled_plugins(home, cwd))
     servers: list[str] = sorted({n for n, _s, _p in mcp_servers(home, cwd) if SERVER_WORD in n.lower()})
     decision: Any = read_json(decision_path())
     return emit({
         "cli": binary is not None, "cli_path": binary,
-        "logged_in": credential_dir(home).is_dir(),
+        "logged_in": logged_in(home, command),
         "plugin_enabled": plugin_on, "mcp_servers": servers,
         "duplicate_connection": plugin_on and bool(servers),
         "decision": decision if isinstance(decision, dict) else None,
@@ -360,6 +376,27 @@ def import_listings(path: Path) -> tuple[list[dict[str, Any]], list[dict[str, An
         parse_listing(json.dumps(data.get("connected", [])), CONNECTED_KEYS + SLUG_KEYS)
 
 
+def slug_rows(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """Rows (slug only) for an object keyed by toolkit slug, keeping toolkits with at least one active account."""
+    rows: list[dict[str, Any]] = []
+    for slug, accounts in data.items():
+        items: list[Any] = accounts if isinstance(accounts, list) else [accounts]
+        if any(is_active(item) if isinstance(item, dict) else True for item in items):
+            rows.append({"slug": slug})
+    return rows
+
+
+def connections_rows(text: str, keys: tuple[str, ...]) -> list[dict[str, Any]]:
+    """Active connected rows from `connections list`: a list, a wrapped list, an object keyed by slug, or text."""
+    try:
+        data: Any = json.loads(text)
+    except ValueError:
+        return active_rows(parse_listing(text, keys))
+    if isinstance(data, dict) and not any(isinstance(data.get(key), list) for key in LIST_KEYS):
+        return slug_rows(data)
+    return active_rows(parse_listing(text, keys))
+
+
 def fetch_connected(binary: list[str], timeout: int) -> tuple[list[dict[str, Any]], str]:
     """Connected rows and the command that produced them: the dev project first, else the global connections."""
     keys: tuple[str, ...] = CONNECTED_KEYS + SLUG_KEYS
@@ -367,10 +404,10 @@ def fetch_connected(binary: list[str], timeout: int) -> tuple[list[dict[str, Any
         return parse_listing(run_listing(binary, DEV_CONNECTED_WORDS, timeout), keys), SOURCE_DEV
     except (RuntimeError, subprocess.TimeoutExpired) as dev_err:
         try:
-            rows: list[dict[str, Any]] = parse_listing(run_listing(binary, CONNECTIONS_WORDS, timeout), keys)
+            rows: list[dict[str, Any]] = connections_rows(run_listing(binary, CONNECTIONS_WORDS, timeout), keys)
         except (RuntimeError, subprocess.TimeoutExpired) as fallback_err:
             raise RuntimeError(f"{dev_err}; {fallback_err}") from fallback_err
-        return active_rows(rows), SOURCE_CONNECTIONS
+        return rows, SOURCE_CONNECTIONS
 
 
 def cmd_map(args: argparse.Namespace) -> int:
