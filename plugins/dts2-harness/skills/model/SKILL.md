@@ -13,7 +13,8 @@ Frontier-tier seats (lead planning, advisory review, sign-off) default to Claude
 2. **Eligible providers.** The installed agents whose profile roles include `reviewer` or `second-opinion` (the `lead_eligible` rule in `scripts/delegate.py`). Show each with its models: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/roster.py" model --agent <name> --tier frontier`.
 3. **Ask once** which provider should lead, naming the current value of `lead_provider` (default `claude`). If only Claude is installed, say so and stop.
 4. **Write it.** Set `lead_provider: <name>` in `.claude/dts2-harness.local.md` frontmatter (add the line if absent, replace it if present), or in the project's `.harness/` settings when that is where the project keeps them. Change nothing else in the file.
-5. **Confirm** in one line: `Lead provider: <name>. Builders still run the cheapest capable model.`
+5. **Replicate skills when the lead changes.** The new lead must be able to run the same skills as the orchestrator, including the current `dt@dts2` plugin. A non-lead may still be on an older `dts2-harness` install. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lead_skills.py" sync --agents <name> --home "$HOME"`. That writes the current plugin and skill list into that agent's backend (`~/.codex` for Codex, `~/.dts2/agent-plugins/<name>` for every other agent) and turns off `dts2-harness@dts2` and `dts2@dts2`. Do not ask. Skip this step when the new lead is `claude`.
+6. **Confirm** in one line: `Lead provider: <name>. Builders still run the cheapest capable model.` Tell the user to start a new session of that agent so it loads `/dt` instead of `/dts2-harness`.
 
 ## Notes
 - A stalled lead fails over to the next eligible provider automatically (`scripts/failover.py`); the handoff file is the same one the run Pre-check writes before an upgrade.

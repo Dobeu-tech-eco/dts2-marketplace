@@ -62,8 +62,8 @@ class OrchestrationRulesTests(unittest.TestCase):
                 continue  # test code names the strings it checks for; shipped scripts and hooks may not
             text: str = path.read_text(encoding="utf-8", errors="ignore")
             for needle in PERSONAL_STRINGS:
-                if needle == PUBLISHER and path == PLUGIN_ROOT / "README.md":
-                    continue  # the plugin README names its publisher; skills, agents, scripts and hooks may not
+                if path == PLUGIN_ROOT / "README.md" and needle in (PUBLISHER, "Jeremy"):
+                    continue  # the plugin README names its publisher and the author's note; skills, agents, scripts and hooks may not
                 self.assertNotIn(needle, text, f"{path} contains {needle}")
 
     def test_no_hard_coded_org_in_code_or_skills(self) -> None:
