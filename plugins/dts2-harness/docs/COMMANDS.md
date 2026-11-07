@@ -1,10 +1,21 @@
-# dts2-harness command reference
+# Command reference
 
-> Migrating from dts2 or dts2-harness (old names): the plugin is now `dt`, so commands are `/dt:<command>`. Run `/plugin uninstall dts2@dts2` (`dts2-harness@dts2` on a version before 4.0), `/plugin marketplace update dts2`, `/plugin install dt@dts2`, `/reload-plugins`; settings and `.harness/` state are unchanged.
+Every slash command, script, role and hook in this plugin, with the exact way to call each one. It is for people and for AI coding assistants (Claude Code, Codex, Cursor or any other) that need to run a command correctly.
 
-The one page an agent (Claude Code, Codex, Cursor or any other) reads to learn every command in this plugin and exactly how to call it. It is built from the code: `scripts/lanes.py` and every `scripts/*.py` argparse definition, `skills/*/SKILL.md`, `agents/*.md` and `hooks/hooks.json`. For the reasons behind a command read `GUIDE.md`; for the long-form table of every command with its callers read `INVENTORY.md`; for internals read `../ARCHITECTURE.md`. What changed in each release is in the last section.
+It follows the code: the `argparse` definitions in `scripts/lanes.py` and `scripts/*.py`, `skills/*/SKILL.md`, `agents/*.md` and `hooks/hooks.json`. For the reasons behind a command read `GUIDE.md`. For every command with its callers read `INVENTORY.md`. For internals read `../ARCHITECTURE.md`.
 
-Contents: 1 How to run a command, 2 `lanes.py` subcommands, 3 Standalone scripts, 4 Skills (slash commands), 5 Agents, 6 Hooks, 7 Common flows, 8 Changelogs.
+> Migrating from the old names `dts2` or `dts2-harness`: the plugin is now `dt`, so commands are `/dt:<command>`. Run `/plugin uninstall dts2@dts2` (`dts2-harness@dts2` on a version before 4.0), `/plugin marketplace update dts2`, `/plugin install dt@dts2` and `/reload-plugins`. Settings and `.harness/` state are unchanged.
+
+Contents:
+
+1. How to run a command
+2. `lanes.py` subcommands
+3. Standalone scripts
+4. Skills (slash commands)
+5. Agents
+6. Hooks
+7. Common flows
+8. Changelogs
 
 ## 1. How to run a command
 
@@ -41,7 +52,7 @@ Contents: 1 How to run a command, 2 `lanes.py` subcommands, 3 Standalone scripts
 | `call` | head | Run any other model call behind the shared limit, with a scrubbed environment. The command follows `--`. | `lanes.py call <stamp> --label vote-1 [--timeout S] [--cost-source claude\|none] [--prompt-file f] [--out f] -- <command ...>` | model-call ledger, `--out` file |
 | `publish` | head | Push a finished lane branch and open or adopt its PR; a diff touching protected files parks the lane. Refused for a son, voter or council seat. | `lanes.py publish <stamp> --lane a [--branch B] [--base B] [--title T] [--body T]` | git push, one PR |
 | `heartbeat` | either | Record a lane heartbeat or, with `--status`, its phase (goes through `transition`); a stale `--epoch` is ignored. | `lanes.py heartbeat <stamp> --lane a [--turn N] [--status pr-open\|done\|blocked\|incomplete] [--reason R] [--blocked-by ids] [--epoch N]` | status, lease renewal |
-| `merge-order` | head | Print the merge order and who is next (honours `merge_after` and provider-first order). | `lanes.py merge-order lanes.json` | `merge-order.json` |
+| `merge-order` | head | Print the merge order and who is next (honors `merge_after` and provider-first order). | `lanes.py merge-order lanes.json` | `merge-order.json` |
 | `wait` | head | Block until a lane's phase or `exit.json` changes, or the timeout (seconds, hard deadline). | `lanes.py wait <stamp> [--timeout 600]` | none |
 | `gc` | head | Close expired leases of lanes nobody is running. | `lanes.py gc` | lease files |
 | `merge-plan` | head | Merge queue or serial rebase-test-merge plan; `git merge-tree --write-tree` probe of every lane. Merges nothing. | `lanes.py merge-plan lanes.json [--base origin/dev]` | `merge-order.json`, routing record |
@@ -71,7 +82,7 @@ Contents: 1 How to run a command, 2 `lanes.py` subcommands, 3 Standalone scripts
 | `mailbox` | either | The head/son mailbox. Son ops: ask, need-human, check, wait, park, merge-go-check, rules, request. Head ops: answer, decide (refused in a son). A wait that runs out parks the lane (`mailbox_wait_min`). | `lanes.py mailbox ask <stamp> --lane a --text "<question>"  \|  mailbox answer <stamp> --lane a --id q1 --text "<answer>"  \|  mailbox park <stamp> --lane a --reason context-guard [--session-id S]  \|  mailbox rules <stamp> --lane a --point start\|vote\|ship\|merge  \|  mailbox request <stamp> --lane a --files f1,f2 --text "<why>"  \|  mailbox decide <stamp> --lane a --id r1 --outcome escalate\|granted\|denied  \|  mailbox merge-go-check <stamp> --lane a [--worktree D]` | `questions/`, `merge-go.json`, status |
 | `report-check` | head | Check the final report against lane ids; with `--stamp` also cross-check the son run records. | `lanes.py report-check dpp-report.md --lanes a,b [--stamp <stamp>]` | none (read-only) |
 
-## 3. Standalone scripts (65 with a command line)
+## 3. Standalone scripts (75 with a command line)
 
 Invocation shown without the prefix `python3 -I "$CLAUDE_PLUGIN_ROOT/scripts/`; add it and the closing `"`. Scripts marked `hook` read the hook JSON on stdin and are called by `hooks/*.sh`.
 
@@ -91,6 +102,13 @@ Invocation shown without the prefix `python3 -I "$CLAUDE_PLUGIN_ROOT/scripts/`; 
 | `intake.py` | either | Prompt intake queue: records prompts typed while the harness works, scores and classifies them (fold, clarify, steer) and renders the queue. | `intake.py add [--text T] [--source hook\|cli] \| list [--status S] [--json] \| resolve <id> --as fold\|clarify\|steer\|done [--note N] \| answer <id> --text T \| status \| hook`; `--root DIR`, `--threshold N` (60), `--budget N` (2) | `.harness/intake.jsonl`, `.harness/intake.md` |
 | `clarity-score.py` | either | Requirement clarity score; the weakest component bounds it. | `clarity-score.py <ratings>` | none |
 | `companion-gate.py` | either | Run-count gates for two costly companion skills. | `companion-gate.py check\|record --repo R --skill NAME [--base B]` | gate record |
+| `composio-setup.py` | user (via skill) | Set up the hosted-tools (Composio) integration and retire local tools it makes redundant. Never holds credentials; backs up before it disables anything. | `composio-setup.py status \| decide --account yes\|no [--always-use\|--no-always-use] [--connection plugin\|mcp\|cli] \| map [--from-json F] \| overlap [--all --profile P] \| disable --ids I [--dry-run]` | `~/.dts2/composio.json`, `~/.dts2/composio-tools.json`, settings backup |
+| `cooldowns.py` | either | Shared agent cooldown registry: record a usage limit, read its reset date, skip the agent until then. Exit 3 from `check` means the agent is cooling. | `cooldowns.py set <agent> (--until D \| --in T) [--reason R --by B --provider P --source manual\|user] \| clear <agent> \| list \| check <agent> \| detect \| expire \| session-note` | `~/.dts2/agent-status.json` (`DTS2_AGENT_STATUS`) |
+| `incidents.py` | either (`hook`: hook) | Agent telemetry and incident capture, lesson injection and the tier ledgers. Deterministic: no model call, no network. | `incidents.py [--repo R] list [--open] [--json] \| live \| brief [--session S] \| resolve <id> --root-cause T --how T \| lessons stats \| promote --tier harness\|knowledge <lesson-or-signature> [--text T] \| review-input \| hook <event>` | `.harness/agents.jsonl`, `.harness/injections.jsonl`, `.harness/briefs/`, ledgers |
+| `knowledge.py` | user (via skill) | Personal cross-device knowledge store: preferences, terms and learnings. Never stores secrets. | `knowledge.py setup --backend git\|folder\|local\|cloudflare [--owner O --remote R --path P --url U --force] \| join --backend B [--remote R --path P --url U] \| set <key> <value> [--kind preference\|term\|learning --alias A --tag T --by B] \| get <key> \| find <text> \| list \| rm <key> \| sync \| status \| context` | the knowledge store |
+| `knowledge_cloudflare.py` | user (via skill) | Client for the Cloudflare Worker backend of the knowledge store; `knowledge.py sync` calls it. The token comes from `DTS2_KNOWLEDGE_TOKEN` and is never written to disk. | `knowledge_cloudflare.py --url U ping \| list \| pull <store>` | local store directory (`pull`) |
+| `hook_util.py` | hook | Small helpers the `hooks/*.sh` scripts call, so no hook carries an inline program. | `hook_util.py json-field KEY [--file P] [--or-empty] \| lessons-tail N \| open-items FILE N \| open-action-items FILE N \| stop-timeout HOOKS_JSON DEFAULT \| block-reply` | none |
+| `unattended.py` | user (via skill) | Show and apply the unattended permission profile (`templates/settings.unattended.json`). `apply` is append-only and backs up first. | `unattended.py diff\|apply [--cwd D --home H --scope project\|local\|user] [--dry-run] \| status` | settings file and its `.bak-<stamp>` (`apply`) |
 | `context-guard.py` | hook | PostToolUse context guard (hook JSON on stdin). | `context-guard.py --tool-calls N --mb M [--stop]` | none |
 | `context-tax.py` | maintainer | Measure always-loaded skill and agent metadata; exit 1 over budget. | `context-tax.py [--root R] [--budget N] [--max-description N]` | none |
 | `fleet.py` | either | Machine-wide session registry and broadcast inbox. `list`, `show`, `logs`, `status`, `checkins` are read-only; `broadcast`, `label`, `checkin`, `prune` write to the fleet home. | `fleet.py list [--all --json] \| show <ref> [--json] \| logs <ref> [-n N] \| broadcast --kind note\|handoff\|pause\|knowledge\|checkin --text T [--to all\|harness\|repo:X\|id:X\|label:X] [--expires 24h] [--from-knowledge KEY] \| status [<id>] \| label <ref> <name> \| prune [--days 14] \| checkins [--since 24h] \| checkin --session ID --status TEXT [--blocker X] [--next N] [--question Q]` | `~/.dts2/fleet/` (`DTS2_FLEET_HOME`) |
@@ -148,7 +166,7 @@ Invocation shown without the prefix `python3 -I "$CLAUDE_PLUGIN_ROOT/scripts/`; 
 
 Also outside `scripts/`: `sdk/dts2-run.py <task> [--repo R] [--yes] [--api-key-env V] [--second-opinion none|codex|gemini] [--ship] [--live-only]` (headless pipeline, run by the `sdk` skill) and `evals/run.py [--fixture F] [--baseline B] [--results-dir D] [--update-baseline] [--runs N] [--arm-b-env VAR=VAL]` (smoke evals; by hand). The root `Makefile` has `make test`, `make doctor`, `make check-version` and `make package`.
 
-Library modules, not invoked directly (16): `_load.py`, `agent_names.py`, `contracts.py`, `eval_stats.py`, `harness_skew.py`, `mdparse.py`, `miniyaml.py`, `model_call.py`, `ownership_audit.py`, `prep-tiers.py`, `proc.py`, `profiles.py`, `skill_pins.py`, `son_launch.py`, `son_stream.py`, `state_ids.py`. The modules of `scripts/lanes/` are libraries behind `lanes.py` and have no command line either.
+Library modules, not invoked directly (21): `_load.py`, `agent_names.py`, `agent_rules.py`, `api_keys.py`, `contracts.py`, `eval_stats.py`, `harness_skew.py`, `incidents_detect.py`, `incidents_lessons.py`, `mdparse.py`, `miniyaml.py`, `model_call.py`, `ownership_audit.py`, `pr_receipt.py`, `prep-tiers.py`, `proc.py`, `profiles.py`, `skill_pins.py`, `son_launch.py`, `son_stream.py`, `state_ids.py`. The modules of `scripts/lanes/` are libraries behind `lanes.py` and have no command line either.
 
 ## 4. Skills (27 slash commands)
 
@@ -157,7 +175,7 @@ Typed as `/dt:<name>`. `user only` means `disable-model-invocation: true` in the
 | Command | Role | What it does | Exact invocation | Writes / side effects |
 |---|---|---|---|---|
 | `/dt:onboard` | user only | Explain the harness and recommend where to start; an optional last step adds hooks you pick. | `/dt:onboard` | settings and `.claude/hooks/dts2/` (only on a pick) |
-| `/dt:composio` | user only | Ask once whether you have a Composio account, connect it (plugin by default), map the full toolkit catalogue and connected accounts, and offer to disable overlapping plugins, MCP servers and skills (never deletes). | `/dt:composio` | `~/.dts2/composio.json`, `~/.dts2/composio-tools.json`, settings with backup, archived skills |
+| `/dt:composio` | user only | Ask once whether you have a Composio account, connect it (plugin by default), map the full toolkit catalog and connected accounts, and offer to disable overlapping plugins, MCP servers and skills (never deletes). | `/dt:composio` | `~/.dts2/composio.json`, `~/.dts2/composio-tools.json`, settings with backup, archived skills |
 | `/dt:machine-prep` | user only | Audit this computer's agent tooling and prune to the blueprint (once per machine). | `/dt:machine-prep` | plugin settings (with backup) |
 | `/dt:setup` | user or model | Interview to an approved end state, then scaffold harness config in one repo, many repos or a workspace. | `/dt:setup [path ...] [--scaffold-only]` | end-state file, config, CI, gitignore |
 | `/dt:run` | user or model | Plan, build, review and verify one task with a human at the two checkpoints; ends with a receipt. | `/dt:run <task> \| resume \| section <#> \| add secret NAME \| review-pr <number>` | branches, receipt, state, PR |
@@ -169,7 +187,7 @@ Typed as `/dt:<name>`. `user only` means `disable-model-invocation: true` in the
 | `/dt:ship` | user or model | Ship the current branch as a PR: checks, secret scan, verifier and reviewer, receipt, push, open PR; then sweep stale branches. Never merges. | `/dt:ship [base]` | receipt, push, PR, branch clean-up (after a yes) |
 | `/dt:feature` | user or model | Add a feature to the roadmap: clarity score, interview, end state updated, plan PR. Plans only. | `/dt:feature <description>` | end-state file, plan PR |
 | `/dt:autopilot` | user or model (a son runs it with `--son`) | Run harness steps unattended; a three-provider gate and a council replace the checkpoints. One branch and PR per step. | `/dt:autopilot <steps> \| resume \| status \| --son <stamp>/<lane>` | branches, PRs, receipts, council record |
-| `/dt:dpp` | head | Run several autopilot lanes in parallel as headless sons under a head that plans, supervises and serialises merges. | `/dt:dpp [dry-run] [--full] [resume]` | run folder, lane worktrees, PRs, report |
+| `/dt:dpp` | head | Run several autopilot lanes in parallel as headless sons under a head that plans, supervises and serializes merges. | `/dt:dpp [dry-run] [--full] [resume]` | run folder, lane worktrees, PRs, report |
 | `/dt:dpp-full` | user only | `dpp --full`: also fills lanes from a delegation scan and keeps dispatching. | `/dt:dpp-full` | as `dpp` |
 | `/dt:fullauto` | user only | `dpp-full` with autopilot forced on, looping check-in until nothing is outstanding. | `/dt:fullauto` | as `dpp` |
 | `/dt:check-in` | user or model | Read-only progress against the approved end state: `N of M complete`. `all` reports check-in items from every session on the machine and, after a yes, asks them for fresh ones. | `/dt:check-in [all [--since 24h]]` | none (broadcast inbox on a yes) |
@@ -199,9 +217,9 @@ Dispatched by the skills with the Agent tool; nobody types them.
 | `dt:auditor` | read-only (Bash) | Inventories installed agent tooling against a blueprint profile and proposes keep, disable and setup. Never changes anything. | From `machine-prep`. | `Agent(subagent_type: dt:auditor)` |
 | `dt:incident-reviewer` | read-only (Bash for read-only commands) | Takes the open incidents from `incidents.py review-input`, finds a root cause with a short five-whys, marks each isolated or trend, and proposes lessons, promotions and `harness:` lines. Never edits files. | From `incidents review`, only when incidents are open. | `Agent(subagent_type: dt:incident-reviewer)` |
 
-## 6. Hooks (16 rows, 25 registrations in `hooks/hooks.json`)
+## 6. Hooks (16 rows, 33 registrations in `hooks/hooks.json`)
 
-Registered in `hooks/hooks.json` and run by Claude Code. Agents do not call hooks; they only meet their effect (a denial, a blocked stop, a context note). Every hook honours the `enabled` setting in `.claude/dts2-harness.local.md`.
+Registered in `hooks/hooks.json` and run by Claude Code. Agents do not call hooks; they only meet their effect (a denial, a blocked stop, a context note). Every hook honors the `enabled` setting in `.claude/dts2-harness.local.md`.
 
 | Event (matcher) | Script | Blocks or allows |
 |---|---|---|
@@ -317,14 +335,14 @@ python3 -I "$CLAUDE_PLUGIN_ROOT/scripts/task-ledger.py" <stamp>
 lanes shutdown <stamp>
 ```
 
-2. Adding instructions while a run is going.
+7. Add instructions while a run is going.
 
 ```
 /dt:steer use the Postgres schema instead    # stop and redirect: finishes the current step first
 python3 -I "$CLAUDE_PLUGIN_ROOT/scripts/intake.py" list    # the queue: fold, clarify and set items
 ```
 
-Plain typing needs no command. A prompt is recorded as a fold (added to the ledger, the run goes on) or a clarify (may conflict; the agent asks at the next safe point before acting on it).
+Plain typing needs no command. A prompt is recorded as a fold (added to the ledger, the run goes on) or a clarify (it may conflict, so the agent asks at the next safe point before acting on it).
 
 ## 8. Changelogs
 
@@ -332,5 +350,5 @@ Plain typing needs no command. A prompt is recorded as a fold (added to the ledg
 - Not yet released: the `## Unreleased` section of `../README.md`. Each batch of work adds one fragment `../changelog.d/batch-<n>.md` (bullets only, each starting with its gap id such as `G-30`); the release step `scripts/changelog-join.py --apply` folds the fragments into the README and then into `CHANGELOG.md`. Read `../changelog.d/README.md` for the fragment rules.
 - Per-command detail for a release: `INVENTORY.md` section 9 (3.11.0) and section 7 (3.10.0); the one-page digest of both: `GUIDE.md` section 5.
 
-How to read a release section: open [3.11.0](../CHANGELOG.md#3110) and read the one-paragraph summary under the heading, then `### Added` (one bullet per gap id, each naming the script, command or setting it adds), then `### Fixed`. The 3.11.0 summary also records that the optional cross-model review step was skipped for that release by decision of the maintainer; CI reviews ran on every PR. [3.10.0](../CHANGELOG.md#3100) has Added, Changed, Fixed and Security; its Added list names the 35 lane commands that existed then. To find the release that introduced a command, search `INVENTORY.md` for the command: its "Since" column says `new` or `changed` for 3.10.0, and section 9 lists 3.11.0.
+To read a release section, open [3.11.0](../CHANGELOG.md#3110). Read the summary paragraph under the heading, then `### Added` (one bullet per gap id, each naming the script, command or setting it adds), then `### Fixed`. [3.10.0](../CHANGELOG.md#3100) has Added, Changed, Fixed and Security; its Added list names the 35 lane commands that existed then. To find the release that introduced a command, search `INVENTORY.md` for it. The "Since" column says `new` or `changed` for 3.10.0, and section 9 lists 3.11.0.
 

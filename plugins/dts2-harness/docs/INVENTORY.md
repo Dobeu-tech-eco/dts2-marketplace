@@ -1,12 +1,25 @@
-# dts2-harness command inventory
+# Inventory
 
-Every command an agent or a user can run in this plugin, with its purpose, exact usage and what calls it. Built from the files themselves: `skills/*/SKILL.md` and the phase files beside them, `agents/*.md`, `hooks/hooks.json` and `hooks/*.sh`, the argparse definitions in `scripts/*.py` (and `scripts/lanes.py` for the lane commands), and the root `Makefile`. A test (`tests/test_inventory_complete.py`) fails when a `lanes.py` subcommand or a skill directory is missing from this page, so add a row in the same change that adds a command.
+The full list of everything a person or an AI coding assistant can run in this plugin, with its purpose, exact usage and what calls it. It is built from the files themselves: `skills/*/SKILL.md` and the phase files beside them, `agents/*.md`, `hooks/hooks.json` and `hooks/*.sh`, the argparse definitions in `scripts/*.py` (and `scripts/lanes.py` for the lane commands), and the root `Makefile`.
+
+A test (`tests/test_inventory_complete.py`) fails when a `lanes.py` subcommand or a skill directory is missing from this page. Add a row in the same change that adds a command.
 
 In examples, `$P` stands for `${CLAUDE_PLUGIN_ROOT}`, `<repo>` for a repo root, `<stamp>` for a run stamp and `<manifest>` for a lane manifest (`lanes.json`). Scripts print one JSON object on stdout unless noted. The "Since" column is `new` for a command added in 3.10.0 and `changed` for an existing command whose arguments or output changed; section 7 lists the changes.
 
-For a shorter orientation (how to talk to the harness, which command when, the head, son and council flow) read `GUIDE.md` first. For one page of exact invocations per command (role, what it writes, flows, changelog locations) read `COMMANDS.md`.
+For a shorter orientation (how to talk to the harness, which command when, the head, son and council flow) read `GUIDE.md` first. For exact invocations per command (role, what it writes, flows, changelog locations) read `COMMANDS.md`.
 
-Contents: 1 Skills, 2 Agents, 3 Hooks, 4 CLI scripts (4.1 state and progress, 4.2 detection and scaffolding, 4.3 roster, council and orchestration, 4.4 review and build gates, 4.5 parallel lanes, 4.6 maintenance, 4.7 hook entry points, 4.8 other entry points), 5 Library modules (5.1 lanes package, 5.2 templates), 6 Makefile targets and CI, 7 Changed in 3.10.0, 8 Settings keys, 9 Changed in 3.11.0, 10 Documentation.
+Contents:
+
+1. Skills
+2. Agents
+3. Hooks
+4. CLI scripts (4.1 state and progress, 4.2 detection and scaffolding, 4.3 roster, council and orchestration, 4.4 review and build gates, 4.5 parallel lanes, 4.6 maintenance, 4.7 hook entry points, 4.8 other entry points)
+5. Library modules (5.1 lanes package, 5.2 templates)
+6. Makefile targets and CI
+7. Changed in 3.10.0
+8. Settings keys
+9. Changed in 3.11.0
+10. Documentation
 
 ## 1. Skills (slash commands)
 
@@ -15,7 +28,7 @@ Invoke as `/dt:<name>`. Skills with `disable-model-invocation: true` in their fr
 | Command | Purpose | Usage and arguments | Runs | Hands off to |
 |---|---|---|---|---|
 | `/dt:onboard` | Explain the harness (agents, skills, roster, tiers, lessons, headless runner) and recommend where to start. Explanation only, except an optional last step that adds hooks to the project after the user picks them. | no arguments | `delegate.py` (named in its text), `hooks-setup.py` | `autopilot`, `check-in`, `dpp`, `dpp-full`, `feature`, `find-skills`, `fullauto`, `model`, `ship` |
-| `/dt:composio` | Ask once whether the user has a Composio account, connect it (plugin by default, MCP or CLI on request), map the catalogue and connected accounts into `~/.dts2/composio-tools.json`, and offer to disable overlapping plugins, MCP servers and user skills (disable or archive with backup, never delete). | no arguments; drives `composio-setup.py status\|decide\|map\|overlap\|disable` | `composio-setup.py` | none |
+| `/dt:composio` | Ask once whether the user has a Composio account, connect it (plugin by default, MCP or CLI on request), map the catalog and connected accounts into `~/.dts2/composio-tools.json`, and offer to disable overlapping plugins, MCP servers and user skills (disable or archive with backup, never delete). | no arguments; drives `composio-setup.py status\|decide\|map\|overlap\|disable` | `composio-setup.py` | none |
 | `/dt:machine-prep` | Scan this computer's agent tooling, compare to the blueprint profile, prune by disabling, set up the slim startup. | no arguments; drives `machine-prep.py audit\|plan\|apply` | `env-detect.py`, `machine-prep.py` | none |
 | `/dt:setup` | Interview to an approved end state (`.harness/end-state.md`), then scaffold harness config in one repo, many repos or a workspace. A short router plus `phase-1-interview-a.md`, `phase-1-interview-b.md`, `phase-2-scaffold.md`. | `[path ...] [--scaffold-only]`; several paths means batch (scaffold only) | `scope-check.py`, `repo-size.py`, `app-type-detect.py`, `deploy-detect.py`, `clarity-score.py`, `roster.py`, `ensure-ignored.py`, `agent-memory.py`, `prod-scaffold.py` | `run`, `evolve` |
 | `/dt:run` | Plan, build, review and verify pipeline on a task in one repo or workspace; ends with a receipt. A short router plus `phase-0-size.md` to `phase-4-ship.md`, `modes.md` and `operations.md`. | `<task>`, `resume`, `section <#>`, `add secret NAME`, `review-pr <number>` | `scope-check.py`, `briefs.py`, `checks.py`, `council.py`, `delegate.py`, `roster.py`, `failover.py`, `plan-gate.py`, `plan_graph.py`, `builder-audit.py`, `flags_collect.py`, `findings.py`, `review_split.py`, `rollback_ref.py`, `walkthrough_fallback.py`, `companion-gate.py`, `skills-check.py`, `handoff-write.py`, `lanes.py` (`check`, `merge-plan`), `metrics.py`, `action-items.py`, `deploy-detect.py`, `ensure-ignored.py`, `agent-memory.py` | `setup`, `evolve`, `find-skills`, `action-items` |
@@ -27,7 +40,7 @@ Invoke as `/dt:<name>`. Skills with `disable-model-invocation: true` in their fr
 | `/dt:ship` | Ship the current branch as a pull request: pre-check, repo checks, secret scan, verifier and reviewer, receipt, push, open PR; then sweep stale branches and PRs. Never merges. | `[base]`; base defaults to `dev` when it exists on the remote, else the default branch | `skills-check.py`, `handoff-write.py` | none |
 | `/dt:feature` | Add a feature to the roadmap: clarity score, interview when unclear, lead writes it into the end state, plan PR. Plans only; does not build. | `<description>` | `clarity-score.py`, `scope-check.py`, `action-items.py`, `handoff-write.py` | `setup`, `run`, `ship`, `autopilot` |
 | `/dt:autopilot` | Run harness steps unattended; a three-provider gate and a council replace the human checkpoints. One branch and PR per step. A short router plus `phase-0-preflight.md` to `phase-4-report.md` and `son-mode.md` (what a headless son reads first). | `<steps>` (section numbers like `3,4,7` or `3-5`, action-item ids, `feature "<text>"`, quoted tasks), `resume`, `status`, `--son <stamp>/<lane>` | `lanes.py`, `checks.py`, `council.py`, `briefs.py`, `roster.py`, `task-ledger.py`, `harness-lock.py`, `action-items.py` | `run`, `ship`, `check-in` |
-| `/dt:dpp` | Run several autopilot lanes in parallel as headless sons, one worktree each, under a head that plans, supervises and serialises merges. | `[dry-run] [--full] [resume]` | `lanes.py`, `plan_graph.py`, `briefs.py`, `checks.py`, `council.py`, `check-in.py`, `task-ledger.py`, `agent-memory.py` | `autopilot` (each son) |
+| `/dt:dpp` | Run several autopilot lanes in parallel as headless sons, one worktree each, under a head that plans, supervises and serializes merges. | `[dry-run] [--full] [resume]` | `lanes.py`, `plan_graph.py`, `briefs.py`, `checks.py`, `council.py`, `check-in.py`, `task-ledger.py`, `agent-memory.py` | `autopilot` (each son) |
 | `/dt:dpp-full` | `dpp` with `--full`: also fills lanes from a delegation scan and keeps dispatching without a new approval. | no arguments | none of its own | `dpp` |
 | `/dt:fullauto` | `dpp-full` with autopilot forced on, looping check-in until nothing is outstanding. | no arguments | `lanes.py` (`loop`, `stop-check`) | `dpp`, `dpp-full`, `check-in` |
 | `/dt:check-in` | Read-only progress against the approved end state: checklist, `N of M complete`, percent; `all` gathers check-in items from every session on the machine. | no arguments, or `all [--since 24h]` | `check-in.py`, `scope-check.py`, `action-items.py`, `fleet.py` (`checkins`, `broadcast`) | `action-items`, `autopilot`, `run`, `setup` |
@@ -52,16 +65,16 @@ Dispatched with the Agent tool as `subagent_type: dt:<name>`.
 |---|---|---|---|---|
 | `dt:lead` | Read-only planner: slices the end state into a DAG of tasks with exclusive file ownership, picks reviewer axes. Never writes code. | Read, Grep, Glob | opus, 25 | `briefs.py`, `contracts.py`, `delegate.py`, `repo-size.py`, `roster.py` |
 | `dt:builder` | Implements exactly one builder section inside its owned file set; does not review its own work. | Read, Write, Edit, Grep, Glob, Bash | sonnet, 60 | none |
-| `dt:fixer` | Fresh-context fixer for fix round 2 on the same failure: applies the one hypothesis the lead picked (escalation seat, `effort: high`). | Read, Write, Edit, Grep, Glob, Bash | opus, 40 | `delegate.py` |
+| `dt:fixer` | Fresh-context fixer for fix round 2 on the same failure: applies the one hypothesis the lead picked (escalation seat, `effort: high`). | Read, Write, Edit, Grep, Glob, Bash | sonnet, 40 | `delegate.py` |
 | `dt:reviewer` | Read-only reviewer: reviews a diff on one or all axes, returns severity-rated findings and a verdict. | Read, Grep, Glob | sonnet, 30 | `delegate.py`, `findings.py` |
-| `dt:verifier` | Read-only verifier: runs configured build, type, lint and test commands, checks for stubs, walks changed screens when asked. Evidence only. | Read, Grep, Glob, Bash (`disallowedTools`: Write, Edit, NotebookEdit) | opus, 40 | `checks.py` |
+| `dt:verifier` | Read-only verifier: runs configured build, type, lint and test commands, checks for stubs, walks changed screens when asked. Evidence only. | Read, Grep, Glob, Bash (`disallowedTools`: Write, Edit, NotebookEdit) | sonnet, 40 | `checks.py` |
 | `dt:scout` | Read-only sizing scout: measures a repo, detects other harnesses and a marketing surface, recommends team tier, builder count and reviewer axes. | Read, Grep, Glob, Bash | haiku, 15 | `repo-size.py`, `deploy-detect.py`, `checks.py` |
 | `dt:auditor` | Read-only machine auditor: inventories installed agent tooling against a blueprint profile and proposes keep, disable and setup. | Read, Grep, Glob, Bash | sonnet, 20 | `env-detect.py`, `machine-prep.py` |
 | `dt:incident-reviewer` | Read-only incident reviewer: root cause with a short five-whys per open incident, isolated or trend, lessons, promotions and `harness:` lines. Never edits files. | Read, Grep, Glob, Bash | sonnet, 20 | `incidents.py` |
 
 ## 3. Hooks
 
-Registered in `hooks/hooks.json`. Every hook script honours the `enabled` setting in `.claude/dts2-harness.local.md` (default true) and, except the guards that deny by design, never fails the session.
+Registered in `hooks/hooks.json`. Every hook script honors the `enabled` setting in `.claude/dts2-harness.local.md` (default true) and, except the guards that deny by design, never fails the session.
 
 | Event (matcher) | Script | What it enforces | Calls | Since |
 |---|---|---|---|---|
@@ -261,7 +274,7 @@ Stamp-keyed commands:
 | `protected.py` | `<repo> paths`, `<repo> check [names...]` | | Protected paths a son's diff must not touch (git common dir config/info/hooks, `.gitattributes`, workflows, checks script, CODEOWNERS, `hooks/`, head-only `.harness` records, `merge-go.md`); a touching diff parks as a Decisions item. | `head_publish.py`; `dpp` | new |
 | `policy_gate.py` | `--cwd`; hook JSON on stdin | | Declarative policy gate: evaluates `templates/policy.json` (deny, require-approval, scanner-required; with `DTS2_AGENT` set, also that agent's `rules:` by `taskClasses` and `paths_deny`) after unwrapping `bash -c`, `eval`, `env`, `command`, `sudo`, `npx`, `git -C` and chains; approvals come from `approvals.py` (kinds include `merge` per PR and the standing `merge_policy`). | policy-gate hook | new |
 | `approvals.py` | `--repo`; `check <kind> <key> [--session]`, `path` | | Human-only approval channel: `dts2_approvals` in `.claude/settings.local.json`, which the model cannot write; logs the asker as `human` or `agent:<session>`. | `head_publish.py`; `dpp`, `autopilot` | new |
-| `head_publish.py` | `--repo`; `publish --lane --branch --base --title [--body]`, `merge <pr> [--verifier-ok --default-branch --deploys-production]`, `bootstrap --stamp --lane --worktree` | | The head pushes and opens one PR per lane, merges when the preconditions hold (checks reported and green, protection or queue, a per-PR yes for a production deploy) and bootstraps each lane (install once, sanitized `son.env`, missing secrets filed). Intended `lanes.py publish`. | `dpp`, `autopilot` (head only) | new |
+| `head_publish.py` | `--repo`; `publish --lane --branch --base --title [--body]`, `merge <pr> [--verifier-ok --default-branch --deploys-production]`, `bootstrap --stamp --lane --worktree` | | The head pushes and opens one PR per lane, merges when the preconditions hold (checks reported and green, protection or queue, a per-PR yes for a production deploy) and bootstraps each lane (install once, sanitized `son.env`, missing secrets filed). Behind `lanes.py publish`. | `dpp`, `autopilot` (head only) | new |
 | `provider_report.py` | `footer`, `check <file\|->` | | Provider-neutral brief footer and validator for the fenced JSON report every non-Claude seat ends with. | `run`, `autopilot` | new |
 | `ballot_dispatch.py` | `dispatch --seat --model --prompt-file --out-dir [--provider] [-- argv]` | | Runs one council seat through the shared call limit and writes the ballot with its `.dispatch.json` record (argv, model, session id, sha256); Claude seats use `--json-schema` and `--restricted`. | `autopilot` council | new |
 | `sdk/dts2-run.py` | `<task>`; `--repo`, `--yes`, `--api-key-env`, `--second-opinion none\|codex\|gemini`, `--ship`, `--live-only` | Headless pipeline on the Agent SDK (`claude-agent-sdk` pinned in `sdk/requirements.txt`): per-role tools (only the verifier has Bash), `setting_sources=['user']`, turn and budget caps, a secret scan before `git add -A`, no Anthropic key in a second-opinion CLI's env. | `sdk` | |
@@ -402,6 +415,12 @@ Keys of `templates/dts2-harness.local.md`, copied to `<repo>/.claude/dts2-harnes
 | `stop_checks_block` | `false` | A red check blocks the stop once. |
 | `lessons_inject` | `true` | SessionStart loads lessons. |
 | `lessons_max` | `5` | Most lessons loaded. |
+| `intake` | `true` | Prompt intake hook records prompts typed while the harness works. |
+| `fleet` | `true` | Fleet hook registers the session and delivers broadcasts. |
+| `incident_capture` | `true` | Agent telemetry and incident capture. |
+| `incident_hung_minutes` | `20` | Minutes after which a started agent with no stop is logged as hung. |
+| `spawn_dry_run` | `false` | `true` makes the `Agent` dry-run hook deny the dispatch and print the prompt. |
+| `autonomy` | unset | `unattended` turns on unattended mode (also `DTS2_UNATTENDED=1`). |
 | `pr_receipt_template_push` | `false` | Receipt hook commits and pushes the PR template (never in a son). |
 | `auto_scale` | `true` | `run` picks tier S/M/L/XL itself. |
 | `max_builders` | `4` | Builders in parallel. |
@@ -464,11 +483,13 @@ Sources: `CHANGELOG.md` (3.11.0) and `git log --oneline 6a74faa..HEAD -- plugins
 
 ## 10. Documentation
 
-Pages under `docs/` and the plugin root that an agent reads. None is a command.
+Pages under `docs/` and the plugin root. None is a command.
 
 | Page | What it holds | Since |
 |---|---|---|
-| `docs/COMMANDS.md` | Command reference for agents: every `lanes.py` subcommand, script, skill, agent and hook with role, exact invocation and what it writes; six copy-paste flows; where the changelogs live. | 3.11.0 |
-| `docs/GUIDE.md` | Agent guide: how to talk to the harness, which command when, head, son and council flow, release digests. | 3.10.0 |
+| `docs/COMMANDS.md` | Command reference: every `lanes.py` subcommand, script, skill, agent and hook with role, exact invocation and what it writes; seven copy-paste flows; where the changelogs live. | 3.11.0 |
+| `docs/GUIDE.md` | Guide: how to talk to the harness, which command when, head, son and council flow, release digests. | 3.10.0 |
 | `docs/INVENTORY.md` | This page. | 3.10.0 |
 | `docs/RUNTIMES.md` | Exit codes by runtime (WSL, Docker, native Windows). | 3.11.0 |
+| `docs/API-AGENTS.md` | Setup for the pay-as-you-go `claude-api`, `codex-api` and `grok-api` profiles: capped keys, key storage, roster, rules. | 5.1.0 |
+| `ARCHITECTURE.md` | Flow diagram, agent table, `.harness/` state, hooks, state port, lane tools and script map. | 3.10.0 |
