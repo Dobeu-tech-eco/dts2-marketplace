@@ -104,6 +104,12 @@ class DecideAndStatusTests(ComposioCase):
         self.assertEqual(on_disk, out)
         self.assertEqual(self.run_cli("status")["decision"], out)
 
+    def test_decide_always_use_defaults_on_for_yes(self) -> None:
+        out = self.run_cli("decide", "--account", "yes", "--connection", "cli", scoped=False)
+        self.assertTrue(out["always_use"])
+        out = self.run_cli("decide", "--account", "yes", "--no-always-use", scoped=False)
+        self.assertFalse(out["always_use"])
+
     def test_decide_defaults_and_rejects_bad_choice(self) -> None:
         out = self.run_cli("decide", "--account", "no", scoped=False)
         self.assertEqual((out["always_use"], out["connection"]), (False, None))
