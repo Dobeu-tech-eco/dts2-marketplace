@@ -12,6 +12,7 @@ RUN_SKILL: Final[Path] = PLUGIN_ROOT / "skills" / "run"
 BUILDER: Final[Path] = PLUGIN_ROOT / "agents" / "builder.md"
 LEAD: Final[Path] = PLUGIN_ROOT / "agents" / "lead.md"
 LOCAL_TEMPLATE: Final[Path] = PLUGIN_ROOT / "templates" / "dts2-harness.local.md"
+PUBLISHER: Final[str] = "Dobeu Tech Solutions LLC"
 ONBOARD: Final[Path] = PLUGIN_ROOT / "skills" / "onboard" / "SKILL.md"
 PERSONAL_STRINGS: Final[tuple[str, ...]] = (
     "Jeremy", "Neptune", "07753", "Baldor", "Unique Staffing", "Dobeu Tech Solutions LLC",
@@ -61,6 +62,8 @@ class OrchestrationRulesTests(unittest.TestCase):
                 continue  # test code names the strings it checks for; shipped scripts and hooks may not
             text: str = path.read_text(encoding="utf-8", errors="ignore")
             for needle in PERSONAL_STRINGS:
+                if needle == PUBLISHER and path == PLUGIN_ROOT / "README.md":
+                    continue  # the plugin README names its publisher; skills, agents, scripts and hooks may not
                 self.assertNotIn(needle, text, f"{path} contains {needle}")
 
     def test_no_hard_coded_org_in_code_or_skills(self) -> None:
