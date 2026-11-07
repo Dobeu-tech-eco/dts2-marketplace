@@ -1,0 +1,2 @@
+- `composio-setup.py map` falls back to `composio connections list` (active accounts only) when `composio dev connected-accounts list` fails, and records `connected_source` in its output and the tool map.
+- `composio-setup.py` finds a `composio` CLI installed inside WSL when run on Windows without one on PATH.
