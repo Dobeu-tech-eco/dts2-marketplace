@@ -1,6 +1,8 @@
 # Runtimes: native Windows, WSL and Docker
 
-`scripts/doctor.py` reports the platform, the sandbox tools (`bwrap`, `socat` on Linux) and the auth method (named, never the value). On native Windows `dpp` parks a run with the reason `windows-native` (ruling Q6); run it under WSL or in Docker instead.
+Which runtimes the harness supports and the exit codes each one reports. It is for anyone running `dpp` or the headless runner outside plain Linux or macOS.
+
+`scripts/doctor.py` reports the platform, the sandbox tools (`bwrap`, `socat` on Linux) and the auth method (named, never the value). On native Windows `dpp` parks a run with the reason `windows-native` (ruling Q6). Run it under WSL or in Docker instead.
 
 ## Exit codes by runtime
 

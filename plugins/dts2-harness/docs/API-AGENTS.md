@@ -1,6 +1,8 @@
 # API agents: claude-api, codex-api, grok-api
 
-Three built-in agent profiles run a vendor CLI on a pay-as-you-go API key, billed apart from your subscriptions. Use them as extra reviewers, second opinions and (for `claude-api`) overflow builders when the Max agents are rate-limited. They never lead a run and never sign off.
+Setup and limits for the three built-in agent profiles that run a vendor CLI on a pay-as-you-go API key, billed apart from your subscriptions. It is for anyone who wants extra reviewers, second opinions or overflow builders when the Max agents are rate limited. These profiles never lead a run and never sign off.
+
+Contents: what the harness guarantees, then four steps: create a capped key, store it, add it to the roster, widen the rules (optional).
 
 | Agent | Command | Key variable | Roles | Own home |
 |---|---|---|---|---|
