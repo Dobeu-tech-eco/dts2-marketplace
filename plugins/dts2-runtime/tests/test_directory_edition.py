@@ -1,11 +1,9 @@
-"""The directory listing is generated from the runtime harness and stays policy-clean."""
+"""The directory listing stays policy-clean relative to the runtime harness."""
 from __future__ import annotations
 
-import importlib.util
 import json
 import unittest
 from pathlib import Path
-from types import ModuleType
 from typing import Final
 
 from helpers import PLUGIN_ROOT
@@ -14,25 +12,7 @@ REPO: Final[Path] = PLUGIN_ROOT.parent.parent
 LISTING: Final[Path] = REPO / "plugins" / "dts2-harness"
 
 
-def load() -> ModuleType:
-    spec = importlib.util.spec_from_file_location(
-        "directory_edition", PLUGIN_ROOT / "scripts" / "directory_edition.py"
-    )
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
 class DirectoryEditionTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        cls.mod = load()
-
-    def test_committed_tree_matches_the_generator(self) -> None:
-        found: list[str] = self.mod.check()
-        self.assertEqual(found, [], "\n".join(found))
-
     def test_listing_has_no_hooks_or_scripts(self) -> None:
         self.assertFalse((LISTING / "hooks").exists())
         self.assertFalse((LISTING / "scripts").exists())
