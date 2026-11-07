@@ -2,7 +2,7 @@
 
 [![Dobeu Tech Solutions LLC](https://dobeu.net/brand/dobeu-horizontal.png)](https://dobeu.net)
 
-A **Dobeu Tech Solutions LLC** product. The command stays `/dt:<command>`. The listing title is “dt by Dobeu: one task to a reviewed pull request.”
+A **Dobeu Tech Solutions LLC** product. The command stays `/dt:<command>`. The listing title is “DT: Init to Ship Auto Agent Orchestrator.”
 
 `dt` turns one task into a planned, built, reviewed and verified pull request, with you approving at the points that matter.
 

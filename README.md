@@ -7,7 +7,7 @@ A **Dobeu Tech Solutions LLC** product. New York, NY · [dobeu.net](https://dobe
 ![License: Dobeu Source-Available 1.0](https://img.shields.io/badge/license-Dobeu%20Source--Available%201.0-5A4FAB)
 ![Version 5.1.1](https://img.shields.io/badge/version-5.1.1-6B5CE7)
 
-`dt` turns one task into a planned, built, reviewed and verified pull request, with you approving at the points that matter. Commands stay `/dt:<command>`. The listing title is “dt by Dobeu: one task to a reviewed pull request.”
+`dt` turns one task into a planned, built, reviewed and verified pull request, with you approving at the points that matter. Commands stay `/dt:<command>`. The listing title is “DT: Init to Ship Auto Agent Orchestrator.”
 
 This repository is the Claude Code plugin marketplace for that product. It carries one plugin, `dt`. It is for developers and small teams who already use Claude Code and want a repeatable way to run larger changes.
 
