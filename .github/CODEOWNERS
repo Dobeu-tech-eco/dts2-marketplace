@@ -1,0 +1,4 @@
+# Code owners: GitHub requests a review from these accounts on every PR.
+# Review is NOT required to merge (no "require code owner review" rule),
+# so agent merges on green CI keep working.
+* @dobeutech
