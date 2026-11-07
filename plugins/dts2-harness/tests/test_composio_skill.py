@@ -33,7 +33,7 @@ class ComposioSkill(unittest.TestCase):
         for command in SUBCOMMANDS:
             self.assertIn(f"composio-setup.py {command}", self.text, command)
         self.assertIn("--from-json", self.text)
-        self.assertIn("--always-use", self.text)
+        self.assertIn("--no-always-use", self.text)
 
     def test_install_steps(self) -> None:
         for needle in (

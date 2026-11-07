@@ -26,7 +26,7 @@ Run `composio-setup.py status`. Report `cli`, `logged_in`, `plugin_enabled`, `mc
 - MCP is the alternative only when the user asks: Composio Connect `https://connect.composio.dev/mcp` (add it with `claude mcp add`, then sign in through `/mcp` in the browser, or read a key from an environment variable; never a literal key in a file). Never run the plugin and MCP together.
 
 ## 3. Save the decision
-Run `composio-setup.py decide --account yes --always-use --connection plugin` (use `mcp` or `cli` to match what the user chose). It writes `~/.dts2/composio.json`; no secrets go in it.
+Run `composio-setup.py decide --account yes --connection plugin` (use `mcp` or `cli` to match what the user chose). Always-use is on by default for `--account yes`; pass `--no-always-use` only if the user opts out. It writes `~/.dts2/composio.json`; no secrets go in it.
 
 ## 4. Map the catalogue
 Run `composio-setup.py map` (full toolkit catalogue and connected accounts, saved to `~/.dts2/composio-tools.json`). If the CLI is unavailable but the Composio MCP meta-tools are, call `COMPOSIO_SEARCH_TOOLS` for the user's apps, save the result to a temp JSON file `{"toolkits": [...], "connected": [...]}` and run `map --from-json <file>`. Report the toolkit count and which are connected. If `dev connected-accounts list` fails (no dev project), `map` falls back to `composio connections list` (active accounts only), and on Windows it also finds a CLI installed inside WSL.
