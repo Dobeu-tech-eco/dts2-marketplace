@@ -119,8 +119,3 @@ Run the suite from the plugin folder: `cd plugins/dts2-harness && python3 -m uni
 Released versions are in [CHANGELOG.md](CHANGELOG.md). Changes not yet released are listed below.
 
 ## Unreleased
-
-### Fixed
-
-- Composio setup: `composio-setup.py` now finds a Composio CLI installed only inside WSL on Windows (it runs it through `wsl.exe -e`, and `status` checks the login there). Set `DTS2_COMPOSIO_WSL=0` to turn the lookup off.
-- Composio setup: `map` no longer fails after a plain `composio login`. When `composio dev connected-accounts list` needs a developer project, it falls back to `composio connections list` and counts a toolkit as connected only when it has an ACTIVE account. The output says which listing it used in `connected_from`.
