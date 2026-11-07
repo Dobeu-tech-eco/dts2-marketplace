@@ -1,6 +1,6 @@
 ---
 name: dpp-full
-description: dpp with --full. The head fills up to five lanes from the check-in list plus a delegation scan of sons' questions, parked items and new action items. Outside autopilot it asks before each new lane while dpp_full_ask_each_lane is true, which is the default. Autopilot and fullauto skip that ask. Use when the user says dpp-full or full parallel autopilot.
+description: dpp with --full. Adds a delegation scan and fills up to five lanes. Outside autopilot it asks before each new lane (dpp_full_ask_each_lane defaults true). Autopilot and fullauto skip that ask. Use when the user says dpp-full or full parallel autopilot.
 disable-model-invocation: true
 ---
 
