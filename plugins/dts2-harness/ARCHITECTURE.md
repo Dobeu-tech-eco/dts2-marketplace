@@ -66,7 +66,7 @@ flowchart TD
 | `runs/<stamp>/flags.md` | `flags_collect.py` | the builders' `FLAGS:` blocks, one section per builder |
 | `runs/<stamp>/merge-order.json`, `merge-go.md`, `merge-journal.jsonl` | `lanes.py` | serialized merge state; journal of grants, merges, fold groups and failed walkthroughs |
 | `runs/<stamp>/builders.jsonl` | `lanes.py` | one event row per builder step (section, branch, status, diff-confirmed sha, round) for `run resume` |
-| `runs/<stamp>/<lane>/lease.json`, `status.json`, `brief.md`, `send-back-<n>.md`, `questions/<n>.md` | `lanes.py`, the son | lane lease and epoch, phase and heartbeat, brief, send-backs, son questions |
+| `runs/<stamp>/<lane>/lease.json`, `status.json`, `brief.md`, `send-back-<n>.md`, `questions/<n>.json`, `questions/<n>.md` | `lanes.py`, the son | lane lease and epoch, phase and heartbeat, brief, send-backs, son questions. The `.json` file is the record `check` and `answer` read. The `.md` file is its readable view. |
 | `autopilot/latest.md`, `council.md` | autopilot, `council.py` | last autopilot run, council decisions |
 | `metrics.jsonl` | `metrics.py`, `run_metrics.py` | one line per run for the trend report |
 | `wt/<n>/` | run | scratch directories for builders when the folder is not a git repo |

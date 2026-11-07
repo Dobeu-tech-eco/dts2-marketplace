@@ -1,8 +1,18 @@
 # dt: a harness for Claude Code
 
+[![Dobeu Tech Solutions LLC](https://dobeu.net/brand/dobeu-horizontal.png)](https://dobeu.net)
+
+A **Dobeu Tech Solutions LLC** product. The command stays `/dt:<command>`. The listing title is “DT: Init to Ship Auto Agent Orchestrator.”
+
 `dt` turns one task into a planned, built, reviewed and verified pull request, with you approving at the points that matter.
 
-You describe the end state you want once. A scout sizes the job, a lead plans it, builders work in parallel on separate files, and reviewers and a verifier check the result. You get a pull request and a written receipt of what happened. It is made by [Dobeu Tech Solutions LLC](https://dobeu.net) and released under the Dobeu Source-Available License (see [License](#license)).
+You describe the end state you want once. A scout sizes the job, a lead plans it, builders work in parallel on separate files, and reviewers and a verifier check the result. You get a pull request and a written receipt of what happened. It is made by [Dobeu Tech Solutions LLC](https://dobeu.net).
+
+## From Jeremy
+
+This started as a passion project and became the orchestrator I use to take work from init to ship. I was not planning to release it. It paid off in my own productivity, so I am putting it out. I hope it helps. Edits are welcome.
+
+I tested it on T3. The roster also marks these as verified in my use: Claude Code, OpenAI Codex, and OpenCode. Grok review and builder commands were exercised on 2026-10-22, and those model ids are still unverified. Parallel runs are set up for Linux, macOS, WSL, and Docker.
 
 It is for developers and small teams who already use Claude Code and want a repeatable way to run larger changes: multi-file features, cross-repo work, roadmap backlogs, cleanup passes. If your task fits in one prompt, you do not need it. It never merges, pushes to a default branch or deploys without an approval that you write yourself.
 
@@ -118,7 +128,7 @@ The full module map is in [ARCHITECTURE.md](ARCHITECTURE.md). Every skill, hook 
 | Skill | What it does |
 | --- | --- |
 | `dpp` | `/dt:dpp [dry-run]` plans lanes from the check-in list and estimates spend per lane. After you approve, it starts one headless worker per lane in its own worktree, supervises them (status, answers to questions, two send-backs, a second opinion), merges in order with `merge-go.md`, rolls lessons up, and ends with `dpp-report.md` and the task ledger. |
-| `dpp-full` | `dpp --full`: also scans for workers' questions, parked items and new action items, adds them as lane candidates, and starts the next lane without asking. |
+| `dpp-full` | `dpp --full`: adds a delegation scan. Outside autopilot it asks before each new lane while `dpp_full_ask_each_lane` is true (the default). Autopilot and `fullauto` skip that ask. |
 | `fullauto` | `dpp-full` with autopilot forced on. It re-runs check-in between rounds until nothing is outstanding and every lane is done or blocked. |
 
 ### Providers
@@ -129,8 +139,8 @@ One profile per provider lives in `profiles/agents/`. `tokenBurn` is a relative,
 |---|---|---|---|---|
 | claude | opus / sonnet / haiku | lead, verifier, builder, reviewer | 3 | low, medium, high, max |
 | codex | gpt-6-astra / gpt-6.1-sol / gpt-6-luna | builder, second opinion | 3 | low, medium, high, xhigh (max and ultra only when requested; luna has no ultra) |
-| gemini | gemini-2.5-pro / gemini-2.5-flash / gemini-2.5-flash-lite | builder, reviewer, second opinion (through the Antigravity `agy` CLI) | 2 | medium |
-| grok | grok-4.7 / grok-4.7 / grok-4-fast | builder, reviewer, second opinion | 3 | medium |
+| gemini | gemini-3.8-flash-high / gemini-3.8-flash-medium / gemini-3.8-flash-low | builder, reviewer, second opinion (through the Antigravity `agy` CLI) | 2 | medium |
+| grok | grok-4.7 / grok-4.7 / grok-4.7-build-fast | builder, reviewer, second opinion | 3 | medium |
 | opencode | CLI default | builder | 2 | medium |
 | copilot | CLI default | builder, security reviewer | 2 | medium |
 | muse | muse-spark-1.3 on every tier | builder, second opinion (Meta's Muse Code terminal tool) | 2 | medium |
@@ -217,7 +227,7 @@ Copy `templates/dts2-harness.local.md` to `<repo>/.claude/dts2-harness.local.md`
 | `delegation_strict` | `true` | Blocks ship if any builder ran a frontier model. |
 | `lead_provider` | `claude` | Provider that leads, advises and signs off. Set it with `/dt:model`. |
 
-Two more keys are documented in [docs/GUIDE.md](docs/GUIDE.md): `intake: false` turns off the prompt queue, and `autonomy: unattended` enables unattended mode.
+Two more keys are documented in [docs/GUIDE.md](docs/GUIDE.md): `intake: false` turns off the prompt queue, and `autonomy: unattended` enables unattended mode when it is set in both `.claude/dts2-harness.local.md` and `.harness/config.yaml`.
 
 Budgets, spend caps, council, merge target, shared files and the roster live in `<repo>/.harness/config.yaml`. See `templates/config-supervisor.yaml`.
 
@@ -252,7 +262,7 @@ What it does without asking: the hooks run as soon as the plugin is installed, e
 
 What it will not do without you:
 
-- **Merge or push to a protected branch.** The merge guard blocks `gh pr merge` and default-branch pushes unless you add the PR to `dts2_approvals` (or, under `dpp`, the head writes `merge-go.md`). `/dt:ship` never merges. Refusals are logged in `.harness/merge-guard.log`.
+- **Merge or push to a protected branch.** The policy gate allows `gh pr merge` only when that PR number is in `dts2_approvals`, or when `merge_policy` includes `auto-when-green` and the command is `gh pr merge <n> --squash --match-head-commit <sha>`. Under `dpp`, `merge-go.md` satisfies the lane's merge guard. It does not replace that approval. `/dt:ship` never merges. If `python3` is missing, the merge guard and policy gate do not run. Refusals are logged in `.harness/merge-guard.log`.
 - **Run risky commands.** The policy gate denies force-push, `--admin`, deploy CLIs, `gh secret`, `vercel env` and a bare `env`, for the head session and every worker.
 - **Approve itself.** Workers cannot write `dts2_approvals`. Under `dpp`, workers commit a branch, and only the head pushes and opens PRs.
 - **Delete.** `/dt:machine-prep` disables and never deletes. `/dt:repo-sweep` never deletes in bulk. `/dt:evolve` pushes only on your yes.
@@ -301,12 +311,16 @@ From the repo root, `make test` does the same and `make doctor` checks git, Pyth
 
 ## Acknowledgements
 
-dt builds on patterns from these projects. We learned from them and wrote our own implementation. No code was copied.
+dt builds on patterns from these projects. We learned from them and wrote our own implementation. No code was copied. Publishers, licenses, and the skills each one covers are listed in [skills-bundled](../../skills-bundled/README.md).
 
-- [oh-my-claudecode](https://github.com/Yeachan-Heo/oh-my-claudecode) (MIT): the deep-interview pattern behind the end-state interview.
-- [Impeccable](https://github.com/pbakaus/impeccable) (Apache-2.0): the critique and polish pattern behind the finish pass.
-- [marketingskills](https://github.com/coreyhaines31/marketingskills) (MIT): the go-to-market sequence behind `gtm`.
-- [mattpocock/skills](https://github.com/mattpocock/skills) (check its license file; used as-is through npx skills, not copied)
+- [oh-my-claudecode](https://github.com/Yeachan-Heo/oh-my-claudecode) (MIT, Yeachan Heo): the deep-interview pattern behind the end-state interview.
+- [Impeccable](https://github.com/pbakaus/impeccable) (Apache-2.0, Paul Bakaus): the critique and polish pattern behind the finish pass.
+- [marketingskills](https://github.com/coreyhaines31/marketingskills) (MIT, Corey Haines): the go-to-market sequence behind `gtm`.
+- [mattpocock/skills](https://github.com/mattpocock/skills) (MIT, Matt Pocock): companion skills installed into the project with `npx skills add`, not copied into this plugin.
+- [warpdotdev/common-skills](https://github.com/warpdotdev/common-skills) (MIT, Denver Technologies, Inc.): `resolve-merge-conflicts`.
+- [obra/superpowers](https://github.com/obra/superpowers) (MIT, Jesse Vincent): the `test-driven-development` skill recommended by slug.
+- [wshobson/agents](https://github.com/wshobson/agents) (MIT, Seth Hobson): the database skills recommended by slug.
+- [anthropics/skills](https://github.com/anthropics/skills/tree/main/skills/frontend-design) (Apache-2.0 on `frontend-design`): the frontend skill recommended by slug.
 
 ## Changelog
 
@@ -316,12 +330,14 @@ Released versions are in [CHANGELOG.md](CHANGELOG.md). Changes not yet released 
 
 ## License
 
-Dobeu Source-Available License 1.0. Copyright Dobeu Tech Solutions LLC. See [LICENSE](LICENSE).
+MIT License. Copyright Dobeu Tech Solutions LLC. See [LICENSE](LICENSE).
 
-In short: you can install and use it (including at work), read it, change it for your own use, and share copies for free as long as the license and copyright notices stay with them. You can't sell it, put it in a paid product or hosted service, or relicense it without written permission. Dobeu Tech Solutions can end the license with 30 days' notice. Versions released earlier under the MIT License stay MIT for the copies people already have. For commercial licensing, get in touch through [dobeu.net](https://dobeu.net).
+Fork it, add to it, take things out, and use it in whatever you are building, including paid work. Keep the copyright notice so the original stays credited to Dobeu Tech Solutions LLC.
 
 ## Support
 
 Questions and bug reports: open an issue at [github.com/Dobeu-tech-eco/dts2-marketplace/issues](https://github.com/Dobeu-tech-eco/dts2-marketplace/issues).
 
-We are a small development team. There is no paywall, and a coffee is always welcome. A donation link is coming soon.
+We are a small development team. There is no paywall. Questions go through [dobeu.net](https://dobeu.net).
+
+Company policies, which control dobeu.net and the client portal: [Privacy](https://dobeu.net/privacy), [Terms](https://dobeu.net/terms), [Cookies](https://dobeu.net/cookies), [Marketing opt-out](https://dobeu.net/marketing-opt-out). What this plugin does with data on your machine is in [PRIVACY.md](../../PRIVACY.md).

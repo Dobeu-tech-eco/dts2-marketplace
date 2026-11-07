@@ -113,6 +113,8 @@ class CompanionSkills(unittest.TestCase):
 
     def test_no_personal_names_in_plugin(self) -> None:
         for path in PLUGIN_ROOT.rglob("*"):
+            if path == PLUGIN_ROOT / "README.md":
+                continue  # the author's note in the plugin README is the one place a name is allowed
             if path.is_file() and "tests" not in path.parts and path.suffix in {".md", ".yaml", ".json", ".py", ".sh"}:
                 self.assertNotIn("Jeremy", path.read_text(encoding="utf-8", errors="ignore"), str(path))
 

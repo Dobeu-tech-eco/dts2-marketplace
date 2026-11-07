@@ -1,6 +1,6 @@
 {
   "name": "dt",
-  "displayName": "Dobeu Harness (dt)",
+  "displayName": "DT: Init to Ship Auto Agent Orchestrator",
   "version": "5.1.1",
   "description": "A Claude Code harness that turns one task into a planned, built, reviewed and verified pull request, with human checkpoints, parallel lanes and a paper trail.",
   "author": {
@@ -9,7 +9,7 @@
   },
   "homepage": "https://dobeu.net",
   "repository": "https://github.com/Dobeu-tech-eco/dts2-marketplace",
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "MIT",
   "icon": ".claude-plugin/icon.png",
   "keywords": [
     "harness",

@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # dts2 harness — orientation
 
-This skill explains only, except the optional hooks step at the end, which changes files only after the user picks hooks. Do not invoke agents.
+This skill explains only, except the skill-parity step and the optional hooks step. Skill parity updates agent backends without asking. Hooks change files only after the user picks them. Do not invoke agents.
 
 ## Agents (all prefixed `dt:`)
 - `lead` plans a DAG of tasks and gives each builder a separate file set.
@@ -31,7 +31,7 @@ This skill explains only, except the optional hooks step at the end, which chang
 | `feature` | `/dt:feature <idea>` adds a feature to the roadmap: clarity score, a scoped deep interview when it is unclear, the lead writes it into the end state and every plan doc, then a PR. |
 | `autopilot` | `/dt:autopilot <steps>` runs steps unattended: three frontier providers must agree on the plan and the build (Claude Fable 5.1 breaks a split), one PR per step merged on green CI before the next. Progress shows in check-in. |
 | `dpp` | `/dt:dpp [dry-run]` runs up to five autopilot lanes in parallel as headless sons under one head: lane plan and feasibility from the check-in list, approval, supervision, serialised merges, one report and the task ledger. |
-| `dpp-full` | `/dt:dpp-full` is dpp with `--full`: delegation scan for extra lanes and continuous dispatch without a new approval. |
+| `dpp-full` | `/dt:dpp-full` is dpp with `--full`: delegation scan for extra lanes. Outside autopilot it asks before each new lane while `dpp_full_ask_each_lane` is true (the default). |
 | `fullauto` | `/dt:fullauto` is dpp-full with autopilot on, looping check-in between rounds until nothing is outstanding and every lane is done or blocked in the ledger. |
 | `model` | `/dt:model` picks which agent provider leads (the lead, advisory and sign-off seats); default Claude. Builders are unaffected. |
 | `find-skills` | `/dt:find-skills` is available any time: rescan the repo, answer one to three questions, get suggested skills, and wire the ones you pick into the project. |
@@ -64,6 +64,10 @@ Every run checks which agents are usable and what budget is left (the budget che
 Only agents detected on this machine join the roster; handoff agents get a written brief, and the run pauses until you report it done.
 
 Built-in API agents `claude-api`, `codex-api` and `grok-api` need only a key (`docs/API-AGENTS.md`). Another agent on a pay-as-you-go API key is added with `/dt:model`, section "Add or rename an agent"; keys live in your keyring, 1Password or Doppler and only the reference is written. A new API-key agent starts read-only (review, docs and research only, no deploy, merge, release, secrets or delete, $0.50 a run, $5 a day); the same section shows and edits these per-agent rules.
+
+## Skill parity
+
+After the agent list above, run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/roster.py" detect --project .` and pass every installed name to `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lead_skills.py" gaps --agents <names> --home "$HOME"`. For each entry in `behind`, say one line: `<agent> is behind the orchestrator: <reason>.` Then run `lead_skills.py sync --agents <those names> --home "$HOME"`. The sync is silent: do not ask. A non-lead may show an older `/dts2-harness` until this step, or until `/dt:model` makes it the lead. Claude is the source and is skipped.
 
 ## Where to start
 1. New machine or cluttered tooling → `machine-prep`.

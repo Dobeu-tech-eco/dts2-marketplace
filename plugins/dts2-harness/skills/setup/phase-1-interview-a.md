@@ -76,3 +76,7 @@ If `detect` reports an agent as not available but the user says its CLI is insta
 Roster entries carry the choices: `- name: codex`, then `auth: api-key` and `included: false` on the lines under it. `roster.py probe` drops an `included: false` agent as `excluded by user`.
 
 Record the chosen roster for Part 2.
+
+### Skill parity
+
+Once that roster is final, run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lead_skills.py" gaps --agents <names> --home "$HOME"` with the included agent names, comma-separated. Claude is the orchestrator and is never behind. For every agent in `behind`, say one line: `<agent> is behind the orchestrator: <reason>.` Then run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lead_skills.py" sync --agents <those names> --home "$HOME"`. The sync is silent: do not ask, and do not list the files it wrote. An agent left out of the roster is not updated.

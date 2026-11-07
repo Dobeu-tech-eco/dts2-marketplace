@@ -191,7 +191,7 @@ Typed as `/dt:<name>`. `user only` means `disable-model-invocation: true` in the
 | `/dt:dpp-full` | user only | `dpp --full`: also fills lanes from a delegation scan and keeps dispatching. | `/dt:dpp-full` | as `dpp` |
 | `/dt:fullauto` | user only | `dpp-full` with autopilot forced on, looping check-in until nothing is outstanding. | `/dt:fullauto` | as `dpp` |
 | `/dt:check-in` | user or model | Read-only progress against the approved end state: `N of M complete`. `all` reports check-in items from every session on the machine and, after a yes, asks them for fresh ones. | `/dt:check-in [all [--since 24h]]` | none (broadcast inbox on a yes) |
-| `/dt:model` | user only | Choose which agent provider fills the lead, advisory and sign-off seats; records `lead_provider`. Also adds or renames a named agent such as `grok-api` (`roster.py add`, `rename`; profiles in `~/.dts2/agents` or `.harness/agents`, key kept as a reference only). | `/dt:model` | settings file, agent profile, roster |
+| `/dt:model` | user only | Choose which agent provider fills the lead, advisory and sign-off seats; records `lead_provider`. The new lead gets the orchestrator's current `dt@dts2` plugin and skill list (`lead_skills.py sync`). Also adds or renames a named agent such as `grok-api`. | `/dt:model` | settings file, agent plugin cache, roster |
 | `/dt:cooldown` | user or model | Pause an agent that hit a usage limit until its reset date, resume it, or list what is paused. | `/dt:cooldown set <agent> <date or duration> [reason] \| clear <agent> \| list` | agent status file |
 | `/dt:fleet` | user or model | See every harness session on this computer; read status, logs and ledgers without interrupting them; broadcast a note, handoff, pause or knowledge finding to all (confirms first). | `/dt:fleet list \| show <ref> \| logs <ref> [-n N] \| broadcast --kind K --text T [--to ...] \| status [<id>] \| label <ref> <name> \| prune` | fleet home (`~/.dts2/fleet`) |
 | `/dt:knowledge` | user only | Keep your own standing preferences, glossary terms and cross-project learnings in a private store that syncs across devices (private GitHub repo, Cloudflare Worker + D1, or a drive-synced folder). | `setup \| join \| set <key> <value> \| get <key> \| find <text> \| list \| rm <key> \| sync \| status` | personal knowledge store |
@@ -252,7 +252,7 @@ One command for every harness session on the computer. Hooks register each sessi
 
 ### `/dt:fullauto` unattended loop in short
 
-With `autonomy: unattended` in `.harness/config.yaml` the `max_fullauto_loops` cap is lifted (the default stays 3) and `loop_guard.py` ends the loop instead.
+Unattended mode needs `autonomy: unattended` in `.claude/dts2-harness.local.md` (the permission hook) and in `.harness/config.yaml` (this lifts the `max_fullauto_loops` cap of 3; `loop_guard.py` ends the loop instead). Setting it in only one file leaves the other half attended.
 
 - Start it with `/goal` ("all ready items are done or parked, or loop_guard.py returned a stall verdict or STOP") and `/loop` over `.claude/loop.md`, copied from `templates/loop.md`.
 - A pass runs `loop_guard.py check`, then `sweep --release`, does the next ready item, `park`s one that needs a person, and ends with `record --progress "<open items> | <merged PRs>" --signature "<failure>"`.
