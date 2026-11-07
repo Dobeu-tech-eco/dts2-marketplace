@@ -138,7 +138,7 @@ run_checks() {
     fi
   fi
   [[ -f "package.json" && -d "node_modules" ]] || return 0
-  # Local binaries only: never npx, which can fetch and run a package from the network.
+  # Local binaries only: never a package launcher, which can fetch and run code from the network.
   if [[ -f "tsconfig.json" && -x "node_modules/.bin/tsc" ]]; then
     if begin_step; then
       out="$(timeout "$STEP_BUDGET" node_modules/.bin/tsc --noEmit --incremental --tsBuildInfoFile "$TSBUILDINFO_FILE" 2>&1 </dev/null)"
