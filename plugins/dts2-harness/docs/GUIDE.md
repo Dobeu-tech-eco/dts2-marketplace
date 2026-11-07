@@ -1,16 +1,26 @@
-# dts2 5.0 agent guide
+# Guide
 
-> Migrating from dts2 or dts2-harness (old names): the plugin is now `dt`, so commands are `/dt:<command>`. Run `/plugin uninstall dts2@dts2` (`dts2-harness@dts2` on a version before 4.0), `/plugin marketplace update dts2`, `/plugin install dt@dts2`, `/reload-plugins`; settings and `.harness/` state are unchanged.
+How to talk to the harness, which command to reach for, and the rules every role follows. It is for a person, or an AI coding assistant, who lands in a repo that uses the harness and needs to act without reading every skill file.
 
-How to talk to the harness, which command to reach for, and what changed in 3.11.0 and 3.10.0. Written for an agent (or a person) who lands in a repo that uses the harness and needs to act without reading every skill file. The exhaustive reference is `INVENTORY.md` (every skill, agent, hook, script and `lanes.py` subcommand); the internals are in `../ARCHITECTURE.md`; the full release notes are in `../CHANGELOG.md`.
+The exhaustive reference is `INVENTORY.md` (every skill, agent file, hook, script and `lanes.py` subcommand). Exact syntax is in `COMMANDS.md`. Internals are in `../ARCHITECTURE.md`. Full release notes are in `../CHANGELOG.md`.
 
-Contents: 1 Talking to the harness, 2 Which command when, 3 The head, son and council flow, 4 Rules every agent follows, 5 Release history (3.11.0, 3.10.0), 6 Where state lives.
+> Migrating from the old names `dts2` or `dts2-harness`: the plugin is now `dt`, so commands are `/dt:<command>`. Run `/plugin uninstall dts2@dts2` (`dts2-harness@dts2` on a version before 4.0), `/plugin marketplace update dts2`, `/plugin install dt@dts2` and `/reload-plugins`. Settings and `.harness/` state are unchanged.
+
+Contents:
+
+1. Talking to the harness
+2. Which command when
+3. The head, son and council flow
+4. Rules every agent follows
+5. Release history (3.11.0, 3.10.0)
+6. Where state lives
+7. Unattended mode
 
 ## 1. Talking to the harness
 
-The harness is a Claude Code plugin. Every entry point is a slash command `/dt:<skill>`; there is no other interface. Twenty-seven skills exist (section 2). Eight agents (`lead`, `builder`, `fixer`, `reviewer`, `verifier`, `scout`, `auditor`, `incident-reviewer`) are dispatched by the skills, never typed by the user; an agent that needs one calls the Agent tool with `subagent_type: dt:<name>`.
+The harness is a Claude Code plugin. Every entry point is a slash command `/dt:<skill>`. There is no other interface. The plugin has 27 skills (section 2). Eight agents (`lead`, `builder`, `fixer`, `reviewer`, `verifier`, `scout`, `auditor`, `incident-reviewer`) are dispatched by the skills and never typed by the user. To dispatch one, call the Agent tool with `subagent_type: dt:<name>`.
 
-Eight skills run only when the user types them (`disable-model-invocation: true`): `composio`, `dpp-full`, `fullauto`, `knowledge`, `machine-prep`, `model`, `onboard`, `sdk`. The others may be invoked by the model when the conversation calls for them.
+Eight skills run only when you type them (`disable-model-invocation: true`): `composio`, `dpp-full`, `fullauto`, `knowledge`, `machine-prep`, `model`, `onboard`, `sdk`. The model may start the others when the conversation calls for them.
 
 Install and update:
 
@@ -38,12 +48,12 @@ Arguments go after the command name, separated by spaces. Quote a task that cont
 /dt:learn promote L-012
 ```
 
-Scripts are never typed by the user. Skills call them as `python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/<name>.py" <subcommand> ...`; each prints one JSON object on stdout. `INVENTORY.md` section 4 lists every script and flag.
+You never type scripts. Skills call them as `python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/<name>.py" <subcommand> ...`; each prints one JSON object on stdout. `INVENTORY.md` section 4 lists every script and flag.
 
 The harness answers in a fixed shape:
 
 - A run ends with a receipt (`.harness/receipts/<stamp>.md`) and a PR link, or a parked state with the reason.
-- A checkpoint is a question with the plan or the ship summary and the words `approve`, `edit` or `stop`. Under `run` the user answers; under `autopilot` three frontier providers vote and Fable 5.1 breaks a tie.
+- A checkpoint is a question with the plan or the ship summary and the words `approve`, `edit` or `stop`. Under `run` you answer. Under `autopilot` three frontier providers vote and Fable 5.1 breaks a tie.
 - Anything that needs a person is an action item (`/dt:action-items`): a missing secret, a decision, a handoff, a deploy step. The item names the command that resolves it.
 - Progress is always readable without side effects: `/dt:check-in`.
 
@@ -53,13 +63,13 @@ A prompt typed while a run is going is not lost. The `UserPromptSubmit` hook app
 
 - **fold**: an addition ("also add a CSV export"). It goes into the ledger and the agent keeps working.
 - **clarify**: words that may conflict with the plan ("stop", "cancel", "instead", "revert", "don't", "change direction"). The agent asks at the next safe point, before it acts. Clarity below 60 of 100 allows at most two short questions; then the item is set on the best reading, with the assumption stated, and work continues.
-- **steer**: `/dt:steer <new direction>` (or a `steer:` prefix). The only thing that stops running work: the current atomic step finishes, nothing new is dispatched, a handoff is checkpointed, open intake items are reviewed, the plan is redone for the new direction, and the run resumes after one short confirmation.
+- **steer**: `/dt:steer <new direction>` (or a `steer:` prefix). It is the only thing that stops running work: the current atomic step finishes, nothing new is dispatched, a handoff is checkpointed, open intake items are reviewed, the plan is redone for the new direction, and the run resumes after one short confirmation.
 
 Other slash commands are ignored by intake, and a prompt is never blocked. Turn intake off with `intake: false` in `.claude/dts2-harness.local.md`. See the queue with `intake.py list`.
 
 ## 2. Which command when
 
-For exact syntax (required arguments, flags, who may run it, what it writes) and one-line examples of every command, read `COMMANDS.md`; the table below only says which command to reach for.
+For exact syntax (required arguments, flags, who may run it, what it writes) read `COMMANDS.md`. The table below only says which command to reach for.
 
 | You want to | Use | Notes |
 |---|---|---|
@@ -151,7 +161,7 @@ Three built-in profiles run the same CLIs on a pay-as-you-go API key instead of 
 
 ### Watching and messaging all your sessions
 
-Running many sessions at once (for example one per terminal tab)?
+If you run many sessions at once (for example one per terminal tab):
 
 - See them all: `/dt:fleet list`. Read one without interrupting it: `/dt:fleet show <ref>` and `/dt:fleet logs <ref>`.
 - Tell them all something: `/dt:fleet broadcast --kind handoff --text "..."`. You are shown how many sessions match and asked first. Kinds: `note`, `handoff`, `pause`, `knowledge`, `checkin`. `/dt:fleet status` shows who has picked it up.
@@ -171,7 +181,7 @@ The harness watches its own agents without spending model tokens.
 `/dt:composio` (also offered as a step in `/dt:onboard`) asks once whether you have a Composio account and records the answer in `~/.dts2/composio.json` (no secrets, never in a repo).
 
 - On yes, the plugin (`composio@composio`) is the default connection; MCP or the CLI only if you ask. Credentials stay with the Composio CLI and are never read or copied.
-- The full toolkit catalogue and your connected accounts are mapped into `~/.dts2/composio-tools.json`, so agents check the map before searching.
+- The full toolkit catalog and your connected accounts are mapped into `~/.dts2/composio-tools.json`, so agents check the map before searching.
 - `/dt:machine-prep` and `/dt:composio` list plugins, MCP servers and user skills that a connected toolkit already covers and offer to disable them. Nothing is deleted: plugins and MCP entries are switched off with a settings backup, skills move to `skills-archive/`. `/dt:find-skills` also stops recommending MCP servers a connected toolkit covers.
 - Routing once always-use is on: map first, one `COMPOSIO_SEARCH_TOOLS` per workflow, `COMPOSIO_MULTI_EXECUTE_TOOL` for independent calls, the remote workbench for bulk results, and never the plugin and a hosted MCP server together.
 - Memory stays in `/dt:knowledge`; Composio is a tools integration only.
@@ -189,7 +199,7 @@ The harness watches its own agents without spending model tokens.
 
 ## 3. The head, son and council flow
 
-Three roles appear in 3.10.0 and the words are used consistently across the skills.
+Three roles run parallel work. The skills use these words the same way every time.
 
 **Head.** The Claude session that runs `dpp` (or a single `autopilot`). It is the only process that plans lanes, grants merges and talks to the user. Its sequence in `dpp`:
 
@@ -263,7 +273,7 @@ New commands and surfaces:
 - Tooling: `run_report.py`, `run_metrics.py`, `walkthrough_fallback.py`, `bump-version.py`, `make test`, `make doctor`, `make check-version`, `evals/run.py`, Hypothesis property tests, CI on Python 3.10 to 3.13.
 - Docs: `docs/INVENTORY.md` with a completeness test, `ARCHITECTURE.md`, this guide.
 
-Behaviour that changed:
+Behavior that changed:
 
 - `run`, `autopilot` and `setup` are short routers plus phase files read on demand.
 - Branch names no longer nest (section 4).

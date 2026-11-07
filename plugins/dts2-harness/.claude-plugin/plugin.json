@@ -1,7 +1,7 @@
 {
   "name": "dt",
   "displayName": "Dobeu Harness (dt)",
-  "version": "5.1.0",
+  "version": "5.1.1",
   "description": "A Claude Code harness that turns one task into a planned, built, reviewed and verified pull request, with human checkpoints, parallel lanes and a paper trail.",
   "author": {
     "name": "Dobeu Tech Solutions LLC",
