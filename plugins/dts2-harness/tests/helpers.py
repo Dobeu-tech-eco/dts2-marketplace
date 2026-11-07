@@ -13,6 +13,8 @@ from typing import Any, Final
 
 PLUGIN_ROOT: Final[Path] = Path(__file__).resolve().parent.parent
 RUN_SKILL_DIR: Final[Path] = PLUGIN_ROOT / "skills" / "run"
+# Claude Code sets this for every hook; the hook scripts spell each path as ${CLAUDE_PLUGIN_ROOT}/... and exit quietly without it.
+os.environ.setdefault("CLAUDE_PLUGIN_ROOT", str(PLUGIN_ROOT))
 
 
 def read_run_skill() -> str:

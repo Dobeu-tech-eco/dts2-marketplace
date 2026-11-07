@@ -1,0 +1,86 @@
+Dobeu Source-Available License, Version 1.0
+
+Copyright (c) 2026 Dobeu Tech Solutions LLC. All rights reserved.
+https://dobeu.net
+
+This license applies to the software in this repository, including the
+"dt" Claude Code plugin and the "dts2" marketplace files (the "Software").
+
+1. Ownership
+
+Dobeu Tech Solutions LLC ("Dobeu") owns the Software and all copyright and
+other rights in it. This license does not transfer ownership. Any right not
+expressly granted here is reserved by Dobeu.
+
+2. What you may do
+
+Subject to the terms below, Dobeu grants you a non-exclusive,
+non-transferable, royalty-free license to:
+
+  (a) install and use the Software, including at work and for commercial
+      projects of your own;
+  (b) read, copy and modify the Software for your own use; and
+  (c) share copies of the Software or your modified versions, free of
+      charge, provided you include this license unchanged and keep all
+      copyright notices.
+
+3. What you may not do
+
+You may not:
+
+  (a) sell, rent, sublicense or charge a fee for the Software or a modified
+      version, or offer it as part of a paid product or hosted service,
+      without Dobeu's written permission;
+  (b) remove or alter copyright notices, this license, or attribution to
+      Dobeu Tech Solutions LLC;
+  (c) present the Software or a modified version as your own product or as
+      an official Dobeu release when it is not; or
+  (d) relicense the Software under different terms.
+
+4. Contributions
+
+If you send Dobeu a contribution (for example a pull request, patch or
+suggestion), you grant Dobeu a perpetual, worldwide, irrevocable,
+royalty-free license to use, modify, relicense and distribute that
+contribution as part of the Software or otherwise, and you confirm you have
+the right to grant it.
+
+5. Termination
+
+  (a) Termination by notice. Dobeu may end this license for any or all
+      licensees by giving 30 days' notice. Notice is given by publishing it
+      in this repository (for example in this LICENSE file or a NOTICE file)
+      or by writing to you directly. When the notice period ends, the
+      rights granted in Section 2 end.
+  (b) Termination for breach. Your rights end automatically if you break
+      this license. If you fix the breach within 30 days of learning of
+      it, your rights are restored unless Dobeu has told you in writing
+      that they are not.
+  (c) After termination you must stop using, modifying and sharing the
+      Software and delete copies in your control, except copies you must
+      keep by law. Sections 1, 4, 6 and 7 survive termination.
+
+6. No warranty
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT.
+
+7. Limitation of liability
+
+IN NO EVENT SHALL DOBEU OR ITS CONTRIBUTORS BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+8. Earlier versions
+
+Versions of the Software that Dobeu published under the MIT License before
+this license took effect remain under the MIT License for the copies people
+already received. This license applies to every version published with
+this file.
+
+9. Questions and permissions
+
+For commercial licensing or other permissions, contact Dobeu Tech Solutions
+LLC through https://dobeu.net.

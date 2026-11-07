@@ -4,6 +4,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -401,6 +402,8 @@ class LeadWiringTests(unittest.TestCase):
         (folder / "lanes.py").write_text("import json, sys\nopen(sys.argv[0] + '.args', 'w').write(json.dumps(sys.argv[1:]))\n", encoding="utf-8")
         plugin = folder / "plugin"
         (plugin / "scripts").mkdir(parents=True)
+        (plugin / "hooks").mkdir()
+        shutil.copy(PLUGIN_ROOT / "hooks" / "lib-settings.sh", plugin / "hooks" / "lib-settings.sh")
         (plugin / "scripts" / "context-guard.py").write_text("print('{\"additionalContext\": \"fired\"}')\n", encoding="utf-8")
         (plugin / "scripts" / "lanes.py").write_text(
             "import json, sys\nopen(sys.argv[0] + '.args', 'w').write(json.dumps(sys.argv[1:]))\n", encoding="utf-8")
@@ -416,6 +419,8 @@ class LeadWiringTests(unittest.TestCase):
     def test_context_guard_hook_outside_a_son_does_not_park(self) -> None:
         plugin = Path(tempfile.mkdtemp()) / "plugin"
         (plugin / "scripts").mkdir(parents=True)
+        (plugin / "hooks").mkdir()
+        shutil.copy(PLUGIN_ROOT / "hooks" / "lib-settings.sh", plugin / "hooks" / "lib-settings.sh")
         (plugin / "scripts" / "context-guard.py").write_text("print('fired')\n", encoding="utf-8")
         (plugin / "scripts" / "lanes.py").write_text("raise SystemExit('must not run')\n", encoding="utf-8")
         env = {**CLEAN_ENV, "CLAUDE_PLUGIN_ROOT": str(plugin)}

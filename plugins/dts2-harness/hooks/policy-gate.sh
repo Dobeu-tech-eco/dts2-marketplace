@@ -6,11 +6,11 @@
 # Per-agent rules: with DTS2_AGENT set the same script also judges file tools (hooks.json passes `files`); without it those
 # calls return at once. Fails open only when python3 is missing; every other path is decided by the script.
 set -uo pipefail
+[ -n "${CLAUDE_PLUGIN_ROOT:-}" ] || exit 0
 [[ "${1:-}" != "files" || -n "${DTS2_AGENT:-}" ]] || exit 0
 # shellcheck source-path=SCRIPTDIR source=lib-settings.sh
-source "$(dirname "$0")/lib-settings.sh"
-PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib-settings.sh"
 [[ "$(setting enabled true)" == "true" ]] || exit 0
 [[ "$(setting policy_gate true)" == "true" ]] || exit 0
 command -v python3 >/dev/null 2>&1 || exit 0
-python3 -I "$PLUGIN_DIR/scripts/policy_gate.py" --cwd .
+python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/policy_gate.py" --cwd .

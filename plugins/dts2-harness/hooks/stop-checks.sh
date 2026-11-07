@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 # Stop: refresh .harness/handoff/latest.md, then quick typecheck and lint on changed files. Warnings go to stderr; with stop_checks_block: true a red check blocks the stop once.
 set -uo pipefail
+[ -n "${CLAUDE_PLUGIN_ROOT:-}" ] || exit 0
 # shellcheck source-path=SCRIPTDIR source=lib-settings.sh
-source "$(dirname "$0")/lib-settings.sh"
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib-settings.sh"
 CHECK_TIMEOUT_S=30
 HANDOFF_TIMEOUT_S=10
-PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 HOOK_TIMEOUT_DEFAULT_S=45  # mirrors the Stop timeout in hooks.json when it cannot be read
 DEADLINE_MARGIN_S=5        # finish this long before the hook timeout so the fingerprint and block reply still go out
 START_S=$SECONDS
 hook_timeout_s() {
   local value
-  value="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1]))["hooks"]["Stop"][0]["hooks"][0]["timeout"])' "$PLUGIN_DIR/hooks/hooks.json" 2>/dev/null)" || value=""
+  value="$(python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/hook_util.py" stop-timeout "${CLAUDE_PLUGIN_ROOT}/hooks/hooks.json" "$HOOK_TIMEOUT_DEFAULT_S" 2>/dev/null)" || value=""
   [[ "$value" =~ ^[1-9][0-9]*$ ]] || value="$HOOK_TIMEOUT_DEFAULT_S"
   echo "$value"
 }
@@ -35,7 +35,7 @@ step_budget_s() {
 [[ "$(setting enabled true)" == "true" ]] || exit 0
 write_handoff() {
   [[ -d ".harness" ]] || return 0
-  timeout "$HANDOFF_TIMEOUT_S" python3 -I "$PLUGIN_DIR/scripts/handoff-write.py" "$PWD" >/dev/null 2>&1 || true
+  timeout "$HANDOFF_TIMEOUT_S" python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/handoff-write.py" "$PWD" >/dev/null 2>&1 || true
 }
 write_handoff
 # The hook payload is read once, before any check step runs: a child that reads stdin cannot starve maybe_block of it.
@@ -48,7 +48,9 @@ state_dir() {
     echo ".harness/cache"
     return 0
   fi
-  echo "${TMPDIR:-/tmp}/dts2-stop-$(printf '%s' "$PWD" | cksum | cut -d' ' -f1)"
+  local sum
+  sum="$(printf '%s' "$PWD" | cksum | cut -d' ' -f1)"
+  echo "${TMPDIR:-/tmp}/dts2-stop-$sum"
 }
 STATE_DIR="$(state_dir)"
 mkdir -p "$STATE_DIR" 2>/dev/null || true
@@ -84,16 +86,18 @@ save_fingerprint() {
   fi
   printf '%s%s' "$FINGERPRINT" "$suffix" >"$FINGERPRINT_FILE" 2>/dev/null || true
 }
-# run_step <command...>: run under the shared deadline; stderr gets the last lines, a non-zero exit is recorded as red.
-run_step() {
-  local budget out rc
-  budget="$(step_budget_s)"
-  if (( budget <= 0 )); then
+# begin_step: sets STEP_BUDGET; returns 1 (and marks the run timed out) when the shared deadline is spent.
+begin_step() {
+  STEP_BUDGET="$(step_budget_s)"
+  if (( STEP_BUDGET <= 0 )); then
     TIMED_OUT=true
-    return 0
+    return 1
   fi
-  out="$(timeout "$budget" "$@" 2>&1 </dev/null)"
-  rc=$?
+  return 0
+}
+# finish_step <output> <exit code>: stderr gets the last lines, a non-zero exit is recorded as red.
+finish_step() {
+  local out="$1" rc="$2"
   out="$(printf '%s\n' "$out" | tail -20)"
   [[ -n "$out" ]] && printf '%s\n' "$out" >&2
   if (( rc == 124 )); then
@@ -105,16 +109,20 @@ run_step() {
 }
 is_son() { [[ -n "${DTS2_SON:-}" || -n "${DTS2_SON_BRANCH_PREFIX:-}" ]]; }
 run_eslint() {
-  local changed=() file eslint_bin="node_modules/.bin/eslint"
-  [[ -x "$eslint_bin" ]] || return 0
+  local changed=() file out rc
+  [[ -x "node_modules/.bin/eslint" ]] || return 0
   compgen -G '.eslintrc*' >/dev/null || compgen -G 'eslint.config.*' >/dev/null || return 0
   while IFS= read -r file; do  # while-read, not mapfile: macOS ships bash 3.2
     [[ -n "$file" ]] && changed+=("$file")
   done < <(git diff --name-only --diff-filter=ACMR HEAD 2>/dev/null | grep -E '\.(ts|tsx|js|jsx)$' || true)
   (( ${#changed[@]} > 0 )) || return 0
-  run_step "$eslint_bin" --no-error-on-unmatched-pattern -- "${changed[@]}"
+  begin_step || return 0
+  out="$(timeout "$STEP_BUDGET" node_modules/.bin/eslint --no-error-on-unmatched-pattern -- "${changed[@]}" 2>&1 </dev/null)"
+  rc=$?
+  finish_step "$out" "$rc"
 }
 run_checks() {
+  local out rc
   # Everything below runs the repo's own code (checks.sh, node_modules/.bin/tsc and eslint): a son (an autonomous run) never
   # executes any of it from a stop hook.
   if is_son; then
@@ -123,12 +131,20 @@ run_checks() {
     return 0
   fi
   if [[ -f ".harness/checks.sh" ]]; then
-    run_step bash ".harness/checks.sh"
+    if begin_step; then
+      out="$(timeout "$STEP_BUDGET" bash ".harness/checks.sh" 2>&1 </dev/null)"
+      rc=$?
+      finish_step "$out" "$rc"
+    fi
   fi
   [[ -f "package.json" && -d "node_modules" ]] || return 0
-  # Local binaries only: never npx, which can fetch and run a package from the network.
+  # Local binaries only: never a package launcher, which can fetch and run code from the network.
   if [[ -f "tsconfig.json" && -x "node_modules/.bin/tsc" ]]; then
-    run_step node_modules/.bin/tsc --noEmit --incremental --tsBuildInfoFile "$TSBUILDINFO_FILE"
+    if begin_step; then
+      out="$(timeout "$STEP_BUDGET" node_modules/.bin/tsc --noEmit --incremental --tsBuildInfoFile "$TSBUILDINFO_FILE" 2>&1 </dev/null)"
+      rc=$?
+      finish_step "$out" "$rc"
+    fi
   fi
   run_eslint
 }
@@ -137,7 +153,7 @@ maybe_block() {
   [[ -n "$RED_OUTPUT" ]] || return 0
   [[ "$(setting stop_checks_block false)" == "true" ]] || return 0
   [[ "$PAYLOAD" =~ \"stop_hook_active\"[[:space:]]*:[[:space:]]*true ]] && return 0
-  printf '%s' "$RED_OUTPUT" | python3 -I -c 'import json,sys; print(json.dumps({"decision": "block", "reason": "dts2-harness stop checks are red; fix before stopping:\n" + sys.stdin.read()[-2000:]}))'
+  printf '%s' "$RED_OUTPUT" | python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/hook_util.py" block-reply
 }
 run_checks
 save_fingerprint

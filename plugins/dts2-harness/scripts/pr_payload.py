@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Payload helpers for the PR-receipt hook, one python process per hook run (AC-5).
 
+api             hook payload of a `gh api .../pulls` PR creation -> session id and the new PR's URL, one per line
 parse           hook payload on stdin -> session id and PR selector, one per line (nothing, exit 1, when the command is not
                 a Bash `gh pr create|edit`)
 view            `gh pr view --json` output on stdin -> number, head branch, cross-repo flag, one per line; the body goes to
@@ -59,6 +60,31 @@ def selector_from(kind: str, argument_text: str) -> str:
         if kind == "edit" and not selector:
             selector = token
     return selector if SELECTOR.match(selector) else ""
+
+
+API_CMD: Final[re.Pattern[str]] = re.compile(r"(?:^|[;&|\n])[ \t]*gh api\b[^;&|\n]*?/pulls(?:[ \t\x27\"]|$)[^;&|\n]*")
+API_METHOD: Final[re.Pattern[str]] = re.compile(r"(?:-X|--method)[ =]?([A-Za-z]+)")
+API_BODY: Final[re.Pattern[str]] = re.compile(r"(?<!\S)(?:-[fF]\S*|--(?:field|raw-field|input)\b\S*)")
+API_URL: Final[re.Pattern[str]] = re.compile(r"https://[^\s\"]+/pull/\d+")
+
+
+def parse_api_payload(data: Any) -> tuple[str, str] | None:
+    """(session, PR url) for a Bash `gh api .../pulls` call that creates a PR (POST, or a body flag), else None."""
+    if not isinstance(data, dict):
+        return None
+    tool_input: Any = data.get("tool_input")
+    command: str = str(tool_input.get("command", "")) if isinstance(tool_input, dict) else ""
+    match = API_CMD.search(command) if data.get("tool_name") == "Bash" else None
+    if not match:
+        return None
+    named = API_METHOD.search(match.group(0))
+    creates: bool = named.group(1).upper() == "POST" if named else bool(API_BODY.search(match.group(0)))
+    if not creates:
+        return None
+    response: Any = data.get("tool_response")
+    text: Any = response.get("stdout", "") if isinstance(response, dict) else (response or "")
+    url = API_URL.search(str(text).replace("\\/", "/"))
+    return SESSION_UNSAFE.sub("", str(data.get("session_id", ""))) or NO_SESSION, url.group(0) if url else ""
 
 
 def parse_payload(data: Any) -> tuple[str, str] | None:
@@ -132,6 +158,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("parse")
+    sub.add_parser("api")
     view_p = sub.add_parser("view")
     view_p.add_argument("--body-out", required=True)
     body_p = sub.add_parser("body")
@@ -144,8 +171,9 @@ def main() -> int:
         from checks import read_ledger  # noqa: PLC0415 - only this verb needs it; the hook verbs stay fast
         sys.stdout.write(decisions_section(read_ledger(Path(args.ledger))))
         return 0
-    if args.command == "parse":
-        parsed = parse_payload(load(sys.stdin.read()))
+    if args.command in ("parse", "api"):
+        text: str = sys.stdin.read()
+        parsed = (parse_payload if args.command == "parse" else parse_api_payload)(load(text))
         if parsed is None:
             return 1
         print(parsed[0])

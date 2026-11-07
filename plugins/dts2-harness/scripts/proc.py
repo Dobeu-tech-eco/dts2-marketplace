@@ -29,6 +29,7 @@ SIGNALS_TERMINATED: Final[frozenset[int]] = frozenset({143, 124, -signal.SIGTERM
 KILL_GRACE_S: Final[int] = 5
 INT_GRACE_S: Final[float] = 30.0  # a son gets SIGINT, then SIGKILL after this long (`timeout -s INT -k 30` semantics)
 GROUP_POLL_S: Final[float] = 0.1
+KILL_SETTLE_S: Final[float] = 5.0  # after SIGKILL, how long to wait for the kernel to clear the group
 SON_FILE: Final[str] = "son.json"  # pid, pgid, argv and session id of the lane's son
 EXIT_FILE: Final[str] = "exit.json"  # written when the son's process ends: code, signal, cost, session id
 RESUME_ENV: Final[str] = "CLAUDE_CODE_RESUME_INTERRUPTED_TURN"
@@ -379,6 +380,9 @@ def reap_old_group(lane_dir: Path, grace_s: float | None = None, sleep: Callable
         sleep(GROUP_POLL_S)
     if group_alive(pgid):
         signal_group(pgid, signal.SIGKILL)
+        settle: float = time.monotonic() + KILL_SETTLE_S  # SIGKILL is asynchronous; wait so callers see the group gone
+        while group_alive(pgid) and time.monotonic() < settle:
+            sleep(GROUP_POLL_S)
     write_record(lane_dir / SON_FILE, {"pid": None, "pgid": None, "reaped_at": int(time.time())})
     return True
 

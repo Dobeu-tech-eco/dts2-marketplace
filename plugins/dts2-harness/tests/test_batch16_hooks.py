@@ -290,10 +290,10 @@ class PrReceiptTests(unittest.TestCase):
     def pick(self, branch: str) -> str:
         repo: Path = make_tmp_home()
         self.receipts(repo)
-        script: str = f'source <(sed -n "/^STAMP_RE=/p;/^BRANCH_STAMP_RE=/p" "{HOOKS / "pr-receipt.sh"}"); ' \
-            f'eval "$(sed -n "/^branch_receipt()/,/^}}/p;/^newest_receipt()/,/^}}/p;/^latest_run_receipt()/,/^}}/p" "{HOOKS / "pr-receipt.sh"}")"; ' \
-            f'latest_run_receipt "{branch}"'
-        done = subprocess.run(["bash", "-c", script], cwd=str(repo), capture_output=True, text=True, check=False)
+        code: str = ("import sys; sys.path.insert(0, sys.argv[1]); import pr_receipt; "
+                     "found = pr_receipt.branch_receipt(sys.argv[2]) or pr_receipt.newest_receipt(); print(found or '')")
+        done = subprocess.run([sys.executable, "-I", "-c", code, str(SCRIPTS), branch], cwd=str(repo), capture_output=True,
+                              text=True, check=False)
         return done.stdout.strip()
 
     def test_branch_stamp_selects_its_run(self) -> None:
@@ -304,19 +304,20 @@ class PrReceiptTests(unittest.TestCase):
         self.assertEqual(self.pick("feature"), ".harness/runs/ship-20260301-000003/receipt.md")
 
     def test_gh_api_post_to_pulls_is_a_pr_create(self) -> None:
-        script: str = f'eval "$(sed -n "/^parse_api_payload()/,/^}}/p" "{HOOKS / "pr-receipt.sh"}")"; PLUGIN_DIR=x; parse_api_payload "$1"'
+        api: list[str] = [sys.executable, "-I", str(SCRIPTS / "pr_payload.py"), "api"]
         command: str = "gh api repos/o/r/pulls -X POST -f title=t -f head=h -f base=main"
         payload: str = json.dumps({"session_id": "s1", "tool_name": "Bash", "tool_input": {"command": command},
                                    "tool_response": {"stdout": '{"html_url": "https://github.com/o/r/pull/9"}'}})
-        done = subprocess.run(["bash", "-c", script, "bash", payload], capture_output=True, text=True, check=False)
+        done = subprocess.run(api, input=payload, capture_output=True, text=True, check=False)
         self.assertEqual(done.stdout.split("\n")[:2], ["s1", "https://github.com/o/r/pull/9"])
         get = json.dumps({"tool_name": "Bash", "tool_input": {"command": "gh api repos/o/r/pulls"}})
-        refused = subprocess.run(["bash", "-c", script, "bash", get], capture_output=True, text=True, check=False)
+        refused = subprocess.run(api, input=get, capture_output=True, text=True, check=False)
         self.assertEqual(refused.returncode, 1)
 
     def test_template_push_is_off_by_default_and_in_son_mode(self) -> None:
-        text: str = (HOOKS / "pr-receipt.sh").read_text(encoding="utf-8")
-        self.assertIn("pr_receipt_template_push false", text)
+        text: str = (SCRIPTS / "pr_receipt.py").read_text(encoding="utf-8")
+        self.assertIn('SETTINGS_KEY: Final[str] = "pr_receipt_template_push"', text)
+        self.assertIn('SETTINGS_KEY, "false"', text)
         self.assertIn("DTS2_SON", text)
 
 
