@@ -176,4 +176,6 @@ Donation link coming soon.
 
 ## License
 
-MIT. Copyright Dobeu Tech Solutions LLC. See [LICENSE](LICENSE).
+Dobeu Source-Available License 1.0. Copyright Dobeu Tech Solutions LLC. See [LICENSE](LICENSE).
+
+In short: you can install and use it (including at work), read it, change it for your own use, and share copies for free as long as the license and copyright notices stay with them. You can't sell it, put it in a paid product or hosted service, or relicense it without written permission. Dobeu can end the license with 30 days' notice. Versions released earlier under the MIT License stay MIT for the copies people already have. For commercial licensing, get in touch through [dobeu.net](https://dobeu.net).

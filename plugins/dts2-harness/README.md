@@ -1,6 +1,6 @@
 # dt: the Dobeu Harness for Claude Code
 
-`dt` is a Claude Code plugin that turns "do this task" into a planned, built, reviewed and verified pull request, with a person approving at the points that matter and a written record of everything that happened. It is made and maintained by [Dobeu Tech Solutions LLC](https://dobeu.net) and released under the MIT license.
+`dt` is a Claude Code plugin that turns "do this task" into a planned, built, reviewed and verified pull request, with a person approving at the points that matter and a written record of everything that happened. It is made and maintained by [Dobeu Tech Solutions LLC](https://dobeu.net) and released under the Dobeu Source-Available License (see [License](#license)).
 
 ## What it is
 
@@ -237,7 +237,9 @@ Run the suite from the plugin folder: `cd plugins/dts2-harness && python3 -m uni
 
 ## License
 
-MIT. Copyright Dobeu Tech Solutions LLC. See the repository `LICENSE`.
+Dobeu Source-Available License 1.0. Copyright Dobeu Tech Solutions LLC. See [LICENSE](LICENSE).
+
+In short: you can install and use it (including at work), read it, change it for your own use, and share copies for free as long as the license and copyright notices stay with them. You can't sell it, put it in a paid product or hosted service, or relicense it without written permission. Dobeu can end the license with 30 days' notice. Versions released earlier under the MIT License stay MIT for the copies people already have. For commercial licensing, get in touch through [dobeu.net](https://dobeu.net).
 
 ## Changelog
 
