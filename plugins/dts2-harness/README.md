@@ -101,6 +101,45 @@ A typical first session: `/dt:onboard`, then `/dt:setup` in a repo, then `/dt:ru
 
 Which command when, and why: [docs/GUIDE.md](docs/GUIDE.md). Exact invocation of every command: [docs/COMMANDS.md](docs/COMMANDS.md).
 
+## All commands
+
+Every slash command in the plugin (27). Commands marked "never starts on its own" run only when you type them. Exact flags are in [docs/COMMANDS.md](docs/COMMANDS.md).
+
+| Command | What it does | Example |
+|---|---|---|
+| **Getting started** | | |
+| `/dt:onboard` | Tour of the plugin, its agents and commands; optional Composio and extra-hooks steps at the end. Never starts on its own. | `/dt:onboard` |
+| `/dt:machine-prep` | Audits installed plugins, agents and skills, then disables overlap (never deletes; settings backed up first). Never starts on its own. | `/dt:machine-prep` |
+| `/dt:composio` | Optional Composio setup: connects your account, maps toolkits, offers to disable tools Composio already covers. Never starts on its own. | `/dt:composio` |
+| `/dt:setup` | Interviews you until the end state is approved, then scaffolds `.harness/` for one repo, several repos or a workspace. | `/dt:setup` or `/dt:setup --scaffold-only` |
+| `/dt:model` | Chooses which provider (Claude, Codex, Gemini) leads, advises and signs off; adds, renames and limits named agents. Never starts on its own. | `/dt:model` |
+| **Everyday work** | | |
+| `/dt:run` | One task end to end: plan, parallel build, review, verify, receipt and PR. You approve the plan and the ship. | `/dt:run add rate limiting to the API`, `/dt:run resume` |
+| `/dt:steer` | Redirects a running task without losing work: checkpoint, re-plan, resume. | `/dt:steer use the Postgres schema instead` |
+| `/dt:feature` | Puts a feature on the roadmap and opens a plan PR. Builds nothing. | `/dt:feature "nightly report email"` |
+| `/dt:ship` | Turns your branch into a checked PR (checks, secret scan, review, receipt). Never merges. | `/dt:ship` |
+| `/dt:pr-sweep` | Clears open and stale PRs: merges green ones, triages red CI, closes dead ones, lists what waits on you. | `/dt:pr-sweep` |
+| `/dt:gtm` | One go-to-market pass ending in a launch-readiness scorecard. | `/dt:gtm` |
+| **Unattended and parallel** | | |
+| `/dt:autopilot` | Runs chosen steps with no human checkpoints, behind a three-provider vote. One PR per step. | `/dt:autopilot 3-5` |
+| `/dt:dpp` | Runs several autopilot lanes in parallel under one head session and merges them in order. | `/dt:dpp dry-run` |
+| `/dt:dpp-full` | dpp that also fills lanes from a backlog scan and keeps dispatching. Never starts on its own. | `/dt:dpp-full` |
+| `/dt:fullauto` | dpp-full looping until nothing is outstanding, within budget and stall guards. Never starts on its own. | `/dt:fullauto` |
+| `/dt:sdk` | Sets up headless runs with the Claude Agent SDK for CI, cron or servers. Never starts on its own. | `/dt:sdk` |
+| `/dt:cooldown` | Pauses an agent that hit a usage limit until it resets; shared by every session on the machine. | `/dt:cooldown set codex 2d` |
+| **Status and memory** | | |
+| `/dt:check-in` | Read-only progress against the end state, `N of M complete`; `all` covers every session on this computer. | `/dt:check-in`, `/dt:check-in all` |
+| `/dt:action-items` | What is waiting on a person (secrets, decisions, handoffs, deploys), with the command that resolves each. | `/dt:action-items` |
+| `/dt:fleet` | Lists every dt session on this computer and broadcasts a note, handoff or pause to them. | `/dt:fleet` |
+| `/dt:incidents` | Agent misfires recorded by hooks, what is running now, and a root-cause review of open incidents. | `/dt:incidents review` |
+| `/dt:learn` | Turns reviewer findings into per-repo lessons later runs read. | `/dt:learn promote L-012` |
+| `/dt:knowledge` | Your private, synced store of preferences and terms across devices. Never stores secrets. Never starts on its own. | `/dt:knowledge setup` |
+| **Maintenance** | | |
+| `/dt:find-skills` | Rescans the repo and suggests up to 12 skills, hooks, MCP servers and other tooling; adds only your picks. | `/dt:find-skills` |
+| `/dt:ask-expert` | Reviews one repo and returns a keep, fold, template, archive or delete memo with a scorecard. Changes nothing. | `/dt:ask-expert my-old-repo` |
+| `/dt:repo-sweep` | A quick ask-expert pass on every repo of an owner, then one cleanup screen. Delete is never bulk. | `/dt:repo-sweep Dobeu-tech-eco` |
+| `/dt:evolve` | Changes the plugin at its source repo: edit, test, bump the version, commit. Pushes only on your yes. For maintainers. | `/dt:evolve` |
+
 ## Parallel autopilot
 | Skill | What it does |
 | --- | --- |
