@@ -97,6 +97,9 @@ If your WSL `claude` command wraps the Windows `claude.exe`, both shells share t
 
 Full notes for every release are in the [CHANGELOG](plugins/dts2-harness/CHANGELOG.md). Older highlights:
 
+### What's new in 5.1.1
+- Passes the Claude plugin directory's static checks (hook scripts are statically readable), ships under the Dobeu Source-Available License 1.0, has public READMEs with an "All commands" table, a listing icon and publisher metadata, and fixes Composio connection mapping (including a composio CLI inside WSL). `main` is now protected: PRs need green `test (3.12)` and `lint`.
+
 ### What's new in 5.1.0
 - Agent profiles with custom names (`claude-api`, `codex-api`, `grok-api`), per-agent rules enforced at dispatch, launch and tool time, a spend ledger, environment isolation and speed defaults.
 

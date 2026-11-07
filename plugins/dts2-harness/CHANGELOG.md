@@ -6,6 +6,28 @@ All notable changes to dts2-harness are recorded here, newest first, in the [Kee
 Released versions live in this file. Work that has not been released yet is listed under `## Unreleased` in `README.md` until the release step joins it here.
 Entries carry no dates: the repository holds no release tags to take them from.
 
+## [5.1.1]
+
+Patch release: the plugin passes the Claude plugin directory's static checks, ships under the Dobeu Source-Available License 1.0, gets public READMEs and listing metadata, and picks up Composio and lanes fixes. Nothing breaking.
+
+### Fixed
+
+- Hook scripts are statically readable by the plugin directory validator: every script path is spelled `${CLAUDE_PLUGIN_ROOT}/...`, `lib-settings.sh` reads settings in pure bash, inline `python3 -c` and `awk` programs moved to `scripts/hook_util.py`, and the PR-receipt logic moved to `scripts/pr_receipt.py` behind a thin wrapper.
+- `composio-setup.py map` no longer reports zero connected toolkits when `composio connections list` prints an object keyed by toolkit slug; toolkits with at least one active account are kept.
+- `composio-setup.py map` falls back to `composio connections list` (active accounts only) when `composio dev connected-accounts list` fails, and records `connected_source` in its output and the tool map.
+- Lanes: when an old son's process group ignores SIGINT and gets SIGKILL, re-dispatch waits (up to 5 seconds) until the group is gone, so a lane is never restarted while the old processes are still exiting.
+
+### Added
+
+- `composio-setup.py` finds a `composio` CLI installed inside WSL when run on Windows without one on PATH. `DTS2_COMPOSIO_WSL=0` turns the lookup off, and `composio-setup.py status` checks for the login directory inside WSL (existence only) when the CLI is only installed there.
+- Docs: rewrote the root and plugin READMEs for people (what it is, the problem it solves, requirements, install, wiring, day-to-day commands, update, uninstall, troubleshooting), added "More from Dobeu Tech Solutions" and Support sections, an "All commands" table covering all 27 slash commands, and fixed stale counts (27 skills, 8 agents) in `docs/COMMANDS.md`, `docs/GUIDE.md` and the onboard description.
+- Listing: `plugin.json` and `marketplace.json` carry the publisher (Dobeu Tech Solutions, https://dobeu.net), homepage, a human description and a display name; added `.claude-plugin/icon.png` and `.github/FUNDING.yml` (comments only until a handle is set).
+- Repository: `.github/CODEOWNERS` requests a review from `@dobeutech` on every PR without making it required, and `main` is protected (PR required, `test (3.12)` and `lint` must pass, no force-push or deletion, outside-contributor workflow runs need approval).
+
+### Changed
+
+- License: the plugin and marketplace ship under the Dobeu Source-Available License 1.0 instead of MIT (`LICENSE` at the repo root and in the plugin folder; `plugin.json` license is `SEE LICENSE IN LICENSE`). You can still use, change and share it free; selling it or relicensing it needs permission. Copies released under MIT stay MIT.
+
 ## [5.1.0]
 
 Minor release: agent profiles with custom names (claude-api, codex-api, grok-api), per-agent rules enforced at dispatch, launch and tool time, a spend ledger, env isolation and speed defaults. Nothing breaking.
