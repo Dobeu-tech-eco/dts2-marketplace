@@ -75,12 +75,11 @@ flowchart TD
 
 ## What's new in 5.1.1
 
-- Passes the Claude plugin directory's static checks. Hook scripts are statically readable.
+- Ready for the Claude plugin directory: hook scripts now pass its checks.
 - Ships under the Dobeu Source-Available License 1.0.
-- Public READMEs with an "All commands" table, a listing icon and publisher metadata.
-- Composio fixes: connection mapping is corrected, including a `composio` CLI installed inside WSL.
-- Composio always-use is now on by default when you answer yes during onboarding. `composio-setup.py decide --account yes` saves `always_use: true`. Pass `--no-always-use` to opt out.
-- `main` is protected: pull requests need green `test (3.12)` and `lint` checks.
+- Rewritten READMEs with an "All commands" table, plus a listing icon.
+- Composio: connections map correctly, including a `composio` CLI installed inside WSL.
+- Composio: if you say yes during onboarding, always-use is now on by default. You can turn it off.
 
 ### What's new in 3.0.0
 
@@ -97,7 +96,7 @@ The first release of the end-state interview, Plan and Ship checkpoints, roster 
 | [Marketplace changelog](CHANGELOG.md) | Marketplace-level changes |
 | [LICENSE](LICENSE) | Dobeu Source-Available License 1.0 |
 
-Day to day: `/dt:run <task>` runs one task with checkpoints, `/dt:check-in` shows progress and `/dt:ship` opens a pull request.
+Day to day: run `/dt:setup` once per repo to agree an end state. Then `/dt:run <task>` takes one task from plan to pull request with checkpoints, and `/dt:check-in` shows progress. Use `/dt:ship` when the work is already on a branch and you want a checked pull request.
 
 ## Known limits
 
@@ -115,7 +114,7 @@ Update with the two commands in [Quick start](#quick-start). To remove the plugi
 /plugin marketplace remove dts2
 ```
 
-Your repos' `.harness/` folders and `~/.dts2/` stay in place.
+Your repos' `.harness/` folders, `.claude/dts2-harness.local.md` and `~/.dts2/` stay in place until you delete them.
 
 Coming from an older name? Uninstall the old plugin first (`/plugin uninstall dts2@dts2`, or `dts2-harness@dts2` before 4.0), then install `dt@dts2`. Settings and `.harness/` state are unchanged.
 
@@ -141,4 +140,4 @@ Dobeu Source-Available License 1.0. Copyright Dobeu Tech Solutions LLC. See [LIC
 
 You can install and use it, including at work. You can read it, change it for your own use, and share copies for free if the license and copyright notices stay with them. You cannot sell it, put it in a paid product or hosted service, or relicense it without written permission. Dobeu can end the license with 30 days' notice. Versions released earlier under the MIT License stay MIT for copies people already have.
 
-For commercial licensing or questions, get in touch through [dobeu.net](https://dobeu.net).
+Bug reports and questions: open an issue at [github.com/Dobeu-tech-eco/dts2-marketplace/issues](https://github.com/Dobeu-tech-eco/dts2-marketplace/issues). For commercial licensing, get in touch through [dobeu.net](https://dobeu.net).

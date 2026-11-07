@@ -15,12 +15,6 @@ Inside Claude Code:
 /plugin install dt@dts2
 ```
 
-On Claude Code 2.1.275 or later, one step also works:
-
-```
-/plugin install dts2 --marketplace Dobeu-tech-eco/dts2-marketplace
-```
-
 Restart Claude Code (or run `/reload-plugins`), then run `/dt:onboard`. The plugin is named `dt`, so commands are `/dt:<command>` and roles are `dt:<role>`. The marketplace is named `dts2`.
 
 If `claude` in WSL wraps the Windows `claude.exe`, both shells share the Windows Claude home. Install once from Windows. Install inside WSL only if you run the native Linux CLI there.
@@ -139,7 +133,7 @@ One profile per provider lives in `profiles/agents/`. `tokenBurn` is a relative,
 | grok | grok-4.7 / grok-4.7 / grok-4-fast | builder, reviewer, second opinion | 3 | medium |
 | opencode | CLI default | builder | 2 | medium |
 | copilot | CLI default | builder, security reviewer | 2 | medium |
-| muse | muse-spark-1.2 on every tier | builder, second opinion (Meta's Muse Code terminal tool) | 2 | medium |
+| muse | muse-spark-1.3 on every tier | builder, second opinion (Meta's Muse Code terminal tool) | 2 | medium |
 | cursor | IDE default | builder (handoff only, no dispatch) | 0 | medium |
 | antigravity | IDE default | builder (handoff only, no dispatch) | 0 | medium |
 
@@ -316,7 +310,7 @@ dt builds on patterns from these projects. We learned from them and wrote our ow
 
 ## Changelog
 
-Released versions are in [CHANGELOG.md](CHANGELOG.md). Changes not yet released are listed below.
+Released versions are in [CHANGELOG.md](CHANGELOG.md). Changes not yet released are listed below. The list is empty right after a release.
 
 ## Unreleased
 
