@@ -22,6 +22,18 @@ case "$*" in
 esac
 """
 SLOW_CLI: str = "#!/bin/sh\nsleep 5\n"
+NO_DEV_PROJECT_CLI: str = """#!/bin/sh
+case "$*" in
+  "dev toolkits list") cat "$FAKE_TOOLKITS" ;;
+  "dev connected-accounts list") echo "No developer project configured for this directory." >&2; exit 1 ;;
+  "connections list") cat "$FAKE_CONNECTED" ;;
+  *) echo "unexpected: $*" >&2; exit 9 ;;
+esac
+"""
+CONNECTIONS_JSON: str = json.dumps({
+    "github": [{"id": "ca_1", "status": "ACTIVE", "alias": None}, {"id": "ca_2", "status": "EXPIRED"}],
+    "slack": [{"id": "ca_3", "status": "EXPIRED"}],
+    "notion": [{"id": "ca_4"}]})
 JSON_TOOLKITS: str = json.dumps({"items": [
     {"slug": "github", "name": "GitHub", "tools": 120}, {"slug": "slack", "name": "Slack"},
     {"slug": "notion", "name": "Notion"}, {"slug": "linear", "name": "Linear"}]})
@@ -46,7 +58,8 @@ class ComposioCase(unittest.TestCase):
         for folder in (self.home, self.cwd, self.bin_dir):
             folder.mkdir(parents=True)
         self.env: dict[str, str] = {k: v for k, v in os.environ.items() if k not in ("DTS2_COMPOSIO_BIN", "COMPOSIO_CACHE_DIR")}
-        self.env.update({"DTS2_HOME": str(self.state), "HOME": str(self.home), "PATH": "/usr/bin:/bin"})
+        self.env.update({"DTS2_HOME": str(self.state), "HOME": str(self.home), "PATH": "/usr/bin:/bin",
+                         "DTS2_COMPOSIO_WSL": "0"})
         patcher = mock.patch.dict(os.environ, {"DTS2_HOME": str(self.state)})
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -187,6 +200,24 @@ class MapTests(ComposioCase):
     def test_map_cli_failure_reports_error(self) -> None:
         self.fake_cli("[]", "[]", body="#!/bin/sh\nexit 3\n")
         self.assertIn("error", self.run_cli("map", expect=1, scoped=False))
+
+    def test_map_falls_back_to_connections_list_without_dev_project(self) -> None:
+        self.fake_cli(JSON_TOOLKITS, CONNECTIONS_JSON, body=NO_DEV_PROJECT_CLI)
+        out = self.run_cli("map", scoped=False)
+        self.assertEqual(out["connected"], ["github", "notion"])  # slack has only an expired account
+        self.assertEqual(out["connected_from"], "connections list")
+        self.assertNotIn("ca_1", (self.state / "composio-tools.json").read_text())
+
+    def test_map_reports_dev_listing_when_it_works(self) -> None:
+        self.fake_cli(JSON_TOOLKITS, JSON_CONNECTED)
+        self.assertEqual(self.run_cli("map", scoped=False)["connected_from"], "dev connected-accounts list")
+
+    def test_map_fails_when_dev_listing_and_fallback_both_fail(self) -> None:
+        body = NO_DEV_PROJECT_CLI.replace('"connections list") cat "$FAKE_CONNECTED"', '"connections list") exit 4')
+        self.fake_cli(JSON_TOOLKITS, "{}", body=body)
+        out = self.run_cli("map", expect=1, scoped=False)
+        self.assertIn("connections list", out["error"])
+        self.assertFalse((self.state / "composio-tools.json").exists())
 
     def test_no_secret_fields_are_stored(self) -> None:
         self.fake_cli(json.dumps([{"slug": "github", "api_key": "sk-secret"}]), "[]")
@@ -384,6 +415,63 @@ class DisableTests(ComposioCase):
     def test_disable_without_map_exits_two(self) -> None:
         (self.state / "composio-tools.json").unlink()
         self.run_cli("disable", "--ids", "x", expect=2)
+
+
+class WslLookupTests(unittest.TestCase):
+    """The Windows-only lookup of a CLI installed inside WSL, with subprocess and platform mocked."""
+
+    def setUp(self) -> None:
+        import importlib.util
+        import sys
+        sys.path.insert(0, str(SCRIPT.parent))
+        spec = importlib.util.spec_from_file_location("composio_setup_wsl", SCRIPT)
+        assert spec and spec.loader
+        self.mod: Any = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.mod)
+        patcher = mock.patch.dict(os.environ, {})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        for key in ("DTS2_COMPOSIO_BIN", "DTS2_COMPOSIO_WSL", "COMPOSIO_CACHE_DIR"):
+            os.environ.pop(key, None)
+
+    def probe(self, platform: str, stdout: str, code: int = 0, wsl: str | None = "C:/Windows/wsl.exe") -> Any:
+        done = subprocess.CompletedProcess([], code, stdout=stdout, stderr="")
+        which = {"wsl.exe": wsl}
+        with mock.patch.object(self.mod.sys, "platform", platform), \
+                mock.patch.object(self.mod.shutil, "which", side_effect=lambda n: which.get(n)), \
+                mock.patch.object(self.mod.subprocess, "run", return_value=done) as run:
+            return self.mod.find_binary(), run
+
+    def test_windows_finds_cli_inside_wsl(self) -> None:
+        found, run = self.probe("win32", "/home/u/.local/bin/composio\n")
+        self.assertEqual(found, "wsl:/home/u/.local/bin/composio")
+        self.assertEqual(run.call_args.args[0][:2], ["C:/Windows/wsl.exe", "-e"])
+
+    def test_not_probed_off_windows_or_when_turned_off(self) -> None:
+        self.assertIsNone(self.probe("linux", "/home/u/.local/bin/composio\n")[0])
+        os.environ["DTS2_COMPOSIO_WSL"] = "0"
+        found, run = self.probe("win32", "/home/u/.local/bin/composio\n")
+        self.assertIsNone(found)
+        run.assert_not_called()
+
+    def test_missing_in_wsl_or_no_wsl_returns_none(self) -> None:
+        self.assertIsNone(self.probe("win32", "", code=1)[0])
+        self.assertIsNone(self.probe("win32", "/x/composio\n", wsl=None)[0])
+
+    def test_binary_command_wraps_wsl_paths_only(self) -> None:
+        with mock.patch.object(self.mod.shutil, "which", return_value="C:/Windows/wsl.exe"):
+            self.assertEqual(self.mod.binary_command("wsl:/home/u/composio"),
+                             ["C:/Windows/wsl.exe", "-e", "/home/u/composio"])
+        self.assertEqual(self.mod.binary_command("/usr/bin/composio"), ["/usr/bin/composio"])
+
+    def test_login_check_for_wsl_binary_tests_the_wsl_home(self) -> None:
+        done = subprocess.CompletedProcess([], 0)
+        with mock.patch.object(self.mod.shutil, "which", return_value="wsl.exe"), \
+                mock.patch.object(self.mod.subprocess, "run", return_value=done) as run:
+            self.assertTrue(self.mod.logged_in(Path("/nowhere"), "wsl:/home/u/composio"))
+        argv = run.call_args.args[0]
+        self.assertEqual(argv[:4], ["wsl.exe", "-e", "sh", "-c"])
+        self.assertIn(".composio", argv[4])
 
 
 if __name__ == "__main__":
