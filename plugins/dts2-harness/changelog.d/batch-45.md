@@ -1,0 +1,2 @@
+- Fixed `composio-setup.py map` reporting zero connected toolkits when `composio connections list` prints an object keyed by toolkit slug; toolkits with at least one active account are now kept.
+- Added the `DTS2_COMPOSIO_WSL=0` toggle to turn off the WSL CLI lookup, and `composio-setup.py status` now checks for the login directory inside WSL (existence only) when the CLI is only installed there.
