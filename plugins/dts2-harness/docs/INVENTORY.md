@@ -249,6 +249,8 @@ Stamp-keyed commands:
 | `spawn_dry_run.py` | `--agent-dry-run`; hook JSON on stdin | Print the composed brief and command, start nothing. | spawn-dry-run hook | new |
 | `session_end.py` | hook JSON on stdin (no flags) | Release the lane leases this session took. | session-end hook | new |
 | `pr_payload.py` | `parse`, `view --body-out`, `body --body-file --receipt-file`, `decisions --ledger`, `payload [pairs...]` | Payload helpers for the PR-receipt hook; `decisions` prints the "Decisions and declined findings" PR section from the ledger. | pr-receipt hook, ship | changed |
+| `pr_receipt.py` | no arguments (hook payload on stdin) | PR-receipt hook body: adds the change receipt to the PR body and the repo PR template; `DTS2_GH_BIN` overrides gh. | `hooks/pr-receipt.sh` | new |
+| `hook_util.py` | `json-field`, `lessons-tail`, `open-items`, `open-action-items`, `stop-timeout`, `block-reply` | Small helpers for the hook scripts so none carries an inline program. | hooks | new |
 | `intake.py` | `add [--text T] [--source hook\|cli]`; `list [--status S] [--json]`; `resolve <id> --as fold\|clarify\|steer\|done [--note N]`; `answer <id> --text T`; `status`; `hook`; global `--root DIR`, `--threshold N` (default 60), `--budget N` (default 2) | | Prompt intake queue: records each prompt typed while the harness works in `.harness/intake.jsonl`, scores its clarity (0-100), classifies it as fold, clarify or steer, and renders `.harness/intake.md`. `hook` is the `UserPromptSubmit` entry point and never blocks a prompt. | prompt-intake hook (`hook`); `/dt:steer` and the agent (`list`, `resolve`, `answer`) | new |
 
 ### 4.8 Other entry points

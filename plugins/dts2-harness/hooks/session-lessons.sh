@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # SessionStart: put the most recent harness lessons, open state items and open action items into context. Never fails the session.
 set -uo pipefail
+[ -n "${CLAUDE_PLUGIN_ROOT:-}" ] || exit 0
 # shellcheck source-path=SCRIPTDIR source=lib-settings.sh
-source "$(dirname "$0")/lib-settings.sh"
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib-settings.sh"
 MAX_LESSONS_DEFAULT=5
 MAX_OPEN_ITEMS=5
 STAMP_DIR_RE='^[0-9]{8}-[0-9]{1,6}$'  # same shape as state_ids.STAMP_PATTERN
@@ -15,10 +16,10 @@ HOOK_INPUT=""
 [[ -t 0 ]] || read -r -t 1 -d '' HOOK_INPUT || true
 # Only lessons whose paths: globs match the changed files (or that have none), newest few; scope-check.py does the matching.
 matching_lessons() {
-  local plugin_dir="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}" max="$1"
+  local max="$1"
   command -v python3 >/dev/null 2>&1 || return 1
-  timeout 4 python3 -I "$plugin_dir/scripts/scope-check.py" --lessons "$PWD" 2>/dev/null \
-    | python3 -I -c 'import json,sys; [print(line) for line in json.load(sys.stdin)["lessons"][-int(sys.argv[1]):]]' "$max" 2>/dev/null
+  timeout 4 python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/scope-check.py" --lessons "$PWD" 2>/dev/null \
+    | python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/hook_util.py" lessons-tail "$max" 2>/dev/null
 }
 print_lessons() {
   local max found
@@ -34,14 +35,14 @@ print_lessons() {
 }
 print_open_items() {
   local items
-  items="$(sed -n '/^## Open items/,/^## /{ /^## /d; p; }' "$STATE" | grep -E '^- ' | tail -n "$MAX_OPEN_ITEMS")"
+  items="$(python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/hook_util.py" open-items "$STATE" "$MAX_OPEN_ITEMS" 2>/dev/null)"
   [[ -n "$items" ]] || return 0
   echo "dts2-harness state (open items):"
   echo "$items"
 }
 print_action_items() {
   local items
-  items="$(awk -F'|' 'NF > 3 { for (i = NF - 1; i > NF - 4 && i > 1; i--) { s = $i; gsub(/^[ \t]+|[ \t]+$/, "", s); if (s ~ /^(open|done)/) break } if (s ~ /^open/) print }' "$ACTION_ITEMS" | head -n "$MAX_OPEN_ITEMS")"
+  items="$(python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/hook_util.py" open-action-items "$ACTION_ITEMS" "$MAX_OPEN_ITEMS" 2>/dev/null)"
   [[ -n "$items" ]] || return 0
   echo "dts2-harness action items (open):"
   echo "$items"
@@ -49,7 +50,7 @@ print_action_items() {
 # After a compact the handoff file is the resume point: print a short pointer (under 300 tokens), not the digest.
 run_field() {
   local lease="$1" field="$2"
-  python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get(sys.argv[2], ""))' "$lease" "$field" 2>/dev/null
+  python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/hook_util.py" json-field "$field" --file "$lease" 2>/dev/null
 }
 run_phase() {
   local run="$1"
@@ -85,9 +86,8 @@ fi
 # untrusted-content fence council.py defines (A9, G-69), cut at UNTRUSTED_MAX_CHARS. No python3 means nothing is printed.
 UNTRUSTED_MAX_CHARS=4000
 wrap_untrusted() {
-  local plugin_dir="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
   command -v python3 >/dev/null 2>&1 || return 0
-  timeout 4 python3 -I "$plugin_dir/scripts/council.py" wrap - --source "dts2-harness session state" --max-chars "$UNTRUSTED_MAX_CHARS" 2>/dev/null
+  timeout 4 python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/council.py" wrap - --source "dts2-harness session state" --max-chars "$UNTRUSTED_MAX_CHARS" 2>/dev/null
 }
 print_state_blocks() {
   [[ -f "$LESSONS" ]] && print_lessons
@@ -98,13 +98,14 @@ print_state_blocks() {
 state_text="$(print_state_blocks)"
 [[ -n "$state_text" ]] && printf '%s\n' "$state_text" | wrap_untrusted
 print_scope() {
-  local plugin_dir="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}" info scope root
+  local info scope root dir_name
   command -v python3 >/dev/null 2>&1 || return 0
-  info="$(timeout 4 python3 -I "$plugin_dir/scripts/scope-check.py" "$PWD" 2>/dev/null)" || return 0
-  scope="$(printf '%s' "$info" | python3 -I -c 'import json,sys; print(json.load(sys.stdin).get("scope",""))' 2>/dev/null)" || return 0
-  root="$(printf '%s' "$info" | python3 -I -c 'import json,sys; print(json.load(sys.stdin).get("workspaceRoot") or "")' 2>/dev/null)" || return 0
+  info="$(timeout 4 python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/scope-check.py" "$PWD" 2>/dev/null)" || return 0
+  scope="$(printf '%s' "$info" | python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/hook_util.py" json-field scope 2>/dev/null)" || return 0
+  root="$(printf '%s' "$info" | python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/hook_util.py" json-field workspaceRoot --or-empty 2>/dev/null)" || return 0
+  dir_name="$(basename "$PWD")"
   case "$scope" in
-    workspace-member) echo "dts2-harness scope: you are inside $(basename "$PWD"), a member of workspace $root. Run /dt:run from $root (run pivots there automatically)." ;;
+    workspace-member) echo "dts2-harness scope: you are inside $dir_name, a member of workspace $root. Run /dt:run from $root (run pivots there automatically)." ;;
     none) echo "dts2-harness scope: no harness in this folder; /dt:setup to start." ;;
   esac
 }
