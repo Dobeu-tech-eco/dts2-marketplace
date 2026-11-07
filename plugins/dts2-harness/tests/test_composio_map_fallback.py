@@ -38,6 +38,13 @@ CONNECTIONS: Final[str] = json.dumps([
     {"toolkit": {"slug": "jira"}},
 ])
 
+CONNECTIONS_BY_TOOLKIT: Final[str] = json.dumps({  # the shape composio CLI 0.6 prints
+    "github": [{"id": "ca_1", "status": "ACTIVE", "alias": "work"}, {"id": "ca_2", "status": "EXPIRED"}],
+    "slack": [{"id": "ca_3", "status": "EXPIRED"}],
+    "notion": [{"id": "ca_4"}],
+    "linear": [],
+})
+
 
 def load_module() -> ModuleType:
     spec = importlib.util.spec_from_file_location("composio_setup_under_test", base.SCRIPT)
@@ -64,6 +71,14 @@ class MapFallbackTests(FallbackCase):
         self.assertEqual(out["toolkits"], 4)
         saved = json.loads((self.state / "composio-tools.json").read_text())
         self.assertEqual(saved["connected_source"], "connections")
+
+    def test_toolkit_keyed_connections_from_cli_0_6(self) -> None:
+        self.fallback_cli(connections=CONNECTIONS_BY_TOOLKIT)
+        out = self.run_cli("map", scoped=False)
+        self.assertEqual(out["connected"], ["github", "notion"])  # slack only expired, linear has no accounts
+        saved = (self.state / "composio-tools.json").read_text()
+        self.assertNotIn("ca_1", saved)
+        self.assertNotIn("work", saved)
 
     def test_only_active_rows_are_kept(self) -> None:
         self.fallback_cli()

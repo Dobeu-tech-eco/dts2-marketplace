@@ -360,6 +360,24 @@ def import_listings(path: Path) -> tuple[list[dict[str, Any]], list[dict[str, An
         parse_listing(json.dumps(data.get("connected", [])), CONNECTED_KEYS + SLUG_KEYS)
 
 
+def connection_rows(text: str, keys: tuple[str, ...]) -> list[dict[str, Any]]:
+    """Rows from `composio connections list`. CLI 0.6 prints an object keyed by toolkit slug, each holding a list of
+    accounts ({"github": [{"id": ..., "status": "ACTIVE"}, ...]}); that becomes one row per account carrying only the
+    slug and status, so no account id or alias is kept. Any other shape goes through parse_listing."""
+    try:
+        data: Any = json.loads(text)
+    except ValueError:
+        data = None
+    if not isinstance(data, dict) or any(key in data for key in LIST_KEYS):
+        return parse_listing(text, keys)
+    rows: list[dict[str, Any]] = []
+    for slug, accounts in data.items():
+        for account in accounts if isinstance(accounts, list) else []:
+            status: Any = account.get(STATUS_KEY) if isinstance(account, dict) else None
+            rows.append({"slug": str(slug)} if status is None else {"slug": str(slug), STATUS_KEY: status})
+    return rows
+
+
 def fetch_connected(binary: list[str], timeout: int) -> tuple[list[dict[str, Any]], str]:
     """Connected rows and the command that produced them: the dev project first, else the global connections."""
     keys: tuple[str, ...] = CONNECTED_KEYS + SLUG_KEYS
@@ -367,7 +385,7 @@ def fetch_connected(binary: list[str], timeout: int) -> tuple[list[dict[str, Any
         return parse_listing(run_listing(binary, DEV_CONNECTED_WORDS, timeout), keys), SOURCE_DEV
     except (RuntimeError, subprocess.TimeoutExpired) as dev_err:
         try:
-            rows: list[dict[str, Any]] = parse_listing(run_listing(binary, CONNECTIONS_WORDS, timeout), keys)
+            rows: list[dict[str, Any]] = connection_rows(run_listing(binary, CONNECTIONS_WORDS, timeout), keys)
         except (RuntimeError, subprocess.TimeoutExpired) as fallback_err:
             raise RuntimeError(f"{dev_err}; {fallback_err}") from fallback_err
         return active_rows(rows), SOURCE_CONNECTIONS
