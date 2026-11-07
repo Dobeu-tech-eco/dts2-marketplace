@@ -3,6 +3,8 @@ name: feature
 description: "Add a feature to the roadmap and update every plan to match: scores clarity, interviews when unclear, has the lead write it into the end state with acceptance criteria, and opens a plan PR. Use for add a feature or put this on the roadmap."
 ---
 
+> Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
+
 # Feature — from idea to planned sections, every plan in sync
 
 `/dt:feature <description>` plans a feature; it does not build it. Building is `/dt:run section <#>` or `/dt:autopilot <#…>` afterwards.

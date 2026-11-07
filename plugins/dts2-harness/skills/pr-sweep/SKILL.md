@@ -3,6 +3,8 @@ name: pr-sweep
 description: "Clear open and stale PRs in one pass with parallel workers: merge green ones, rebase, triage red CI, close dead ones, optionally speed up CI. Use for clean up open PRs, stale PRs, or after an autopilot run."
 ---
 
+> Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
+
 # PR-sweep — get open PRs down to the ones that need you
 
 `/dt:pr-sweep [owner/repo] [--stale-days N] [--mine|--author A|--head-prefix P] [--optimise-ci]`. The repo defaults to the current one (`gh repo view --json nameWithOwner`); `--stale-days` defaults to 3. `--mine` is the signed-in user (`gh api user`), `--author A` one login, `--head-prefix P` only branches starting with `P`.

@@ -6,9 +6,9 @@ Contents: what the harness guarantees, then four steps: create a capped key, sto
 
 | Agent | Command | Key variable | Roles | Own home |
 |---|---|---|---|---|
-| `claude-api` | `claude -p --model sonnet --output-format json --max-budget-usd N` | `ANTHROPIC_API_KEY` | reviewer, overflow builder | `CLAUDE_CONFIG_DIR` |
-| `codex-api` | `codex exec -m gpt-6.1-sol --sandbox read-only --json` | `CODEX_API_KEY` | second opinion, reviewer (read-only) | `CODEX_HOME` (`config.toml` with `forced_login_method = "api"`) |
-| `grok-api` | `grok -p -m grok-build-0.1` (plan mode, no Bash/Edit/Write) | `XAI_API_KEY` | reviewer, security-review fallback | none |
+| `claude-api` | `claude -p --model sonnet --output-format json --max-budget-usd N` | `the API key the user provides when asked` | reviewer, overflow builder | `CLAUDE_CONFIG_DIR` |
+| `codex-api` | `codex exec -m gpt-6.1-sol --sandbox read-only --json` | `the Codex API key` | second opinion, reviewer (read-only) | `CODEX_HOME` (`config.toml` with `forced_login_method = "api"`) |
+| `grok-api` | `grok -p -m grok-build-0.1` (plan mode, no Bash/Edit/Write) | `the xAI API key` | reviewer, security-review fallback | none |
 
 The existing `grok` and `codex` profiles stay on their subscriptions. `claude-api` is never started with `--bare`, which would turn off plugins, agents and skills.
 
@@ -34,7 +34,7 @@ Pick one; the key never goes in the repo or in `.harness/config.yaml`.
 - System keyring: `python3 -c "import keyring,getpass; keyring.set_password('dts2','claude-api',getpass.getpass())"`, or `secret-tool store --label dts2 service dts2 username claude-api` (Linux), `security add-generic-password -s dts2 -a claude-api -w` (macOS). Ref: `keyring:dts2/claude-api`.
 - 1Password: ref `op://Vault/Item/field` (read with `op read`).
 - Doppler: ref `doppler:PROJECT/CONFIG/NAME` (read with `doppler secrets get NAME --plain`).
-- Environment: export `ANTHROPIC_API_KEY`, `CODEX_API_KEY` or `XAI_API_KEY` in the shell that starts the harness (or `env:NAME` to read another variable). Only the API agent receives it.
+- Environment: export `the API key the user provides when asked`, `the Codex API key` or `the xAI API key` in the shell that starts the harness (or `env:NAME` to read another variable). Only the API agent receives it.
 
 Then point the profile at it with a user profile (this layer merges over the built-in one):
 

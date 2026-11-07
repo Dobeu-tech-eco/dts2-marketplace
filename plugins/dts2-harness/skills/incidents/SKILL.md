@@ -3,6 +3,8 @@ name: incidents
 description: See and learn from agent incidents (hung spawns, missing or partial reports, rework of another agent's files). Subcommands list, live, brief, review, resolve, promote, lessons. Use for incidents, what went wrong with an agent, or review the shift.
 ---
 
+> Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
+
 # Incidents — catch agent problems, learn from them
 
 Hooks write every subagent start, stop and incident to `.harness/agents.jsonl` with no model call. This skill reads that record. All counting is plain Python; the only model step is `review`.

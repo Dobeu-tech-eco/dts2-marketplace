@@ -1,0 +1,40 @@
+{
+  "name": "opencode",
+  "displayName": "OpenCode",
+  "form": "cli",
+  "rulesFile": "AGENTS.md",
+  "invocation": "live",
+  "command": [
+    "opencode",
+    "run"
+  ],
+  "headlessFlag": null,
+  "roles": [
+    "builder"
+  ],
+  "specialty": "Provider-flexible terminal agent suited to straightforward implementation tasks.",
+  "verified": true,
+  "costTier": 1,
+  "statusCommand": [
+    "opencode",
+    "--version"
+  ],
+  "loginCommand": null,
+  "models": {
+    "frontier": null,
+    "standard": null,
+    "economy": null
+  },
+  "modelsVerified": false,
+  "subscriptionName": null,
+  "apiKeyEnv": null,
+  "searchPaths": [],
+  "effortLevels": [
+    "medium"
+  ],
+  "tokenBurn": {
+    "frontier": 4,
+    "standard": 2,
+    "economy": 1
+  }
+}

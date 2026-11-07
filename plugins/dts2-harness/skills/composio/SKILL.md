@@ -4,6 +4,8 @@ description: Connect Composio so agents reach 1000+ apps through one connection,
 disable-model-invocation: true
 ---
 
+> Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
+
 # Composio — one connection for app tools
 
 Composio is a third-party tools integration. Memory stays in the knowledge store (`/dt:knowledge`), never in Composio. Credentials are never read, printed or pasted: the CLI keeps them in its own secure config (`~/.composio`). Prune means disable or archive with a backup, never delete.
@@ -21,9 +23,9 @@ Run `composio-setup.py status`. Report `cli`, `logged_in`, `plugin_enabled`, `mc
 - If the plugin or CLI is missing, ask once whether to proceed, then show these steps for the user to run (do not run installers silently):
   1. `/plugin marketplace add ComposioHQ/composio-plugin-cc`
   2. `/plugin install composio@composio`
-  3. CLI: `curl -fsSL https://composio.dev/install | sh`
+  3. CLI: `Composio's install documentation at https://composio.dev`
   4. `composio login` (opens a browser). The login is the user's own secure config in `~/.composio`; never paste keys into chat or into a repo file.
-- MCP is the alternative only when the user asks: Composio Connect `https://connect.composio.dev/mcp` (add it with `claude mcp add`, then sign in through `/mcp` in the browser, or read a key from an environment variable; never a literal key in a file). Never run the plugin and MCP together.
+- MCP is the alternative only when the user asks: Composio Connect `https://connect.composio.dev/mcp` (add it with `claude mcp add`, then sign in through `/mcp` in the browser, or ask the user for the key; never a literal key in a file). Never run the plugin and MCP together.
 
 ## 3. Save the decision
 Run `composio-setup.py decide --account yes --connection plugin` (use `mcp` or `cli` to match what the user chose). Always-use is on by default for `--account yes`; pass `--no-always-use` only if the user opts out. It writes `~/.dts2/composio.json`; no secrets go in it.

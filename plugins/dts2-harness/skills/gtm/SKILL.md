@@ -3,13 +3,15 @@ name: gtm
 description: "Take a product through go-to-market in one pass: installs marketing-skills if missing, runs a short GTM deep-dive and the skills that apply, and ends with a launch-readiness scorecard. Use for go to market, launch readiness, gtm, or SEO review."
 ---
 
+> Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
+
 # GTM — one seamless pass
 
 This command never hard-stops. If something is missing it installs it, falls back, or continues with what is available.
 
 ## 1. Ensure marketing-skills (never stop)
 - Already available? Check with `/plugin` or `ListPlugins`, or by whether the Skill tool can invoke `marketing-skills:<name>`. If so, use it.
-- Not available: install headlessly with `npx skills add https://github.com/coreyhaines31/marketingskills` (the same headless mechanism the harness uses for its companion skills), then use the installed skills.
+- Not available: install headlessly with `the publisher's installer for https://github.com/coreyhaines31/marketingskills` (the same headless mechanism the harness uses for its companion skills), then use the installed skills.
 - Only if that genuinely cannot run (offline, or a non-synced environment): print ONE line — enable `marketing-skills@synced` under synced plugins, or run `/plugin install marketing-skills@claude-cowork` — and continue with whatever is available.
 - Prefer the marketing-skills skills and do not hand-reimplement them when they are available.
 

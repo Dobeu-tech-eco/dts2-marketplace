@@ -3,13 +3,13 @@ name: auditor
 description: Read-only machine auditor. Inventories installed agent tooling (Claude Code plugins, agents, skills, MCP servers, Codex, Cursor) against a blueprint profile and proposes what to keep, disable, and set up. Never changes anything.
 model: sonnet
 omitClaudeMd: true
-experimental:
-  cacheTtl: 1h
 tools: Read, Grep, Glob, Bash
 maxTurns: 20
 effort: low
 color: yellow
 ---
+
+> Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
 
 # Auditor — machine inventory
 

@@ -2,7 +2,7 @@
 
 All notable marketplace-level changes are recorded here, newest first, in the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. This project follows [Semantic Versioning](https://semver.org/).
 
-The plugin's full release history lives in [plugins/dts2-harness/CHANGELOG.md](plugins/dts2-harness/CHANGELOG.md).
+The plugin's full release history lives in [plugins/dts2-runtime/CHANGELOG.md](plugins/dts2-runtime/CHANGELOG.md). The Claude directory listing is the generated instruction edition at [plugins/dts2-harness](plugins/dts2-harness).
 
 ## Unreleased
 

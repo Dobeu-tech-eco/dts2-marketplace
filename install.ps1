@@ -10,7 +10,7 @@ if (Test-Path $dest) {
 Copy-Item -Recurse -Path $src -Destination $dest
 $py = Get-Command python -ErrorAction SilentlyContinue
 if (-not $py) { $py = Get-Command py -ErrorAction SilentlyContinue }
-if ($py) { & $py.Source (Join-Path $dest "plugins\dts2-harness\scripts\env-detect.py") }
+if ($py) { & $py.Source (Join-Path $dest "plugins\dts2-runtime\scripts\env-detect.py") }
 Write-Host ""
 Write-Host "Copied to: $dest"
 Write-Host ""

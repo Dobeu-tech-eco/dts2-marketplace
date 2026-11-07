@@ -1,0 +1,64 @@
+{
+  "name": "claude",
+  "displayName": "Claude Code",
+  "form": "cli",
+  "rulesFile": "CLAUDE.md",
+  "invocation": "live",
+  "command": [
+    "claude"
+  ],
+  "headlessFlag": "-p",
+  "roles": [
+    "lead",
+    "verifier",
+    "builder",
+    "reviewer"
+  ],
+  "specialty": "Orchestrates the run and excels at planning, verification and careful code review.",
+  "verified": true,
+  "costTier": 3,
+  "statusCommand": [
+    "claude",
+    "auth",
+    "status"
+  ],
+  "loginCommand": [
+    "claude",
+    "auth",
+    "status"
+  ],
+  "models": {
+    "frontier": "opus",
+    "standard": "sonnet",
+    "economy": "haiku"
+  },
+  "modelsVerified": true,
+  "subscriptionName": "Claude Max",
+  "apiKeyEnv": "ANTHROPIC_API_KEY",
+  "searchPaths": [],
+  "effortLevels": [
+    "low",
+    "medium",
+    "high",
+    "max"
+  ],
+  "tokenBurn": {
+    "frontier": 8,
+    "standard": 3,
+    "economy": 1
+  },
+  "councilModels": {
+    "checked": "2026-11-04",
+    "maxAgeDays": 90,
+    "head": [
+      "fable",
+      "claude-fable-5-1"
+    ],
+    "alternates": [
+      "claude-fable-5-0",
+      "claude-opus-5"
+    ]
+  },
+  "budgetFlag": "--max-budget-usd",
+  "readOnlyCommand": ["claude", "-p", "--permission-mode", "plan", "--model", "{model}", "{prompt}"]
+}

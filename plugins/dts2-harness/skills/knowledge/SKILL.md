@@ -4,6 +4,8 @@ description: Keep your own standing preferences, glossary terms (brands, product
 disable-model-invocation: true
 ---
 
+> Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
+
 # Knowledge — your personal preferences and glossary, on every device
 
 A small private store of things that are true for you, not for one repo: standing defaults ("my standard team is 6 agents"), glossary terms (a brand or product line and the repos in it) and lessons that apply everywhere. It is personal and private, and it is never part of the plugin. One Markdown file per entry lives under `entries/<kind>/<key>.md`; the store is a folder (`DTS2_KNOWLEDGE`, else `$DTS2_HOME/knowledge`, else `~/.dts2/knowledge`) that is usually a private git repo you own, so it can sync between devices.
@@ -16,14 +18,14 @@ Run this when the user types `/dt:knowledge setup` or `/dt:knowledge join`, or s
 2. **Q2: Where should it live?**
    - Cloud or local? Local only on this machine means no sync (`setup` only). Cloud has three choices:
    - (a) A private GitHub repo: free, the default. Signs in through `gh auth login` or your normal git sign-in. The user creates the empty private repo and gives its URL (`--remote`).
-   - (b) A Cloudflare Worker + D1: also reachable from claude.ai web and phone. The user deploys `templates/knowledge-cloudflare/` with wrangler (see its README), sets the Worker secret `KNOWLEDGE_TOKEN`, and exports the same value as `DTS2_KNOWLEDGE_TOKEN` on this device. Ask for the Worker URL (`--url`). Never ask the user to paste the token into the chat and never write it anywhere. The claude.ai custom connector form may need OAuth, which the template does not provide yet (see its README); Claude Code can send the token as a header.
+   - (b) A Cloudflare Worker + D1: also reachable from claude.ai web and phone. The user deploys `templates/knowledge-cloudflare/` with wrangler (see its README), sets the Worker secret `the knowledge token`, and exports the same value as `DTS2_the knowledge token` on this device. Ask for the Worker URL (`--url`). Never ask the user to paste the token into the chat and never write it anywhere. The claude.ai custom connector form may need OAuth, which the template does not provide yet (see its README); Claude Code can send the token as a header.
    - (c) A folder synced by OneDrive, Google Drive or Dropbox: cloud through the drive app. Ask for the folder path (`--path`).
 3. **Q3 (new store only): What owner label should it carry?** A short name such as `acme-owner`.
 4. **Run it.**
    - New: `setup --owner <label> --backend git|folder|local|cloudflare [--remote <url>] [--path <dir>] [--url <worker url>]`. Add `--force` only if the user confirms replacing an existing store.
    - Existing: `join --backend git|folder|cloudflare [--remote <url>] [--path <dir>] [--url <worker url>]`. It reads the owner from the store and prints "this device is now tied to <owner>'s knowledge store".
 5. Confirm in one line: owner, backend and where it lives. This device's choice is kept in `~/.dts2/knowledge.json`.
-Never ask for or store an API key or password; sign-in comes from `gh`/git or the drive app. For Cloudflare the token is read from `DTS2_KNOWLEDGE_TOKEN` only; if it is unset, setup and join still work and print a note, and `sync` exits 2 until it is set. `init [--remote <url>]` still works as an alias of `setup --backend git`.
+Never ask for or store an API key or password; sign-in comes from `gh`/git or the drive app. For Cloudflare the token is read from `DTS2_the knowledge token` only; if it is unset, setup and join still work and print a note, and `sync` exits 2 until it is set. `init [--remote <url>]` still works as an alias of `setup --backend git`.
 
 ## Kinds and keys
 - `preference` (default): a standing default, such as `agents.standard`.

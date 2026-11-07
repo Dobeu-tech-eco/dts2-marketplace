@@ -1,3 +1,5 @@
+> Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
+
 # setup - Part 1, the interview (topology, sections, question loop, skills, grill, end state)
 
 ### Round 3 — Topology
@@ -49,15 +51,15 @@ Runs after the loop and before Round 5, when every component and its acceptance 
 
 1. Search per component, first option that works:
    - the `find-skills` skill, if present, in search mode;
-   - else `npx skills find <component>`;
+   - else `the publisher's skill installer find <component>`;
    - else say `No skill search available; skipping skills.` and go to Round 5.
 2. Show at most 3 skills per component, each with its source and a one-line reason.
-3. Ask once which to install **for this project only**. On yes, run `npx skills add <source> --skill <name>` from the repo root, which installs into the project (`.claude/skills/`); for a plugin, add it to `enabledPlugins` in the project's `.claude/settings.json`. Never pass `-g` and never install into the user's home folder.
+3. Ask once which to install **for this project only**. On yes, run `the publisher's installer for <source> --skill <name>` from the repo root, which installs into the project (`.claude/skills/`); for a plugin, add it to `enabledPlugins` in the project's `.claude/settings.json`. Never pass `-g` and never install into the user's home folder.
 4. Build the **skill plan**: one row per proposed skill, installed or not, with the columns `skill | source | installed | serves component | phase | order`. Phase is `plan`, `build`, `review` or `verify`. Order is the order a builder uses them within that component. Declined skills stay in the table with `installed: no`.
 
 ### Round 4c — 4c. Grill the draft
 
-Runs after the interview loop (and Round 4b) ends and before Round 5's approval question. Install each companion skill only at this step, with `npx skills add https://github.com/mattpocock/skills --skill <name>` (see Companion skills in `.harness/discipline.md`), and record it in `.harness/keep.yaml` → `skills:` as `- name: <name>` / `source: npx skills add https://github.com/mattpocock/skills --skill <name>` / `serves: harness`. Invoke it by slash name with the Skill tool, or read its SKILL.md and follow it inline when headless. If `npx` is unavailable or the install fails, print `Skill <name> not installed (npx unavailable or offline); continuing without it.`, add a Decisions action item with the command, and continue.
+Runs after the interview loop (and Round 4b) ends and before Round 5's approval question. Install each companion skill only at this step, with `the publisher's installer for https://github.com/mattpocock/skills --skill <name>` (see Companion skills in `.harness/discipline.md`), and record it in `.harness/keep.yaml` → `skills:` as `- name: <name>` / `source: the publisher's installer for https://github.com/mattpocock/skills --skill <name>` / `serves: harness`. Invoke it by slash name with the Skill tool, or read its SKILL.md and follow it inline when headless. If `a package launcher` is unavailable or the install fails, print `Skill <name> not installed (a package launcher unavailable or offline); continuing without it.`, add a Decisions action item with the command, and continue.
 
 Install and run `/grill-me` against the draft end state (components, Done criteria, Blueprint, Sections). Fold its hard questions into the interview as one more round of answers; unresolved ones go to Open questions. Then proceed to Round 5.
 
@@ -77,4 +79,4 @@ Install and run `/grill-me` against the draft end state (components, Done criter
 
 ## Questions from the user
 
-When the user asks a question rather than giving an instruction ("why", "should we", "what's the difference", "is X better"), install and run `/ask-matt` (see Companion skills in `.harness/discipline.md`) with the question and the harness context (end state, current phase) before answering, and base the reply on its answer. If you are still unsure afterwards (the answer is hedged, depends on facts you do not have, or the user says it is not sufficient), install and run `/research` on the question and report the findings with sources before answering. A missing install never blocks: print `Skill <name> not installed (npx unavailable or offline); continuing without it.`, add a Decisions action item with the command, and answer as best you can.
+When the user asks a question rather than giving an instruction ("why", "should we", "what's the difference", "is X better"), install and run `/ask-matt` (see Companion skills in `.harness/discipline.md`) with the question and the harness context (end state, current phase) before answering, and base the reply on its answer. If you are still unsure afterwards (the answer is hedged, depends on facts you do not have, or the user says it is not sufficient), install and run `/research` on the question and report the findings with sources before answering. A missing install never blocks: print `Skill <name> not installed (a package launcher unavailable or offline); continuing without it.`, add a Decisions action item with the command, and answer as best you can.

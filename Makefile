@@ -1,4 +1,4 @@
-PLUGIN_DIR := plugins/dts2-harness
+PLUGIN_DIR := plugins/dts2-runtime
 VERSION := $(shell python3 -c "import json; print(json.load(open('$(PLUGIN_DIR)/.claude-plugin/plugin.json'))['version'])")
 DIST := dist
 

@@ -4,6 +4,8 @@ description: dpp with --full. Adds a delegation scan and fills up to five lanes.
 disable-model-invocation: true
 ---
 
+> Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
+
 # dpp-full — dpp with `--full`
 
 Everything is `skills/dpp/SKILL.md`; run it with `--full`.

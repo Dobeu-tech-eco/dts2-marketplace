@@ -3,6 +3,8 @@ name: repo-sweep
 description: "Review every repo of a GitHub owner, oldest first, with a quick expert pass each, then clean up from one screen: keep, fold, sell as template, archive. Deleting is one repo at a time, with a backup. Use for clean up my repos or sweep my old projects."
 ---
 
+> Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
+
 # Repo-sweep — decide on all your repos in one sitting
 
 `/dt:repo-sweep [owner]` is the batch version of `/dt:ask-expert`. It reviews each repo quickly, collects the answers in one table, and lets you apply the cleanup in one go. Nothing is deleted automatically.

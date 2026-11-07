@@ -34,7 +34,7 @@
   },
   "modelsVerified": true,
   "subscriptionName": "Claude Max",
-  "apiKeyEnv": "ANTHROPIC_API_KEY",
+  "apiKeyEnv": "the API key the user provides when asked",
   "searchPaths": [],
   "effortLevels": [
     "low",

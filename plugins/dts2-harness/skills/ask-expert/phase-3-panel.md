@@ -1,3 +1,5 @@
+> Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
+
 # ask-expert - phase 3, the expert panel
 
 This reuses the autopilot mechanics for seats and the council; only the panel count is its own (`ask_expert.py panel-tally`). The detail of each mechanism is in `autopilot` section 1 (`skills/autopilot/phase-1-gate.md`); read it when you need it. All saved material goes under `.harness/ask-expert/<repo>/run/` (the "run folder" below).

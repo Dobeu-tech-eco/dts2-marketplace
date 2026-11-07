@@ -1,0 +1,317 @@
+# Guide
+
+How to talk to the harness, which command to reach for, and the rules every role follows. It is for a person, or an AI coding assistant, who lands in a repo that uses the harness and needs to act without reading every skill file.
+
+The exhaustive reference is `INVENTORY.md` (every skill, agent file, hook, script and `lanes.py` subcommand). Exact syntax is in `COMMANDS.md`. Internals are in `../ARCHITECTURE.md`. Full release notes are in `../CHANGELOG.md`.
+
+> Migrating from the old names `dts2` or `dts2-harness`: the plugin is now `dt`, so commands are `/dt:<command>`. Run `/plugin uninstall dts2@dts2` (`dts2-harness@dts2` on a version before 4.0), `/plugin marketplace update dts2`, `/plugin install dt@dts2` and `/reload-plugins`. Settings and `.harness/` state are unchanged.
+
+Contents:
+
+1. Talking to the harness
+2. Which command when
+3. The head, son and council flow
+4. Rules every agent follows
+5. Release history (3.11.0, 3.10.0)
+6. Where state lives
+7. Unattended mode
+
+## 1. Talking to the harness
+
+The harness is a Claude Code plugin. Every entry point is a slash command `/dt:<skill>`. There is no other interface. The plugin has 27 skills (section 2). Eight agents (`lead`, `builder`, `fixer`, `reviewer`, `verifier`, `scout`, `auditor`, `incident-reviewer`) are dispatched by the skills and never typed by the user. To dispatch one, call the Agent tool with `subagent_type: dt:<name>`.
+
+Eight skills run only when you type them (`disable-model-invocation: true`): `composio`, `dpp-full`, `fullauto`, `knowledge`, `machine-prep`, `model`, `onboard`, `sdk`. The model may start the others when the conversation calls for them.
+
+Install and update:
+
+```
+/plugin marketplace add Dobeu-tech-eco/dts2-marketplace
+/plugin install dt@dts2
+/plugin marketplace update dts2      # then /reload-plugins
+```
+
+Arguments go after the command name, separated by spaces. Quote a task that contains spaces. Examples:
+
+```
+/dt:run add rate limiting to the public API
+/dt:run section 4
+/dt:run resume
+/dt:run add secret STRIPE_KEY
+/dt:run review-pr 52
+/dt:autopilot 3-5
+/dt:autopilot feature "export orders to CSV"
+/dt:autopilot --son 20261105T0412/lane-b
+/dt:dpp dry-run
+/dt:ship dev
+/dt:feature "nightly report emailer"
+/dt:action-items done S-3
+/dt:learn promote L-012
+```
+
+You never type scripts. Skills call them as `python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/<name>.py" <subcommand> ...`; each prints one JSON object on stdout. `INVENTORY.md` section 4 lists every script and flag.
+
+The harness answers in a fixed shape:
+
+- A run ends with a receipt (`.harness/receipts/<stamp>.md`) and a PR link, or a parked state with the reason.
+- A checkpoint is a question with the plan or the ship summary and the words `approve`, `edit` or `stop`. Under `run` you answer. Under `autopilot` three frontier providers vote and Fable 5.1 breaks a tie.
+- Anything that needs a person is an action item (`/dt:action-items`): a missing secret, a decision, a handoff, a deploy step. The item names the command that resolves it.
+- Progress is always readable without side effects: `/dt:check-in`.
+
+### Talking while it works
+
+A prompt typed while a run is going is not lost. The `UserPromptSubmit` hook appends it to the intake queue (`.harness/intake.jsonl`, shown in `.harness/intake.md`) and classes it:
+
+- **fold**: an addition ("also add a CSV export"). It goes into the ledger and the agent keeps working.
+- **clarify**: words that may conflict with the plan ("stop", "cancel", "instead", "revert", "don't", "change direction"). The agent asks at the next safe point, before it acts. Clarity below 60 of 100 allows at most two short questions; then the item is set on the best reading, with the assumption stated, and work continues.
+- **steer**: `/dt:steer <new direction>` (or a `steer:` prefix). It is the only thing that stops running work: the current atomic step finishes, nothing new is dispatched, a handoff is checkpointed, open intake items are reviewed, the plan is redone for the new direction, and the run resumes after one short confirmation.
+
+Other slash commands are ignored by intake, and a prompt is never blocked. Turn intake off with `intake: false` in `.claude/dts2-harness.local.md`. See the queue with `intake.py list`.
+
+## 2. Which command when
+
+For exact syntax (required arguments, flags, who may run it, what it writes) read `COMMANDS.md`. The table below only says which command to reach for.
+
+| You want to | Use | Notes |
+|---|---|---|
+| Understand the harness, pick a starting point | `onboard` | Explanation only. Changes nothing. |
+| Prepare a new computer once | `machine-prep` | Audits installed agent tooling, prunes to the blueprint keep-set with a settings backup. Once per machine. |
+| Start a repo or workspace on the harness | `setup [path ...] [--scaffold-only]` | End-state interview until the user approves `.harness/end-state.md`, then scaffolds `.harness/`. Several paths means batch scaffold. |
+| Do one task with a human in the loop | `run <task>` | Scout sizes, lead plans (Plan checkpoint), builders build, reviewers and verifier check, ship (Ship checkpoint). The default for day-to-day work. |
+| Continue a parked or interrupted run | `run resume` | Reads the handoff and the run record (`lanes.py run-resume`). |
+| Build one section of the approved end state | `run section <#>` | Section numbers come from `end-state.md` and `check-in`. |
+| Record a secret the run is waiting on | `run add secret NAME` | Never paste the value in chat; the item tells you where it goes. |
+| Review someone else's PR with the harness reviewers | `run review-pr <n>` | Read-only; writes findings, merges nothing. |
+| Plan a feature without building it | `feature <description>` | Clarity score, scoped interview when unclear, end-state updated, plan PR. Follow with `run section` or `autopilot`. |
+| Build several steps with no human checkpoints | `autopilot <steps>` | Steps are section numbers (`3,4,7`, `3-5`), action-item ids, `feature "<text>"` or quoted tasks. One branch and one PR per step, merged on green CI. Three-provider gate; council after three failed rounds. |
+| See where autopilot is, or pick it up again | `autopilot status`, `autopilot resume` | |
+| Run many autopilot lanes at once | `dpp [dry-run] [--full] [resume]` | A head plans lanes from the check-in list, you approve the lanes, one headless son per lane, the head merges in order. `dry-run` plans only. |
+| Same, and let the head fill lanes itself | `dpp-full` | `dpp --full`: adds a delegation scan. Outside autopilot it asks before each new lane while `dpp_full_ask_each_lane` is true (the default). Autopilot and `fullauto` skip that ask. User-typed only. |
+| Wait for sons without polling | `lanes.py wait <stamp> --timeout N` | Head only. Returns on a phase change or a son's exit. |
+| Answer a son, or see what a son asked | `lanes.py mailbox <op> <stamp>` | Ops: ask, need-human, answer, check, wait, park, merge-go-check, rules, request, decide. A wait that runs out parks the lane. |
+| Push a finished lane and open its PR | `lanes.py publish <stamp> --lane <x>` | Head only. Sons commit a branch and never push. Refused when the diff touches a protected path. |
+| Approve one new lane under `dpp-full` | `lanes.py approve-lane <stamp> --lane <x>` | Needed when `dpp_full_ask_each_lane` is true. |
+| Override a lane rule as the owner | `lanes.py override <lane> --reason ...` | Needs a human approval (`dts2_approvals`); refused in a son, a vote or the council. |
+| Check whether the base is green before merging | `lanes.py base-health <stamp>`, `merge-mutex` | `merge-go` and `merge-go-step` refuse on a red base or while another lane holds the mutex. |
+| Cap a post-merge fix | `lanes.py fix-attempt <stamp> --lane <x> --reason ...` | After `post_merge_fix_attempts` it opens one revert PR. |
+| Close PRs a fold replaced | `lanes.py fold-close <stamp>` | After `fold --apply <group> --pr <n>`. |
+| Run the whole backlog unattended | `fullauto` | `dpp-full` with autopilot forced on, looping check-in until `lanes.py stop-check` says nothing is outstanding. User-typed only. Budget caps in `.harness/config.yaml` bound it. |
+| Open a PR for the branch you are on | `ship [base]` | Pre-check, repo checks, secret scan, verifier and reviewer, receipt, push, PR. Never merges. Then sweeps stale branches and PRs. Base defaults to `dev` when it exists. |
+| See progress against the end state | `check-in` | Read-only checklist, `N of M complete`. |
+| See what needs a person | `action-items`, `action-items done <id>`, `add`, `assign` | Secrets, decisions, handoffs, deploy steps, promotions. |
+| Turn findings into lessons | `learn`, `learn promote <L-NNN>` | Prunes stale lessons only after the user approves the drops. |
+| Change the harness itself | `evolve`, `evolve deploy` | Only in the harness source repo. Edit, validate, test, bump, commit; pushes only on an explicit yes. |
+| Pick which provider leads | `model` | Lead, advisory and sign-off seats. Builders always run the cheapest capable model. |
+| Find skills the repo could use | `find-skills` | Rescan, one to three questions, ranked suggestions, keep list on a yes. |
+| Decide whether to keep, fold, sell, archive or delete one repo | `ask-expert [repo]` | Runs before setup. Asks your goal in plain words, reads the code, compares it with your active repos, then an expert panel (three providers; council and research if it stalls) writes a one-page memo. Changes nothing. |
+| Do that for all your repos | `repo-sweep [owner]` | Quick pass per repo, oldest first, then one cleanup screen. Archive is reversible; delete is one repo at a time after a backup bundle and a typed repo name. |
+| Clear open and stale PRs after an autopilot run | `pr-sweep [owner/repo]` | Inventories open PRs, merges green ones, rebases, triages red CI, closes dead ones and reports what is left for you. `--optimise-ci` opens a separate PR that speeds up CI. |
+| Go-to-market pass | `gtm` | Installs `marketing-skills` if missing, ends in `readiness.md`. |
+| Run the pipeline headless (CI, cron, servers) | `sdk` | Sets up and runs `sdk/dts2-run.py` with the Agent SDK. User-typed only. |
+
+Decision shortcuts:
+
+- Not set up yet: `setup`. Everything else refuses or asks for it.
+- One task, you want to watch: `run`. You do not want to watch: `autopilot`.
+- More than one independent step and the lanes do not share files: `dpp`. They do share files: `autopilot` with the steps in order, or let `dpp` route the shared files to its integration lane.
+- Only a PR, no build: `ship`. Only a plan, no PR of code: `feature`.
+- Something is stuck: `check-in` first, then `action-items`, then `run resume` or `autopilot resume`.
+- Never run `dpp`, `setup` or `onboard` inside a son (section 3).
+
+### When a model runs out of usage
+
+Usage limits belong to the account, so the harness keeps one shared list of paused agents (`~/.dts2/agent-status.json`).
+
+- The first agent that hits a limit is recorded automatically. If the message carries no reset date, the harness asks you once and uses a five-hour pause until you answer.
+- A paused agent is skipped by the roster probe and by lead failover, and is never re-probed; it comes back by itself when the time passes.
+- Each new session starts with a one-line note of who is paused and until when.
+- Set or lift a pause by hand with `/dt:cooldown set <agent> <date or duration>`, `clear <agent>` and `list`.
+
+### Per-agent rules
+
+Each roster entry in `.harness/config.yaml` may carry a `rules:` block that limits what that agent is called for:
+
+```yaml
+roster:
+  - name: grok-api
+    auth: api-key
+    rules:
+      allow_tasks: [review, docs, research]
+      max_tier: standard
+      paths_deny: ["**/.env*", "infra/**"]
+      read_only: true
+      max_cost_usd_per_run: 0.5
+      max_cost_usd_per_day: 5
+```
+
+- Task classes are fixed: review, build, test, docs, research, deploy, merge, release, secrets, delete, infra (`templates/policy.json`, `taskClasses`, maps each to the commands it covers). Also `deny_tasks` and `no_secrets`.
+- An API-key agent with no `rules:` is read-only, may do review, docs and research, stays at `standard` or below, and has $0.50 a run and $5 a day. deploy, merge, release, secrets and delete are always denied for it, even if you allow them. A subscription agent has no rules unless you add some.
+- Four places enforce them. Dispatch skips an agent whose rules deny the task or tier and tries the next one (`roster.py resolve --task-class`, `delegate.py --task-class`; nothing eligible is an error naming each reason). Launch passes `DTS2_AGENT=<name>`, `--max-budget-usd` where the CLI has it, no secret env with `no_secrets`, and refuses a read-only agent whose profile has no read-only command. The policy gate denies a tool call whose class or path the rules forbid. The spend ledger (`.harness/spend.jsonl`) sums each run's cost and takes the agent out of dispatch for the day at its daily cap.
+- Edit with `/dt:model` ("Edit agent rules") or `roster.py rules <name> --show | --set key=value | --reset`. A bad block (unknown key, a class in both lists) is reported at session start and by `doctor.py`.
+
+### API agents (claude-api, codex-api, grok-api)
+
+Three built-in profiles run the same CLIs on a pay-as-you-go API key instead of a subscription: `claude-api` (`claude -p --model sonnet --output-format json`), `codex-api` (`codex exec -m gpt-6.1-sol --sandbox read-only --json`) and `grok-api` (`grok -p -m grok-build-0.1`, plan mode). They are for overflow and second opinions, not for steering the run.
+
+- Roles: `claude-api` is a reviewer and an overflow builder (the builder is reachable only when its rules allow `build`, which the defaults do not); `codex-api` is a read-only second-opinion reviewer; `grok-api` is a reviewer and the security-review fallback. None of them is ever the lead or signs off; those stay on the Max agents.
+- Billing is separate: give each its own Anthropic Console workspace, OpenAI project and xAI key with a spend cap. Max agents run with every `*_API_KEY`, `ANTHROPIC_*`, `CODEX_*`, `XAI_*` and `OPENAI_*` variable removed, so a stray key in your shell cannot bill the API account. An API agent's key is set only in that one agent's environment, and each has its own `CLAUDE_CONFIG_DIR` / `CODEX_HOME` under `~/.dts2/agents-home/`.
+- Store the key outside the repo and outside the roster file: put an `apiKeyRef` in a user profile (`~/.dts2/agents/<name>.json`, `{"name": "claude-api", "apiKeyRef": "keyring:dts2/claude-api"}`). Schemes: `keyring:service/user`, `op://vault/item/field`, `doppler:PROJECT/CONFIG/NAME`, `env:NAME`. With no ref the agent reads its own variable (`ANTHROPIC_API_KEY`, `CODEX_API_KEY`, `XAI_API_KEY`) from your shell. A key is never written to a file, receipt or ledger; receipts record only `credential: <keyring|op|doppler|env:NAME>`.
+- No key means no launch: dispatch skips the agent and says why, and `roster.py exec` refuses naming the ref or variable. `doctor.py` shows `set (source)` or `missing` for each.
+- Widen what one may do with `roster.py rules <name> --set allow_tasks=[review,docs,research,build] --set read_only=false`; deploy, merge, release, secrets and delete stay denied.
+- Step-by-step per provider: `docs/API-AGENTS.md`.
+
+### Watching and messaging all your sessions
+
+If you run many sessions at once (for example one per terminal tab):
+
+- See them all: `/dt:fleet list`. Read one without interrupting it: `/dt:fleet show <ref>` and `/dt:fleet logs <ref>`.
+- Tell them all something: `/dt:fleet broadcast --kind handoff --text "..."`. You are shown how many sessions match and asked first. Kinds: `note`, `handoff`, `pause`, `knowledge`, `checkin`. `/dt:fleet status` shows who has picked it up.
+- Ask them all where they stand: `/dt:check-in all` makes one report across the machine, with what needs you at the top.
+- Limit: a session idle at the prompt gets the message only when it is next touched; a crashed one shows `stale`.
+
+### Incidents and learning
+
+The harness watches its own agents without spending model tokens.
+
+- **What fires automatically.** Every subagent start and stop is recorded. A thin brief, an empty or partial report, a missing section, an agent editing a file another agent wrote, or an agent that never stops (20 minutes by default) is logged as an incident, and the lead is told on its next turn. At spawn, up to 3 matching lessons are added to the agent's context. At the end of a session a one-page brief is written.
+- **Where the files live.** `.harness/agents.jsonl` (events and incidents), `.harness/injections.jsonl` (which lessons were injected), `.harness/briefs/<session>.md` (end-of-run brief), `.harness/lessons.md` and `.harness/lessons-inbox.md` (lessons). Turn capture off with `incident_capture: false` in `.claude/dts2-harness.local.md`.
+- **How to run a review.** `/dt:incidents list --open` shows what is open and `/dt:incidents live` shows agents still running. `/dt:incidents review` sends the open incidents to a read-only reviewer once, then records root causes, queues lessons for `learn`, promotes repeat trends one tier up and lists plugin-wide fixes for `evolve`. Nothing edits the plugin without your yes.
+
+### Composio
+
+`/dt:composio` (also offered as a step in `/dt:onboard`) asks once whether you have a Composio account and records the answer in `~/.dts2/composio.json` (no secrets, never in a repo).
+
+- On yes, the plugin (`composio@composio`) is the default connection; MCP or the CLI only if you ask. Credentials stay with the Composio CLI and are never read or copied.
+- The full toolkit catalog and your connected accounts are mapped into `~/.dts2/composio-tools.json`, so agents check the map before searching.
+- `/dt:machine-prep` and `/dt:composio` list plugins, MCP servers and user skills that a connected toolkit already covers and offer to disable them. Nothing is deleted: plugins and MCP entries are switched off with a settings backup, skills move to `skills-archive/`. `/dt:find-skills` also stops recommending MCP servers a connected toolkit covers.
+- Routing once always-use is on: map first, one `COMPOSIO_SEARCH_TOOLS` per workflow, `COMPOSIO_MULTI_EXECUTE_TOOL` for independent calls, the remote workbench for bulk results, and never the plugin and a hosted MCP server together.
+- Memory stays in `/dt:knowledge`; Composio is a tools integration only.
+
+### Personal knowledge across devices
+
+`/dt:knowledge` keeps your own standing preferences ("my standard team is 6 agents"), glossary terms (a brand and the repos in it) and cross-project lessons in a private store that is never part of the plugin.
+
+- First time (once per person): `/dt:knowledge setup` asks where it should live (cloud: a private GitHub repo, the default; a Cloudflare Worker + D1 for bearer-token clients; or a OneDrive/Google Drive/Dropbox folder. Or this machine only) and an owner label. Each new computer: `/dt:knowledge join`. Sign-in comes from `gh`/git or the drive app; no API keys are asked for or stored. The Cloudflare choice is the one exception to "no token": you deploy `templates/knowledge-cloudflare/` with wrangler, set its `KNOWLEDGE_TOKEN` secret, and export the same value as `DTS2_KNOWLEDGE_TOKEN` on each device. The token lives only in your environment, never in the store or the profile. A client that sends that bearer token can read and write the store. claude.ai web and phone cannot connect until the template supports OAuth, which it does not yet (see its README). A local `rm` is not pushed: the next sync copies a remote entry back if the remote still has it.
+- Use plain phrases: "remember my standard is 6 agents" (set), "what is acme" (get), "anything about releases" (find), "sync my knowledge" (sync).
+- `/dt:setup` reads it, shows what matches the repo, and asks before applying a preference such as the agent count.
+- Nothing else reads it: no hook, no other skill.
+- Do not store secrets; the script refuses tokens, passwords and keys.
+- It is separate from cooldowns: those are live per-account state and do not go through git.
+
+## 3. The head, son and council flow
+
+Three roles run parallel work. The skills use these words the same way every time.
+
+**Head.** The Claude session that runs `dpp` (or a single `autopilot`). It is the only process that plans lanes, grants merges and talks to the user. Its sequence in `dpp`:
+
+1. `lanes.py plan --from-checkin --draft` turns outstanding check-in items into a lane manifest (`lanes.json`): one lane per disjoint file set, each with a spend estimate, `provides`/`consumes` contracts and a merge order; `lanes.py check` validates overlap and the plan graph; lockfiles, migrations, route tables and barrel files go to a final integration lane.
+2. Approval: the user under `dpp`, the three-provider vote under `autopilot`.
+3. `lanes.py preflight` pins the `claude` version and tests a real son launch; `lanes.py lease --lane <x> --epoch <n>` takes a lease per lane; `lanes.py spawn --lane <x> --worktree <dir>` starts the son with every cap (`--max-turns`, `--max-budget-usd`, fallback models, sandbox, tool allowlist, allowlisted environment).
+4. Supervise: `lanes.py status <stamp>` (stall marks past `builder_timeout_min`), `lanes.py sendback` (at most two per lane), `lanes.py transition` (the one writer of a lane's phase), and head-answered questions. `questions/<n>.json` is the mailbox record that `check` and `answer` read. `questions/<n>.md` is the readable view of that same message. A son's question never reaches the user.
+5. Merge in order: `lanes.py merge-order`, then per lane `lanes.py merge-go --lane <x> --head <sha>` (refused when the branch touched files outside its owned set; `lanes.py audit` explains why), `gh pr merge` through the merge guard (per-PR approval, or the standing `merge_policy: auto-when-green` grant with a direct `--match-head-commit <sha>` merge once the required checks are green; see COMMANDS.md), `lanes.py merge-done`. Target is `merge.target` (default `dev`); the default branch needs `merge-target --yes-default-branch`.
+6. Fold: `lanes.py fold` groups blocked lanes into the fewest PRs; lessons and action items fold back; `dpp-report.md` (`lanes.py report-check`) and `task-ledger.py` close the run; `lanes.py shutdown` ends it gracefully.
+
+**Son.** One headless `autopilot --son <stamp>/<lane>` per lane, launched by the head in the lane's worktree on branch `dts2/<stamp>/lane-<x>`. It reads `.harness/runs/<stamp>/<lane>/brief.md` first (about 4 KB: lane id, lease epoch, branch, file set, task list, `MAX_BUNDLE`). A son:
+
+- builds in its own file set only, with builder branches `dts2/<stamp>/lane-<x>-b<n>`;
+- heartbeats every turn (`lanes.py heartbeat <stamp> --lane <x>`) and records each builder step (`lanes.py builder`);
+- may report only `pr-open`, `done`, `blocked` or `incomplete`, and stops at `pr-open`: the head publishes (push, PR) with `lanes.py publish` and merges;
+- never merges, never runs `merge-go`, `reconcile`, `dpp`, `setup`, `onboard`, never starts another son, never writes `lessons.md` (lessons go in its `report.md`);
+- asks the head, not the user, through the mailbox (`questions/<n>.json`); user prompts become need-human;
+- runs without `GH_TOKEN`, `GITHUB_TOKEN`, `SSH_AUTH_SOCK` or cloud credentials and, since an API key always beats the Max login in `claude -p`, no `*_API_KEY`, `ANTHROPIC_*`, `CODEX_*`, `XAI_*`, `OPENAI_*`, `AWS_*` or `CLAUDE_CODE_USE_*` variable (a stray key never bills the API account; `CLAUDE_CODE_OAUTH_TOKEN` is kept for Claude), unless `DTS2_SON_ENV_PASS` names them (the owner's deliberate way to hand a son a key; an `auth: api-key` agent receives only its own key, codex's is `CODEX_API_KEY`), under `guard.py --mode son` as the deny hook.
+
+**Council.** Sits only when three full rounds of the autopilot gate fail (`council.py eligible`). Five frontier seats across as many providers as are usable (`council.py seats`); each reads the full dossier of the step and votes; ballots are fenced (`council.py wrap`), blind (`council.py blind` strips authorship and shuffles options), and a seat that times out is swapped (`seat_swap.py`). Every dissenting seat writes a brief. Fable 5.1 heads the council and decides: more fixes (at most two rounds), strike items (each becomes a Decisions action item) or approve, and its record must answer every dissent. The council is written to `.harness/council.md` and summarised in the PR, the receipt and `check-in`. One council per step; it never overrides a hard stop or branch protection.
+
+**Gate before any vote.** `checks.py` runs tests, typecheck, lint, a secret scan and a scope check and writes each to `.harness/runs/<stamp>/ledger.jsonl`; `checks.py gate` and `council.py route` act on that ledger. A red check is never voted on.
+
+## 4. Rules every agent follows
+
+- `.harness/discipline.md` (Rule 8): follow the harness, do not improvise around it. The lead reads it first.
+- `lanes.py` is the only writer of lane state; never edit `.harness/runs/<stamp>/` by hand.
+- `merge-go.md` naming the head and base commits is the only thing that lets `gh pr merge` or a push to a protected branch through the merge guard (`hooks/merge-guard.sh`). Force-push is always refused. The policy gate additionally needs a human approval: the PR number under `dts2_approvals.merge`, or the one-time standing grant `"merge_policy": ["auto-when-green"]` plus a ruleset or branch protection requiring the test and lint checks, which lets the agent run `gh pr merge <n> --squash --match-head-commit <sha>` once it has confirmed those checks are green (native auto-merge is never armed). Denials land in `.harness/merge-guard.log`.
+- Branch names: `dts2/<stamp>/main`, `main-b<n>`, `lane-<x>`, `lane-<x>-b<n>`, `step-<step>`. Never nested; git 2.38 or newer.
+- Builders run the cheapest capable model at a complexity-scaled effort (`delegate.py` owns the policy; mechanical sections dispatch `haiku, low`). Frontier models sit only in advisory, review, sign-off and council seats.
+- One PR bundles at most 5 tasks. A reviewer never edits; a verifier never fixes; a builder never reviews its own work; `fixer` takes fix round 2 with an escalation seat.
+- Every model call outside the Agent tool goes through `model_call.py` (machine-wide call cap, 429 backoff, strict JSON).
+- Companion skills pinned in `.harness/keep.yaml` with `pin: <sha>` are never updated without `--fix --apply-update NAME=SHA` after an explicit yes.
+- Secrets never go in chat, logs or action items: logs and items are redacted, missing env vars are recorded by name only.
+
+## 5. Release history
+
+How to read the changelogs: `../CHANGELOG.md` holds every released version (open the `## [3.11.0]` or `## [3.10.0]` section), the `## Unreleased` section of `../README.md` holds work not yet released, and `../changelog.d/` holds one fragment per batch that the release step joins into those files. `COMMANDS.md` section 8 says how to read a section.
+
+### 3.11.0
+
+Full notes: `../CHANGELOG.md` section `[3.11.0]`; per-command detail: `INVENTORY.md` section 9.
+
+- Head policy gate: `hooks/policy-gate.sh` and `templates/policy.json` deny force-push, `--admin`, deploy CLIs, `gh secret`, `vercel env` and a bare `env` for the head and every son; merges need a human approval (per PR, or the standing `merge_policy: auto-when-green` grant for direct merges pinned to a head sha once the required checks are green).
+- Son containment: the head pushes, opens and merges son PRs (`lanes.py publish`, `head_publish.py`); protected paths; human-only approvals in `.claude/settings.local.json` (`dts2_approvals`); allowlisted provider environment; council ballots carry a `.dispatch.json` record.
+- Son lifecycle and mailbox: own process group, `son.json` and `exit.json`, stuck-loop detection, `lanes.py wait`, `gc`, `reconcile`, versioned `status.json` with epochs, the head/son mailbox with deadlines.
+- Scope policy: `override`, `dpp_full_ask_each_lane`, `fullauto_freeze_scope`, lease holds a check-in item, `max_fullauto_loops: 3` stays a resumable park.
+- Merge safety: base health and merge mutex gate `merge-go` and `merge-go-step`; `fix-attempt` and the revert PR; `fold-close`; integration routing records.
+- Agent gates: retryable council dispatch failures, least-privilege agent tools, `subagent-stop.sh`, `stop-failure.sh`, `permission-denied.sh`.
+- Hooks: every hook runs `python3 -I`; one shared Stop deadline; `stop_checks_block`, `context_guard_stop`, `pr_receipt_template_push`.
+- Evals and skills: A/B mode in `evals/run.py` with `eval_stats.py`, pinned `skills` CLI, version-skew check (`harness_skew.py`).
+- Reports and receipts: run-wide report sections, doctor rows for bwrap, socat, auth and platform, `receipts_sign.py`, `plugin_options.py`, `OTEL_` env allowlist.
+
+### 3.10.0
+
+Full notes: `../CHANGELOG.md` section `[3.10.0]`; per-command detail: `INVENTORY.md` section 7.
+
+New commands and surfaces:
+
+- Lane lifecycle in `lanes.py`: `transition`, `heartbeat`, `budget`, `merge-order`, `merge-go`, `merge-done`, `shutdown`, `reconcile`, `merge-resume`, `fold-done`, `walkthrough-failed`, `run-record`, `builder`, `run-resume`, `amend`, `merge-plan`, `merge-go-step`, `loop`, `preflight`, `spawn`, `call`, `merge-target`, `gc-restore`, `audit`, `report` (35 subcommands in all). `dpp`, `autopilot` and `fullauto` call them instead of describing the steps.
+- Merge journal (`merge-journal.jsonl`), typed `run.json`, `builders.jsonl`; leases with TTL, heartbeat renewal and epochs.
+- Son containment: sandbox, tool allowlist and deny list, allowlisted environment, pinned CLI version, hard caps on turns, spend and model calls, `--fallback-model` chain, per-lane `PORT`, `COMPOSE_PROJECT_NAME`, `DTS2_DB_NAME`.
+- Merge guard hook and `guard.py`; `merge.target` default `dev`.
+- Project profiles (`.harness/agents`) may set display and model metadata only: executable fields (`command`, `statusCommand`, `env` and the like) are dropped with a warning unless the project's absolute path is listed in `~/.dts2/trusted-projects` (one per line).
+- Council hardening: seat swap, identical-round note, blind ballots, fenced ballots, strict verdict line, model ids per provider in `profiles/agents/<provider>.json`.
+- Checks gate (`checks.py`) before any vote; verifier split into evidence scout plus frontier verifier.
+- Plan gate (`plan-gate.py`, PLAN GATE PASS or FAIL), builder audit, mandatory `## Foundation` section at wave 0, `fixer` agent, fixed `FLAGS:` block, `rollback_ref.py`.
+- State port (`state_io.py`, `state_ids.py`), `proc.py` runners, `mdparse.py`, `contracts.py`, `profiles.py`.
+- Lessons with path globs, 90-day pruning, regression tracking; PreCompact handoff refresh; SubagentStop report contracts; one-page lead brief and ~4 KB son brief.
+- Production readiness: `prod-scaffold.py` (CI, `RUNBOOK.md`, `ops/`), `app-type-detect.py`, Production readiness table in `end-state.md`, Dependabot or Renovate offer in `setup`.
+- Tooling: `run_report.py`, `run_metrics.py`, `walkthrough_fallback.py`, `bump-version.py`, `make test`, `make doctor`, `make check-version`, `evals/run.py`, Hypothesis property tests, CI on Python 3.10 to 3.13.
+- Docs: `docs/INVENTORY.md` with a completeness test, `ARCHITECTURE.md`, this guide.
+
+Behavior that changed:
+
+- `run`, `autopilot` and `setup` are short routers plus phase files read on demand.
+- Branch names no longer nest (section 4).
+- `lanes.py lease` and `plan` fail closed without `gh` (`--no-prs` opts out).
+- Skill and agent descriptions are cut to about 250 characters; `context-tax.py` fails above 6000 tokens; six skills are user-typed only.
+- `npx skills update` never runs; skill updates are proposals in `.harness/skill-updates.json`.
+- Sons have no GitHub token, SSH agent or cloud credentials by default.
+- Exit 143 from a seat is a `timeout` the council can swap.
+
+Release history before 3.10: 3.9 parallel autopilot (`dpp`, `dpp-full`, `fullauto`); 3.8 autopilot council; 3.7 pre-check, `ship`, `feature`, `autopilot`; 3.6 strict delegation, `model`, `find-skills`, `check-in`; 3.5 `muse` on the roster; 3.0 end-state interview, checkpoints, roster, `action-items`, `learn`, `gtm`, `machine-prep`, `evolve`.
+
+## 6. Where state lives
+
+| Path | Holds | Written by |
+|---|---|---|
+| `.harness/end-state.md` | The approved end state, sections numbered, Production readiness table | `setup`, `feature` |
+| `.harness/config.yaml` | `budget:`, `council:`, `merge.target`, `lanes.shared_files`, timeouts | `setup`, the user |
+| `.harness/keep.yaml` | Companion skills, optional `pin:` | `setup`, `find-skills` |
+| `.harness/lessons.md` | Lessons every run reads | `learn` (sons report instead) |
+| `.harness/state.md`, `.harness/handoff/latest.md` | Current state and the resume pointer | `run`, hooks (PreCompact, SessionEnd) |
+| `.harness/action-items.md` | Secrets, Decisions, Handoff, Deploy, Promotions | `action-items.py` |
+| `.harness/receipts/<stamp>.md` | Ship receipts | `run`, `ship`, `autopilot` |
+| `.harness/ask-expert/<repo>/` | Goal answers, `goal.json`, comparison, panel record, research, `report.md`; `sweep-<stamp>.jsonl` and `todo.md` beside them | `ask-expert`, `repo-sweep`, `ask_expert.py` |
+| `~/.dts2/repo-backups/` | `git bundle` backups written before any repo delete (outside the repo) | `ask_expert.py backup` |
+| `.harness/pr-sweep/<stamp>/` | `inventory.json`, `inventory.md`, `buckets.md`, `flaky.md`, `ledger.jsonl`, `report.md` | `pr-sweep`, `pr_sweep.py` |
+| `.harness/council.md` | Every council vote, dissent and decision | `council.py ledger` |
+| `.harness/runs/<stamp>/` | `lanes.json`, `run.json`, `builders.jsonl`, `ledger.jsonl`, `merge-journal.jsonl`, `merge-go.md`, per-lane `brief.md`, `report.md`, `questions/` | `lanes.py`, `checks.py` only |
+| `.harness/merge-guard.log` | Refused merges and pushes | `guard.py` |
+| `.harness/cache` | Shared build cache across lanes | sons |
+
+`.harness/runs/`, receipts and review receipts are never committed; `ensure-ignored.py` keeps them out of git.
+
+## 7. Unattended mode
+
+Unattended mode lets a lane run for hours without permission prompts while every dangerous action stays blocked.
+
+- **Turn it on.** `/dt:setup` offers it (step 9b). Or run `python3 -I scripts/unattended.py diff` to see the change and `apply` to merge it into `.claude/settings.json`. Then set `autonomy: unattended` in both `.claude/dts2-harness.local.md` (the permission hook and `unattended.py`) and `.harness/config.yaml` (this lifts the `max_fullauto_loops` cap of 3). Setting it in only one of those files leaves the other half attended.
+- **What it adds.** `permissions.defaultMode: dontAsk`; an allowlist for normal work (file tools, git read and commit, push, `gh pr view/create/checks`, `gh pr merge`, the plugin scripts, tests, ruff, shellcheck); `permissions.deny` rules that mirror every deny rule in `templates/policy.json` plus the human approvals file; `disableBypassPermissionsMode: disable`; and the sandbox.
+- **Append-only.** `apply` adds list entries and missing keys. A value you already set is kept and reported. The old file is saved as `settings.json.bak-<stamp>`.
+- **When something is blocked.** The PermissionDenied hook still adds a Handoff action item. In unattended mode a lane also gets a `need-human` item in its mailbox and parks (`incomplete`, reason `permission-denied`), so the run goes on and a person answers later. A push to the default branch and `gh pr merge` still need the person's approval.
+- **Off by default.** Without `autonomy: unattended` (or `DTS2_UNATTENDED=1`) the hook behaves as before.

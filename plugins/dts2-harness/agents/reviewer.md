@@ -2,12 +2,12 @@
 name: reviewer
 description: Read-only reviewer. Reviews a diff on one or all axes (including design critique and walkthrough findings) and returns severity-rated findings with a verdict. Never edits files.
 model: sonnet
-experimental:
-  cacheTtl: 1h
 tools: Read, Grep, Glob
 maxTurns: 30
 color: orange
 ---
+
+> Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
 
 # Reviewer — findings only
 

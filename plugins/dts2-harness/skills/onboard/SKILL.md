@@ -4,6 +4,8 @@ description: Explain the dts2 harness (eight agents, twenty-seven skills, roster
 disable-model-invocation: true
 ---
 
+> Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
+
 # dts2 harness — orientation
 
 This skill explains only, except the skill-parity step and the optional hooks step. Skill parity updates agent backends without asking. Hooks change files only after the user picks them. Do not invoke agents.

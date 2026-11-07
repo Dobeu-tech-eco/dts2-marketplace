@@ -1,0 +1,81 @@
+{
+  "name": "codex-api",
+  "displayName": "OpenAI Codex (API key)",
+  "form": "cli",
+  "rulesFile": "AGENTS.md",
+  "invocation": "live",
+  "command": [
+    "codex",
+    "exec"
+  ],
+  "headlessFlag": null,
+  "roles": [
+    "second-opinion",
+    "reviewer"
+  ],
+  "specialty": "Pay-as-you-go Codex on its own OpenAI project key: independent read-only second opinions.",
+  "verified": false,
+  "costTier": 2,
+  "statusCommand": [
+    "codex",
+    "--version"
+  ],
+  "loginCommand": null,
+  "models": {
+    "frontier": null,
+    "standard": "gpt-6.1-sol",
+    "economy": "gpt-6-luna"
+  },
+  "modelsVerified": false,
+  "defaultModel": "gpt-6.1-sol",
+  "subscriptionName": null,
+  "auth": "api-key",
+  "apiKeyEnv": "CODEX_API_KEY",
+  "keyRequired": true,
+  "leadEligible": false,
+  "homeEnv": "CODEX_HOME",
+  "homeFiles": {
+    "config.toml": "forced_login_method = \"api\"\n"
+  },
+  "searchPaths": [],
+  "roleCommands": {
+    "second-opinion": [
+      "codex",
+      "exec",
+      "-m",
+      "{model}",
+      "--sandbox",
+      "read-only",
+      "--json",
+      "--",
+      "{prompt}"
+    ],
+    "reviewer": [
+      "codex",
+      "exec",
+      "-m",
+      "{model}",
+      "--sandbox",
+      "read-only",
+      "--json",
+      "--",
+      "{prompt}"
+    ]
+  },
+  "readOnlyRoles": ["second-opinion", "reviewer"],
+  "stdin": "/dev/null",
+  "notes": [
+    "Runs `codex exec -m gpt-6.1-sol --sandbox read-only --json`; the sandbox is read-only for every role, so this agent never writes.",
+    "CODEX_API_KEY (what codex exec reads; not OPENAI_API_KEY) is set only in this child's environment. CODEX_HOME is the agent's own folder (agents-home/codex-api) holding a config.toml with forced_login_method = \"api\", written on first launch when missing, so it cannot fall back to a ChatGPT login.",
+    "Run codex exec with stdin from /dev/null; otherwise it waits on \"Reading additional input from stdin\".",
+    "codex has no per-run budget flag, so the $0.50 per-run rule is advisory here; the daily cap still applies through the spend ledger when a cost is known. Set a spend cap on the OpenAI project."
+  ],
+  "effortLevels": [
+    "medium"
+  ],
+  "tokenBurn": {
+    "frontier": 7,
+    "standard": 3,
+    "economy": 1
+  }
+}

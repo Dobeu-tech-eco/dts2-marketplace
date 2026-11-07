@@ -1,0 +1,107 @@
+# End state: <project>
+
+- rounds: 0
+- clarity: 0
+- threshold: 80
+- thresholdSource: default
+- roster: claude
+- status: pending approval
+- continuedAnyway: no
+
+## Deploy
+
+```
+deploy:
+  provider: unset
+  productionUrl: null
+  checkCommand: null
+```
+
+Provider is `vercel`, `cloudflare`, `netlify`, `fly`, `render`, `firebase`, `github-workflow` or `none`. `unset` means not asked yet; `none` means the user chose to skip verification. When setup plans a deploy that does not exist yet, add `plan: <text>` and `status: planned`; `run` sets `status: live` after the first passing deploy.
+
+## Related repos
+
+| url | role | tag | note |
+|---|---|---|---|
+| <url> | <what it is and what it serves> | context | <why it matters> |
+
+Tag is `context` or `linked`.
+
+## Other harnesses
+
+| folder | decision |
+|---|---|
+| <folder> | coexist |
+
+Decision is `import`, `coexist` or `retire`.
+
+## Skills
+
+Skill plan. The lead hands each builder the skills for its component in this order; reviewers get the review-phase skills.
+
+| skill | source | installed | serves component | phase | order |
+|---|---|---|---|---|---|
+| <skill> | <source> | no | <component> | build | 1 |
+
+Phase is `plan`, `build`, `review` or `verify`. Installed is `yes` or `no`.
+
+## Topology
+
+<components and how they connect>
+
+## Blueprint
+
+| layer | choice | status |
+|---|---|---|
+| data model | <choice> | n/a |
+| api surface | <choice> | |
+| screens/routes | <choice> | |
+| auth | <choice> | |
+| infra/deploy | <choice> | |
+| observability | <choice> | |
+| background jobs | <choice> | |
+
+Status is blank, `built`, or `n/a`. The plan checkpoint requires every layer to map to a builder or `unchanged`.
+
+## Sections
+End-to-end map of the project, in build order. Every run plans from this table; a section is the unit of dispatch.
+| # | section | serves component | files / area | depends on | complexity | status |
+|---|---|---|---|---|---|---|
+| 1 | <e.g. data model + migrations> | <component> | <paths or area> | - | mechanical|normal|design | todo |
+Status values: todo | in-progress | blocked | done. `blocked` rows carry the action-item id in the section cell, e.g. `payments webhook (S2)`.
+
+## Production readiness
+
+appType: unset
+
+Setup runs `scripts/app-type-detect.py <repo> --table` and pastes its rows here. Type is `web-app`, `api`, `cli`, `library` or `static-site`. A row that does not apply to the type is `n/a`. Kind `gate` rows must be `done` or `n/a` before the project reports done; kind `report` rows are shown in the report with whatever value exists and never block. Status is `todo`, `done`, `n/a` or, for report rows, the measured value.
+
+| row | kind | evidence | status |
+|---|---|---|---|
+| ci | gate | .github/workflows/ci.yml | todo |
+
+## Goal
+
+<one paragraph>
+
+## Constraints
+
+- <constraint>
+
+## Non-goals
+
+- <non-goal>
+
+## Acceptance criteria
+
+### <component>
+
+- [ ] <criterion>
+
+## Assumptions
+
+- <assumption>
+
+## Open questions
+
+- <question>

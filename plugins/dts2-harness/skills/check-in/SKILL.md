@@ -3,6 +3,8 @@ name: check-in
 description: Show project progress against the approved end state as a checklist with N of M complete and a percent, from the Sections map, acceptance boxes and open action items. Read-only. Use when asked for a check-in, progress, status, or what is left, or across every session on the machine (`all`).
 ---
 
+> Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
+
 # Check-in — complete versus outstanding, against the end state
 
 Read-only and runnable any time, mid-run or between runs. It changes no files.
