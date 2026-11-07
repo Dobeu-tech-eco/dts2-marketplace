@@ -4,6 +4,7 @@
 status   : CLI, login, plugin and MCP-server state plus the saved decision and tool map (read-only)
 decide   : record the user's one-time answer (account yes/no, always use, connection kind)
 map      : cache the toolkit list and the connected toolkits, from the CLI or from a JSON file
+           (connected accounts fall back to `composio connections list` when the dev project is not set up)
 overlap  : list enabled plugins, MCP servers and user skills that duplicate a connected toolkit
 disable  : turn such items off, always with a backup; skills are archived, never deleted
 
@@ -41,6 +42,7 @@ ISO_FORMAT: Final[str] = "%Y-%m-%dT%H:%M:%SZ"
 STAMP_FORMAT: Final[str] = "%Y%m%dT%H%M%SZ"
 SCHEMA_VERSION: Final[int] = 1
 DEFAULT_TIMEOUT: Final[int] = 60
+WSL_TIMEOUT: Final[int] = 10
 EXIT_OK: Final[int] = 0
 EXIT_FAILED: Final[int] = 1
 EXIT_BAD_INPUT: Final[int] = 2
@@ -56,6 +58,17 @@ SLUG_KEYS: Final[tuple[str, ...]] = ("slug", "key", "toolkit", "name")
 CONNECTED_KEYS: Final[tuple[str, ...]] = ("toolkit", "toolkit_slug", "appName", "app")
 NAME_KEYS: Final[tuple[str, ...]] = ("name", "display_name", "displayName", "slug")
 TOOL_COUNT_KEYS: Final[tuple[str, ...]] = ("tools", "tools_count", "toolsCount", "tool_count")
+STATUS_KEY: Final[str] = "status"
+ACTIVE_STATUS: Final[str] = "active"
+WSL_NAME: Final[str] = "wsl"
+WSL_LOOKUP: Final[tuple[str, ...]] = ("-e", "sh", "-lc", f"command -v {BIN_NAME}")
+WSL_LABEL: Final[str] = "wsl:"
+TOOLKITS_WORDS: Final[tuple[str, ...]] = ("dev", "toolkits", "list")
+DEV_CONNECTED_WORDS: Final[tuple[str, ...]] = ("dev", "connected-accounts", "list")
+CONNECTIONS_WORDS: Final[tuple[str, ...]] = ("connections", "list")
+SOURCE_DEV: Final[str] = "dev-connected-accounts"
+SOURCE_CONNECTIONS: Final[str] = "connections"
+SOURCE_IMPORT: Final[str] = "import"
 HEADER_TOKENS: Final[frozenset[str]] = frozenset({"slug", "name", "toolkit"})
 RULE_STARTS: Final[tuple[str, ...]] = ("─", "-", "=", "|")
 HARNESS_PLUGINS: Final[tuple[str, ...]] = ("dt@*", "dts2@*", "dts2-harness@*")  # the current id, then the 4.x and pre-4.0 ids
@@ -123,11 +136,39 @@ def matches(pattern: str, name: str) -> bool:
     return fnmatch.fnmatchcase(norm(name), norm(pattern))
 
 
-def find_binary() -> str | None:
+def is_windows() -> bool:
+    return os.name == "nt" or sys.platform == "win32"
+
+
+def wsl_binary() -> list[str] | None:
+    """Command prefix for a CLI installed inside WSL, or None when WSL or the CLI is absent."""
+    if shutil.which(WSL_NAME) is None:
+        return None
+    try:
+        result = subprocess.run([WSL_NAME, *WSL_LOOKUP], capture_output=True, text=True,
+                                timeout=WSL_TIMEOUT, check=False)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    lines: list[str] = result.stdout.strip().splitlines() if result.returncode == 0 else []
+    return [WSL_NAME, "-e", lines[0].strip()] if lines else None
+
+
+def find_binary() -> list[str] | None:
+    """Command prefix that runs the CLI: the override, else PATH, else (Windows only) the copy inside WSL."""
     explicit: str | None = os.environ.get(ENV_BIN)
     if explicit:
-        return explicit if os.path.isfile(explicit) and os.access(explicit, os.X_OK) else None
-    return shutil.which(BIN_NAME)
+        return [explicit] if os.path.isfile(explicit) and os.access(explicit, os.X_OK) else None
+    found: str | None = shutil.which(BIN_NAME)
+    if found:
+        return [found]
+    return wsl_binary() if is_windows() else None
+
+
+def binary_label(binary: list[str] | None) -> str | None:
+    """Readable form of a command prefix, e.g. /usr/bin/composio or wsl:/home/x/.local/bin/composio."""
+    if not binary:
+        return None
+    return f"{WSL_LABEL}{binary[-1]}" if len(binary) > 1 and binary[0] == WSL_NAME else binary[0]
 
 
 def credential_dir(home: Path) -> Path:
@@ -199,7 +240,7 @@ def tool_map_summary() -> dict[str, Any]:
 
 def cmd_status(args: argparse.Namespace) -> int:
     home, cwd = args.home, args.cwd
-    binary: str | None = find_binary()
+    binary: str | None = binary_label(find_binary())
     plugin_on: bool = any(pid.startswith(PLUGIN_PREFIX) for pid, _s, _p in enabled_plugins(home, cwd))
     servers: list[str] = sorted({n for n, _s, _p in mcp_servers(home, cwd) if SERVER_WORD in n.lower()})
     decision: Any = read_json(decision_path())
@@ -281,6 +322,16 @@ def tool_count(item: dict[str, Any]) -> int | None:
     return None
 
 
+def is_active(row: dict[str, Any]) -> bool:
+    """True for rows whose status is "active" (any case) and for rows that carry no status at all."""
+    status: Any = row.get(STATUS_KEY)
+    return status is None or str(status).strip().lower() == ACTIVE_STATUS
+
+
+def active_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [row for row in rows if is_active(row)]
+
+
 def build_toolkits(rows: list[dict[str, Any]], connected: set[str]) -> list[dict[str, Any]]:
     seen: set[str] = set()
     out: list[dict[str, Any]] = []
@@ -294,8 +345,8 @@ def build_toolkits(rows: list[dict[str, Any]], connected: set[str]) -> list[dict
     return out
 
 
-def run_listing(binary: str, words: list[str], timeout: int) -> str:
-    result = subprocess.run([binary, *words], capture_output=True, text=True, timeout=timeout, check=False)
+def run_listing(binary: list[str], words: tuple[str, ...], timeout: int) -> str:
+    result = subprocess.run([*binary, *words], capture_output=True, text=True, timeout=timeout, check=False)
     if result.returncode != 0:
         raise RuntimeError(f"`composio {' '.join(words)}` exited {result.returncode}")
     return result.stdout
@@ -309,27 +360,41 @@ def import_listings(path: Path) -> tuple[list[dict[str, Any]], list[dict[str, An
         parse_listing(json.dumps(data.get("connected", [])), CONNECTED_KEYS + SLUG_KEYS)
 
 
+def fetch_connected(binary: list[str], timeout: int) -> tuple[list[dict[str, Any]], str]:
+    """Connected rows and the command that produced them: the dev project first, else the global connections."""
+    keys: tuple[str, ...] = CONNECTED_KEYS + SLUG_KEYS
+    try:
+        return parse_listing(run_listing(binary, DEV_CONNECTED_WORDS, timeout), keys), SOURCE_DEV
+    except (RuntimeError, subprocess.TimeoutExpired) as dev_err:
+        try:
+            rows: list[dict[str, Any]] = parse_listing(run_listing(binary, CONNECTIONS_WORDS, timeout), keys)
+        except (RuntimeError, subprocess.TimeoutExpired) as fallback_err:
+            raise RuntimeError(f"{dev_err}; {fallback_err}") from fallback_err
+        return active_rows(rows), SOURCE_CONNECTIONS
+
+
 def cmd_map(args: argparse.Namespace) -> int:
     source: str = "import"
+    connected_source: str = SOURCE_IMPORT
     try:
         if args.from_json:
             toolkit_rows, connected_rows = import_listings(Path(args.from_json))
         else:
-            binary: str | None = find_binary()
+            binary: list[str] | None = find_binary()
             if binary is None:
                 return fail("composio CLI not found", INSTALL_HINT)
             source = "cli"
-            toolkit_rows = parse_listing(run_listing(binary, ["dev", "toolkits", "list"], args.timeout), SLUG_KEYS)
-            connected_rows = parse_listing(
-                run_listing(binary, ["dev", "connected-accounts", "list"], args.timeout), CONNECTED_KEYS + SLUG_KEYS)
+            toolkit_rows = parse_listing(run_listing(binary, TOOLKITS_WORDS, args.timeout), SLUG_KEYS)
+            connected_rows, connected_source = fetch_connected(binary, args.timeout)
     except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as err:
         return fail(f"map failed: {err}", "check the CLI login (`composio login`) or the JSON file", EXIT_FAILED)
     connected: list[str] = sorted({str(r["slug"]).lower() for r in connected_rows})
     toolkits: list[dict[str, Any]] = build_toolkits(toolkit_rows, set(connected))
     document: dict[str, Any] = {"version": SCHEMA_VERSION, "generated_at": now_iso(), "source": source,
-                                "toolkits": toolkits, "connected": connected}
+                                "connected_source": connected_source, "toolkits": toolkits, "connected": connected}
     write_json(map_path(), document)
-    return emit({"path": str(map_path()), "toolkits": len(toolkits), "connected": connected, "source": source})
+    return emit({"path": str(map_path()), "toolkits": len(toolkits), "connected": connected, "source": source,
+                 "connected_source": connected_source})
 
 
 # ---- overlap / disable -------------------------------------------------------------------------------------------
