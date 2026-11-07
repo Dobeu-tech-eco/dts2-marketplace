@@ -1,11 +1,15 @@
 # dt: a Claude Code harness for planned, reviewed pull requests
 
+[![Dobeu Tech Solutions LLC](brand/dobeu-horizontal.png)](https://dobeu.net)
+
+A **Dobeu Tech Solutions LLC** product. New York, NY · [dobeu.net](https://dobeu.net)
+
 ![License: Dobeu Source-Available 1.0](https://img.shields.io/badge/license-Dobeu%20Source--Available%201.0-5A4FAB)
 ![Version 5.1.1](https://img.shields.io/badge/version-5.1.1-6B5CE7)
 
-`dt` turns one task into a planned, built, reviewed and verified pull request, with you approving at the points that matter.
+`dt` turns one task into a planned, built, reviewed and verified pull request, with you approving at the points that matter. Commands stay `/dt:<command>`. The listing title is “dt by Dobeu: one task to a reviewed pull request.”
 
-This repository is a Claude Code plugin marketplace from [Dobeu Tech Solutions LLC](https://dobeu.net). It carries one plugin, `dt`. It is for developers and small teams who already use Claude Code and want a repeatable way to run larger changes.
+This repository is the Claude Code plugin marketplace for that product. It carries one plugin, `dt`. It is for developers and small teams who already use Claude Code and want a repeatable way to run larger changes.
 
 You approve an end state once. Separate roles plan, build, review and verify the work, and every run ends with a receipt and a pull request. Single-file fixes do not need it.
 
@@ -95,6 +99,8 @@ The first release of the end-state interview, Plan and Ship checkpoints, roster 
 | [Plugin changelog](plugins/dts2-harness/CHANGELOG.md) | Full release history |
 | [Marketplace changelog](CHANGELOG.md) | Marketplace-level changes |
 | [LICENSE](LICENSE) | Dobeu Source-Available License 1.0 |
+| [Privacy](PRIVACY.md) | Company privacy policy, and what this product does with data |
+| [Legal](LEGAL.md) | Terms, cookies, and opt-out pages on dobeu.net |
 
 Day to day: run `/dt:setup` once per repo to agree an end state. Then `/dt:run <task>` takes one task from plan to pull request with checkpoints, and `/dt:check-in` shows progress. Use `/dt:ship` when the work is already on a branch and you want a checked pull request.
 
@@ -141,7 +147,7 @@ dt builds on patterns from these projects. We learned from them and wrote our ow
 
 ## License and support
 
-Dobeu Source-Available License 1.0. Copyright Dobeu Tech Solutions LLC. See [LICENSE](LICENSE).
+A Dobeu Tech Solutions LLC product. Dobeu Source-Available License 1.0. Copyright Dobeu Tech Solutions LLC. See [LICENSE](LICENSE), [PRIVACY.md](PRIVACY.md), and [LEGAL.md](LEGAL.md). The live company policies are at [dobeu.net/privacy](https://dobeu.net/privacy) and [dobeu.net/terms](https://dobeu.net/terms).
 
 You can install and use it, including at work. You can read it, change it for your own use, and share copies for free if the license and copyright notices stay with them. You cannot sell it, put it in a paid product or hosted service, or relicense it without written permission. Dobeu can end the license with 30 days' notice. Versions released earlier under the MIT License stay MIT for copies people already have.
 

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" role="img" aria-label="dobeu symbol">
+  <defs>
+    <mask id="cutA" maskUnits="userSpaceOnUse" x="0" y="0" width="500" height="500"><rect width="500" height="500" fill="#fff"></rect><circle cx="315" cy="235" r="78" fill="#000"></circle></mask>
+    <mask id="cutC1" maskUnits="userSpaceOnUse" x="0" y="0" width="500" height="500"><rect width="500" height="500" fill="#fff"></rect><circle cx="175" cy="248" r="122" fill="#000"></circle></mask>
+    <mask id="cutC1A" maskUnits="userSpaceOnUse" x="0" y="0" width="500" height="500"><rect width="500" height="500" fill="#fff"></rect><circle cx="175" cy="248" r="122" fill="#000"></circle><circle cx="315" cy="235" r="78" fill="#000"></circle></mask>
+  </defs>
+  <circle cx="322" cy="258" r="105" fill="#4A3FA8" mask="url(#cutC1A)"></circle>
+  <circle cx="175" cy="248" r="122" fill="#6B5CE7" mask="url(#cutA)"></circle>
+  <circle cx="315" cy="235" r="78" fill="#F4A261" mask="url(#cutC1)"></circle>
+</svg>

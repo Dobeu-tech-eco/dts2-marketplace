@@ -1,5 +1,9 @@
 # dt: a harness for Claude Code
 
+[![Dobeu Tech Solutions LLC](https://dobeu.net/brand/dobeu-horizontal.png)](https://dobeu.net)
+
+A **Dobeu Tech Solutions LLC** product. The command stays `/dt:<command>`. The listing title is “dt by Dobeu: one task to a reviewed pull request.”
+
 `dt` turns one task into a planned, built, reviewed and verified pull request, with you approving at the points that matter.
 
 You describe the end state you want once. A scout sizes the job, a lead plans it, builders work in parallel on separate files, and reviewers and a verifier check the result. You get a pull request and a written receipt of what happened. It is made by [Dobeu Tech Solutions LLC](https://dobeu.net) and released under the Dobeu Source-Available License (see [License](#license)).
@@ -328,4 +332,6 @@ In short: you can install and use it (including at work), read it, change it for
 
 Questions and bug reports: open an issue at [github.com/Dobeu-tech-eco/dts2-marketplace/issues](https://github.com/Dobeu-tech-eco/dts2-marketplace/issues).
 
-We are a small development team. There is no paywall, and a coffee is always welcome. A donation link is coming soon.
+We are a small development team. There is no paywall. Questions and commercial licensing go through [dobeu.net](https://dobeu.net).
+
+Company policies, which control dobeu.net and the client portal: [Privacy](https://dobeu.net/privacy), [Terms](https://dobeu.net/terms), [Cookies](https://dobeu.net/cookies), [Marketing opt-out](https://dobeu.net/marketing-opt-out). What this plugin does with data on your machine is in [PRIVACY.md](../../PRIVACY.md).

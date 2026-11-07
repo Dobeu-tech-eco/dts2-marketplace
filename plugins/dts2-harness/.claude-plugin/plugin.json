@@ -1,6 +1,6 @@
 {
   "name": "dt",
-  "displayName": "Dobeu Harness (dt)",
+  "displayName": "dt by Dobeu: one task to a reviewed pull request",
   "version": "5.1.1",
   "description": "A Claude Code harness that turns one task into a planned, built, reviewed and verified pull request, with human checkpoints, parallel lanes and a paper trail.",
   "author": {
