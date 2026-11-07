@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "defaultMode": "dontAsk",
+    "disableBypassPermissionsMode": "disable",
+    "allow": [
+      "Read", "Edit", "Write", "Glob", "Grep", "Skill", "Agent",
+      "Bash(git status*)", "Bash(git diff*)", "Bash(git log*)", "Bash(git show*)", "Bash(git rev-parse*)",
+      "Bash(git branch*)", "Bash(git checkout*)", "Bash(git switch*)", "Bash(git fetch*)", "Bash(git pull*)",
+      "Bash(git merge*)", "Bash(git stash*)", "Bash(git worktree*)", "Bash(git ls-files*)",
+      "Bash(git add *)", "Bash(git commit *)", "Bash(git push*)",
+      "Bash(gh pr view*)", "Bash(gh pr list*)", "Bash(gh pr status*)", "Bash(gh pr create*)", "Bash(gh pr checks*)",
+      "Bash(gh pr merge*)", "Bash(gh run list*)", "Bash(gh run view*)",
+      "Bash(python3 -I */scripts/*)", "Bash(python3 -m unittest*)", "Bash(python3 -m pytest*)",
+      "Bash(ruff *)", "Bash(shellcheck *)", "Bash(npm test*)", "Bash(npm run test*)", "Bash(npm run lint*)",
+      "Bash(npm run typecheck*)", "Bash(pnpm test*)", "Bash(go test*)", "Bash(cargo test*)"
+    ],
+    "deny": [
+      "Bash(git push -f*)", "Bash(git push --force*)", "Bash(git push --mirror*)", "Bash(git push * -f*)",
+      "Bash(git push * --force*)", "Bash(git push * --mirror*)", "Bash(git push * +*)",
+      "Bash(gh --admin*)", "Bash(gh * --admin*)",
+      "Bash(vercel deploy*)", "Bash(vercel --prod*)", "Bash(vercel * --prod*)", "Bash(vercel --prebuilt*)", "Bash(vercel * --prebuilt*)",
+      "Bash(wrangler deploy*)", "Bash(wrangler publish*)",
+      "Bash(fly deploy*)", "Bash(flyctl deploy*)",
+      "Bash(netlify deploy*)", "Bash(ntl deploy*)",
+      "Bash(supabase db push*)",
+      "Bash(gh secret*)", "Bash(vercel env*)", "Bash(gh repo delete*)",
+      "Bash(env)", "Bash(printenv)",
+      "Edit(.claude/settings.local.json)", "Write(.claude/settings.local.json)",
+      "MultiEdit(.claude/settings.local.json)", "NotebookEdit(.claude/settings.local.json)"
+    ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "allowUnsandboxedCommands": false
+  }
+}

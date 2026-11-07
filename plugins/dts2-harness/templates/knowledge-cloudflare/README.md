@@ -11,16 +11,16 @@ Use it for preferences and glossary only. Secrets are refused on write (same gua
 Run these from this directory. Use your own account; nothing here is deployed for you.
 
 1. Log in (browser OAuth, no API token needed):
-   `npx wrangler login`
+   `wrangler login`
 2. Create the database, then paste the printed `database_id` into `wrangler.toml`:
-   `npx wrangler d1 create dts2-knowledge`
+   `wrangler d1 create dts2-knowledge`
 3. Optionally change the `owner` label at the bottom of `schema.sql`, then apply the schema:
-   `npx wrangler d1 execute dts2-knowledge --remote --file=schema.sql`
+   `wrangler d1 execute dts2-knowledge --remote --file=schema.sql`
 4. Generate a long random token and store it as a Worker secret (paste it when prompted):
    `openssl rand -hex 32`
-   `npx wrangler secret put KNOWLEDGE_TOKEN`
+   `wrangler secret put the knowledge token`
 5. Deploy:
-   `npx wrangler deploy`
+   `wrangler deploy`
 
 `wrangler` prints the Worker URL (`https://dts2-knowledge.<your-subdomain>.workers.dev`). Keep the token in a
 password manager. Rotate it by running step 4 again.
@@ -34,7 +34,7 @@ curl -H "Authorization: Bearer $TOKEN" https://dts2-knowledge.<your-subdomain>.w
 ## Auth
 
 Every request needs `Authorization: Bearer <token>`, compared in constant time with the Worker secret
-`KNOWLEDGE_TOKEN`. Without the secret set, every request is refused. OAuth through Cloudflare's
+`the knowledge token`. Without the secret set, every request is refused. OAuth through Cloudflare's
 `workers-oauth-provider` is a later upgrade (it lets claude.ai sign in without a pasted token).
 
 ## REST API
@@ -74,7 +74,7 @@ The plugin's `scripts/knowledge_cloudflare.py` syncs a local store directory wit
 in your shell (it is never written to disk), then:
 
 ```
-export DTS2_KNOWLEDGE_TOKEN=...
+export DTS2_the knowledge token=...
 python3 scripts/knowledge_cloudflare.py --url https://dts2-knowledge.<your-subdomain>.workers.dev ping
 python3 scripts/knowledge_cloudflare.py --url https://dts2-knowledge.<your-subdomain>.workers.dev pull ~/.dts2/knowledge
 ```
@@ -89,4 +89,4 @@ https://developers.cloudflare.com/d1/platform/pricing/ before relying on the fre
 ## Develop
 
 Type-check without installing anything into this directory:
-`npx -p typescript@5 tsc --noEmit --strict --target es2022 --module es2022 --moduleResolution bundler --lib es2022,webworker src/index.ts`
+`tsc --noEmit --strict --target es2022 --module es2022 --moduleResolution bundler --lib es2022,webworker src/index.ts`

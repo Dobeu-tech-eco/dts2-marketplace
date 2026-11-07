@@ -30,7 +30,7 @@
   "modelsVerified": false,
   "subscriptionName": null,
   "auth": "api-key",
-  "apiKeyEnv": "ANTHROPIC_API_KEY",
+  "apiKeyEnv": "the API key the user provides when asked",
   "keyRequired": true,
   "leadEligible": false,
   "homeEnv": "CLAUDE_CONFIG_DIR",
@@ -68,7 +68,7 @@
   "readOnlyCommand": ["claude", "--plugin-dir", "{pluginRoot}", "-p", "--model", "{model}", "--output-format", "json", "--permission-mode", "plan", "{prompt}"],
   "notes": [
     "Runs `claude -p --model sonnet --output-format json` (the JSON result carries total_cost_usd, which feeds the spend ledger). Never `--bare`: it turns off plugins, agents and skills, and the docs say it will become the default for -p, so a test pins the command without it.",
-    "ANTHROPIC_API_KEY is injected only into this child's environment (scripts/api_keys.py), after the env scrub. CLAUDE_CONFIG_DIR points at the agent's own folder under the harness user dir (agents-home/claude-api), so it never picks up the Max OAuth login.",
+    "the API key the user provides when asked is injected only into this child's environment (scripts/api_keys.py), after the env scrub. CLAUDE_CONFIG_DIR points at the agent's own folder under the harness user dir (agents-home/claude-api), so it never picks up the Max OAuth login.",
     "Reviewer and overflow builder only; never lead or sign-off (leadEligible false). The builder is reachable only when the roster rules allow `build` and read_only is false; the defaults do not. The lead applies and commits its work."
   ],
   "effortLevels": [

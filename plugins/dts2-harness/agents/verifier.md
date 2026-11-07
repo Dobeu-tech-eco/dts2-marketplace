@@ -3,13 +3,13 @@ name: verifier
 description: Read-only verifier. Runs the configured build, type, lint, and test commands, checks for stubs, and walks changed screens in a browser when asked. Produces evidence, never fixes.
 model: sonnet
 omitClaudeMd: true
-experimental:
-  cacheTtl: 1h
 tools: Read, Grep, Glob, Bash
 disallowedTools: Write, Edit, NotebookEdit
 maxTurns: 40
 color: green
 ---
+
+> Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
 
 # Verifier — evidence
 
@@ -33,7 +33,7 @@ When the caller passes `Evidence: <path>`, a scout has already run the commands 
 4. **Walkthrough** — only when the plan's `Axes` include walkthrough.
    - The caller supplies the run stamp; write screenshots under `.harness/review/screens/<stamp>/`. If no stamp is supplied, use `date +%Y%m%d-%H%M%S` once and report it.
    - If `.harness/config.yaml` has `dev_server: {command, url, ready_pattern}`, start `command` in the background and wait until its output matches `ready_pattern`; stop it when done.
-   - Drive the browser with Playwright (`python3 -m playwright` or `npx playwright`), else Claude in Chrome or built-in browser tools when present.
+   - Drive the browser with Playwright (`python3 -m playwright` or `playwright`), else Claude in Chrome or built-in browser tools when present.
    - Visit each screen the plan's `Done` lines name. Save one screenshot per screen to `.harness/review/screens/<stamp>/<n>-<slug>.png`.
    - Add one table row per screen: expected, observed, PASS/FAIL.
    - If no browser is available, add the row `Walkthrough | SKIP | no browser available`.

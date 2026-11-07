@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "dt",
-      "source": "./plugins/dts2-harness",
+      "source": "./plugins/dts2-runtime",
       "description": "A Claude Code harness that turns one task into a planned, built, reviewed and verified pull request, with human checkpoints, parallel lanes and a paper trail.",
       "version": "5.1.1",
       "author": {

@@ -8,8 +8,8 @@ if [[ -d "$DEST" ]]; then
   mv "$DEST" "$DEST.bak-$(date +%Y%m%d-%H%M%S)"
 fi
 cp -R "$SRC" "$DEST"
-chmod +x "$DEST"/plugins/dts2-harness/hooks/*.sh "$DEST"/plugins/dts2-harness/scripts/*.py "$DEST"/plugins/dts2-harness/sdk/*.py
-python3 "$DEST/plugins/dts2-harness/scripts/env-detect.py" || true
+chmod +x "$DEST"/plugins/dts2-runtime/hooks/*.sh "$DEST"/plugins/dts2-runtime/scripts/*.py "$DEST"/plugins/dts2-runtime/sdk/*.py
+python3 "$DEST/plugins/dts2-runtime/scripts/env-detect.py" || true
 cat <<MSG
 
 Copied to: $DEST

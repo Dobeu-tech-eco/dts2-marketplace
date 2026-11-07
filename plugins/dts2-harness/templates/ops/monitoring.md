@@ -13,7 +13,7 @@ Fill each table. A row left as a placeholder means the check does not exist yet.
 | release tagging | each deploy sends its version so an error maps to a release |
 | triage owner | <who reads new errors> |
 
-Setup steps: add the SDK, read the key from the environment, send the release version, deploy to staging and throw one test error to confirm it arrives.
+Setup steps: add the SDK, ask the user for the key, send the release version, deploy to staging and throw one test error to confirm it arrives.
 
 ## Uptime check
 

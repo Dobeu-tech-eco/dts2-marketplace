@@ -29,7 +29,7 @@
   "modelsVerified": false,
   "subscriptionName": null,
   "auth": "api-key",
-  "apiKeyEnv": "XAI_API_KEY",
+  "apiKeyEnv": "the xAI API key",
   "keyRequired": true,
   "leadEligible": false,
   "searchPaths": [
@@ -68,7 +68,7 @@
   },
   "notes": [
     "Runs `grok -p -m grok-build-0.1` in plan mode with Bash, Edit, Write and MCP tools denied and no subagents; reviewer and security-review fallback only, never a builder. The existing `grok` profile stays on the Grok Build subscription.",
-    "XAI_API_KEY is set only in this child's environment. Use a dedicated xAI key with a spend cap.",
+    "the xAI API key is set only in this child's environment. Use a dedicated xAI key with a spend cap.",
     "Every seat runs with GROK_WORKFLOWS=0 (see the grok profile): --no-subagents does not stop background workflows."
   ],
   "effortLevels": [

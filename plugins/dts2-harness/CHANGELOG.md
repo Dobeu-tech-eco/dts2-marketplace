@@ -7,6 +7,12 @@ Released versions live in this file. Work that has not been released yet lives i
 Each version heading is followed by its release date on the first line (`_Released YYYY-MM-DD_`). The repository holds no release tags, so each date is the date of the commit that bumped the version.
 The plugin was renamed twice: `dts2-harness` became `dts2` in 4.0.0 and `dts2` became `dt` in 5.0.0. Older entries keep the command names that were current at the time.
 
+## [6.0.0]
+
+_Released 2026-11-07_
+
+Directory edition for the Claude plugin directory. Skills, roles, and documents only. Hooks and scripts stay in the GitHub marketplace install (`plugins/dts2-runtime`), because an unverified organization cannot publish them.
+
 ## [5.1.1]
 
 _Released 2026-11-07_
@@ -55,7 +61,7 @@ Minor release: agent profiles with custom names (`claude-api`, `codex-api`, `gro
 
 - Speed: verifier and fixer agents run on Sonnet. Fix rounds 1 to 3 stay on Sonnet and rounds 4 and 5 go to a fresh Opus worker. `son_model` defaults to `sonnet` (set `son_model: opus` for hard tasks), and a resumed son keeps the model its lane started on.
 - Speed: builder, verifier, reviewer, fixer, scout and auditor agents ask for a one-hour prompt cache. CI gets a pip cache, a Python 3.12-only matrix on pull requests (full matrix on main and the merge queue) and parallel tests with pytest-xdist.
-- Env isolation: one scrubbed child-environment builder (`son_launch.scrub_env`) serves every son, council seat, second opinion and `roster.py command`. A subscription agent never receives `*_API_KEY` variables, so a stray key cannot switch it to API billing. An `api-key` agent receives only its own key. Codex now reads `CODEX_API_KEY`.
+- Env isolation: one scrubbed child-environment builder (`son_launch.scrub_env`) serves every son, council seat, second opinion and `roster.py command`. A subscription agent never receives `*_API_KEY` variables, so a stray key cannot switch it to API billing. An `api-key` agent receives only its own key. Codex now reads `the Codex API key`.
 
 ### Fixed
 
@@ -126,7 +132,7 @@ Patch release: a sandbox fix so sons can run the plugin's own scripts, a guard f
 - Son sandbox (D74): the son guard no longer treats an interpreter's script argument inside the plugin's own `scripts/` as a write target, so `lanes.py` runs in a son. `lane_env` sets `CLAUDE_PLUGIN_ROOT` and keeps pnpm's store. The lessons from the incident are recorded.
 - `guard.mask_literals` opens a substitution context only for an unescaped `$(`, so an escaped `\$(` or `$$(` no longer hides a following `$(printenv)`. `git commit -m '$(env)'` is unchanged (R3).
 - Context guard (H-004): an approved plan the run never saved as `plan.md` counts as the plan checkpoint.
-- Builders (H-006): they no longer run `npx skills add` inside their own checkout. They run `/improve-codebase-architecture` only when it is installed.
+- Builders (H-006): they no longer run `the publisher's installer for` inside their own checkout. They run `/improve-codebase-architecture` only when it is installed.
 
 ### Added
 
@@ -202,8 +208,8 @@ Parallel autopilot hardening: lane lifecycle, son containment, merge ordering, c
 
 ### Security
 
-- Sons run without `GH_TOKEN`, `GITHUB_TOKEN`, `SSH_AUTH_SOCK` and cloud credentials unless `DTS2_SON_ENV_PASS` names them.
-- Companion skills can be pinned to a commit with `pin: <40-char sha>` in `.harness/keep.yaml`. `npx skills update` no longer runs unattended, and `skills-check.py` writes update proposals that apply only after an explicit yes.
+- Sons run without `a GitHub token` or the SSH agent socket and cloud credentials unless `DTS2_SON_ENV_PASS` names them.
+- Companion skills can be pinned to a commit with `pin: <40-char sha>` in `.harness/keep.yaml`. `a bulk skill update` no longer runs unattended, and `skills-check.py` writes update proposals that apply only after an explicit yes.
 - Check logs and action items are redacted of key-shaped strings, bearer tokens and URL passwords.
 
 ## [3.9.1]
@@ -263,7 +269,7 @@ _Released 2026-11-04_
 
 ### Fixed
 
-- The pre-check never deletes or overwrites a git-tracked file. `npx skills update` had deleted committed skill files (vendored Stripe skills under `.claude/skills/`). Every mutating `npx skills` call now runs under a snapshot that puts tracked skill files and a tracked `skills-lock.json` back byte-for-byte, uncommitted edits included.
+- The pre-check never deletes or overwrites a git-tracked file. `a bulk skill update` had deleted committed skill files (vendored Stripe skills under `.claude/skills/`). Every mutating `the publisher's skill installer` call now runs under a snapshot that puts tracked skill files and a tracked `skills-lock.json` back byte-for-byte, uncommitted edits included.
 - A retired or swapped-out skill with tracked files is skipped, not removed. When the repo is under git but `git ls-files` fails, the update is skipped. Skips are reported in `skills.tracked_skipped` and `skills.tracked_check`.
 
 ## [3.7.1]
@@ -272,7 +278,7 @@ _Released 2026-11-04_
 
 ### Changed
 
-- The pre-check splits into a once-a-day freshness sweep (marketplace refresh, `npx skills update`, gone-upstream checks, harness-version check, gated by `.harness/.skills-checked`) and a per-run fast path that only checks skills are present, installs any missing, and acts on a detected upgrade. This cuts per-run pre-check time by about 90%. `--force-full` forces the sweep.
+- The pre-check splits into a once-a-day freshness sweep (marketplace refresh, `a bulk skill update`, gone-upstream checks, harness-version check, gated by `.harness/.skills-checked`) and a per-run fast path that only checks skills are present, installs any missing, and acts on a detected upgrade. This cuts per-run pre-check time by about 90%. `--force-full` forces the sweep.
 - `.harness/.skills-checked` and `.harness/upgrade-from.txt` are gitignored.
 
 ## [3.7.0]
@@ -398,7 +404,7 @@ _Released 2026-10-21_
 
 - Scope check with an automatic pivot to the workspace root.
 - Context guard hook that stops a run and re-runs setup on a context spike or when started inside a member repo.
-- Project keep list (`.harness/keep.yaml`), so re-running setup never drops chosen plugins, skills (including `npx skills add` installs) or agents. The workspace scaffold writes it, and machine-prep treats its plugins as required.
+- Project keep list (`.harness/keep.yaml`), so re-running setup never drops chosen plugins, skills (including `the publisher's installer for` installs) or agents. The workspace scaffold writes it, and machine-prep treats its plugins as required.
 
 ## [3.1.0]
 

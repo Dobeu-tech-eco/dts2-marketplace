@@ -3,6 +3,8 @@ name: ship
 description: "Ship the current branch as a pull request: pre-check, repo checks, secret scan, verifier and reviewer, receipt, PR template, push, open PR; then sweep stale branches and PRs after one confirmation. Never merges. Use for ship, open a PR, or clean up PRs."
 ---
 
+> Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
+
 # Ship — pre-check, verify, PR, then tidy branches and PRs
 
 `/dt:ship [base]` takes whatever is on the current branch and turns it into a reviewed pull request. `base` defaults to `dev` when it exists on the remote, else the default branch. Ship never merges; merging is the user's call (or `autopilot`'s, under its own gate).

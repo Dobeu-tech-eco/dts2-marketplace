@@ -3,7 +3,7 @@
 Credit register for skills this repository runs, recommends, or learned from.
 Checked against each publisher's default branch on 2026-11-07.
 
-Nothing in this folder is a skill. No third-party skill text is stored in this repository. The 27 skills under `plugins/dts2-harness/skills/` were written here. Where a skill is "used", the harness installs or calls the publisher's copy in the user's project. Where a skill was "used in part", the harness follows a pattern and the words are ours.
+Nothing in this folder is a skill. No third-party skill text is stored in this repository. The 27 skills under `plugins/dts2-runtime/skills/` were written here. Where a skill is "used", the harness installs or calls the publisher's copy in the user's project. Where a skill was "used in part", the harness follows a pattern and the words are ours.
 
 ## License verdict
 
@@ -12,7 +12,7 @@ No publisher below uses a license this repository is breaking.
 | How it is used | What the license requires | What this repo does |
 |---|---|---|
 | Pattern only (interview, critique rubric) | MIT and Apache-2.0 do not reserve ideas or a workflow. Attribution is required when you distribute their files. | Their files are not in this tree. Credit is in this folder and in both READMEs. |
-| Called by name, or installed with `npx skills add` into the user's project | A copy that is redistributed must keep that project's copyright and license notice. | The copy lands in the user's project, not in `plugins/dts2-harness`. Do not drop their copyright notice if those files are committed here. |
+| Called by name, or installed with `npx skills add` into the user's project | A copy that is redistributed must keep that project's copyright and license notice. | The copy lands in the user's project, not in `plugins/dts2-runtime`. Do not drop their copyright notice if those files are committed here. |
 
 This repository is MIT, copyright Dobeu Tech Solutions LLC. That grant does not replace MIT or Apache-2.0 on someone else's files.
 
@@ -111,7 +111,7 @@ These are not the Supabase skills. `supabase/agent-skills` (MIT, Copyright (c) 2
 
 ## Integration, not a bundled skill
 
-Composio is installed by the user. The skill at `plugins/dts2-harness/skills/composio/SKILL.md` was written here and tells the user to add Composio's own plugin.
+Composio is installed by the user. The skill at `plugins/dts2-runtime/skills/composio/SKILL.md` was written here and tells the user to add Composio's own plugin.
 
 - Repo: https://github.com/ComposioHQ/composio
 - License: MIT. https://github.com/ComposioHQ/composio/blob/main/LICENSE

@@ -1,8 +1,8 @@
 {
   "name": "dt",
   "displayName": "DT: Init to Ship Auto Agent Orchestrator",
-  "version": "5.1.1",
-  "description": "A Claude Code harness that turns one task into a planned, built, reviewed and verified pull request, with human checkpoints, parallel lanes and a paper trail.",
+  "version": "6.0.0",
+  "description": "Instruction edition of the init-to-ship orchestrator. Skills and roles Claude follows with its own tools. The full harness, with hooks and scripts, installs from the GitHub marketplace dts2.",
   "author": {
     "name": "Dobeu Tech Solutions LLC",
     "url": "https://dobeu.net"

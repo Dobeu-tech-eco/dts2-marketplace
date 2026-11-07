@@ -1,3 +1,5 @@
+> Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
+
 # Phase 3 — execute, close out, report
 
 ## Model rule

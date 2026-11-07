@@ -3,6 +3,8 @@ name: steer
 description: Stop and redirect a run that is in progress. Records the new direction in the intake queue, lets in-flight atomic steps finish, checkpoints, re-plans against the new direction and resumes. Use when the person says steer, change direction, or stop and do this instead.
 ---
 
+> Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
+
 # Steer — redirect a running harness without losing work
 
 Prompts typed mid-run are captured by the prompt-intake hook and folded in without stopping. Only an explicit `/dt:steer <new direction>` (or a prompt starting `steer:`) stops and redirects. Without `/dt:steer` nothing stops.

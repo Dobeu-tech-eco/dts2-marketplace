@@ -45,7 +45,7 @@
   },
   "explicitOnlyEfforts": ["max", "ultra"],
   "subscriptionName": "ChatGPT Pro (Codex)",
-  "apiKeyEnv": "CODEX_API_KEY",
+  "apiKeyEnv": "the Codex API key",
   "searchPaths": [],
   "roleCommands": {
     "builder": [

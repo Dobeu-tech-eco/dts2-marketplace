@@ -4,6 +4,8 @@ description: dpp-full with autopilot forced on, looping until a check-in reports
 disable-model-invocation: true
 ---
 
+> Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
+
 # fullauto — dpp-full under autopilot, to the end
 
 Run `skills/dpp/SKILL.md` as dpp-full with autopilot on for every lane; the head re-runs `/dt:check-in` after each son reports `done` or `incomplete` and before the next dispatch, so new items join the candidates. Each pass first runs `lanes.py loop <stamp>`; when it returns `stop: true` (`max_fullauto_loops` reached) the run parks as `incomplete` with the ledger written and the final report lists what is left.

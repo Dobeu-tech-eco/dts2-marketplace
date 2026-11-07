@@ -3,6 +3,8 @@ name: evolve
 description: "Change the dts2 harness itself in its source repo: edit a skill, agent, hook, script, profile or template, validate, test, bump versions, commit; push only on an explicit yes. Use for evolve, improve the harness, or fix a dts2 skill."
 ---
 
+> Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
+
 # Evolve — change the harness at its source
 
 Never edit the installed copy. `plugins/cache` and `plugins/synced` are generated; edits there are lost on the next update and are never made.
@@ -11,7 +13,7 @@ Never edit the installed copy. `plugins/cache` and `plugins/synced` are generate
 This mode changes the current repo's deploy target, not the plugin. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/deploy-detect.py" <repo>`, ask the setup skill's Deploy target question, and rewrite the `deploy:` block in `.harness/end-state.md`. Skip sections 1–6.
 
 ## Harness lessons
-The run skill invokes this mode automatically after every ship (and the plan checkpoint shows the pending count), so the user does not have to remember `/dt:evolve`. When run without a specific change, read `.harness/harness-lessons.md` in the current repo (written by `learn` from `harness:` lessons). Offer each open lesson as a plugin change: quote the line, propose the edit under `plugins/dts2-harness/`, and run sections 1–6 for it. Change nothing until the user gives an explicit yes for that lesson. On an explicit yes and a finished change, mark the line `done` with the commit; on a no, mark it `dropped`.
+The run skill invokes this mode automatically after every ship (and the plan checkpoint shows the pending count), so the user does not have to remember `/dt:evolve`. When run without a specific change, read `.harness/harness-lessons.md` in the current repo (written by `learn` from `harness:` lessons). Offer each open lesson as a plugin change: quote the line, propose the edit under `plugins/dts2-runtime/`, and run sections 1–6 for it. Change nothing until the user gives an explicit yes for that lesson. On an explicit yes and a finished change, mark the line `done` with the commit; on a no, mark it `dropped`.
 
 ## 1. Locate the source
 1. `git remote -v | grep dts2-marketplace` in the current directory. Match → use this checkout.
@@ -20,16 +22,18 @@ The run skill invokes this mode automatically after every ship (and the plan che
 State which checkout you are using. Work on a branch, not the default branch.
 
 ## 2. Make the change
-Climb the hardening ladder: when a lesson or failure asks for a rule, first propose a hook, then a test, then a check in `checks.sh` or `scripts/`; write prose in a skill only when none of those can enforce it, and say in the proposal why. Edit under `plugins/dts2-harness/`. Add or change a test first when behavior or required text changes. Keep one concern per change.
+Climb the hardening ladder: when a lesson or failure asks for a rule, first propose a hook, then a test, then a check in `checks.sh` or `scripts/`; write prose in a skill only when none of those can enforce it, and say in the proposal why. Edit under `plugins/dts2-runtime/`. Add or change a test first when behavior or required text changes. Keep one concern per change. The directory listing is generated from this tree: run `python3 plugins/dts2-runtime/scripts/directory_edition.py` after a change it publishes, and commit `plugins/dts2-harness` with it.
 
 ## 3. Validate and test
 Run all three; stop on any failure and fix before continuing:
+- `claude plugin validate plugins/dts2-runtime`
 - `claude plugin validate plugins/dts2-harness`
 - `claude plugin validate .`
-- `python3 -m unittest discover -s plugins/dts2-harness/tests`
+- `python3 -m unittest discover -s plugins/dts2-runtime/tests`
+- `python3 plugins/dts2-runtime/scripts/directory_edition.py --check`
 
 ## 4. Bump versions
-Run `python3 plugins/dts2-harness/scripts/bump-version.py <x.y.z>` (it writes every place the version is recorded, including both manifests, and `--check` verifies them) instead of editing the manifests by hand. Choose the version:
+Run `python3 plugins/dts2-runtime/scripts/bump-version.py <x.y.z>` (it writes every place the runtime version is recorded, including both manifests, and `--check` verifies them) instead of editing the manifests by hand. The directory listing version lives in `plugins/dts2-runtime/scripts/directory_edition.py`. Choose the version:
 - patch for text-only changes
 - minor for a new skill, agent, or script
 - major for a checkpoint or layout change

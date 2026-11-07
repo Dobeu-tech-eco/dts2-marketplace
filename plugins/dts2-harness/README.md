@@ -8,6 +8,14 @@ A **Dobeu Tech Solutions LLC** product. The command stays `/dt:<command>`. The l
 
 You describe the end state you want once. A scout sizes the job, a lead plans it, builders work in parallel on separate files, and reviewers and a verifier check the result. You get a pull request and a written receipt of what happened. It is made by [Dobeu Tech Solutions LLC](https://dobeu.net).
 
+## Directory edition
+
+This folder is the instruction edition published to the Claude plugin directory. It contains skills, roles, and documents. It does not contain hooks or scripts. The directory accepts those only from a Verified organization.
+
+Follow each skill with Claude's own tools. When a step names a file under `scripts/` or `hooks/`, do the work the step describes and write the files it names. Ask the user for a missing token or key. Do not read one from the machine, and do not download a program and run it.
+
+The full harness installs from GitHub. The commands are in Install below.
+
 ## From Jeremy
 
 This started as a passion project and became the orchestrator I use to take work from init to ship. I was not planning to release it. It paid off in my own productivity, so I am putting it out. I hope it helps. Edits are welcome.
@@ -17,6 +25,8 @@ I tested it on T3. The roster also marks these as verified in my use: Claude Cod
 It is for developers and small teams who already use Claude Code and want a repeatable way to run larger changes: multi-file features, cross-repo work, roadmap backlogs, cleanup passes. If your task fits in one prompt, you do not need it. It never merges, pushes to a default branch or deploys without an approval that you write yourself.
 
 ## Install
+
+The commands below install the full harness from GitHub. Adding this plugin from the Claude directory installs the instruction edition.
 
 Inside Claude Code:
 
@@ -64,14 +74,11 @@ On a version before 4.0 the installed plugin is `dts2-harness`. Run `/plugin uni
 
 ## Requirements
 
-- Claude Code with plugin support.
-- Python 3.10 or newer (`python3`, `python`, or `py -3`). The scripts use only the standard library.
-- `git` (2.38 or newer) and bash for the hooks. On Windows, Git Bash works, and Claude Code already uses it.
-- The `gh` CLI, signed in, for anything that opens or sweeps pull requests (`ship`, `pr-sweep`, `dpp`, `autopilot`).
-- Linux, macOS, WSL or Docker for parallel runs. On native Windows `dpp` parks with the reason `windows-native` (see [docs/RUNTIMES.md](docs/RUNTIMES.md)).
-- Optional: `claude-agent-sdk` for the headless runner. Optional: the command-line tools for other AI providers (`codex`, `gemini`, `grok`, `opencode`, `copilot`, `muse`) if you want them on the roster. `autopilot` votes across three providers, so it needs three installed and signed in.
+- Claude Code, Cowork, or Claude.
+- `git` (2.38 or newer) for skills that commit and open pull requests.
+- The `gh` CLI, signed in, for skills that open or sweep pull requests.
 
-To check all of this on your machine, run `python3 scripts/doctor.py` from the plugin folder, or `make doctor` in a clone of the marketplace repo.
+This edition does not include Python scripts or shell hooks. The full harness, which needs Python 3.10 or newer and bash, installs from the GitHub marketplace named dts2.
 
 ## Quick start
 
@@ -240,7 +247,7 @@ Approvals are not a setting. They are a top-level `dts2_approvals` key in `.clau
 | `DTS2_BIN_AGY` | Full path to the `agy` binary (Gemini through Antigravity) when it is off your PATH. | No |
 | `DTS2_BIN_GROK` | Full path to the `grok` binary when it is off your PATH. | No |
 | `DTS2_UNATTENDED` | Set to `1` to enable unattended mode, same as `autonomy: unattended`. | No |
-| `DTS2_KNOWLEDGE_TOKEN` | Token for the Cloudflare knowledge backend of `/dt:knowledge`. | Yes |
+| `DTS2_the knowledge token` | Token for the Cloudflare knowledge backend of `/dt:knowledge`. | Yes |
 | `DTS2_PR_RECEIPT_KEY_FILE` | Path to the key file that signs receipts. The hook fails closed if the file is unreadable or empty. | Yes (the file) |
 
 Keep secrets out of chat, repos and the roster file. Secrets never go into logs or action items, and missing variables are recorded by name only. For API-key providers, store the key in your keyring and reference it with `apiKeyRef` (see [docs/API-AGENTS.md](docs/API-AGENTS.md)).
@@ -266,7 +273,7 @@ What it will not do without you:
 - **Run risky commands.** The policy gate denies force-push, `--admin`, deploy CLIs, `gh secret`, `vercel env` and a bare `env`, for the head session and every worker.
 - **Approve itself.** Workers cannot write `dts2_approvals`. Under `dpp`, workers commit a branch, and only the head pushes and opens PRs.
 - **Delete.** `/dt:machine-prep` disables and never deletes. `/dt:repo-sweep` never deletes in bulk. `/dt:evolve` pushes only on your yes.
-- **Update companion skills.** Skills pinned in `.harness/keep.yaml` stay put without your explicit yes. `npx skills update` never runs; updates arrive as proposals in `.harness/skill-updates.json`.
+- **Update companion skills.** Skills pinned in `.harness/keep.yaml` stay put without your explicit yes. `a bulk skill update` never runs; updates arrive as proposals in `.harness/skill-updates.json`.
 
 Tradeoffs:
 
@@ -303,7 +310,7 @@ Run `python3 scripts/doctor.py` first. It reports Python, git, the `claude` CLI,
 Run the suite from the plugin folder:
 
 ```
-cd plugins/dts2-harness
+cd plugins/dts2-runtime
 python3 -m unittest discover -s tests
 ```
 
@@ -316,7 +323,7 @@ dt builds on patterns from these projects. We learned from them and wrote our ow
 - [oh-my-claudecode](https://github.com/Yeachan-Heo/oh-my-claudecode) (MIT, Yeachan Heo): the deep-interview pattern behind the end-state interview.
 - [Impeccable](https://github.com/pbakaus/impeccable) (Apache-2.0, Paul Bakaus): the critique and polish pattern behind the finish pass.
 - [marketingskills](https://github.com/coreyhaines31/marketingskills) (MIT, Corey Haines): the go-to-market sequence behind `gtm`.
-- [mattpocock/skills](https://github.com/mattpocock/skills) (MIT, Matt Pocock): companion skills installed into the project with `npx skills add`, not copied into this plugin.
+- [mattpocock/skills](https://github.com/mattpocock/skills) (MIT, Matt Pocock): companion skills installed into the project with `the publisher's installer for`, not copied into this plugin.
 - [warpdotdev/common-skills](https://github.com/warpdotdev/common-skills) (MIT, Denver Technologies, Inc.): `resolve-merge-conflicts`.
 - [obra/superpowers](https://github.com/obra/superpowers) (MIT, Jesse Vincent): the `test-driven-development` skill recommended by slug.
 - [wshobson/agents](https://github.com/wshobson/agents) (MIT, Seth Hobson): the database skills recommended by slug.

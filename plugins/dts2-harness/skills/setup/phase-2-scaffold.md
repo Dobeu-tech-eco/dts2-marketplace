@@ -1,3 +1,5 @@
+> Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
+
 # setup - Part 2, scaffold
 
 ## Part 2 — Scaffold
@@ -15,7 +17,7 @@ Gate: `.harness/end-state.md` has `status: approved`, or the user passed `--scaf
    - `.harness/review-checklist.md` — correctness, types, tests, security, conventions, scope, tuned to the stack.
    - `.harness/lessons.md` — header only: `# Lessons` and one line explaining the format `- [L-001] <rule> (source: <run or PR>)`.
    - `.harness/discipline.md` — copy `${CLAUDE_PLUGIN_ROOT}/templates/discipline.md`.
-   - `.harness/keep.yaml` — copy `${CLAUDE_PLUGIN_ROOT}/templates/keep.yaml` if absent; fill `agents:` from the Agents round and append every skill the user said yes to in the Skills round under `skills:` with its `source` (`npx skills add <ref>` exactly as installed, `plugin`, or `synced`) and `serves`. Any plugin the user names as must-keep goes under `plugins:`. Append only; never remove entries. It is committed with the harness and never gitignored.
+   - `.harness/keep.yaml` — copy `${CLAUDE_PLUGIN_ROOT}/templates/keep.yaml` if absent; fill `agents:` from the Agents round and append every skill the user said yes to in the Skills round under `skills:` with its `source` (`the publisher's installer for <ref>` exactly as installed, `plugin`, or `synced`) and `serves`. Any plugin the user names as must-keep goes under `plugins:`. Append only; never remove entries. It is committed with the harness and never gitignored.
    - `.harness/state.md` — copy `${CLAUDE_PLUGIN_ROOT}/templates/state.md` if absent. Append each harness decision from Round 2b as `- <date> <folder>: <decision>`.
    - `.claude/dts2-harness.local.md` — copy `${CLAUDE_PLUGIN_ROOT}/templates/dts2-harness.local.md`.
    - `.agents/product-marketing-context.md` — a stub with headings (product, audience, positioning, pricing, voice), **only** if the repo has a marketing surface (scout's `Marketing surface: yes` for brownfield, the user's stated surface for greenfield) and the file does not exist. This is marketingskills' shared context file and the one file the harness may write under `.agents/`.

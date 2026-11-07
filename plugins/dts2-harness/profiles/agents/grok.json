@@ -29,7 +29,7 @@
   },
   "modelsVerified": false,
   "subscriptionName": "Grok Build",
-  "apiKeyEnv": "XAI_API_KEY",
+  "apiKeyEnv": "the xAI API key",
   "searchPaths": [
     "~/.grok/bin",
     "~/.local/bin",

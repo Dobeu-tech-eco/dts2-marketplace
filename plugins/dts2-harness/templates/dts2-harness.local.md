@@ -1,4 +1,8 @@
----
+# Settings
+
+These values are documentation in this edition.
+
+```yaml
 enabled: true
 # Hooks
 stop_checks: true
@@ -43,7 +47,8 @@ lead_provider: claude   # agent that fills the lead/advisory/sign-off seats; exe
 # roster: see .harness/config.yaml (agent roster lives there, not here)
 # budget, supervisor: run caps, call limit, stall_minutes and fallback model for dpp live in .harness/config.yaml (see templates/config-supervisor.yaml)
 # dev_server: command to start the app for walkthrough review, set in .harness/config.yaml
----
+```
+
 
 # dts2-harness settings for this project
 

@@ -59,7 +59,7 @@ The plugin has 27 skills (the slash commands) and 8 roles: lead, builder, fixer,
 
 ```mermaid
 flowchart TD
-    M["Marketplace manifest<br/>.claude-plugin/marketplace.json"] --> P["Plugin folder<br/>plugins/dts2-harness"]
+    M["Marketplace manifest<br/>.claude-plugin/marketplace.json"] --> P["Full harness<br/>plugins/dts2-runtime"]
     P --> PJ["Plugin manifest<br/>.claude-plugin/plugin.json"]
     P --> SK["Skills and commands<br/>skills/ (27)"]
     P --> AG["roles (agents/)"]
@@ -92,16 +92,18 @@ flowchart TD
 
 ### What's new in 3.0.0
 
-The first release of the end-state interview, Plan and Ship checkpoints, roster and deployment verification. Every later release is in the [plugin changelog](plugins/dts2-harness/CHANGELOG.md).
+The first release of the end-state interview, Plan and Ship checkpoints, roster and deployment verification. Every later release is in the [plugin changelog](plugins/dts2-runtime/CHANGELOG.md).
+
+The Claude plugin directory tracks `plugins/dts2-harness`, an instruction edition generated from the full harness. It has the skills and roles, and it does not include hooks or scripts. Regenerate it with `python3 plugins/dts2-runtime/scripts/directory_edition.py`.
 
 ## Where to go next
 
 | Read | For |
 |---|---|
-| [Plugin README](plugins/dts2-harness/README.md) | The manual: wiring, config files, all commands, troubleshooting |
-| [Guide](plugins/dts2-harness/docs/GUIDE.md) | Which command to use when, and how to talk to the harness |
-| [Command reference](plugins/dts2-harness/docs/COMMANDS.md) | Exact invocation of every command |
-| [Plugin changelog](plugins/dts2-harness/CHANGELOG.md) | Full release history |
+| [Plugin README](plugins/dts2-runtime/README.md) | The manual: wiring, config files, all commands, troubleshooting |
+| [Guide](plugins/dts2-runtime/docs/GUIDE.md) | Which command to use when, and how to talk to the harness |
+| [Command reference](plugins/dts2-runtime/docs/COMMANDS.md) | Exact invocation of every command |
+| [Plugin changelog](plugins/dts2-runtime/CHANGELOG.md) | Full release history |
 | [Marketplace changelog](CHANGELOG.md) | Marketplace-level changes |
 | [LICENSE](LICENSE) | MIT. Copyright Dobeu Tech Solutions LLC |
 | [Privacy](PRIVACY.md) | Company privacy policy, and what this product does with data |
