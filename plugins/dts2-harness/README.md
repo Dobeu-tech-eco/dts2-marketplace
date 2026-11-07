@@ -128,7 +128,7 @@ The full module map is in [ARCHITECTURE.md](ARCHITECTURE.md). Every skill, hook 
 | Skill | What it does |
 | --- | --- |
 | `dpp` | `/dt:dpp [dry-run]` plans lanes from the check-in list and estimates spend per lane. After you approve, it starts one headless worker per lane in its own worktree, supervises them (status, answers to questions, two send-backs, a second opinion), merges in order with `merge-go.md`, rolls lessons up, and ends with `dpp-report.md` and the task ledger. |
-| `dpp-full` | `dpp --full`: also scans for workers' questions, parked items and new action items, adds them as lane candidates, and starts the next lane without asking. |
+| `dpp-full` | `dpp --full`: adds a delegation scan. Outside autopilot it asks before each new lane while `dpp_full_ask_each_lane` is true (the default). Autopilot and `fullauto` skip that ask. |
 | `fullauto` | `dpp-full` with autopilot forced on. It re-runs check-in between rounds until nothing is outstanding and every lane is done or blocked. |
 
 ### Providers
@@ -139,8 +139,8 @@ One profile per provider lives in `profiles/agents/`. `tokenBurn` is a relative,
 |---|---|---|---|---|
 | claude | opus / sonnet / haiku | lead, verifier, builder, reviewer | 3 | low, medium, high, max |
 | codex | gpt-6-astra / gpt-6.1-sol / gpt-6-luna | builder, second opinion | 3 | low, medium, high, xhigh (max and ultra only when requested; luna has no ultra) |
-| gemini | gemini-2.5-pro / gemini-2.5-flash / gemini-2.5-flash-lite | builder, reviewer, second opinion (through the Antigravity `agy` CLI) | 2 | medium |
-| grok | grok-4.7 / grok-4.7 / grok-4-fast | builder, reviewer, second opinion | 3 | medium |
+| gemini | gemini-3.8-flash-high / gemini-3.8-flash-medium / gemini-3.8-flash-low | builder, reviewer, second opinion (through the Antigravity `agy` CLI) | 2 | medium |
+| grok | grok-4.7 / grok-4.7 / grok-4.7-build-fast | builder, reviewer, second opinion | 3 | medium |
 | opencode | CLI default | builder | 2 | medium |
 | copilot | CLI default | builder, security reviewer | 2 | medium |
 | muse | muse-spark-1.3 on every tier | builder, second opinion (Meta's Muse Code terminal tool) | 2 | medium |
@@ -227,7 +227,7 @@ Copy `templates/dts2-harness.local.md` to `<repo>/.claude/dts2-harness.local.md`
 | `delegation_strict` | `true` | Blocks ship if any builder ran a frontier model. |
 | `lead_provider` | `claude` | Provider that leads, advises and signs off. Set it with `/dt:model`. |
 
-Two more keys are documented in [docs/GUIDE.md](docs/GUIDE.md): `intake: false` turns off the prompt queue, and `autonomy: unattended` enables unattended mode.
+Two more keys are documented in [docs/GUIDE.md](docs/GUIDE.md): `intake: false` turns off the prompt queue, and `autonomy: unattended` enables unattended mode when it is set in both `.claude/dts2-harness.local.md` and `.harness/config.yaml`.
 
 Budgets, spend caps, council, merge target, shared files and the roster live in `<repo>/.harness/config.yaml`. See `templates/config-supervisor.yaml`.
 
@@ -262,7 +262,7 @@ What it does without asking: the hooks run as soon as the plugin is installed, e
 
 What it will not do without you:
 
-- **Merge or push to a protected branch.** The merge guard blocks `gh pr merge` and default-branch pushes unless you add the PR to `dts2_approvals` (or, under `dpp`, the head writes `merge-go.md`). `/dt:ship` never merges. Refusals are logged in `.harness/merge-guard.log`.
+- **Merge or push to a protected branch.** The policy gate allows `gh pr merge` only when that PR number is in `dts2_approvals`, or when `merge_policy` includes `auto-when-green` and the command is `gh pr merge <n> --squash --match-head-commit <sha>`. Under `dpp`, `merge-go.md` satisfies the lane's merge guard. It does not replace that approval. `/dt:ship` never merges. If `python3` is missing, the merge guard and policy gate do not run. Refusals are logged in `.harness/merge-guard.log`.
 - **Run risky commands.** The policy gate denies force-push, `--admin`, deploy CLIs, `gh secret`, `vercel env` and a bare `env`, for the head session and every worker.
 - **Approve itself.** Workers cannot write `dts2_approvals`. Under `dpp`, workers commit a branch, and only the head pushes and opens PRs.
 - **Delete.** `/dt:machine-prep` disables and never deletes. `/dt:repo-sweep` never deletes in bulk. `/dt:evolve` pushes only on your yes.

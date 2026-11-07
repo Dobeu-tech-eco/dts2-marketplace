@@ -31,7 +31,7 @@ This skill explains only, except the skill-parity step and the optional hooks st
 | `feature` | `/dt:feature <idea>` adds a feature to the roadmap: clarity score, a scoped deep interview when it is unclear, the lead writes it into the end state and every plan doc, then a PR. |
 | `autopilot` | `/dt:autopilot <steps>` runs steps unattended: three frontier providers must agree on the plan and the build (Claude Fable 5.1 breaks a split), one PR per step merged on green CI before the next. Progress shows in check-in. |
 | `dpp` | `/dt:dpp [dry-run]` runs up to five autopilot lanes in parallel as headless sons under one head: lane plan and feasibility from the check-in list, approval, supervision, serialised merges, one report and the task ledger. |
-| `dpp-full` | `/dt:dpp-full` is dpp with `--full`: delegation scan for extra lanes and continuous dispatch without a new approval. |
+| `dpp-full` | `/dt:dpp-full` is dpp with `--full`: delegation scan for extra lanes. Outside autopilot it asks before each new lane while `dpp_full_ask_each_lane` is true (the default). |
 | `fullauto` | `/dt:fullauto` is dpp-full with autopilot on, looping check-in between rounds until nothing is outstanding and every lane is done or blocked in the ledger. |
 | `model` | `/dt:model` picks which agent provider leads (the lead, advisory and sign-off seats); default Claude. Builders are unaffected. |
 | `find-skills` | `/dt:find-skills` is available any time: rescan the repo, answer one to three questions, get suggested skills, and wire the ones you pick into the project. |

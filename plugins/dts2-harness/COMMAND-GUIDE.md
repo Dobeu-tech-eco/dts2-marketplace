@@ -4,7 +4,7 @@ One row per slash command, current with release 5.1.1 (27 commands, 8 roles). Th
 
 ## Install and update
 
-- **Requirements:** Claude Code, bash, git and python3 (3.9 or later). Without python3 the safety hooks (merge guard, policy gate) cannot run and stay off.
+- **Requirements:** Claude Code, bash, git and Python 3.10 or newer (`python3`). Without python3 the safety hooks (merge guard, policy gate) cannot run and stay off.
 
 - **Install:** `/plugin marketplace add Dobeu-tech-eco/dts2-marketplace`, then `/plugin install dt@dts2`. Restart Claude Code and run `/dt:onboard`. Disable older `harness` and `harness-ops` copies, or run `/dt:machine-prep`.
 - **Update:** `/plugin marketplace update dts2`, then `/reload-plugins` (or restart Claude Code).
@@ -49,7 +49,7 @@ One row per slash command, current with release 5.1.1 (27 commands, 8 roles). Th
 
 **Env isolation and speed (5.1).** Subscription agents and sons run with every API-key variable removed, so a stray key in your shell cannot bill the API account. Sons, verifier and fixer default to Sonnet (`son_model: opus` for hard tasks); fix rounds 4-5 go to a fresh Opus worker.
 
-**Prompt intake (automatic, no command).** A UserPromptSubmit hook (`prompt-intake.sh`) queues every prompt you type while the harness works (`.harness/intake.md`), scores its clarity and folds clear ones into the run; unclear ones get at most two short questions at a safe point. It never blocks (off: `intake: false` in `.claude/dts2-harness.local.md`). Only `/dt:steer` (or a prompt starting `steer:`) stops work. Agent incidents are also logged by a hook with no command; review them with `/dt:incidents`.
+**Prompt intake (automatic, no command).** A UserPromptSubmit hook (`prompt-intake.sh`) queues every prompt you type while the harness works (`.harness/intake.jsonl`, shown in `.harness/intake.md`), scores its clarity and folds clear ones into the run; unclear ones get at most two short questions at a safe point. It never blocks (off: `intake: false` in `.claude/dts2-harness.local.md`). Only `/dt:steer` (or a prompt starting `steer:`) stops work. Agent incidents are also logged by a hook with no command; review them with `/dt:incidents`.
 
 **Reference:** docs/COMMANDS.md (exact syntax), docs/GUIDE.md (which command when), docs/API-AGENTS.md, all in the plugin repo.
 

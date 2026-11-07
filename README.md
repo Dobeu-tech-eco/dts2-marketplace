@@ -86,7 +86,6 @@ flowchart TD
 ## What's new in 5.1.1
 
 - Ready for the Claude plugin directory: hook scripts now pass its checks.
-- Ships under the MIT License. Copyright Dobeu Tech Solutions LLC.
 - Rewritten READMEs with an "All commands" table, plus a listing icon.
 - Composio: connections map correctly, including a `composio` CLI installed inside WSL.
 - Composio: if you say yes during onboarding, always-use is now on by default. You can turn it off.

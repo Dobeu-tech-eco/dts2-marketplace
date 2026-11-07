@@ -252,7 +252,7 @@ One command for every harness session on the computer. Hooks register each sessi
 
 ### `/dt:fullauto` unattended loop in short
 
-With `autonomy: unattended` in `.harness/config.yaml` the `max_fullauto_loops` cap is lifted (the default stays 3) and `loop_guard.py` ends the loop instead.
+Unattended mode needs `autonomy: unattended` in `.claude/dts2-harness.local.md` (the permission hook) and in `.harness/config.yaml` (this lifts the `max_fullauto_loops` cap of 3; `loop_guard.py` ends the loop instead). Setting it in only one file leaves the other half attended.
 
 - Start it with `/goal` ("all ready items are done or parked, or loop_guard.py returned a stall verdict or STOP") and `/loop` over `.claude/loop.md`, copied from `templates/loop.md`.
 - A pass runs `loop_guard.py check`, then `sweep --release`, does the next ready item, `park`s one that needs a person, and ends with `record --progress "<open items> | <merged PRs>" --signature "<failure>"`.
