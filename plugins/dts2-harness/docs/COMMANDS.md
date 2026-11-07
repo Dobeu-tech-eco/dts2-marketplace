@@ -150,9 +150,9 @@ Also outside `scripts/`: `sdk/dts2-run.py <task> [--repo R] [--yes] [--api-key-e
 
 Library modules, not invoked directly (16): `_load.py`, `agent_names.py`, `contracts.py`, `eval_stats.py`, `harness_skew.py`, `mdparse.py`, `miniyaml.py`, `model_call.py`, `ownership_audit.py`, `prep-tiers.py`, `proc.py`, `profiles.py`, `skill_pins.py`, `son_launch.py`, `son_stream.py`, `state_ids.py`. The modules of `scripts/lanes/` are libraries behind `lanes.py` and have no command line either.
 
-## 4. Skills (26 slash commands)
+## 4. Skills (27 slash commands)
 
-Typed as `/dt:<name>`. `user only` means `disable-model-invocation: true`: the model never starts it, a person must type it.
+Typed as `/dt:<name>`. `user only` means `disable-model-invocation: true` in the skill's frontmatter: the model never starts it, a person must type it (eight skills: `composio`, `dpp-full`, `fullauto`, `knowledge`, `machine-prep`, `model`, `onboard`, `sdk`). `user or model` skills, `cooldown` included, may also be started by the model when the conversation calls for them.
 
 | Command | Role | What it does | Exact invocation | Writes / side effects |
 |---|---|---|---|---|
@@ -174,7 +174,7 @@ Typed as `/dt:<name>`. `user only` means `disable-model-invocation: true`: the m
 | `/dt:fullauto` | user only | `dpp-full` with autopilot forced on, looping check-in until nothing is outstanding. | `/dt:fullauto` | as `dpp` |
 | `/dt:check-in` | user or model | Read-only progress against the approved end state: `N of M complete`. `all` reports check-in items from every session on the machine and, after a yes, asks them for fresh ones. | `/dt:check-in [all [--since 24h]]` | none (broadcast inbox on a yes) |
 | `/dt:model` | user only | Choose which agent provider fills the lead, advisory and sign-off seats; records `lead_provider`. Also adds or renames a named agent such as `grok-api` (`roster.py add`, `rename`; profiles in `~/.dts2/agents` or `.harness/agents`, key kept as a reference only). | `/dt:model` | settings file, agent profile, roster |
-| `/dt:cooldown` | user only | Pause an agent that hit a usage limit until its reset date, resume it, or list what is paused. | `/dt:cooldown set <agent> <date or duration> [reason] \| clear <agent> \| list` | agent status file |
+| `/dt:cooldown` | user or model | Pause an agent that hit a usage limit until its reset date, resume it, or list what is paused. | `/dt:cooldown set <agent> <date or duration> [reason] \| clear <agent> \| list` | agent status file |
 | `/dt:fleet` | user or model | See every harness session on this computer; read status, logs and ledgers without interrupting them; broadcast a note, handoff, pause or knowledge finding to all (confirms first). | `/dt:fleet list \| show <ref> \| logs <ref> [-n N] \| broadcast --kind K --text T [--to ...] \| status [<id>] \| label <ref> <name> \| prune` | fleet home (`~/.dts2/fleet`) |
 | `/dt:knowledge` | user only | Keep your own standing preferences, glossary terms and cross-project learnings in a private store that syncs across devices (private GitHub repo, Cloudflare Worker + D1, or a drive-synced folder). | `setup \| join \| set <key> <value> \| get <key> \| find <text> \| list \| rm <key> \| sync \| status` | personal knowledge store |
 | `/dt:find-skills` | user or model | Rescan the repo, audit every improvement option (skills, hooks, MCP servers, plugins, commands, subagents, permissions, CI), ask, and wire in the picks on a yes. | `/dt:find-skills` | keep list, settings (on a yes) |

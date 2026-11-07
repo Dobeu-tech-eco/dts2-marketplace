@@ -8,7 +8,7 @@ Contents: 1 Talking to the harness, 2 Which command when, 3 The head, son and co
 
 ## 1. Talking to the harness
 
-The harness is a Claude Code plugin. Every entry point is a slash command `/dt:<skill>`; there is no other interface. Twenty-five skills exist (section 2). Seven agents (`lead`, `builder`, `fixer`, `reviewer`, `verifier`, `scout`, `auditor`) are dispatched by the skills, never typed by the user; an agent that needs one calls the Agent tool with `subagent_type: dt:<name>`.
+The harness is a Claude Code plugin. Every entry point is a slash command `/dt:<skill>`; there is no other interface. Twenty-seven skills exist (section 2). Eight agents (`lead`, `builder`, `fixer`, `reviewer`, `verifier`, `scout`, `auditor`, `incident-reviewer`) are dispatched by the skills, never typed by the user; an agent that needs one calls the Agent tool with `subagent_type: dt:<name>`.
 
 Eight skills run only when the user types them (`disable-model-invocation: true`): `composio`, `dpp-full`, `fullauto`, `knowledge`, `machine-prep`, `model`, `onboard`, `sdk`. The others may be invoked by the model when the conversation calls for them.
 

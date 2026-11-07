@@ -1,17 +1,23 @@
 {
   "name": "dts2",
   "owner": {
-    "name": "Dobeu Tech Solutions"
+    "name": "Dobeu Tech Solutions LLC",
+    "url": "https://dobeu.net"
   },
   "metadata": {
-    "description": "Dobeu Tech Solutions second-generation agent harness."
+    "description": "Claude Code plugins from Dobeu Tech Solutions LLC (https://dobeu.net)."
   },
   "plugins": [
     {
       "name": "dt",
       "source": "./plugins/dts2-harness",
-      "description": "Plan-build-review-verify harness with an end-state interview, Plan and Ship checkpoints, an agent roster with subscription-first auth and cost tiers, harness discipline, deployment verification, action items, GTM, machine prep, multi-repo scaffolding, lessons memory, and an Agent SDK runner.",
-      "version": "5.1.0"
+      "description": "A Claude Code harness that turns one task into a planned, built, reviewed and verified pull request, with human checkpoints, parallel lanes and a paper trail.",
+      "version": "5.1.0",
+      "author": {
+        "name": "Dobeu Tech Solutions LLC",
+        "url": "https://dobeu.net"
+      },
+      "homepage": "https://dobeu.net"
     }
   ]
 }

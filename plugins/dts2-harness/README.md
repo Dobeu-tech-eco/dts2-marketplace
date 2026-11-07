@@ -1,23 +1,105 @@
-# dts2-harness
+# dt: the Dobeu Harness for Claude Code
 
-Second-generation Dobeu Tech Solutions agent harness. It supersedes `harness@harness` (plugin-claudeharness) and `harness-ops`. Enable dts2 and disable those two so each agent exists once.
+`dt` is a Claude Code plugin that turns "do this task" into a planned, built, reviewed and verified pull request, with a person approving at the points that matter and a written record of everything that happened. It is made and maintained by [Dobeu Tech Solutions LLC](https://dobeu.net) and released under the MIT license.
 
-## What it adds over v1
-| Need | How dts2 handles it |
+## What it is
+
+A set of slash commands (`/dt:run`, `/dt:ship`, `/dt:dpp` and more), eight specialist agents and a few safety hooks that sit on top of Claude Code. You describe the end state you want once. After that, a scout sizes the job, a lead plans it, builders work in parallel on separate files, reviewers and a verifier check the result, and you get a receipt and a PR. Nothing merges or deploys without the approvals you set.
+
+## The problem it solves
+
+Plain agent sessions are great for small edits and shaky for big ones. The usual failure modes are the ones this plugin is built around:
+
+- **Drift.** Long tasks lose the plot. `dt` keeps an approved end state (`.harness/end-state.md`) and measures progress against it with `/dt:check-in`.
+- **Self-review.** An agent that grades its own work finds little wrong. Here the builder never reviews itself; separate reviewer and verifier agents do, and findings become lessons that later runs read.
+- **Collisions.** Parallel agents overwrite each other. Each builder owns a disjoint set of files, and parallel runs use one git worktree per lane with merges serialised by a head session.
+- **Runaway spend and risky actions.** Frontier models are reserved for planning and sign-off, builders use the cheapest capable model, spend caps apply, and a policy gate blocks force-push, `--admin`, deploy CLIs and secret changes unless you approved them.
+- **Lost context.** Sessions end. A handoff file (`.harness/handoff/latest.md`) lets any agent resume with `/dt:run resume`.
+
+## Who it is for
+
+Developers and small teams who already use Claude Code and want a repeatable way to run larger changes: multi-file features, cross-repo work, backlogs of roadmap items, cleanup passes. If your tasks fit in a single prompt, you do not need it.
+
+## Requirements
+
+- Claude Code with plugin support.
+- Python 3.10 or newer (`python3`, `python`, or `py -3`). The scripts use only the standard library.
+- bash for the hooks (Git Bash on Windows, which Claude Code already uses), and `git`.
+- The `gh` CLI, signed in, for anything that opens or sweeps pull requests (`ship`, `pr-sweep`, `dpp`, `autopilot`).
+- Linux, macOS, WSL or Docker for parallel runs. On native Windows `dpp` parks with the reason `windows-native` (see [docs/RUNTIMES.md](docs/RUNTIMES.md)).
+- Optional: `claude-agent-sdk` for the headless runner; the CLIs of other agents (`codex`, `gemini`, `grok`, `opencode`, `copilot`, `muse`) if you want them on the roster. `autopilot` votes across three providers, so it needs three of them installed and signed in.
+
+`python3 scripts/doctor.py` from the plugin folder (or `make doctor` in a clone of the marketplace repo) checks all of this on your machine.
+
+## Install
+
+Inside Claude Code:
+
+```
+/plugin marketplace add Dobeu-tech-eco/dts2-marketplace
+/plugin install dt@dts2
+```
+
+On Claude Code 2.1.275 or later this also works in one step:
+
+```
+/plugin install dts2 --marketplace Dobeu-tech-eco/dts2-marketplace
+```
+
+Restart Claude Code (or run `/reload-plugins`), then run `/dt:onboard`. The plugin is named `dt`, so commands are `/dt:<command>` and agents are `dt:<agent>`; the marketplace is named `dts2`.
+
+If your `claude` command in WSL wraps the Windows `claude.exe`, both shells share the Windows Claude home: install once from Windows. Install inside WSL only when you run the native Linux CLI there.
+
+## Wire it up
+
+1. **Orient.** `/dt:onboard` explains the agents and skills, recommends where to start, and offers optional extra hooks as its last step. It changes nothing until you pick.
+2. **Tidy the machine (once).** `/dt:machine-prep` audits your installed plugins, agents and MCP servers against a blueprint, then disables the overlap (with a settings backup first). It also disables older `harness` and `harness-ops` copies so agents are not duplicated.
+3. **Set up a repo.** In the repo, run `/dt:setup`. It interviews you until you approve an end state, then scaffolds `.harness/` (end state, config, CI workflow, `.gitignore` entries, agent memory files). Use `/dt:setup path1 path2` for several repos, or a workspace file for a multi-repo project. `/dt:ask-expert` can first help you decide whether a repo is worth keeping.
+4. **Review the settings.** Copy `templates/dts2-harness.local.md` to `<repo>/.claude/dts2-harness.local.md` and edit the keys you care about (full list under [Settings](#settings)). Restart Claude Code after editing.
+5. **Choose hooks.** The plugin's own hooks (policy gate, merge guard, stop checks, context guard, lessons, handoff) are active as soon as it is installed; each honours `enabled` in the settings file. For extras (command guard, auto-format, tests on stop, notifications, merge on green, database guards), the last step of `/dt:onboard` runs `scripts/hooks-setup.py recommend`, shows a table, and adds only the ones you pick, with a backup and a dry run first.
+6. **Choose who leads.** Claude leads by default. `/dt:model` switches the lead, advisory and sign-off seats to another installed provider. Other agents join the roster automatically when their CLI is detected.
+7. **Optional integrations.**
+   - Composio, one connection to many apps: `/dt:composio`.
+   - Headless runs for CI, cron or servers with the Agent SDK: `/dt:sdk`.
+   - A private, synced store for your standing preferences and glossary: `/dt:knowledge`.
+   - Go-to-market pass through the external `marketing-skills` plugin: `/dt:gtm`.
+   - Impeccable and marketing-skills are separate plugins; the harness uses them when installed and does not bundle them.
+   - API-key agents (`claude-api`, `codex-api`, `grok-api`): [docs/API-AGENTS.md](docs/API-AGENTS.md).
+
+### Where things live
+
+| Location | What it holds |
 |---|---|
-| WSL and Linux | Python core scripts, bash hooks, PowerShell and bash installers. `env-detect.py` finds which Claude home is live, including the WSL wrapper that runs Windows `claude.exe`. |
-| Plugins that keep coming back | `machine-prep` now finds plugins synced from your claude.ai account (loaded as `name@synced` on every start) and turns syncing off with `syncClaudeAiPlugins: false`, or disables them one by one if you keep a short list. It also flags repos whose settings re-enable plugins you turned off. |
-| Scan, prune, set up a machine | `machine-prep` skill plus `auditor` agent and `scripts/machine-prep.py` (audit, plan, apply) driven by `profiles/blueprint.json` from agent-startup-blueprint. Prune means disable, with a settings backup first. |
-| Many repos | `setup` skill in batch mode (one subagent per repo, in parallel) or workspace mode (`.harness-workspace.yaml` with contracts and release order). |
-| Self-learning | `learn` skill keeps `.harness/lessons.md`. The SessionStart hook loads recent lessons into context; lead, builder, and reviewer read them every run. |
-| Agent SDK and other agents | `sdk/dts2-run.py`: auth from env key, a key command you choose (for example an Anthropic CLI), or the existing Claude login. Optional Codex or Gemini second opinion. |
-| Scale teams | `scout` sizes the job, `run` picks tier S/M/L/XL: up to 4 parallel builders on disjoint lanes, up to 4 reviewers by axis, git worktrees for large jobs. |
+| `<repo>/.claude/dts2-harness.local.md` | Per-repo settings (template in `templates/`). |
+| `<repo>/.harness/end-state.md` | The approved end state every run is measured against. |
+| `<repo>/.harness/config.yaml` | Budgets, council, merge target, shared files, timeouts. |
+| `<repo>/.harness/` (the rest) | Lessons, state, handoff, action items, receipts, run records. Run records and receipts are kept out of git. |
+| `<repo>/.claude/settings.local.json` | Your approvals under `dts2_approvals`. Only a person edits this file; agents cannot. |
+| `~/.dts2/` | Machine-wide state: fleet registry, agent cooldowns, Composio map, repo backups, knowledge store. |
 
-## Components
-- Agents: lead, builder, fixer, reviewer, verifier, scout, auditor
-- Skills: onboard, composio, machine-prep, setup, run, learn, evolve, gtm, sdk, action-items, model, find-skills, check-in, ship, feature, autopilot, dpp, dpp-full, fullauto, ask-expert, repo-sweep, pr-sweep, fleet
-- Hooks: SessionStart (lessons), fleet-session (SessionStart, UserPromptSubmit, PostToolUse, Stop, SessionEnd), PreCompact (handoff), Stop (typecheck and lint), PreToolUse (merge guard, spawn dry-run), PostToolUse and PostToolBatch (PR receipt, context guard, subagent report), SubagentStop (report check; verifier check-line gate), StopFailure and PermissionDenied (action-items ledger), SessionEnd (lease release)
-- Settings: `.claude/dts2-harness.local.md` (template in `templates/`)
+## Day to day
+
+The commands most people start with:
+
+| Group | Commands | What they do |
+|---|---|---|
+| Get going | `/dt:onboard`, `/dt:setup` | Learn the harness; set a repo up against an approved end state. |
+| Do the work | `/dt:run <task>` | One task, with a Plan checkpoint and a Ship checkpoint where you answer `approve`, `edit` or `stop`. Ends with a receipt and a PR. |
+| | `/dt:run resume` | Pick up a parked or interrupted run. |
+| | `/dt:feature <idea>` | Put a feature on the roadmap and open a plan PR, without building it. |
+| | `/dt:steer <new direction>` | Stop running work and redirect it. Typing while a run is going is also safe; prompts are queued, not lost. |
+| Ship | `/dt:ship` | Open a PR for the branch you are on, after checks, a secret scan and review. Never merges. |
+| | `/dt:pr-sweep` | Clear open and stale PRs: merge green ones, triage red CI, close dead ones. |
+| See where you are | `/dt:check-in` | Read-only progress against the end state, `N of M complete`. |
+| | `/dt:action-items` | Secrets, decisions and handoffs waiting on a person, with the command that resolves each. |
+| Run more, hands off | `/dt:autopilot <steps>` | Steps without human checkpoints, behind a three-provider vote. One PR per step. |
+| | `/dt:dpp`, `/dt:dpp-full`, `/dt:fullauto` | Several lanes in parallel under one head session. `dpp dry-run` shows the plan first. |
+| Look after the harness | `/dt:learn`, `/dt:incidents`, `/dt:fleet`, `/dt:cooldown` | Turn findings into lessons; review agent incidents; see every harness session on this computer; pause an agent that hit a usage limit. |
+| | `/dt:find-skills`, `/dt:repo-sweep`, `/dt:ask-expert` | Suggest skills and tooling for a repo; sweep your repos; get a keep, fold, archive or delete memo. |
+
+A typical first session: `/dt:onboard`, then `/dt:setup` in a repo, then `/dt:run add rate limiting to the public API`. Approve the plan, let it build, approve the ship summary, and review the PR.
+
+Which command when, and why: [docs/GUIDE.md](docs/GUIDE.md). Exact invocation of every command: [docs/COMMANDS.md](docs/COMMANDS.md).
 
 ## Parallel autopilot
 | Skill | What it does |
@@ -53,14 +135,69 @@ Copy `templates/dts2-harness.local.md` to `<repo>/.claude/dts2-harness.local.md`
 
 Approvals are not a harness setting: they are a top-level `dts2_approvals` key in `.claude/settings.local.json` (`{"dts2_approvals": {"merge": ["42"]}}`; kinds `recorded_yes`, `unsafe_no_sandbox`, `blocked_pr_done`, `lane_override`, `merge`), a file only the person edits. Sons are denied writes to it, and `scripts/approvals.py` reads nothing else. A merge that deploys production (`merge: deploys_production: true` in `.harness/config.yaml`) needs its PR number there.
 
-## What's new in 3.11.0
-- Head policy gate: `hooks/policy-gate.sh` and `templates/policy.json` deny force-push, `--admin`, deploy CLIs, `gh secret` and `vercel env` for the head and every son; merges and default-branch pushes need a human approval kept in `.claude/settings.local.json`.
-- Son containment and lifecycle: sons commit a branch and the head publishes, opens and merges the PR (`lanes.py publish`); protected paths, a head/son mailbox with deadlines, stuck-loop detection, `lanes.py wait`, and a plugin version-skew check before every son start.
-- Merge safety and scope: base health and a merge mutex gate `merge-go` and `merge-go-step`; a capped post-merge fix then one revert PR; `override`, `dpp_full_ask_each_lane` and `fullauto_freeze_scope`.
-- Agent gates, A/B eval runner (`--runs`, `--arm-b-env`), run-wide report sections, signed receipts, and a docs refresh (`docs/INVENTORY.md` now lists the lanes modules, templates and settings keys).
-- Full notes: [CHANGELOG.md](CHANGELOG.md).
+## Update and uninstall
+
+Update:
+
+```
+/plugin marketplace update dts2
+/reload-plugins
+```
+
+The pre-check before every run command also refreshes marketplaces and upgrades the harness in place when a newer version is published (handoff first; the next run finishes the upgrade).
+
+Uninstall:
+
+```
+/plugin uninstall dt@dts2
+/plugin marketplace remove dts2
+```
+
+Uninstalling leaves your repos alone. `.harness/` folders, `.claude/dts2-harness.local.md` and `~/.dts2/` stay until you delete them.
+
+### Migrating from dts2 or dts2-harness
+
+The plugin used to be called `dts2` (before 4.0, `dts2-harness`). Commands are now `/dt:<command>` and agents `dt:<agent>`. The marketplace keeps the name `dts2`.
+
+```
+/plugin uninstall dts2@dts2
+/plugin marketplace update dts2
+/plugin install dt@dts2
+/reload-plugins
+```
+
+On a version before 4.0 the installed plugin is `dts2-harness`: run `/plugin uninstall dts2-harness@dts2` first. Settings (`.claude/dts2-harness.local.md`) and `.harness/` state are unchanged.
+
+## Troubleshooting
+
+- **Run the doctor first.** `python3 scripts/doctor.py` (plugin folder) reports Python, git, the `claude` CLI, sandbox tools, the auth method (named, never the value) and the platform.
+- **`/dt:` commands do not appear.** Restart Claude Code or run `/reload-plugins`, then check `/plugin` shows `dt` as enabled.
+- **Every agent shows up twice.** An older `harness`, `harness-ops` or `dts2` copy is still enabled. Disable it under `/plugin`, Installed, or run `/dt:machine-prep`.
+- **Settings changes do nothing.** Edits to `.claude/dts2-harness.local.md` need a Claude Code restart.
+- **A merge or push was denied.** That is the policy gate or the merge guard working. Merges and default-branch pushes need your approval in `.claude/settings.local.json` under `dts2_approvals`; see [docs/GUIDE.md](docs/GUIDE.md). Refusals are logged in `.harness/merge-guard.log`.
+- **`dpp` parks with `windows-native`.** Parallel lanes need POSIX signals. Run under WSL or Docker ([docs/RUNTIMES.md](docs/RUNTIMES.md)).
+- **WSL cannot find your Claude settings.** If `claude` in WSL wraps the Windows `claude.exe`, the Windows home is the live one. `python3 scripts/env-detect.py` shows which.
+- **A run stopped midway.** `/dt:check-in` shows what is outstanding, `/dt:action-items` shows what is waiting on you, and `/dt:run resume` continues from the handoff file.
+- **An agent hit a usage limit.** `/dt:cooldown set <agent> <date or duration>` skips it everywhere until it resets.
+
+## Documentation
+
+- [docs/GUIDE.md](docs/GUIDE.md): how to talk to the harness, which command when, the head, son and council flow. Start here.
+- [docs/COMMANDS.md](docs/COMMANDS.md): the command reference, with exact invocation and what each command writes.
+- [docs/INVENTORY.md](docs/INVENTORY.md): every skill, agent, hook, script and `lanes.py` subcommand.
+- [docs/API-AGENTS.md](docs/API-AGENTS.md) and [docs/RUNTIMES.md](docs/RUNTIMES.md): API-key agents; Windows, WSL and Docker.
+- [ARCHITECTURE.md](ARCHITECTURE.md): modules, state port, plan graph, briefs and hook entry points.
+- [CHANGELOG.md](CHANGELOG.md): release notes.
+
+## Components
+
+- Agents: lead, builder, fixer, reviewer, verifier, scout, auditor, incident-reviewer
+- Skills: onboard, composio, machine-prep, setup, run, learn, evolve, gtm, sdk, action-items, model, find-skills, check-in, ship, feature, autopilot, dpp, dpp-full, fullauto, ask-expert, repo-sweep, pr-sweep, fleet, cooldown, knowledge, incidents, steer
+- Hooks: SessionStart (lessons, cooldowns), fleet-session (SessionStart, UserPromptSubmit, PostToolUse, Stop, SessionEnd), UserPromptSubmit (prompt intake), PreCompact (handoff), Stop (typecheck and lint), PreToolUse (merge guard, policy gate, spawn dry-run), PostToolUse and PostToolBatch (PR receipt, context guard, subagent report), SubagentStop (report check; verifier check-line gate), StopFailure and PermissionDenied (action-items ledger), SessionEnd (lease release)
+- Settings: `.claude/dts2-harness.local.md` (template in `templates/`)
 
 ## Known limits
+
 - Login state for gemini, grok, muse, and opencode is self-reported by you; the harness cannot verify it.
 - Impeccable and marketing-skills are external plugins. The harness uses them when installed and does not bundle them.
 - Grok review and builder commands (`roster.py command`) were exercised on 2026-10-22; model ids stay marked unverified.
@@ -69,50 +206,38 @@ Approvals are not a harness setting: they are a top-level `dts2_approvals` key i
 - The Sol 6.1 roster slot is user-editable; check it matches what you run.
 
 ## Acknowledgements
-dts2-harness builds on patterns from these projects. We learned from them and wrote our own implementation; no code was copied.
+
+dt builds on patterns from these projects. We learned from them and wrote our own implementation; no code was copied.
+
 - [oh-my-claudecode](https://github.com/Yeachan-Heo/oh-my-claudecode) (MIT): the deep-interview pattern behind the end-state interview.
 - [Impeccable](https://github.com/pbakaus/impeccable) (Apache-2.0): the critique and polish pattern behind the finish pass.
 - [marketingskills](https://github.com/coreyhaines31/marketingskills) (MIT): the go-to-market sequence behind `gtm`.
 - [mattpocock/skills](https://github.com/mattpocock/skills) (check its license file; used as-is via npx skills, not copied)
 
-## Requirements
-- Claude Code with plugin support
-- Python 3.10+ for the scripts (`python3`, `python`, or `py -3`)
-- bash for hooks (Git Bash on Windows, which Claude Code already uses)
-- Optional: `claude-agent-sdk` for the headless runner; `codex` or `gemini` CLI for second opinions
+## More from Dobeu Tech Solutions
 
-## Install
-Inside Claude Code:
-```
-/plugin marketplace add Dobeu-tech-eco/dts2-marketplace
-/plugin install dt@dts2
-```
-On Claude Code 2.1.275 or later this also works in one step:
-```
-/plugin install dts2 --marketplace Dobeu-tech-eco/dts2-marketplace
-```
-Restart Claude Code, then run `/dt:onboard`.
+[Dobeu Tech Solutions LLC](https://dobeu.net) publishes other public projects:
 
-## Migrating from dts2 or dts2-harness
+- [StatMiner](https://github.com/Dobeu-tech-eco/statminer) ([live](https://statminer.vercel.app)): data-driven AI answers to complex questions.
+- [DOT Copilot](https://github.com/Dobeu-tech-eco/DOT-Copilot) ([live](https://dot-copilot.vercel.app))
+- [Super RAG MCP](https://github.com/Dobeu-tech-eco/super-rag-mcp): self-hosted RAG over local and cloud sources, exposed as an MCP server.
+- [Claude Harness (minimal)](https://github.com/Dobeu-tech-eco/plugin-claudeharness): four-agent lead, builder, reviewer, verifier pipeline for Claude Code.
+- [Dobeu v0 Skills Pack](https://github.com/Dobeu-tech-eco/dobeu-v0-skills-pack): a skills pack for v0.
 
-The plugin is now named `dt`: commands are `/dt:<command>`, agents `dt:<agent>`. The marketplace keeps the name `dts2`.
-```
-/plugin uninstall dts2@dts2
-/plugin marketplace update dts2
-/plugin install dt@dts2
-/reload-plugins
-```
-On a version before 4.0 the installed plugin is `dts2-harness`: run `/plugin uninstall dts2-harness@dts2` first. Settings (`.claude/dts2-harness.local.md`) and `.harness/` state are unchanged.
+## Support
+
+Enjoyed it? Help us build the next one. We're a small development team: there's no paywall, and buying us a coffee is always welcome.
+
+<!-- TODO(funding): add donation link -->
+Donation link coming soon.
 
 ## Tests
+
 Run the suite from the plugin folder: `cd plugins/dts2-harness && python3 -m unittest discover -s tests` (or `make test` from the repo root). `make doctor` checks git, Python, the claude CLI and sandbox tooling first. The property tests (`tests/test_hypothesis_*.py`) need Hypothesis, which is not part of the plugin runtime: run `pip install -r requirements-dev.txt` (ideally in a virtualenv) to enable them; without it they are skipped.
 
-## Docs
-- [docs/GUIDE.md](docs/GUIDE.md): how to talk to the harness, which command when, the head, son and council flow, and the 3.10.0 digest. Start here.
-- [docs/COMMANDS.md](docs/COMMANDS.md): command reference for agents: every command with its role, exact invocation and what it writes, common flows, and where the changelogs live.
-- [docs/INVENTORY.md](docs/INVENTORY.md): every skill, agent, hook, script and `lanes.py` subcommand with exact usage.
-- [ARCHITECTURE.md](ARCHITECTURE.md): modules, state port, plan graph, briefs and hook entry points.
-- [CHANGELOG.md](CHANGELOG.md): release notes.
+## License
+
+MIT. Copyright Dobeu Tech Solutions LLC. See the repository `LICENSE`.
 
 ## Changelog
 
