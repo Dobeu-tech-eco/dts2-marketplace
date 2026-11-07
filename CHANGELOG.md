@@ -4,6 +4,10 @@ All notable marketplace-level changes are recorded here, newest first, in the [K
 
 The plugin's full release history lives in [plugins/dts2-harness/CHANGELOG.md](plugins/dts2-harness/CHANGELOG.md).
 
+## Unreleased
+
+- License: the current tree is MIT. Copyright Dobeu Tech Solutions LLC. Forks may add, remove, and ship the work, including in paid products. Keep the copyright notice.
+
 ## [5.1.1]
 
 _Released 2026-11-07_

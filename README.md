@@ -4,10 +4,16 @@
 
 A **Dobeu Tech Solutions LLC** product. New York, NY · [dobeu.net](https://dobeu.net)
 
-![License: Dobeu Source-Available 1.0](https://img.shields.io/badge/license-Dobeu%20Source--Available%201.0-5A4FAB)
+![License: MIT](https://img.shields.io/badge/license-MIT-5A4FAB)
 ![Version 5.1.1](https://img.shields.io/badge/version-5.1.1-6B5CE7)
 
 `dt` turns one task into a planned, built, reviewed and verified pull request, with you approving at the points that matter. Commands stay `/dt:<command>`. The listing title is “DT: Init to Ship Auto Agent Orchestrator.”
+
+## From Jeremy
+
+This started as a passion project and became the orchestrator I use to take work from init to ship. I was not planning to release it. It paid off in my own productivity, so I am putting it out. I hope it helps. Edits are welcome.
+
+I tested it on T3. The roster also marks these as verified in my use: Claude Code, OpenAI Codex, and OpenCode. Grok review and builder commands were exercised on 2026-10-22, and those model ids are still unverified. Parallel runs are set up for Linux, macOS, WSL, and Docker.
 
 This repository is the Claude Code plugin marketplace for that product. It carries one plugin, `dt`. It is for developers and small teams who already use Claude Code and want a repeatable way to run larger changes.
 
@@ -80,7 +86,7 @@ flowchart TD
 ## What's new in 5.1.1
 
 - Ready for the Claude plugin directory: hook scripts now pass its checks.
-- Ships under the Dobeu Source-Available License 1.0.
+- Ships under the MIT License. Copyright Dobeu Tech Solutions LLC.
 - Rewritten READMEs with an "All commands" table, plus a listing icon.
 - Composio: connections map correctly, including a `composio` CLI installed inside WSL.
 - Composio: if you say yes during onboarding, always-use is now on by default. You can turn it off.
@@ -98,7 +104,7 @@ The first release of the end-state interview, Plan and Ship checkpoints, roster 
 | [Command reference](plugins/dts2-harness/docs/COMMANDS.md) | Exact invocation of every command |
 | [Plugin changelog](plugins/dts2-harness/CHANGELOG.md) | Full release history |
 | [Marketplace changelog](CHANGELOG.md) | Marketplace-level changes |
-| [LICENSE](LICENSE) | Dobeu Source-Available License 1.0 |
+| [LICENSE](LICENSE) | MIT. Copyright Dobeu Tech Solutions LLC |
 | [Privacy](PRIVACY.md) | Company privacy policy, and what this product does with data |
 | [Legal](LEGAL.md) | Terms, cookies, and opt-out pages on dobeu.net |
 
@@ -147,8 +153,8 @@ dt builds on patterns from these projects. We learned from them and wrote our ow
 
 ## License and support
 
-A Dobeu Tech Solutions LLC product. Dobeu Source-Available License 1.0. Copyright Dobeu Tech Solutions LLC. See [LICENSE](LICENSE), [PRIVACY.md](PRIVACY.md), and [LEGAL.md](LEGAL.md). The live company policies are at [dobeu.net/privacy](https://dobeu.net/privacy) and [dobeu.net/terms](https://dobeu.net/terms).
+A Dobeu Tech Solutions LLC product. MIT License. Copyright Dobeu Tech Solutions LLC. See [LICENSE](LICENSE), [PRIVACY.md](PRIVACY.md), and [LEGAL.md](LEGAL.md). The live company policies are at [dobeu.net/privacy](https://dobeu.net/privacy) and [dobeu.net/terms](https://dobeu.net/terms).
 
-You can install and use it, including at work. You can read it, change it for your own use, and share copies for free if the license and copyright notices stay with them. You cannot sell it, put it in a paid product or hosted service, or relicense it without written permission. Dobeu can end the license with 30 days' notice. Versions released earlier under the MIT License stay MIT for copies people already have.
+Fork it, add to it, take things out, and use it in whatever you are building, including paid work. Keep the copyright notice so the original stays credited to Dobeu Tech Solutions LLC.
 
-Bug reports and questions: open an issue at [github.com/Dobeu-tech-eco/dts2-marketplace/issues](https://github.com/Dobeu-tech-eco/dts2-marketplace/issues). For commercial licensing, get in touch through [dobeu.net](https://dobeu.net).
+Bug reports and questions: open an issue at [github.com/Dobeu-tech-eco/dts2-marketplace/issues](https://github.com/Dobeu-tech-eco/dts2-marketplace/issues).

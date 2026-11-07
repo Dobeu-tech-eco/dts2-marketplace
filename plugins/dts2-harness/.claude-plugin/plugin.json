@@ -9,7 +9,7 @@
   },
   "homepage": "https://dobeu.net",
   "repository": "https://github.com/Dobeu-tech-eco/dts2-marketplace",
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "MIT",
   "icon": ".claude-plugin/icon.png",
   "keywords": [
     "harness",

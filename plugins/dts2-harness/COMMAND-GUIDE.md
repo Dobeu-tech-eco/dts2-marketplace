@@ -55,4 +55,4 @@ One row per slash command, current with release 5.1.1 (27 commands, 8 roles). Th
 
 ## About, license and support
 
-dt is built and maintained by Dobeu Tech Solutions (https://dobeu.net). It is free to install and use, including at work, under the Dobeu Source-Available License 1.0: you may use, modify and share it free of charge, but not sell it or relicense it, and Dobeu can end the license with 30 days' public notice. Full text: LICENSE in the plugin repo. There is no paywall; if dt saves you time, a small tip helps a small team build the next one (link in the README).
+dt is built and maintained by Dobeu Tech Solutions (https://dobeu.net). It is MIT licensed: fork it, change it, and use it in whatever you are building, including paid work. Keep the copyright notice so the original stays credited to Dobeu Tech Solutions LLC. Full text: LICENSE in the plugin repo.

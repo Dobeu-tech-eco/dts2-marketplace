@@ -14,7 +14,7 @@ The live company pages below are the controlling legal texts. This file only ide
 | Marketing opt-out | https://dobeu.net/marketing-opt-out |
 | SMS opt-in | https://dobeu.net/optin/sms |
 
-The software in this repository is licensed under the [Dobeu Source-Available License 1.0](LICENSE). Copyright Dobeu Tech Solutions LLC. That license is the grant for the code. The Terms of Service govern dobeu.net and the Dobeu client portal.
+The software in this repository is under the [MIT License](LICENSE). Copyright Dobeu Tech Solutions LLC. Forks may add, remove, and ship the work. Keep the copyright notice so the original stays credited. The Terms of Service govern dobeu.net and the Dobeu client portal.
 
 What the plugin does with data on your machine is described in [PRIVACY.md](PRIVACY.md).
 

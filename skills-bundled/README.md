@@ -12,9 +12,9 @@ No publisher below uses a license this repository is breaking.
 | How it is used | What the license requires | What this repo does |
 |---|---|---|
 | Pattern only (interview, critique rubric) | MIT and Apache-2.0 do not reserve ideas or a workflow. Attribution is required when you distribute their files. | Their files are not in this tree. Credit is in this folder and in both READMEs. |
-| Called by name, or installed with `npx skills add` into the user's project | A copy that is redistributed must keep that project's copyright and license notice. | The copy lands in the user's project, not in `plugins/dts2-harness`. Do not commit those copies into this repo under the Dobeu Source-Available License alone. |
+| Called by name, or installed with `npx skills add` into the user's project | A copy that is redistributed must keep that project's copyright and license notice. | The copy lands in the user's project, not in `plugins/dts2-harness`. Do not drop their copyright notice if those files are committed here. |
 
-The Dobeu Source-Available License covers this repository. It does not replace MIT or Apache-2.0 on someone else's files. That only becomes a problem if those files are copied in here.
+This repository is MIT, copyright Dobeu Tech Solutions LLC. That grant does not replace MIT or Apache-2.0 on someone else's files.
 
 Two things to leave out:
 

@@ -6,7 +6,13 @@ A **Dobeu Tech Solutions LLC** product. The command stays `/dt:<command>`. The l
 
 `dt` turns one task into a planned, built, reviewed and verified pull request, with you approving at the points that matter.
 
-You describe the end state you want once. A scout sizes the job, a lead plans it, builders work in parallel on separate files, and reviewers and a verifier check the result. You get a pull request and a written receipt of what happened. It is made by [Dobeu Tech Solutions LLC](https://dobeu.net) and released under the Dobeu Source-Available License (see [License](#license)).
+You describe the end state you want once. A scout sizes the job, a lead plans it, builders work in parallel on separate files, and reviewers and a verifier check the result. You get a pull request and a written receipt of what happened. It is made by [Dobeu Tech Solutions LLC](https://dobeu.net).
+
+## From Jeremy
+
+This started as a passion project and became the orchestrator I use to take work from init to ship. I was not planning to release it. It paid off in my own productivity, so I am putting it out. I hope it helps. Edits are welcome.
+
+I tested it on T3. The roster also marks these as verified in my use: Claude Code, OpenAI Codex, and OpenCode. Grok review and builder commands were exercised on 2026-10-22, and those model ids are still unverified. Parallel runs are set up for Linux, macOS, WSL, and Docker.
 
 It is for developers and small teams who already use Claude Code and want a repeatable way to run larger changes: multi-file features, cross-repo work, roadmap backlogs, cleanup passes. If your task fits in one prompt, you do not need it. It never merges, pushes to a default branch or deploys without an approval that you write yourself.
 
@@ -324,14 +330,14 @@ Released versions are in [CHANGELOG.md](CHANGELOG.md). Changes not yet released 
 
 ## License
 
-Dobeu Source-Available License 1.0. Copyright Dobeu Tech Solutions LLC. See [LICENSE](LICENSE).
+MIT License. Copyright Dobeu Tech Solutions LLC. See [LICENSE](LICENSE).
 
-In short: you can install and use it (including at work), read it, change it for your own use, and share copies for free as long as the license and copyright notices stay with them. You can't sell it, put it in a paid product or hosted service, or relicense it without written permission. Dobeu Tech Solutions can end the license with 30 days' notice. Versions released earlier under the MIT License stay MIT for the copies people already have. For commercial licensing, get in touch through [dobeu.net](https://dobeu.net).
+Fork it, add to it, take things out, and use it in whatever you are building, including paid work. Keep the copyright notice so the original stays credited to Dobeu Tech Solutions LLC.
 
 ## Support
 
 Questions and bug reports: open an issue at [github.com/Dobeu-tech-eco/dts2-marketplace/issues](https://github.com/Dobeu-tech-eco/dts2-marketplace/issues).
 
-We are a small development team. There is no paywall. Questions and commercial licensing go through [dobeu.net](https://dobeu.net).
+We are a small development team. There is no paywall. Questions go through [dobeu.net](https://dobeu.net).
 
 Company policies, which control dobeu.net and the client portal: [Privacy](https://dobeu.net/privacy), [Terms](https://dobeu.net/terms), [Cookies](https://dobeu.net/cookies), [Marketing opt-out](https://dobeu.net/marketing-opt-out). What this plugin does with data on your machine is in [PRIVACY.md](../../PRIVACY.md).
