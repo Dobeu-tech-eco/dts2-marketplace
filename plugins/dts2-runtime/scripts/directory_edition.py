@@ -19,7 +19,7 @@ REPO: Final[Path] = RUNTIME.parent.parent
 DEST: Final[Path] = REPO / "plugins" / "dts2-harness"
 DIRECTORY_VERSION: Final[str] = "6.0.0"
 SKIP_DIRS: Final[frozenset[str]] = frozenset({
-    "scripts", "hooks", "tests", "evals", "sdk", "__pycache__", ".ruff_cache", ".git",
+    "scripts", "hooks", "tests", "evals", "sdk", "__pycache__", ".pytest_cache", ".ruff_cache", ".git",
 })
 SKIP_FILES: Final[frozenset[str]] = frozenset({
     "ruff.toml", "pytest.ini", "requirements.txt", "requirements-dev.txt", "wrangler.toml",

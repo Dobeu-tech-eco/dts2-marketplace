@@ -1,0 +1,6 @@
+---
+description: Limits for the dt Cursor instruction package when a /dt command is in use.
+alwaysApply: false
+---
+
+When a `/dt` or `/dt-*` command is active: do not run a program from a plugin root or a scripts directory, do not install a package, do not read a token or credential file, and do not merge, force-push, deploy, or delete a branch. `/dt-check-in`, `/dt-onboard`, and `/dt-action-items` are read-only. Other `/dt-*` commands stop before those actions.

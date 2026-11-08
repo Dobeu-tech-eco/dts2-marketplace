@@ -1,0 +1,21 @@
+{
+  "name": "dt",
+  "version": "6.0.0",
+  "description": "DT: Init to Ship Auto Agent Orchestrator. Turns one task into a planned, built, reviewed and verified pull request, with human checkpoints, parallel lanes and a paper trail. In Cursor this is an instruction package: the /dt skill and /dt-<command> prompts. It does not include hooks or scripts.",
+  "author": {
+    "name": "Dobeu Tech Solutions LLC"
+  },
+  "homepage": "https://dobeu.net",
+  "repository": "https://github.com/Dobeu-tech-eco/dts2-marketplace",
+  "license": "MIT",
+  "keywords": [
+    "harness",
+    "multi-agent",
+    "pipeline",
+    "monorepo"
+  ],
+  "logo": "assets/icon.png",
+  "skills": "skills",
+  "commands": "commands",
+  "rules": "rules"
+}
