@@ -8,9 +8,10 @@ This folder is the Cursor instruction package. It is separate from the Claude Co
 
 | Piece | Path | Cursor name |
 |---|---|---|
-| Skill | `skills/dt/SKILL.md` | `/dt` (explicit invoke; `disable-model-invocation: true`) |
-| Commands | `commands/dt-*.md` (27) | `/dt-<skill>`, from the filename stem |
-| Rule | `rules/instruction-edition.mdc` | Applied when a `/dt` command is in use (`alwaysApply: false`) |
+| Skills | `skills/dt-<name>/SKILL.md` (27) plus `skills/dt/SKILL.md` | `/dt-<name>` and `/dt`. `disable-model-invocation: true` so they run when invoked. |
+| Commands | `commands/dt-*.md` (27) | Same procedure as the matching skill |
+| Gate | `scripts/dt_gate.py` | Approvals, scaffold, preflight, check-in |
+| Rule | `rules/instruction-edition.mdc` | `alwaysApply: false`. It is not attached to every chat, and invoking a command does not prove the rule was attached. The gate enforces the stops. |
 | Logo | `assets/icon.png` | The existing listing icon |
 
 There is no `hooks/` directory and no `mcp.json`. The manifest sets `skills`, `commands`, and `rules`, so Cursor does not also scan a Claude `skills/` or `agents/` tree.
@@ -21,13 +22,29 @@ Claude Code builds `/dt:check-in` from the plugin name `dt` plus the skill `chec
 
 `/dt:check-in` in Cursor is a different string from `/dt-check-in`. A manifest does not make the colon form appear.
 
-## Read-only commands
+## What the gate does
 
-`/dt-check-in`, `/dt-onboard`, and `/dt-action-items` read the workspace and write nothing. `/dt-run` is not a smoke test: the Claude `run` skill's pre-check can install or update files before a build. There is no `/dt-respond` command. `/dt-fleet` does not list sessions, and the Claude description it quotes is one computer, not every computer. With no `.harness/end-state.md`, `/dt-check-in` stops with:
+`/dt-setup` is the interview in `skills/dt-setup/`. It writes harness files only through `scripts/dt_gate.py scaffold`, and only after `approve` records the sha256 of an end state whose status line is `approved`. `--scaffold-only`, `--yes`, and a JSON key named like the kind do not authorize that write. Scaffold does not edit `AGENTS.md` or `CLAUDE.md`.
 
-`No end state yet; /dt:setup interviews to one.`
+`/dt-run` follows `skills/dt-run/` and calls `preflight`. `preflight --phase build` requires a plan approval bound to `.harness/plan.md`. `preflight --phase ship` also requires a ship approval bound to `.harness/ship-summary.md`. The Claude pre-check that installs skills is `bridge skills-check.py`, which returns no installs and does not download anything. There is no `/dt-respond` command.
 
-The other 24 commands are in the slash list and stop before scripts, package installs, credential reads, merges, force-pushes, deploys, and branch deletes. `/dt-gtm` records the marketing-skill renames from `skills-bundled/README.md` (checked 2026-11-07) and does not install that pack. `/dt-pr-sweep` does not merge. `/dt-sdk` is not in the Claude instruction edition; the command does not start a headless run.
+`/dt-check-in` and `dt_gate.py check-in` only read. With no `.harness/end-state.md` they print:
+
+`No end state yet; /dt-setup interviews to one.`
+
+## Precise blockers
+
+These steps are not a successful smaller harness. `dt_gate.py blocked` exits 2 until the exact permission phrase is recorded, then exits 3 with `CURSOR_UNSUPPORTED` and does not perform the action:
+
+| Action | Phrase required before the unsupported exit | Not executed |
+|---|---|---|
+| merge | `I approve merge` | `gh` merge, including pr-sweep |
+| fleet-broadcast | `I approve fleet-broadcast` | session discovery and broadcast. The Claude text is one computer, not every computer |
+| hook-install | `I approve hook-install` | writing Cursor or Claude hooks |
+| sdk | `I approve sdk` | headless SDK run and API keys |
+| spend | `I approve spend` | paid provider calls |
+
+A bridged runtime script that is not in the gate prints `BLOCKED unsupported-runtime-script` and exits 2. That step is unimplemented. Do not imitate it.
 
 ## Install
 

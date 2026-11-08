@@ -1,19 +1,24 @@
 ---
 name: dt-dpp-full
-description: "Cursor name /dt-dpp-full for the Claude Code command /dt:dpp-full. dpp with --full. Adds a delegation scan and fills up to five lanes. Outside autopilot it asks before each new lane (dpp_full_ask_each_lane defaults true). Autopilot and fullauto skip that ask. Use when the user..."
+description: "Run the /dt-dpp-full procedure shipped in this plugin. dpp with --full. Adds a delegation scan and fills up to five lanes. Outside autopilot it asks before each new lane (dpp_full_ask_each_lane defaults true). Autopilot and fullauto skip that ask. Use when the user says dpp-fu..."
 ---
 
-# /dt-dpp-full
+## Cursor procedure
 
-Cursor command for the Claude Code command `/dt:dpp-full`.
+Find the plugin root: the nearest ancestor of this file that contains `.cursor-plugin/plugin.json`. The examples below say `$PLUGIN` for that directory.
 
-This package registers the command so Cursor can show it. It does not run the harness.
+Run `python3 "$PLUGIN/scripts/dt_gate.py"` for every gate. Exit 2 from `scaffold`, `preflight`, or `approve` stops the command. Exit 2 from `bridge` that prints `BLOCKED unsupported-runtime-script` is a precise blocker for that one step: record it and do not imitate the script. The interview, `approve`, and `scaffold` still run.
 
-Claude Code describes it as: dpp with --full. Adds a delegation scan and fills up to five lanes. Outside autopilot it asks before each new lane (dpp_full_ask_each_lane defaults true). Autopilot and fullauto skip that ask. Use when the user says dpp-full or full parallel autopilot.
+`--yes`, `--ship`, and `--scaffold-only` are rejected. A JSON key with the same name as a kind is not authorization. `approve` records the sha256 of the file the user accepted, and later gates require that digest.
 
-Do not run a program from a plugin root or a scripts directory. Do not install a package. Do not read a token or a credential file. Do not merge, push to a default branch, force-push, deploy, or delete a branch.
+Phase files for this command are in `$PLUGIN/skills/dt-dpp-full/`.
 
-Detailed instructions, when this workspace is the marketplace repo, are in `plugins/dts2-harness/skills/dpp-full/SKILL.md`. Those files still name programs this package does not contain. Skip those lines. When a step cannot be done without one, stop and say so.
+Merges, fleet broadcast, hook install, the headless SDK, and paid provider calls are `CURSOR_UNSUPPORTED` even after a permission phrase is recorded.
 
+> Cursor edition: run scripts/dt_gate.py from this plugin for every gate. Do not read tokens or credential files. Do not merge, broadcast, install hooks, or spend a provider API. Carry out file work with Read, Edit, Grep, Glob, and git.
 
-This command does not pass `--yes`, `--ship`, or an auto-merge flag, and it does not merge.
+# dpp-full — dpp with `--full`
+
+Everything is `skills/dpp/SKILL.md`; run it with `--full`.
+The only differences: the delegation scan joins the lane sources (section 1), and continuous dispatch starts the next eligible lane (section 5). Outside autopilot, section 8 asks before each new lane while `dpp_full_ask_each_lane` is true (the default). Autopilot and fullauto skip that ask.
+It still stops at `pr-open` and never merges a `blocked` PR.

@@ -1,43 +1,41 @@
 ---
 name: dt
-description: "Index of DT harness commands in Cursor. Use only when the user invokes /dt or asks for a /dt: harness command. Runs nothing by itself."
+description: "Run a DT harness command in Cursor. Use when the user invokes /dt or names a /dt-<command> procedure. Setup scaffolds only after an end-state approval. Run stops at the plan and ship gates."
 disable-model-invocation: true
 ---
 
 # dt
 
-Index for the DT harness in Cursor. Dobeu Tech Solutions LLC. MIT.
+DT: Init to Ship Auto Agent Orchestrator. Dobeu Tech Solutions LLC. MIT.
 
-Claude Code discovers these actions as `/dt:<skill>` because the plugin name is `dt`. Cursor discovers `/dt` (this skill) and `/dt-<skill>` (one file per action). A colon is not part of the Cursor name.
+Invoke the matching skill. Each one is a procedure, not an index entry.
 
-Invoke a command only when the user asks for it. `/dt-check-in`, `/dt-onboard`, and `/dt-action-items` are read-only. Every other `/dt-<skill>` file tells you to stop before scripts, installs, merges, and deploys.
+- `/dt-action-items`
+- `/dt-ask-expert`
+- `/dt-autopilot`
+- `/dt-check-in`
+- `/dt-composio`
+- `/dt-cooldown`
+- `/dt-dpp`
+- `/dt-dpp-full`
+- `/dt-evolve`
+- `/dt-feature`
+- `/dt-find-skills`
+- `/dt-fleet`
+- `/dt-fullauto`
+- `/dt-gtm`
+- `/dt-incidents`
+- `/dt-knowledge`
+- `/dt-learn`
+- `/dt-machine-prep`
+- `/dt-model`
+- `/dt-onboard`
+- `/dt-pr-sweep`
+- `/dt-repo-sweep`
+- `/dt-run`
+- `/dt-sdk`
+- `/dt-setup`
+- `/dt-ship`
+- `/dt-steer`
 
-- `/dt-action-items` (Claude Code `/dt:action-items`)
-- `/dt-ask-expert` (Claude Code `/dt:ask-expert`)
-- `/dt-autopilot` (Claude Code `/dt:autopilot`)
-- `/dt-check-in` (Claude Code `/dt:check-in`)
-- `/dt-composio` (Claude Code `/dt:composio`)
-- `/dt-cooldown` (Claude Code `/dt:cooldown`)
-- `/dt-dpp` (Claude Code `/dt:dpp`)
-- `/dt-dpp-full` (Claude Code `/dt:dpp-full`)
-- `/dt-evolve` (Claude Code `/dt:evolve`)
-- `/dt-feature` (Claude Code `/dt:feature`)
-- `/dt-find-skills` (Claude Code `/dt:find-skills`)
-- `/dt-fleet` (Claude Code `/dt:fleet`)
-- `/dt-fullauto` (Claude Code `/dt:fullauto`)
-- `/dt-gtm` (Claude Code `/dt:gtm`)
-- `/dt-incidents` (Claude Code `/dt:incidents`)
-- `/dt-knowledge` (Claude Code `/dt:knowledge`)
-- `/dt-learn` (Claude Code `/dt:learn`)
-- `/dt-machine-prep` (Claude Code `/dt:machine-prep`)
-- `/dt-model` (Claude Code `/dt:model`)
-- `/dt-onboard` (Claude Code `/dt:onboard`)
-- `/dt-pr-sweep` (Claude Code `/dt:pr-sweep`)
-- `/dt-repo-sweep` (Claude Code `/dt:repo-sweep`)
-- `/dt-run` (Claude Code `/dt:run`)
-- `/dt-sdk` (Claude Code `/dt:sdk`)
-- `/dt-setup` (Claude Code `/dt:setup`)
-- `/dt-ship` (Claude Code `/dt:ship`)
-- `/dt-steer` (Claude Code `/dt:steer`)
-
-Files under `plugins/dts2-harness/skills/` are the Claude instruction edition. They are not loaded as Cursor skills. Loading them would publish names such as `sdk` and `autopilot`, which already belong to Cursor, and those files name programs this package does not contain.
+Start with `/dt-setup` when `.harness/end-state.md` is missing. `/dt-check-in` only reads. `/dt-run` plans and builds only after `dt_gate.py` accepts the approvals. Merges, fleet broadcast, hook install, the headless SDK, and paid provider calls stay unexecuted.

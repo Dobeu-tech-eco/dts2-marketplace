@@ -106,7 +106,7 @@ Claude Code installs `dt@dts2` and exposes each skill as `/dt:<skill>`. Cursor d
 | `/dt:<skill>` | `/dt-<skill>` |
 | plugin skill list | `/dt` (explicit invoke only) |
 
-`/dt-check-in`, `/dt-onboard`, and `/dt-action-items` are read-only. The other 24 `/dt-*` commands are discoverable and stop before scripts, installs, merges, and deploys. Hooks and scripts stay in `plugins/dts2-runtime`. Putting the Claude `skills/` folder on Cursor's default discovery path would also publish `sdk` and `autopilot`, which Cursor already uses, so the manifest points only at `plugins/dt-cursor/skills`, `commands`, and `rules`.
+`plugins/dt-cursor/skills/dt-<name>/` holds 27 procedures. `scripts/dt_gate.py` scaffolds only after an end-state approval digest, and it stops a run until the plan and ship digests match. Merges, fleet broadcast, hook install, the headless SDK, and paid calls exit `CURSOR_UNSUPPORTED` and are not executed. Skill folders are `dt-<name>` so they do not take Cursor's `/sdk`, `/autopilot`, or `/run`.
 
 Files in the repo are not the same as a loaded command. Cursor loads project skills from `.cursor/skills/` and project commands from `.cursor/commands/` for a new session in this repo. A session that already started keeps the catalog it started with. Other repos, self-hosted workers, and automations do not see those files. Account-wide use needs the plugin installed from this commit. Install and the submission checklist are in [plugins/dt-cursor/README.md](plugins/dt-cursor/README.md) and [plugins/dt-cursor/SUBMISSION.md](plugins/dt-cursor/SUBMISSION.md).
 

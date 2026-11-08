@@ -1,7 +1,8 @@
 {
   "name": "dt",
+  "displayName": "DT: Init to Ship Auto Agent Orchestrator",
   "version": "6.0.0",
-  "description": "DT: Init to Ship Auto Agent Orchestrator. Turns one task into a planned, built, reviewed and verified pull request, with human checkpoints, parallel lanes and a paper trail. In Cursor this is an instruction package: the /dt skill and /dt-<command> prompts. It does not include hooks or scripts.",
+  "description": "DT: Init to Ship Auto Agent Orchestrator. Turns one task into a planned, built, reviewed and verified pull request, with human checkpoints, parallel lanes and a paper trail. Cursor runs the procedure through scripts/dt_gate.py. Merges, fleet broadcast, hook install, the headless SDK, and paid provider calls stay unexecuted.",
   "author": {
     "name": "Dobeu Tech Solutions LLC"
   },

@@ -4,26 +4,13 @@
     "name": "Dobeu Tech Solutions LLC"
   },
   "metadata": {
-    "description": "Dobeu Tech Solutions LLC. The dt plugin is the Cursor instruction edition of DT: Init to Ship Auto Agent Orchestrator."
+    "description": "Dobeu Tech Solutions LLC Cursor plugins."
   },
   "plugins": [
     {
       "name": "dt",
       "source": "plugins/dt-cursor",
-      "description": "DT: Init to Ship Auto Agent Orchestrator. Turns one task into a planned, built, reviewed and verified pull request, with human checkpoints, parallel lanes and a paper trail. In Cursor this is an instruction package: the /dt skill and /dt-<command> prompts. It does not include hooks or scripts.",
-      "version": "6.0.0",
-      "license": "MIT",
-      "author": {
-        "name": "Dobeu Tech Solutions LLC"
-      },
-      "homepage": "https://dobeu.net",
-      "repository": "https://github.com/Dobeu-tech-eco/dts2-marketplace",
-      "keywords": [
-        "harness",
-        "multi-agent",
-        "pipeline",
-        "monorepo"
-      ]
+      "description": "DT: Init to Ship Auto Agent Orchestrator. Turns one task into a planned, built, reviewed and verified pull request, with human checkpoints, parallel lanes and a paper trail. Cursor runs the procedure through scripts/dt_gate.py. Merges, fleet broadcast, hook install, the headless SDK, and paid provider calls stay unexecuted."
     }
   ]
 }

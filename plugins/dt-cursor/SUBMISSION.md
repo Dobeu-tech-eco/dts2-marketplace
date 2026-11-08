@@ -69,14 +69,17 @@ The portal can show commit fb7e4d5, version v5.1.1, and 33 hooks on one screen w
 | Field | Value | Why it differs from the Anthropic page, if it does |
 |---|---|---|
 | name | dt | Same plugin name. |
-| description | DT: Init to Ship Auto Agent Orchestrator. Turns one task into a planned, built, reviewed and verified pull request, with human checkpoints, parallel lanes and a paper trail. In Cursor this is an instruction package: the /dt skill and /dt-\<command\> prompts. It does not include hooks or scripts. | The Anthropic sentence calls it a Claude Code harness. This package does not run Claude Code. The title and the rest of the sentence are the submitted copy. |
+| description | DT: Init to Ship Auto Agent Orchestrator. Turns one task into a planned, built, reviewed and verified pull request, with human checkpoints, parallel lanes and a paper trail. Cursor runs the procedure through scripts/dt_gate.py. Merges, fleet broadcast, hook install, the headless SDK, and paid provider calls stay unexecuted. | The Anthropic sentence calls it a Claude Code harness. The title and the task sentence are the submitted copy. The last two sentences name what this package runs and what it refuses to execute. |
 | version | 6.0.0 | Tracks the instruction edition in this repo. The portal's v5.1.1 label is the runtime / pre-split tree. |
 | author | Dobeu Tech Solutions LLC | Cursor's documented author fields are `name` and optional `email`. No email is invented. Homepage is a separate field. |
 | homepage | https://dobeu.net | Same site. |
 | repository | https://github.com/Dobeu-tech-eco/dts2-marketplace | Same repo. |
 | license | MIT | Same. |
-| keywords | harness, multi-agent, pipeline, monorepo | `agent-sdk` and `wsl` stay in the Anthropic keyword list above. This package does not ship a Claude Agent SDK or a WSL setup, so they are not manifest keywords. Paste the full Anthropic list into the form only if the form asks for the original keywords. |
-| logo | assets/icon.png | Copy of `plugins/dts2-harness/.claude-plugin/icon.png`. Cursor resolves a relative logo against the repo. |
+| displayName | DT: Init to Ship Auto Agent Orchestrator | Official plugin schema allows `displayName`. It is set so the UI can show the Anthropic title. |
+| keywords | harness, multi-agent, pipeline, monorepo | On `plugin.json` only. `agent-sdk` and `wsl` stay in the Anthropic list above. This package does not ship a Claude Agent SDK or a WSL setup. |
+| logo | assets/icon.png | Copy of `plugins/dts2-harness/.claude-plugin/icon.png`. |
+
+Marketplace entry (`.cursor-plugin/marketplace.json`) keeps only `name`, `source`, and `description`. The official schema `schemas/marketplace.schema.json` in cursor/plugins sets `additionalProperties: false` on a plugin entry and allows `minClientVersions` as the only other key. `version`, `license`, `author`, `homepage`, `repository`, and `keywords` belong on `plugin.json`, which validates against `schemas/plugin.schema.json`. Copies of those schemas are in `plugins/dts2-runtime/tests/fixtures/`. The prose docs still mention the extra entry fields; the schema is the check this package uses.
 
 Cursor's documented manifest does not include support, privacy, terms, or documentation fields. If the publish form has those boxes, paste:
 
@@ -95,7 +98,7 @@ The 33 command hooks in `plugins/dts2-runtime/hooks/hooks.json` each run `bash` 
 
 The eight Claude agents stay in `plugins/dts2-harness/agents` and `plugins/dts2-runtime/agents`. They are not registered as Cursor subagents. Their frontmatter includes Claude tool lists and model names, and default discovery would publish short names such as `lead` from files that tell the agent to run those scripts.
 
-`plugins/dts2-harness/skills/` is not the Cursor skill path. Default discovery would name the skills `run`, `sdk`, and `autopilot`. Cursor already uses `/sdk` and `/autopilot`, and the CLI uses `/run` as a shell alias. The manifest points at `skills/`, which contains only `dt`.
+The 27 procedures are skills named `dt-<skill>` so they do not take Cursor's `/sdk`, `/autopilot`, or `/run`. Each skill and command contains the rewritten instruction text and calls `scripts/dt_gate.py`. Scripts that are not implemented return `BLOCKED unsupported-runtime-script`. That is an unimplemented step, not a passing harness.
 
 ## Checklist against the Cursor reference
 

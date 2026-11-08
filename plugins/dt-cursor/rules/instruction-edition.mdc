@@ -1,6 +1,6 @@
 ---
-description: Limits for the dt Cursor instruction package when a /dt command is in use.
+description: Optional dt gate reminder. alwaysApply is false, so Cursor does not attach this rule to every chat.
 alwaysApply: false
 ---
 
-When a `/dt` or `/dt-*` command is active: do not run a program from a plugin root or a scripts directory, do not install a package, do not read a token or credential file, and do not merge, force-push, deploy, or delete a branch. `/dt-check-in`, `/dt-onboard`, and `/dt-action-items` are read-only. Other `/dt-*` commands stop before those actions.
+Use this rule only when the user invokes a /dt command. The enforcement is `scripts/dt_gate.py`, not this text. Do not treat `--yes`, `--ship`, or a JSON key as approval. Do not merge, broadcast, install hooks, run the headless SDK, or spend a provider API.
