@@ -67,7 +67,7 @@ TARGET_ALL: Final[str] = "all"
 TARGET_HARNESS: Final[str] = "harness"
 TARGET_PREFIXES: Final[tuple[str, ...]] = ("repo:", "id:", "label:")
 KIND_INSTRUCTIONS: Final[dict[str, str]] = {
-    KIND_HANDOFF: "Action: finish the current step, run the harness handoff (/dt:handoff), stop starting new work "
+    KIND_HANDOFF: "Action: finish the current step, run the harness handoff (/dt:check-in), stop starting new work "
                   "and say so in one line.",
     KIND_PAUSE: "Action: finish the current step, then stop and wait. Start no new work until the person replies.",
     KIND_KNOWLEDGE: "This is a finding to apply where it is relevant to your current work.",

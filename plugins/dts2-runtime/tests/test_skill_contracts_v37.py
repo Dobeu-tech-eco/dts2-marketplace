@@ -54,7 +54,7 @@ class NewSkillsContract(TextContractMixin):
 
     def test_autopilot(self) -> None:
         self.assert_contains(SKILLS / "autopilot", [
-            "three frontier", "model: fable", "Fable 5.1", "tiebreaker", "never sits on the panel",
+            "three frontier", "model: <resolved Chairman model>", "the latest frontier Claude Chairman", "tiebreaker", "never sits on the panel",
             "Falling back to the normal human checkpoints", "VOTE: APPROVE", "VOTE: REJECT",
             "3-0 APPROVE", "2-1 APPROVE", "Split", "roster.py command", "--tier frontier",
             "--squash --delete-branch", "never `--admin`", "required_linear_history",

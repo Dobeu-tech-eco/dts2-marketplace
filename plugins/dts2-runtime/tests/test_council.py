@@ -310,7 +310,7 @@ class LedgerTest(unittest.TestCase):
 def seats(usable: str, config: str | None = None, failed: str = "") -> dict[str, Any]:
     folder: Path = make_tmp_home()
     path: Path = write(folder, "config.yaml", config) if config is not None else folder / "none.yaml"
-    return run_script("council.py", "seats", "--usable", usable, "--config", str(path), "--failed", failed)
+    return run_script("council.py", "seats", "--chairman-record", str(chairman_record()), "--usable", usable, "--config", str(path), "--failed", failed)
 
 
 class SeatsTest(unittest.TestCase):
@@ -376,7 +376,7 @@ class CouncilSkillContract(TextContractMixin):
             "## 1b. The council", "council.py\" eligible", "The council is never the first answer", "council.py\" dossier", "council.py\" tally", "council.py\" check-decision",
             "five seats spread across as many different frontier providers", "council.py\" seats",
             "always with a different model", "Claude Opus 5.5 and Claude Fable 5.0", "`council:` block",
-            "bench", "head of council", "Claude Fable 5.1", "never holds a council seat",
+            "bench", "head of council", "the latest frontier Claude Chairman", "never holds a council seat",
             "council.py\" ledger", ".harness/council.md", "## Council decisions", ".harness/lessons.md",
             "## Head of council brief", "## Dissent brief",
             "DECISION: FIX", "DECISION: STRIKE", "DECISION: APPROVE", "## Dissent responses", "Update:",
@@ -392,3 +392,12 @@ class CouncilSkillContract(TextContractMixin):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def chairman_record() -> Path:
+    import json
+    import tempfile
+    path = Path(tempfile.mkdtemp()) / "chairman.json"
+    path.write_text(json.dumps({"class": "latest-frontier-claude",
+                              "model": "claude-fable-5-1", "aliases": ["fable"]}), encoding="utf-8")
+    return path

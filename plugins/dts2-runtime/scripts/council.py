@@ -472,7 +472,21 @@ def seat_entry(provider: str, model: str) -> dict[str, str]:
     return {"seat": slug, "provider": provider, "model": model, "via": via}
 
 
-def pick_seats(usable: list[str], config: dict[str, list[str]], failed: set[str], today: date | None = None) -> dict[str, Any]:
+def read_chairman(path: Path) -> dict[str, Any]:
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict) or not value:
+        raise ValueError("Invalid Chairman resolution record; park the run")
+    return value
+
+
+def pick_seats(usable: list[str], config: dict[str, list[str]], failed: set[str], today: date | None = None,
+               chairman: dict[str, Any] | None = None) -> dict[str, Any]:
+    if chairman is not None and (
+            not isinstance(chairman, dict) or chairman.get("class") != "latest-frontier-claude"
+            or not isinstance(chairman.get("model"), str) or not chairman["model"].strip()
+            or not isinstance(chairman.get("aliases", []), list)
+            or any(not isinstance(a, str) or not a for a in chairman.get("aliases", []))):
+        raise ValueError("Invalid Chairman resolution record; park the run")
     order: list[str] = list(dict.fromkeys([*config.get("order", DEFAULT_ORDER), *usable]))
     excluded: set[str] = set(config.get("exclude", []))
     extra: dict[str, list[str]] = {}
@@ -481,6 +495,15 @@ def pick_seats(usable: list[str], config: dict[str, list[str]], failed: set[str]
         extra.setdefault(provider.strip(), []).append(model.strip())
     pools: list[tuple[str, list[str]]] = [(p, candidates(p, extra.get(p, []), failed))
                                          for p in order if p in usable and p not in excluded]
+    if chairman:
+        reserved = {str(chairman["model"]), *chairman.get("aliases", [])}
+        # Family aliases may resolve to the same exact runtime id.
+        families = {alias for alias in CLAUDE_AGENT_ALIASES
+                    if any(alias in model.lower() for model in reserved)}
+        reserved.update(families)
+        pools = [(p, [m for m in models if p != "claude" or
+                      m not in reserved])
+                 for p, models in pools]
     pools = [(p, models) for p, models in pools if models]
     ranked: list[dict[str, str]] = [seat_entry(p, models[depth]) for depth in range(max((len(m) for _, m in pools), default=0))
                                     for p, models in pools if depth < len(models)]
@@ -583,6 +606,7 @@ def main() -> int:
         led.add_argument(flag, required=True)
     led.add_argument("--attempt", type=int, default=1, help="the round; the same (stamp, step, attempt) is written once")
     st = sub.add_parser("seats")
+    st.add_argument("--chairman-record", type=Path, required=True)
     st.add_argument("--usable", required=True, help="comma-separated usable providers from the roster probe")
     st.add_argument("--config", default=state_io.CONFIG_REL)
     st.add_argument("--failed", default="", help="provider:model seats that failed and must not be reseated")
@@ -623,7 +647,8 @@ def main() -> int:
         config: dict[str, list[str]] = parse_council_config(config_path.read_text(encoding="utf-8")) if config_path.is_file() else {}
         usable: list[str] = [u.strip() for u in args.usable.split(",") if u.strip()]
         failed: set[str] = {f.strip() for f in args.failed.split(",") if f.strip()}
-        print(json.dumps(pick_seats(usable, config, failed)))
+        print(json.dumps(pick_seats(usable, config, failed,
+                                    chairman=read_chairman(args.chairman_record))))
         return 0
     if args.cmd == "wrap":
         text: str = sys.stdin.read() if args.file == "-" else Path(args.file).read_text(encoding="utf-8")

@@ -316,7 +316,7 @@ class StopBlockTests(FleetCase):
         document = json.loads(output)
         self.assertEqual(document["decision"], "block")
         self.assertIn(record["id"], document["reason"])
-        self.assertIn("/dt:handoff", document["reason"])
+        self.assertIn("/dt:check-in", document["reason"])
         self.assertIsNone(self.event("Stop", now=NOW + timedelta(seconds=2)))
         self.assertIsNone(self.event("UserPromptSubmit", now=NOW + timedelta(seconds=3)))
 
@@ -697,7 +697,8 @@ class ShellHookTests(FleetCase):
         self.assertTrue(os.access(HOOK, os.X_OK))
 
     def test_end_to_end_registers_with_claude_pid_and_delivers(self) -> None:
-        self.send("note", "from the shell")
+        # The subprocess uses the real clock; a fixed-date broadcast expires.
+        self.send("note", "from the shell", now=fleet.utc_now())
         done = self.run_hook("UserPromptSubmit", json.dumps(self.payload()))
         self.assertEqual(done.returncode, 0)
         self.assertIn("from the shell", json.loads(done.stdout)["hookSpecificOutput"]["additionalContext"])
