@@ -232,7 +232,7 @@ Parallel autopilot: one head plans lanes and one headless autopilot son works ea
 
 ### Added
 
-- New `/dts2-harness:dpp`, `/dts2-harness:dpp-full` and `/dts2-harness:fullauto`. The head plans lanes from the check-in list (`lanes.py plan`, with a feasibility `check`, `estimated_spend` per lane and a `--full` scan that never pads and reports `no further parallel work found`), gets approval, and starts one son per lane.
+- New `/dt:dpp`, `/dt:dpp-full` and `/dt:fullauto`. The head plans lanes from the check-in list (`lanes.py plan`, with a feasibility `check`, `estimated_spend` per lane and a `--full` scan that never pads and reports `no further parallel work found`), gets approval, and starts one son per lane.
 - Supervision: `lanes.py status` marks a lane stalled past `builder_timeout_min`, `sendback` refuses a third send-back, `release` frees a lease, and questions the head can answer never reach you.
 - Merges are serialized with `merge-go.md`. Blocked lanes fold into the fewest PRs (`lanes.py fold`). Lessons and action items fold back to the head.
 - Reporting: `dpp-report.md` is checked by `lanes.py report-check` (every lane section plus `## Spend` and `## Task ledger`), and `task-ledger.py` runs last. `resume` merges PRs whose `TASK_` items are done first.
@@ -255,7 +255,7 @@ _Released 2026-11-04_
 ### Added
 
 - Autopilot council. When three rounds of voting do not settle a step, autopilot convenes five frontier seats spread across as many usable providers as it can (claude, codex, gemini, grok, cursor, muse). `council.py seats` picks them, and a `council:` block in `.harness/config.yaml` sets order, exclusions and extra models. A provider takes a second seat only with a different model.
-- Each seat reads a dossier of the step's full history and votes. Every seat that votes against the majority writes a dissent brief. Claude Fable 5.1 as head of council then decides: run more fixes, strike items (each becomes a Decisions action item), or approve.
+- Each seat reads a dossier of the step's full history and votes. Every seat that votes against the majority writes a dissent brief. the latest frontier Claude Chairman as head of council then decides: run more fixes, strike items (each becomes a Decisions action item), or approve.
 - `scripts/council.py` builds the dossier, tallies ballots, and rejects a decision record that skips a dissent or the history. `council.py ledger` writes the whole council to `.harness/council.md`, `.harness/state.md` and `.harness/lessons.md`.
 - `roster.py command` gains `--model` so a doubled seat runs its exact model. The head of council's brief goes in the PR, the receipt, check-in and the final report.
 
@@ -288,9 +288,9 @@ _Released 2026-11-04_
 ### Added
 
 - Pre-check before every run command (`scripts/skills-check.py`): installs every companion and `keep.yaml` skill with `-a claude-code --copy -y` (a bare install's symlink silently failed on Windows), removes retired skills, swaps a skill gone upstream for the highest-install live alternative, and refreshes plugin marketplaces. When a newer harness is published, it saves the spot and upgrades in place.
-- New `/dts2-harness:ship`: a user-started PR with pre-checks, a receipt, a richer PR template, and a PR and branch sweep down to main and dev.
-- New `/dts2-harness:feature`: roadmap a feature with a scoped deep interview and sync every plan doc.
-- New `/dts2-harness:autopilot`: no human checkpoints. Three frontier providers must agree on plan and build, Claude Fable 5.1 breaks a split, and each step becomes one PR merged on green CI.
+- New `/dt:ship`: a user-started PR with pre-checks, a receipt, a richer PR template, and a PR and branch sweep down to main and dev.
+- New `/dt:feature`: roadmap a feature with a scoped deep interview and sync every plan doc.
+- New `/dt:autopilot`: no human checkpoints. Three frontier providers must agree on plan and build, the latest frontier Claude Chairman breaks a split, and each step becomes one PR merged on green CI.
 - Evolve runs automatically after every ship on open harness lessons.
 
 ### Changed
@@ -299,7 +299,7 @@ _Released 2026-11-04_
 
 ### Removed
 
-- `/dts2-harness:upgrade`, because the pre-check now finishes upgrades on the next run.
+- `the former standalone upgrade command`, because the pre-check now finishes upgrades on the next run.
 
 ## [3.6.3]
 
@@ -335,10 +335,10 @@ _Released 2026-10-22_
 
 - Strict delegation: frontier models only for advisory and sign-off. Builders run the cheapest capable model at an effort scaled to complexity (new `delegate.py`), and effort is part of the cost calculation.
 - Muse Code (Meta) joins the roster.
-- `/dts2-harness:upgrade`, a one-command in-place upgrade, and a user-selectable lead provider through `/dts2-harness:model`.
+- `the former standalone upgrade command`, a one-command in-place upgrade, and a user-selectable lead provider through `/dt:model`.
 - Auto hand-off and lead failover when the lead stalls on a usage or token limit.
 - Every detected agent gets a seeded project memory file at scaffold.
-- `/dts2-harness:find-skills` rescans and suggests skills on demand. `/dts2-harness:check-in` shows complete versus outstanding work against the end state.
+- `/dt:find-skills` rescans and suggests skills on demand. `/dt:check-in` shows complete versus outstanding work against the end state.
 - Run-flow additions: a `request-refactor-plan` finalization pass before tests, auto `diagnose` at the hard three-round fix cap, a `loop-me` check-in on run trigger, `setup-pre-commit` before every commit, and a code review on first contact with a new repo.
 
 ### Fixed
@@ -447,7 +447,7 @@ Version 3 turns the harness into an interview-driven pipeline with explicit chec
 - End-state interview in setup: repos, harnesses, topology and skills rounds, a scaffold-only mode, and batch mode that never asks.
 - Plan and Ship checkpoints in run, with a change receipt, an end-state file, a state file and a PR template. Hooks add the receipt and template on `gh pr create` and `gh pr edit`.
 - Agent roster: seven agent profiles, availability and budget probes, cost tiers, subscription login first with API-key agents by opt-in, and a grok profile.
-- Harness discipline (`discipline.md`) and run flow additions: a code finish pass, a stack blueprint, and `/dts2-harness:action-items` with a pass-off file.
+- Harness discipline (`discipline.md`) and run flow additions: a code finish pass, a stack blueprint, and `/dt:action-items` with a pass-off file.
 - Deployment verification: a production walkthrough, a troubleshoot round for failed deploys, and building a production target when none exists.
 - Learning loop: `learn` auto mode with promotion, run metrics and harness lessons, plus new `gtm`, `evolve` and `onboard` updates.
 - Machine-prep tiers (light, standard, strict) with usage counts and redundant pack detection, and new scripts `ensure-ignored`, `clarity-score` and `usage-scan`.

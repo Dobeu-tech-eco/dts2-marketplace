@@ -51,13 +51,13 @@
     "checked": "2026-11-04",
     "maxAgeDays": 90,
     "head": [
-      "fable",
-      "claude-fable-5-1"
+      "fable"
     ],
     "alternates": [
       "claude-fable-5-0",
       "claude-opus-5"
-    ]
+    ],
+    "headClass": "latest-frontier-claude"
   },
   "budgetFlag": "--max-budget-usd",
   "readOnlyCommand": ["claude", "-p", "--permission-mode", "plan", "--model", "{model}", "{prompt}"]

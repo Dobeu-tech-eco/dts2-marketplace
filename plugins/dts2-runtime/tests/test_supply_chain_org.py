@@ -64,7 +64,7 @@ class OrgResolutionTests(unittest.TestCase):
 
 
 def seats() -> dict[str, Any]:
-    return run_script("council.py", "seats", "--usable", USABLE, "--config", "/nonexistent.yaml")
+    return run_script("council.py", "seats", "--chairman-record", str(chairman_record()), "--usable", USABLE, "--config", "/nonexistent.yaml")
 
 
 class CouncilModelConfigTests(unittest.TestCase):
@@ -108,3 +108,12 @@ class CouncilModelConfigTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def chairman_record() -> Path:
+    import json
+    import tempfile
+    path = Path(tempfile.mkdtemp()) / "chairman.json"
+    path.write_text(json.dumps({"class": "latest-frontier-claude",
+                              "model": "claude-fable-5-1", "aliases": ["fable"]}), encoding="utf-8")
+    return path

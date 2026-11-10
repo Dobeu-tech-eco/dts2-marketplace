@@ -53,7 +53,7 @@ You never type scripts. Skills call them as `python3 -I "${CLAUDE_PLUGIN_ROOT}/s
 The harness answers in a fixed shape:
 
 - A run ends with a receipt (`.harness/receipts/<stamp>.md`) and a PR link, or a parked state with the reason.
-- A checkpoint is a question with the plan or the ship summary and the words `approve`, `edit` or `stop`. Under `run` you answer. Under `autopilot` three frontier providers vote and Fable 5.1 breaks a tie.
+- A checkpoint is a question with the plan or the ship summary and the words `approve`, `edit` or `stop`. Under `run` you answer. Under `autopilot` three frontier providers vote and the latest frontier Claude Chairman breaks a tie.
 - Anything that needs a person is an action item (`/dt:action-items`): a missing secret, a decision, a handoff, a deploy step. The item names the command that resolves it.
 - Progress is always readable without side effects: `/dt:check-in`.
 
@@ -219,7 +219,7 @@ Three roles run parallel work. The skills use these words the same way every tim
 - asks the head, not the user, through the mailbox (`questions/<n>.json`); user prompts become need-human;
 - runs without `GH_TOKEN`, `GITHUB_TOKEN`, `SSH_AUTH_SOCK` or cloud credentials and, since an API key always beats the Max login in `claude -p`, no `*_API_KEY`, `ANTHROPIC_*`, `CODEX_*`, `XAI_*`, `OPENAI_*`, `AWS_*` or `CLAUDE_CODE_USE_*` variable (a stray key never bills the API account; `CLAUDE_CODE_OAUTH_TOKEN` is kept for Claude), unless `DTS2_SON_ENV_PASS` names them (the owner's deliberate way to hand a son a key; an `auth: api-key` agent receives only its own key, codex's is `CODEX_API_KEY`), under `guard.py --mode son` as the deny hook.
 
-**Council.** Sits only when three full rounds of the autopilot gate fail (`council.py eligible`). Five frontier seats across as many providers as are usable (`council.py seats`); each reads the full dossier of the step and votes; ballots are fenced (`council.py wrap`), blind (`council.py blind` strips authorship and shuffles options), and a seat that times out is swapped (`seat_swap.py`). Every dissenting seat writes a brief. Fable 5.1 heads the council and decides: more fixes (at most two rounds), strike items (each becomes a Decisions action item) or approve, and its record must answer every dissent. The council is written to `.harness/council.md` and summarised in the PR, the receipt and `check-in`. One council per step; it never overrides a hard stop or branch protection.
+**Council.** Sits only when three full rounds of the autopilot gate fail (`council.py eligible`). Five frontier seats across as many providers as are usable (`council.py seats`); each reads the full dossier of the step and votes; ballots are fenced (`council.py wrap`), blind (`council.py blind` strips authorship and shuffles options), and a seat that times out is swapped (`seat_swap.py`). Every dissenting seat writes a brief. the latest frontier Claude Chairman heads the council and decides: more fixes (at most two rounds), strike items (each becomes a Decisions action item) or approve, and its record must answer every dissent. The council is written to `.harness/council.md` and summarised in the PR, the receipt and `check-in`. One council per step; it never overrides a hard stop or branch protection.
 
 **Gate before any vote.** `checks.py` runs tests, typecheck, lint, a secret scan and a scope check and writes each to `.harness/runs/<stamp>/ledger.jsonl`; `checks.py gate` and `council.py route` act on that ledger. A red check is never voted on.
 

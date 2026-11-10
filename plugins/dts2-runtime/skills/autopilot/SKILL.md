@@ -24,8 +24,8 @@ Read the file for a section only when you reach it; do not read ahead. All files
 
 ## Guardrails
 - The council is an escalation, not a shortcut: it sits only after three complete rounds of the normal vote on the same ballot have failed (`council.py eligible`), never earlier and never because one dispatch failed.
-- The panel is always three distinct providers at frontier; Fable 5.1 only ever breaks a tie or heads the council. No consensus or council decision, no merge.
-- Council seats are always five distinct provider/model pairs, as many providers as are usable; a provider holds a second seat only with a different model, and never with Fable 5.1.
+- The panel is always three distinct providers at frontier; the latest frontier Claude Chairman only ever breaks a tie or heads the council. No consensus or council decision, no merge.
+- Council seats are always five distinct provider/model pairs, as many providers as are usable; a provider holds a second seat only with a different model, and never with the latest frontier Claude Chairman.
 - Every council is written to `.harness/council.md`, `.harness/state.md` and `.harness/lessons.md`: the vote, each member's reasons, the decision and the head's brief.
 - The council and its head always get the full history: every round, every ballot, every note from every participant, start to finish. Nothing is summarised away.
 - A council decision never overrides a hard stop, a `do_not_touch` path, or branch protection.

@@ -316,7 +316,7 @@ class StopBlockTests(FleetCase):
         document = json.loads(output)
         self.assertEqual(document["decision"], "block")
         self.assertIn(record["id"], document["reason"])
-        self.assertIn("/dt:handoff", document["reason"])
+        self.assertIn("/dt:check-in", document["reason"])
         self.assertIsNone(self.event("Stop", now=NOW + timedelta(seconds=2)))
         self.assertIsNone(self.event("UserPromptSubmit", now=NOW + timedelta(seconds=3)))
 
