@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 import unittest
 from pathlib import Path
 from typing import Final
@@ -13,6 +14,13 @@ LISTING: Final[Path] = REPO / "plugins" / "dts2-harness"
 
 
 class DirectoryEditionTests(unittest.TestCase):
+    def test_listing_release_notes_keep_version_order(self) -> None:
+        changelog = (LISTING / "CHANGELOG.md").read_text(encoding="utf-8")
+        versions = re.findall(r"^## \[(\d+\.\d+\.\d+)\]$", changelog, re.MULTILINE)
+        self.assertEqual(versions[0], "6.0.0")
+        self.assertIn("5.2.0", versions)
+        self.assertEqual(versions, sorted(versions, key=lambda value: tuple(map(int, value.split("."))), reverse=True))
+
     def test_listing_has_no_hooks_or_scripts(self) -> None:
         self.assertFalse((LISTING / "hooks").exists())
         self.assertFalse((LISTING / "scripts").exists())

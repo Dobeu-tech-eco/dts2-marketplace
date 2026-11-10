@@ -7,6 +7,15 @@ Released versions live in this file. Work that has not been released yet lives i
 Each version heading is followed by its release date on the first line (`_Released YYYY-MM-DD_`). The repository holds no release tags, so each date is the date of the commit that bumped the version.
 The plugin was renamed twice: `dts2-harness` became `dts2` in 4.0.0 and `dts2` became `dt` in 5.0.0. Older entries keep the command names that were current at the time.
 
+## [5.2.0]
+
+_Released 2026-11-10_
+
+### Added
+
+- `/dt:loop`: bounded role-instruction research on one editable file, fixed token and wall-clock caps, one metric on frozen past-month receipts, mechanical keep/revert, and an append-only harness audit trail. Kept changes remain proposals behind ship and standing merge gates.
+- An inert experiment-definition JSON template and contract tests; generated directory and Cursor skill/command surfaces include the new procedure.
+
 ## [5.1.1]
 
 _Released 2026-11-07_

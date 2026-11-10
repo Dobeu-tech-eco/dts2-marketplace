@@ -13,12 +13,16 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Final
+from typing import Any, Final
 
 RUNTIME: Final[Path] = Path(__file__).resolve().parent.parent
 REPO: Final[Path] = RUNTIME.parent.parent
 HARNESS: Final[Path] = REPO / "plugins" / "dts2-harness"
 ICON_SOURCE: Final[Path] = HARNESS / ".claude-plugin" / "icon.png"
+METADATA: Final[dict[str, Any]] = json.loads(
+    (RUNTIME / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+)
+PUBLISHER: Final[str] = METADATA["author"]["name"]
 DESCRIPTION: Final[str] = (
     "DT: Init to Ship Auto Agent Orchestrator. Turns one task into a planned, "
     "built, reviewed and verified pull request, with human checkpoints, parallel "
@@ -153,8 +157,8 @@ def _skill_dirs() -> list[tuple[str, Path]]:
     if not any(name == "sdk" for name, _ in found):
         found.append(("sdk", sdk))
     found.sort(key=lambda item: item[0])
-    if len(found) != 27:
-        raise SystemExit(f"expected 27 skill directories, found {len(found)}")
+    if len(found) != 28:
+        raise SystemExit(f"expected 28 skill directories, found {len(found)}")
     return found
 
 
@@ -189,7 +193,7 @@ def _index(names: list[str]) -> str:
     )
     body = (
         "# dt\n\n"
-        "DT: Init to Ship Auto Agent Orchestrator. Dobeu Tech Solutions LLC. MIT.\n\n"
+        f"{DISPLAY_NAME}. {PUBLISHER}. {METADATA['license']}.\n\n"
         "Invoke the matching skill. Each one is a procedure, not an index entry.\n\n"
         f"{lines}\n\n"
         "Start with `/dt-setup` when `.harness/end-state.md` is missing. "
@@ -213,10 +217,10 @@ def _plugin_json() -> str:
         "displayName": DISPLAY_NAME,
         "version": "6.0.0",
         "description": DESCRIPTION,
-        "author": {"name": "Dobeu Tech Solutions LLC"},
-        "homepage": "https://dobeu.net",
-        "repository": "https://github.com/Dobeu-tech-eco/dts2-marketplace",
-        "license": "MIT",
+        "author": {"name": PUBLISHER},
+        "homepage": METADATA["homepage"],
+        "repository": METADATA["repository"],
+        "license": METADATA["license"],
         "keywords": ["harness", "multi-agent", "pipeline", "monorepo"],
         "logo": "assets/icon.png",
         "skills": "skills",
@@ -229,9 +233,9 @@ def _plugin_json() -> str:
 def _marketplace_json() -> str:
     data = {
         "name": "dts2",
-        "owner": {"name": "Dobeu Tech Solutions LLC"},
+        "owner": {"name": PUBLISHER},
         "metadata": {
-            "description": "Dobeu Tech Solutions LLC Cursor plugins.",
+            "description": f"{PUBLISHER} Cursor plugins.",
         },
         "plugins": [
             {
@@ -265,6 +269,12 @@ def render() -> dict[str, bytes]:
         "plugins/dt-cursor/templates/discipline.md": DISCIPLINE.encode("utf-8"),
         "plugins/dt-cursor/templates/state.md": (HARNESS / "templates" / "state.md").read_bytes(),
         "plugins/dt-cursor/templates/keep.yaml": (HARNESS / "templates" / "keep.yaml").read_bytes(),
+        "plugins/dt-cursor/templates/loop-experiment.example.json": (
+            HARNESS / "templates" / "loop-experiment.example.json"
+        ).read_bytes(),
+        ".cursor/templates/loop-experiment.example.json": (
+            HARNESS / "templates" / "loop-experiment.example.json"
+        ).read_bytes(),
     }
     names: list[str] = []
     for name, source in _skill_dirs():

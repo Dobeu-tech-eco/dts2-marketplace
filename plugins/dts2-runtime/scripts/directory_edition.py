@@ -204,7 +204,10 @@ def _rewrite_markdown(rel: str, text: str) -> str:
             raise SystemExit("README requirements block changed; update directory_edition.py")
         text = text.replace(REQUIREMENTS_FROM, REQUIREMENTS_TO, 1)
     if rel == "CHANGELOG.md" and "## [6.0.0]" not in text:
-        text = text.replace("## [5.1.1]\n", CHANGELOG_ENTRY + "## [5.1.1]\n", 1)
+        first_release = text.find("\n## [")
+        if first_release < 0:
+            raise SystemExit("CHANGELOG has no release heading")
+        text = text[:first_release + 1] + CHANGELOG_ENTRY + text[first_release + 1:]
     for old, new in REPLACEMENTS:
         text = text.replace(old, new)
     return text

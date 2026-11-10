@@ -13,6 +13,15 @@ _Released 2026-11-07_
 
 Directory edition for the Claude plugin directory. Skills, roles, and documents only. Hooks and scripts stay in the GitHub marketplace install (`plugins/dts2-runtime`), because an unverified organization cannot publish them.
 
+## [5.2.0]
+
+_Released 2026-11-10_
+
+### Added
+
+- `/dt:loop`: bounded role-instruction research on one editable file, fixed token and wall-clock caps, one metric on frozen past-month receipts, mechanical keep/revert, and an append-only harness audit trail. Kept changes remain proposals behind ship and standing merge gates.
+- An inert experiment-definition JSON template and contract tests; generated directory and Cursor skill/command surfaces include the new procedure.
+
 ## [5.1.1]
 
 _Released 2026-11-07_
