@@ -27,6 +27,7 @@ Invoke the matching skill. Each one is a procedure, not an index entry.
 - `/dt-incidents`
 - `/dt-knowledge`
 - `/dt-learn`
+- `/dt-loop`
 - `/dt-machine-prep`
 - `/dt-model`
 - `/dt-onboard`

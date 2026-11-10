@@ -53,7 +53,7 @@ Update later:
 - **Handoff file.** Any role can resume where the last one stopped, so a closed session does not lose context.
 - **Cost discipline.** Frontier models advise and sign off. Builders use the cheapest capable model.
 
-The plugin has 27 skills (the slash commands) and 8 roles: lead, builder, fixer, reviewer, verifier, scout, auditor and incident-reviewer.
+The plugin has 28 skills (the slash commands) and 8 roles: lead, builder, fixer, reviewer, verifier, scout, auditor and incident-reviewer.
 
 ## Repository layout
 
@@ -61,7 +61,7 @@ The plugin has 27 skills (the slash commands) and 8 roles: lead, builder, fixer,
 flowchart TD
     M["Marketplace manifest<br/>.claude-plugin/marketplace.json"] --> P["Full harness<br/>plugins/dts2-runtime"]
     P --> PJ["Plugin manifest<br/>.claude-plugin/plugin.json"]
-    P --> SK["Skills and commands<br/>skills/ (27)"]
+    P --> SK["Skills and commands<br/>skills/ (28)"]
     P --> AG["roles (agents/)"]
     P --> HK["Hooks<br/>hooks/"]
     P --> SC["Scripts and SDK runner<br/>scripts/, sdk/"]
@@ -106,7 +106,7 @@ Claude Code installs `dt@dts2` and exposes each skill as `/dt:<skill>`. Cursor d
 | `/dt:<skill>` | `/dt-<skill>` |
 | plugin skill list | `/dt` (explicit invoke only) |
 
-`plugins/dt-cursor/skills/dt-<name>/` holds 27 procedures. `scripts/dt_gate.py` scaffolds only after an end-state approval digest, and it stops a run until the plan and ship digests match. Merges, fleet broadcast, hook install, the headless SDK, and paid calls exit `CURSOR_UNSUPPORTED` and are not executed. Skill folders are `dt-<name>` so they do not take Cursor's `/sdk`, `/autopilot`, or `/run`.
+`plugins/dt-cursor/skills/dt-<name>/` holds 28 procedures. `scripts/dt_gate.py` scaffolds only after an end-state approval digest, and it stops a run until the plan and ship digests match. Merges, fleet broadcast, hook install, the headless SDK, and paid calls exit `CURSOR_UNSUPPORTED` and are not executed. Skill folders are `dt-<name>` so they do not take Cursor's `/sdk`, `/autopilot`, or `/run`.
 
 Files in the repo are not the same as a loaded command. Cursor loads project skills from `.cursor/skills/` and project commands from `.cursor/commands/` for a new session in this repo. A session that already started keeps the catalog it started with. Other repos, self-hosted workers, and automations do not see those files. Account-wide use needs the plugin installed from this commit. Install and the submission checklist are in [plugins/dt-cursor/README.md](plugins/dt-cursor/README.md) and [plugins/dt-cursor/SUBMISSION.md](plugins/dt-cursor/SUBMISSION.md).
 
@@ -127,6 +127,8 @@ Regenerate the Cursor files with `python3 plugins/dts2-runtime/scripts/cursor_su
 | [Legal](LEGAL.md) | Terms, cookies, and opt-out pages on dobeu.net |
 
 Day to day: run `/dt:setup` once per repo to agree an end state. Then `/dt:run <task>` takes one task from plan to pull request with checkpoints, and `/dt:check-in` shows progress. Use `/dt:ship` when the work is already on a branch and you want a checked pull request.
+
+For bounded role-instruction research, `/dt:loop <experiment.json>` compares one editable file on a frozen past-month receipt batch under fixed token and wall-clock caps. One metric decides keep/revert; every attempt is ledger-logged. The [experiment spec example](plugins/dts2-runtime/templates/loop-experiment.example.json) is inert. Improvements remain proposals for `/dt:ship` and existing merge gates; this update runs no production experiment.
 
 ## Known limits
 

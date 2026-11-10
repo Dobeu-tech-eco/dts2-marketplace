@@ -18,7 +18,7 @@ from test_upgrade_check import RELEASE
 
 SCRIPT: Final[Path] = PLUGIN_ROOT / "scripts" / "lanes.py"
 REPO_ROOT: Final[Path] = PLUGIN_ROOT.parent.parent
-VERSION: Final[str] = "5.1.1"
+VERSION: Final[str] = ReleaseContract.VERSION
 STAMP: Final[str] = "20261104-7"
 STALE_AGE_S: Final[int] = 4000
 SETTING_TIMEOUT_MIN: Final[int] = 1
@@ -167,7 +167,7 @@ class SuperviseTests(unittest.TestCase):
 
 
 class ReleaseTests(unittest.TestCase):
-    def test_version_is_3_9_1_everywhere(self) -> None:
+    def test_release_version_is_consistent_everywhere(self) -> None:
         plugin = json.loads((PLUGIN_ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
         market = json.loads((REPO_ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))
         self.assertEqual(plugin["version"], VERSION)

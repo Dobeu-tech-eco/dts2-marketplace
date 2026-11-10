@@ -124,7 +124,7 @@ Which command to use when: [docs/GUIDE.md](docs/GUIDE.md). Exact invocation of e
 Plugin contents:
 
 - Roles: lead, builder, fixer, reviewer, verifier, scout, auditor, incident-reviewer
-- Skills: onboard, composio, machine-prep, setup, run, learn, evolve, gtm, sdk, action-items, model, find-skills, check-in, ship, feature, autopilot, dpp, dpp-full, fullauto, ask-expert, repo-sweep, pr-sweep, fleet, cooldown, knowledge, incidents, steer
+- Skills: onboard, composio, machine-prep, setup, run, learn, evolve, loop, gtm, sdk, action-items, model, find-skills, check-in, ship, feature, autopilot, dpp, dpp-full, fullauto, ask-expert, repo-sweep, pr-sweep, fleet, cooldown, knowledge, incidents, steer
 - Hooks: session start (lessons, cooldowns), prompt intake, pre-compact handoff, stop checks (typecheck and lint), merge guard, policy gate, PR receipt, context guard, role report check, action-items ledger, session end
 - Settings: `.claude/dts2-harness.local.md` (template in `templates/`)
 
@@ -158,7 +158,7 @@ Effort levels beyond `medium` are verified only for claude and codex. Every othe
 
 ## All commands
 
-Every slash command in the plugin (27). Commands marked "never starts on its own" run only when you type them. Exact flags are in [docs/COMMANDS.md](docs/COMMANDS.md).
+Every slash command in the plugin (28). Commands marked "never starts on its own" run only when you type them. Exact flags are in [docs/COMMANDS.md](docs/COMMANDS.md).
 
 | Command | What it does | Example |
 |---|---|---|
@@ -194,6 +194,13 @@ Every slash command in the plugin (27). Commands marked "never starts on its own
 | `/dt:ask-expert` | Reviews one repo and returns a keep, fold, template, archive or delete memo with a scorecard. Changes nothing. | `/dt:ask-expert my-old-repo` |
 | `/dt:repo-sweep` | A quick ask-expert pass on every repo of an owner, then one cleanup screen. Delete is never bulk. | `/dt:repo-sweep Dobeu-tech-eco` |
 | `/dt:evolve` | Changes the plugin at its source repo: edit, test, bump the version, commit. Pushes only on your yes. For maintainers. | `/dt:evolve` |
+| `/dt:loop` | Researches one role instruction on a frozen receipt batch with fixed token and time caps, one metric, mechanical keep/revert, and a harness ledger. Proposes through ship. | `/dt:loop <experiment.json>` |
+
+### Bounded role research
+
+`/dt:loop` adapts [Karpathy autoresearch](https://github.com/karpathy/autoresearch) to role instructions: one editable file, a fixed token cap and wall-clock cap, and one metric on a batch frozen from past-month receipts. A change survives only when the metric strictly improves; ties and invalid runs revert. Every attempt, including failures, is logged under `.harness/research/<series>/` and indexed in `.harness/state.md`.
+
+Start with the [inert experiment definition](templates/loop-experiment.example.json) and read the [loop skill](skills/loop/SKILL.md). It is a workflow specification, not a bundled runner: the runtime must prove both budget controls and complete token accounting before any run. This release runs no production experiment and does not launch GPU training. Kept changes remain proposals for `/dt:ship`; existing review, CI, approvals and `merge_policy` still control effects.
 
 ## Configuration
 
