@@ -287,6 +287,8 @@ Release history before 3.10: 3.9 parallel autopilot (`dpp`, `dpp-full`, `fullaut
 
 ## 6. Where state lives
 
+For bounded instruction research, use `/dt:loop <experiment.json>` with the inert example at `../templates/loop-experiment.example.json`. Freeze one role file, a past-month receipt batch, evaluator, metric, model/settings and both token and wall-clock caps before baseline. The runtime must enforce those caps; unsupported accounting stops before execution. Strict improvement keeps a proposal; ties, errors and over-budget attempts revert. No production experiment is started by installing this skill. Publication goes through `ship` and existing approvals and merge policy.
+
 | Path | Holds | Written by |
 |---|---|---|
 | `.harness/end-state.md` | The approved end state, sections numbered, Production readiness table | `setup`, `feature` |
@@ -302,6 +304,7 @@ Release history before 3.10: 3.9 parallel autopilot (`dpp`, `dpp-full`, `fullaut
 | `.harness/council.md` | Every council vote, dissent and decision | `council.py ledger` |
 | `.harness/runs/<stamp>/` | `lanes.json`, `run.json`, `builders.jsonl`, `ledger.jsonl`, `merge-journal.jsonl`, `merge-go.md`, per-lane `brief.md`, `report.md`, `questions/` | `lanes.py`, `checks.py` only |
 | `.harness/merge-guard.log` | Refused merges and pushes | `guard.py` |
+| `.harness/research/<series>/` | Frozen definition and receipt snapshots, immutable artifacts, append-only `runs.jsonl` including invalid attempts; indexed in `.harness/state.md` | `loop` controller; never the candidate role |
 | `.harness/cache` | Shared build cache across lanes | sons |
 
 `.harness/runs/`, receipts and review receipts are never committed; `ensure-ignored.py` keeps them out of git.

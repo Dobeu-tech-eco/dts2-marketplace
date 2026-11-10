@@ -1,0 +1,50 @@
+{
+  "template_only": true,
+  "series_id": "example-reviewer-20261110",
+  "purpose": "INERT TEMPLATE: compare instruction edits on sanitized receipt replays; no production role or live run",
+  "base_commit": "REPLACE_WITH_COMMIT_SHA",
+  "editable_file": "research/roles/example-reviewer.md",
+  "initial_role_sha256": "REPLACE_WITH_SHA256",
+  "batch": {
+    "path": ".harness/research/example-reviewer-20261110/batch.json",
+    "sha256": "REPLACE_WITH_SHA256",
+    "window_start_inclusive": "2026-10-01T00:00:00Z",
+    "window_end_exclusive": "2026-11-01T00:00:00Z",
+    "selection": "all approved sanitized completed receipts in the window, sorted by UTC timestamp then receipt ID; freeze once",
+    "receipt_count": "REPLACE_WITH_POSITIVE_INTEGER",
+    "entry_fields": ["receipt_id", "source_path", "timestamp", "source_sha256", "task_snapshot", "expected_result", "snapshot_sha256"],
+    "receipt_ids": ["REPLACE_WITH_REAL_RECEIPT_IDS"]
+  },
+  "evaluator": {
+    "path": "research/evaluation/receipt-pass-rate.json",
+    "sha256": "REPLACE_WITH_SHA256",
+    "definition": "Frozen receipt-specific assertions return one binary pass per replay; pass only when every required assertion passes. Every frozen receipt is evaluated exactly once. Errors invalidate the run.",
+    "side_effects": "none; replay sanitized snapshots with external integrations disabled",
+    "immutable_input_manifest": ".harness/research/example-reviewer-20261110/immutable-inputs.json",
+    "immutable_input_manifest_sha256": "REPLACE_WITH_SHA256"
+  },
+  "metric": {
+    "name": "receipt_pass_rate",
+    "direction": "maximize",
+    "aggregation": "passed_receipts / frozen_receipt_count",
+    "keep": "valid and metric_after > metric_before; ties revert"
+  },
+  "budget": {
+    "token_cap": 12000,
+    "wall_clock_seconds": 300,
+    "accounting": "all mutation and evaluation model input, output, cache and reasoning tokens; shared cap across calls",
+    "deadline": "monotonic; includes mutation, dispatch, startup and evaluation"
+  },
+  "max_experiments": 3,
+  "model": {
+    "provider": "claude",
+    "requested_model": "REPLACE_WITH_EXACT_MODEL_ID",
+    "resolved_model": "REPLACE_WITH_EXACT_MODEL_ID",
+    "auth_mode": "subscription",
+    "settings": {"temperature": 0, "seed_policy": "fixed seed if supported; otherwise record unsupported and hold all other settings fixed"}
+  },
+  "state_index": ".harness/state.md",
+  "ledger": ".harness/research/example-reviewer-20261110/runs.jsonl",
+  "snapshots": ".harness/research/example-reviewer-20261110/artifacts/",
+  "publication": "Proposal only; dt:ship and standing merge_policy retain all gated effects"
+}
