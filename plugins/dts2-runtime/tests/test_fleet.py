@@ -697,7 +697,8 @@ class ShellHookTests(FleetCase):
         self.assertTrue(os.access(HOOK, os.X_OK))
 
     def test_end_to_end_registers_with_claude_pid_and_delivers(self) -> None:
-        self.send("note", "from the shell")
+        # The subprocess uses the real clock; a fixed-date broadcast expires.
+        self.send("note", "from the shell", now=fleet.utc_now())
         done = self.run_hook("UserPromptSubmit", json.dumps(self.payload()))
         self.assertEqual(done.returncode, 0)
         self.assertIn("from the shell", json.loads(done.stdout)["hookSpecificOutput"]["additionalContext"])
