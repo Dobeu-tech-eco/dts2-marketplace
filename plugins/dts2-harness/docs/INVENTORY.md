@@ -251,6 +251,7 @@ Stamp-keyed commands:
 | `context-tax.py` | none | `--root`, `--budget`, `--max-description` | Measure always-loaded skill and agent metadata; exit 1 over budget. | CI `metadata` job | new |
 | `bump-version.py` | `<version>` | `--root`, `--check` | Bump or verify the version in the four places it is recorded. | `make check-version` | new |
 | `directory_edition.py` | none | `--check` | Write the Claude directory listing at `plugins/dts2-harness` from this harness. | CI `metadata` job | new |
+| `cursor_surface.py` | none | `--check` | Write the Cursor instruction package at `plugins/dt-cursor` and the repo `.cursor` skills and commands. | CI `metadata` job | new |
 | `changelog-join.py` | none | `--root`, `--version`, `--apply`, `--date` | Join `changelog.d/` fragments into the README changelog; dry run unless `--apply`. | release step | new |
 
 ### 4.7 Hook entry points (called by hooks, usable by hand)
@@ -362,7 +363,7 @@ Defined in the repository root `Makefile` (one level above the plugin directory)
 | `make check-version` | `bump-version.py <version> --check` against `plugin.json`. | new |
 | `make doctor` | `python3 plugins/dts2-runtime/scripts/doctor.py`. | new |
 
-CI (`.github/workflows/test.yml`) runs the unittest suite on Python 3.10 to 3.13, `ruff check plugins/dts2-runtime`, `shellcheck -x` on the hooks, `context-tax.py`, `directory_edition.py --check`, and `claude plugin validate` on both `plugins/dts2-runtime` and `plugins/dts2-harness`.
+CI (`.github/workflows/test.yml`) runs the unittest suite on Python 3.10 to 3.13, `ruff check plugins/dts2-runtime`, `shellcheck -x` on the hooks, `context-tax.py`, `directory_edition.py --check`, `cursor_surface.py --check`, and `claude plugin validate` on both `plugins/dts2-runtime` and `plugins/dts2-harness`.
 
 ## 7. Changed in 3.10.0
 

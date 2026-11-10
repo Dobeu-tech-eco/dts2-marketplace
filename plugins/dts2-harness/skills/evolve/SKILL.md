@@ -31,6 +31,7 @@ Run all three; stop on any failure and fix before continuing:
 - `claude plugin validate .`
 - `python3 -m unittest discover -s plugins/dts2-runtime/tests`
 - `python3 plugins/dts2-runtime/scripts/directory_edition.py --check`
+- `python3 plugins/dts2-runtime/scripts/cursor_surface.py --check`
 
 ## 4. Bump versions
 Run `python3 plugins/dts2-runtime/scripts/bump-version.py <x.y.z>` (it writes every place the runtime version is recorded, including both manifests, and `--check` verifies them) instead of editing the manifests by hand. The directory listing version lives in `plugins/dts2-runtime/scripts/directory_edition.py`. Choose the version:

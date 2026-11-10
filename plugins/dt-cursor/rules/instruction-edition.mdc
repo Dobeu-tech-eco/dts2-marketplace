@@ -1,0 +1,6 @@
+---
+description: Optional dt gate reminder. alwaysApply is false, so Cursor does not attach this rule to every chat.
+alwaysApply: false
+---
+
+Use this rule only when the user invokes a /dt command. The enforcement is `scripts/dt_gate.py`, not this text. Do not treat `--yes`, `--ship`, or a JSON key as approval. Do not merge, broadcast, install hooks, run the headless SDK, or spend a provider API.

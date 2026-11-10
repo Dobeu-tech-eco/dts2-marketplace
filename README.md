@@ -96,11 +96,28 @@ The first release of the end-state interview, Plan and Ship checkpoints, roster 
 
 The Claude plugin directory tracks `plugins/dts2-harness`, an instruction edition generated from the full harness. It has the skills and roles, and it does not include hooks or scripts. Regenerate it with `python3 plugins/dts2-runtime/scripts/directory_edition.py`.
 
+## Cursor
+
+Claude Code installs `dt@dts2` and exposes each skill as `/dt:<skill>`. Cursor does not use that colon form. Current Cursor docs name a skill `/skill-name` and take a command's slash name from the filename stem, without a plugin prefix ([plugins reference](https://cursor.com/docs/reference/plugins), [skills](https://cursor.com/docs/skills)). This repo adds a separate package, `plugins/dt-cursor`, for that surface:
+
+| Claude Code | Cursor |
+|---|---|
+| `/dt:check-in` | `/dt-check-in` |
+| `/dt:<skill>` | `/dt-<skill>` |
+| plugin skill list | `/dt` (explicit invoke only) |
+
+`plugins/dt-cursor/skills/dt-<name>/` holds 27 procedures. `scripts/dt_gate.py` scaffolds only after an end-state approval digest, and it stops a run until the plan and ship digests match. Merges, fleet broadcast, hook install, the headless SDK, and paid calls exit `CURSOR_UNSUPPORTED` and are not executed. Skill folders are `dt-<name>` so they do not take Cursor's `/sdk`, `/autopilot`, or `/run`.
+
+Files in the repo are not the same as a loaded command. Cursor loads project skills from `.cursor/skills/` and project commands from `.cursor/commands/` for a new session in this repo. A session that already started keeps the catalog it started with. Other repos, self-hosted workers, and automations do not see those files. Account-wide use needs the plugin installed from this commit. Install and the submission checklist are in [plugins/dt-cursor/README.md](plugins/dt-cursor/README.md) and [plugins/dt-cursor/SUBMISSION.md](plugins/dt-cursor/SUBMISSION.md).
+
+Regenerate the Cursor files with `python3 plugins/dts2-runtime/scripts/cursor_surface.py`. `--check` fails when they drift.
+
 ## Where to go next
 
 | Read | For |
 |---|---|
 | [Plugin README](plugins/dts2-runtime/README.md) | The manual: wiring, config files, all commands, troubleshooting |
+| [Cursor package](plugins/dt-cursor/README.md) | Cursor install, `/dt-*` names, and what a load proves |
 | [Guide](plugins/dts2-runtime/docs/GUIDE.md) | Which command to use when, and how to talk to the harness |
 | [Command reference](plugins/dts2-runtime/docs/COMMANDS.md) | Exact invocation of every command |
 | [Plugin changelog](plugins/dts2-runtime/CHANGELOG.md) | Full release history |

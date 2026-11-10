@@ -1,0 +1,16 @@
+{
+  "name": "dts2",
+  "owner": {
+    "name": "Dobeu Tech Solutions LLC"
+  },
+  "metadata": {
+    "description": "Dobeu Tech Solutions LLC Cursor plugins."
+  },
+  "plugins": [
+    {
+      "name": "dt",
+      "source": "plugins/dt-cursor",
+      "description": "DT: Init to Ship Auto Agent Orchestrator. Turns one task into a planned, built, reviewed and verified pull request, with human checkpoints, parallel lanes and a paper trail. Cursor runs the procedure through scripts/dt_gate.py. Merges, fleet broadcast, hook install, the headless SDK, and paid provider calls stay unexecuted."
+    }
+  ]
+}
