@@ -3,11 +3,11 @@ CONFIDENCE: moderate
 
 ## Why
 - replit.md describes a WhatsApp Business Cloud API bot plus a React dashboard.
-- The last push was 2026-08-16 and there is no README on the GitHub API.
-- No newer org repo is the WhatsApp product, and this one is a Replit workspace.
+- The last push was 2026-08-16, the last commit on main is 2026-04-04, and there is no README on the GitHub API.
+- No newer visible repo is the WhatsApp product, and this one is a Replit workspace.
 
 ## What your goal means
-A working WhatsApp desk would be a product. This tree has not moved since August, so the portfolio is carrying a prototype.
+A working WhatsApp desk would be a product. Main has not moved since April, so the portfolio is carrying a prototype.
 
 ## Numbers that mattered
 | Number | Value | Label | Source and date |

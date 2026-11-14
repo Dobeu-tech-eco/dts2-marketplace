@@ -14,7 +14,7 @@ This is the money path for consulting leads. A month without a push does not mak
 |---|---|---|---|
 | Last push | 2026-10-16 | sourced | https://github.com/Dobeu-tech-eco/dobeutech-sales-funnel-itconsult, 2026-11-12 |
 | Visibility | private | sourced | https://github.com/Dobeu-tech-eco/dobeutech-sales-funnel-itconsult, 2026-11-12 |
-| Open issues | 8 | sourced | https://github.com/Dobeu-tech-eco/dobeutech-sales-funnel-itconsult, 2026-11-12 |
+| Open issues and PRs | 8 | sourced | https://github.com/Dobeu-tech-eco/dobeutech-sales-funnel-itconsult, 2026-11-12 |
 
 ## Scorecard
 | Factor | Score | Method | Evidence |
@@ -41,7 +41,7 @@ The authenticated prospect API and the automation layer, already the product.
 Leads have moved to another CRM and this app is switched off.
 
 ## Next step
-Leave the repo as-is. The open issue count is the backlog, not a reason to archive.
+Leave the repo as-is. The open count is seven pull requests, mostly dependency bumps, and one security issue. That is a backlog, not a reason to archive.
 
 ## Appendix
 Single reviewer. The three-seat panel was not seated: `dt_gate.py bridge roster.py` returned BLOCKED unsupported-runtime-script, and paid provider calls stay unexecuted in the Cursor package. Confidence is not high. The sweep goal was taken as portfolio and is not confirmed. OpenSSF Scorecard returned 404 for the probed public repo, so security scores are estimated. No archive, delete, or fold was applied.

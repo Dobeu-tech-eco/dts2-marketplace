@@ -14,7 +14,7 @@ Client storefronts stay. The portfolio value is a store that can take payment, a
 |---|---|---|---|
 | Last push | 2026-10-16 | sourced | https://github.com/Dobeu-tech-eco/ikram-meme-and-co, 2026-11-12 |
 | Homepage | ikram-meme-and-co.vercel.app | sourced | https://github.com/Dobeu-tech-eco/ikram-meme-and-co, 2026-11-12 |
-| Open issues | 4 | sourced | https://github.com/Dobeu-tech-eco/ikram-meme-and-co, 2026-11-12 |
+| Open issues and PRs | 4 | sourced | https://github.com/Dobeu-tech-eco/ikram-meme-and-co, 2026-11-12 |
 
 ## Scorecard
 | Factor | Score | Method | Evidence |

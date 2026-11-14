@@ -1,6 +1,6 @@
-# Dobeu-tech-eco repo sweep, oldest 20
+# Dobeu-tech-eco repo sweep, oldest 20 of the 33 visible repos
 
-Reviewed 2026-11-12. Org `Dobeu-tech-eco` has 33 repositories, none archived. This pass is the 20 with the oldest `pushedAt`. The other 13 were not reviewed.
+Reviewed 2026-11-12. The reviewing agent could see 33 repositories in `Dobeu-tech-eco`, none archived. The org has 53: a full listing on 2026-11-13 shows 20 more private repositories that the agent's token could not see. This pass is the 20 with the oldest `pushedAt` among the 33 visible. It is not the org's 20 oldest. Only 10 of these 20 are in the org-wide oldest 20; the other 10 org-wide oldest are among the repositories the agent could not see. 33 repositories were not reviewed: 13 visible and 20 not visible.
 
 Nothing was archived, folded, or deleted. `dt_gate.py bridge ask_expert.py` is blocked in the Cursor package (`unsupported-runtime-script`), so there is no official ledger and no tick was applied.
 
@@ -33,9 +33,13 @@ Sorted by score, highest first. Tick only KEEP, FOLD, TEMPLATE, or ARCHIVE. DELE
 | bookmark-software-cat | 32 | ARCHIVE | moderate | Personal registry plus a password vault, with data files in git. | The bookmark idea, after the dumps are reviewed offline. |
 | dobeutech-designsystem-weaver | 30 | ARCHIVE | low | Replit workspace, no README text. Artifacts were not opened. | Whatever converter lives under artifacts/. |
 
-## Not reviewed (newer pushes)
+## Not reviewed
+
+Visible to the reviewing agent, newer pushes:
 
 routeready, new-dobeu-net, dev_usp-com, DOT-Copilot, dobeu-space, routereadyhq-apk, dts2-marketplace, chimacomics, lastplateprod, androidbackend, dobeu-v0-skills-pack, accident-dobeu, statminer.
+
+Not visible to the reviewing agent: 20 private repositories. Their names are left out of this public file. Eleven of them were last pushed before 2026-09-20, which makes them older than half of the repos reviewed here. The owner has the list.
 
 ## Gates that did not run
 
@@ -46,3 +50,15 @@ routeready, new-dobeu-net, dev_usp-com, DOT-Copilot, dobeu-space, routereadyhq-a
 - OpenSSF Scorecard: the public API returned 404 for one-composio-mcp. Security scores are estimated.
 
 Memos and comparisons are in `.harness/ask-expert/<repo>/`.
+
+## Review corrections, 2026-11-13
+
+A second reviewer checked the 20 memos against GitHub. No verdict, confidence or score changed. All 20 scorecards match the portfolio weighting.
+
+- Scope: the org has 53 repositories, not 33. See the first paragraph and the Not reviewed section.
+- Dates: five memos gave a branch push date to a commit on the default branch. Corrected in ai-tutor, dts-contract-engine, standards, nailpro-inventory-purchase-platform and whatsapp-bot.
+- Counts: the rows labelled open issues are GitHub's combined count of open issues and open pull requests. The label now says so. In most of these repos the count is all pull requests.
+- Claims that nothing else in the org does the same job now say nothing else among the visible repos.
+- baldor-safety-insights `.env`: opened read-only. It holds the Supabase project id, URL and publishable key, the values a browser build ships. No service-role key or database password, on any branch. `.gitignore` does not list `.env`.
+- bookmark-software-cat data files: opened read-only. The findings went to the owner and are not in this public file. Archiving does not change who can read a repository, so visibility is a separate decision from archive.
+- Since the review, baldor-safety-insights and ikram-meme-and-co received new branch pushes on 2026-11-12, and the three open pull requests on ai-tutor were closed. The memos are a 2026-11-12 snapshot and were not re-dated.

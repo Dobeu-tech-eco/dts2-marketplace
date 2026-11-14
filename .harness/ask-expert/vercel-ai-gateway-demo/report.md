@@ -14,7 +14,7 @@ A cloned demo does not teach or sell anything the upstream repo does not already
 |---|---|---|---|
 | Last push | 2026-08-16 | sourced | https://github.com/Dobeu-tech-eco/vercel-ai-gateway-demo, 2026-11-12 |
 | Origin named in README | vercel-labs/ai-sdk-gateway-demo | sourced | https://github.com/Dobeu-tech-eco/vercel-ai-gateway-demo, 2026-11-12 |
-| Open issues | 1 | sourced | https://github.com/Dobeu-tech-eco/vercel-ai-gateway-demo, 2026-11-12 |
+| Open issues and PRs | 1 | sourced | https://github.com/Dobeu-tech-eco/vercel-ai-gateway-demo, 2026-11-12 |
 
 ## Scorecard
 | Factor | Score | Method | Evidence |

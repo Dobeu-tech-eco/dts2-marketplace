@@ -42,7 +42,7 @@ Any chart or supabase migration in this tree that is missing from baldor-safety-
 A screen here that the November repo never received.
 
 ## Next step
-Diff src/ and supabase/ against baldor-safety-insights, move anything missing, then decide on archive. Do not archive first.
+Diff src/ and supabase/ against baldor-safety-insights, move anything missing, then decide on archive. Include the replit-export branch and the three unmerged cc-dev branches in that diff. Do not archive first.
 
 ## Appendix
 Single reviewer. The three-seat panel was not seated: `dt_gate.py bridge roster.py` returned BLOCKED unsupported-runtime-script, and paid provider calls stay unexecuted in the Cursor package. Confidence is not high. The sweep goal was taken as portfolio and is not confirmed. OpenSSF Scorecard returned 404 for the probed public repo, so security scores are estimated. No archive, delete, or fold was applied.

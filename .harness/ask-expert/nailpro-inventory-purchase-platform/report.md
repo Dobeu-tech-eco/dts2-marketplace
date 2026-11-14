@@ -3,7 +3,7 @@ CONFIDENCE: low
 
 ## Why
 - The README is a multi-tenant inventory app for nail salons in New Jersey and New York.
-- It has Supabase, Vite, and a cloud-agent environment commit on 2026-09-02.
+- It has Supabase, Vite, and a cloud-agent environment commit on 2026-08-29. The 2026-09-02 pushes are Dependabot branches.
 - A client delivery should stay even when the commit log goes quiet.
 
 ## What your goal means
@@ -14,7 +14,7 @@ If a salon is on it, this is revenue already delivered. If nobody is, it is a st
 |---|---|---|---|
 | Last push | 2026-09-02 | sourced | https://github.com/Dobeu-tech-eco/nailpro-inventory-purchase-platform, 2026-11-12 |
 | Created | 2026-01-16 | sourced | https://github.com/Dobeu-tech-eco/nailpro-inventory-purchase-platform, 2026-11-12 |
-| Open issues | 3 | sourced | https://github.com/Dobeu-tech-eco/nailpro-inventory-purchase-platform, 2026-11-12 |
+| Open issues and PRs | 3 | sourced | https://github.com/Dobeu-tech-eco/nailpro-inventory-purchase-platform, 2026-11-12 |
 
 ## Scorecard
 | Factor | Score | Method | Evidence |

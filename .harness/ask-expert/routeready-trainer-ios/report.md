@@ -14,7 +14,7 @@ RouteReady is a product line. The iOS app is how trainers and trainees use it aw
 |---|---|---|---|
 | Last push | 2026-11-06 | sourced | https://github.com/Dobeu-tech-eco/routeready-trainer-ios, 2026-11-12 |
 | Web app push | 2026-11-12 | sourced | https://github.com/Dobeu-tech-eco/routeready, 2026-11-12 |
-| Open issues | 5 | sourced | https://github.com/Dobeu-tech-eco/routeready-trainer-ios, 2026-11-12 |
+| Open issues and PRs | 5 | sourced | https://github.com/Dobeu-tech-eco/routeready-trainer-ios, 2026-11-12 |
 
 ## Scorecard
 | Factor | Score | Method | Evidence |

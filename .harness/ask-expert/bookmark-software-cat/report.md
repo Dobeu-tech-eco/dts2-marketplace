@@ -35,13 +35,13 @@ Overall: 32/100
 not sellable: a password vault with committed dumps is not a starter kit. Generic Next.js starters list at $17-$97 (https://themeforest.net/item/nextsaas-saas-software-startup-nextjs-template/59610421 and https://vibeboot.gumroad.com/l/saas-starter, checked 2026-11-12).
 
 ## Salvage list
-The bookmark browser idea only, after the dumps are reviewed offline. This pass did not open those files.
+The bookmark browser idea only, after the dumps are reviewed offline. The first pass did not open those files.
 
 ## What would change the answer
 You still use it as your daily registry and the dumps are fake.
 
 ## Next step
-Leave it unarchived until you approve archive for Dobeu-tech-eco/bookmark-software-cat. Review the dumps locally first. Do not paste them into chat.
+Leave it unarchived until you approve archive for Dobeu-tech-eco/bookmark-software-cat. Review the dumps locally first. Do not paste them into chat. A read-only follow-up on 2026-11-13 opened the data files, and the findings went to the owner, not into this file. Archiving does not change who can read the repo, so decide visibility before archive.
 
 ## Appendix
 Single reviewer. The three-seat panel was not seated: `dt_gate.py bridge roster.py` returned BLOCKED unsupported-runtime-script, and paid provider calls stay unexecuted in the Cursor package. Confidence is not high. The sweep goal was taken as portfolio and is not confirmed. OpenSSF Scorecard returned 404 for the probed public repo, so security scores are estimated. No archive, delete, or fold was applied.

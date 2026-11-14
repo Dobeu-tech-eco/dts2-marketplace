@@ -4,7 +4,7 @@ CONFIDENCE: moderate
 ## Why
 - Phase 1, local-file RAG behind an MCP server, is marked shipped in the README.
 - The repo is MIT, has tests, and took a Dependabot CI commit on 2026-10-11.
-- Nothing else in the org is this retrieval server.
+- Nothing else among the 33 visible repos is this retrieval server.
 
 ## What your goal means
 It is a working tool you can point agents at. Hosting a vector index is the upkeep, and the code itself is in good shape for a portfolio.

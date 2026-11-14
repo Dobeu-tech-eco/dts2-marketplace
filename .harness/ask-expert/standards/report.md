@@ -3,7 +3,7 @@ CONFIDENCE: moderate
 
 ## Why
 - The README says it is the shared CI baseline for Dobeu-tech-eco, pinned at an immutable @v1.
-- The last push, 2026-11-01, corrects that versioning model.
+- The last commit on main, 2026-09-24, corrects that versioning model. The 2026-11-01 push is a Dependabot branch.
 - Callers are the other repos, so archiving this breaks the portfolio gate.
 
 ## What your goal means

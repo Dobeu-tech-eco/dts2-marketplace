@@ -3,7 +3,7 @@ CONFIDENCE: moderate
 
 ## Why
 - It is the quote, contract, and consulting-hour tool for Dobeu Tech, with a Vercel homepage.
-- The tree has Playwright, CI, and a portfolio-baseline commit on 2026-10-11.
+- The tree has Playwright, CI, and a portfolio-baseline commit on 2026-09-24, the last change on main.
 - The README still calls phase 1 the next build, so the product is early and real.
 
 ## What your goal means
@@ -14,7 +14,7 @@ This is internal revenue tooling. Finishing phase 1 is worth more than archiving
 |---|---|---|---|
 | Last push | 2026-10-11 | sourced | https://github.com/Dobeu-tech-eco/dts-contract-engine, 2026-11-12 |
 | Homepage | dts-contract-engine.vercel.app | sourced | https://github.com/Dobeu-tech-eco/dts-contract-engine, 2026-11-12 |
-| Open issues | 6 | sourced | https://github.com/Dobeu-tech-eco/dts-contract-engine, 2026-11-12 |
+| Open issues and PRs | 6 | sourced | https://github.com/Dobeu-tech-eco/dts-contract-engine, 2026-11-12 |
 
 ## Scorecard
 | Factor | Score | Method | Evidence |

@@ -3,7 +3,7 @@ CONFIDENCE: moderate
 
 ## Why
 - It is the public coaching site for dobeu.tech, with a homepage on Vercel.
-- The app has Vitest, a changelog, and a security-hardening merge on 2026-08-12.
+- The app has Vitest, a changelog, and a security-hardening merge on 2026-07-15. The 2026-08-12 push was a bot branch, not main.
 - Quiet git history is normal for a marketing site that is already deployed.
 
 ## What your goal means
@@ -14,7 +14,7 @@ It is one of the few repos that can still bring coaching leads. The portfolio va
 |---|---|---|---|
 | Last push | 2026-08-12 | sourced | https://github.com/Dobeu-tech-eco/ai-tutor, 2026-11-12 |
 | Homepage | ai-tutor-gamma-eosin.vercel.app | sourced | https://github.com/Dobeu-tech-eco/ai-tutor, 2026-11-12 |
-| Open issues | 3 | sourced | https://github.com/Dobeu-tech-eco/ai-tutor, 2026-11-12 |
+| Open issues and PRs | 3 | sourced | https://github.com/Dobeu-tech-eco/ai-tutor, 2026-11-12 |
 
 ## Scorecard
 | Factor | Score | Method | Evidence |
