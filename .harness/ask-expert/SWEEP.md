@@ -39,7 +39,7 @@ Visible to the reviewing agent, newer pushes:
 
 routeready, new-dobeu-net, dev_usp-com, DOT-Copilot, dobeu-space, routereadyhq-apk, dts2-marketplace, chimacomics, lastplateprod, androidbackend, dobeu-v0-skills-pack, accident-dobeu, statminer.
 
-Not visible to the reviewing agent: 20 private repositories. Their names are left out of this public file. Eleven of them were last pushed before 2026-09-20, which makes them older than half of the repos reviewed here. The owner has the list. Update 2026-11-14: part 2 below reviewed all 20 and lists them by name.
+Not visible to the reviewing agent: 20 private repositories. Their names are left out of this public file. Eleven of them were last pushed before 2026-09-20, which makes them older than half of the repos reviewed here. The owner has the list. Update 2026-11-14: part 2 below reviewed all 20 under neutral labels; the names stay out of this file.
 
 ## Gates that did not run
 
@@ -74,7 +74,7 @@ Nothing was archived, folded, deleted, transferred or changed in any swept repo.
 
 The goal used for scores is portfolio, as in part 1, so the two tables compare. The owner has not confirmed it.
 
-7 KEEP, 0 FOLD, 13 ARCHIVE. Of the ARCHIVE rows, three are empty repositories and seven more hold no product code: Replit-Design-Project, prompthooks, comp-gradiant-v0-temp, re-dobeutech-agents, re-sset-trajectory, ruflo-setup and ruflo-memory.
+7 KEEP, 0 FOLD, 13 ARCHIVE. Of the ARCHIVE rows, three are empty repositories and seven more hold no product code: P2-13, P2-14, P2-15, P2-16, P2-17, P2-10 and P2-12.
 
 ### Cleanup screen, part 2
 
@@ -82,26 +82,26 @@ Sorted by score, highest first. Tick only KEEP, FOLD, TEMPLATE, or ARCHIVE. DELE
 
 | Repo | Score | Verdict | Confidence | Reason | Salvage |
 |---|---|---|---|---|---|
-| si-agent-core | 70 | KEEP | moderate | Active, tested CLI that gates agent prompt changes. v0.6.0, MIT. | The promotion rule, registry and reusable workflow. |
-| dobeu-online | 58 | KEEP | moderate | Astro and Stripe rebuild of the company site. The domain answers from Vercel. | Cart store and Stripe checkout route with tests. |
-| dts-portfolio | 58 | KEEP | moderate | Store of record for cross-repo specs, plans and findings. In use on 2026-11-07. | The design spec, plans and findings. |
-| ex-staffing | 55 | KEEP | moderate | Staffing-site demo template for prospects. History still carries the old client's identity. | Marketing site, applicant flow and admin dashboard. |
-| t3-android-setup | 54 | KEEP | moderate | One-command Android coding-host setup, written 2026-11-07, 12 KB. | The full setup script and README notes. |
-| dobeu-knowledge-pilot | 49 | ARCHIVE | moderate | Mock-first search pilot. The owner's notes say preserve it as a reference. | Full-text retrieval, the 60-case evaluation and security tests. |
-| claude-code-config-backup | 48 | KEEP | moderate | Scheduled config backup still pushing. Archive would break it. A credential sits in history. | The whitelist ignore file, hooks and rules. |
-| ona-ubuntu | 45 | KEEP | low | Persistent SSH dev container. Usage is unknown, so keep is the reversible call. | SSH container, verify and backup scripts. |
-| re-dobeutech-dev-enforcer | 41 | ARCHIVE | moderate | December 2025 standards CLI import. The standards repo is the live answer. | The four rule files and the pre-commit template. |
-| ruflo-setup | 36 | ARCHIVE | moderate | Backup mirror of an earlier harness config, idle since July. | The notification script and two design notes. |
-| re-webapp-maker | 35 | ARCHIVE | moderate | Replit design-generation prototype with a placeholder readme. | The design-forge frontend and API routes. |
-| ruflo-memory | 30 | ARCHIVE | moderate | July transcript archive with session logs in git. Keep private. | The org-wide agent instruction pack, moved elsewhere. |
-| Replit-Design-Project | 29 | ARCHIVE | moderate | Unmodified Replit scaffold, one commit. | None. |
-| prompthooks | 27 | ARCHIVE | moderate | Two-file editor hook snapshot, no readme. | The hook definition. |
-| comp-gradiant-v0-temp | 25 | ARCHIVE | moderate | License and a two-line readme. The template was never added. | None. |
-| re-dobeutech-agents | 25 | ARCHIVE | moderate | Import whose zip held only an ignore file. | None. |
-| re-sset-trajectory | 25 | ARCHIVE | moderate | A zip of another org project plus a session log. No source. | Anything in the zip the live repo lacks. |
-| DOT-Copilot-replit | 24 | ARCHIVE | moderate | Empty repository, no commits. | None. |
-| re-ai-coach | 24 | ARCHIVE | moderate | Empty repository, no commits. | None. |
-| re-gitdobeucloud-lastplate | 24 | ARCHIVE | moderate | Empty repository, no commits. | None. |
+| P2-01 | 70 | KEEP | moderate | Active, tested CLI that gates agent prompt changes. v0.6.0, MIT. | The promotion rule, registry and reusable workflow. |
+| P2-02 | 58 | KEEP | moderate | Astro and Stripe rebuild of the company site. The domain answers from Vercel. | Cart store and Stripe checkout route with tests. |
+| P2-03 | 58 | KEEP | moderate | Store of record for cross-repo specs, plans and findings. In use on 2026-11-07. | The design spec, plans and findings. |
+| P2-04 | 55 | KEEP | moderate | Staffing-site demo template for prospects. History still carries the old client's identity. | Marketing site, applicant flow and admin dashboard. |
+| P2-05 | 54 | KEEP | moderate | One-command Android coding-host setup, written 2026-11-07, 12 KB. | The full setup script and README notes. |
+| P2-06 | 49 | ARCHIVE | moderate | Mock-first search pilot. The owner's notes say preserve it as a reference. | Full-text retrieval, the 60-case evaluation and security tests. |
+| P2-07 | 48 | KEEP | moderate | Scheduled config backup still pushing. Archive would break it. A credential sits in history. | The whitelist ignore file, hooks and rules. |
+| P2-08 | 45 | KEEP | low | Persistent SSH dev container. Usage is unknown, so keep is the reversible call. | SSH container, verify and backup scripts. |
+| P2-09 | 41 | ARCHIVE | moderate | December 2025 standards CLI import. The standards repo is the live answer. | The four rule files and the pre-commit template. |
+| P2-10 | 36 | ARCHIVE | moderate | Backup mirror of an earlier harness config, idle since July. | The notification script and two design notes. |
+| P2-11 | 35 | ARCHIVE | moderate | Replit design-generation prototype with a placeholder readme. | The design-forge frontend and API routes. |
+| P2-12 | 30 | ARCHIVE | moderate | July transcript archive with session logs in git. Keep private. | The org-wide agent instruction pack, moved elsewhere. |
+| P2-13 | 29 | ARCHIVE | moderate | Unmodified Replit scaffold, one commit. | None. |
+| P2-14 | 27 | ARCHIVE | moderate | Two-file editor hook snapshot, no readme. | The hook definition. |
+| P2-15 | 25 | ARCHIVE | moderate | License and a two-line readme. The template was never added. | None. |
+| P2-16 | 25 | ARCHIVE | moderate | Import whose zip held only an ignore file. | None. |
+| P2-17 | 25 | ARCHIVE | moderate | A zip of another org project plus a session log. No source. | Anything in the zip the live repo lacks. |
+| P2-18 | 24 | ARCHIVE | moderate | Empty repository, no commits. | None. |
+| P2-19 | 24 | ARCHIVE | moderate | Empty repository, no commits. | None. |
+| P2-20 | 24 | ARCHIVE | moderate | Empty repository, no commits. | None. |
 
 ### Unreadable repos
 
@@ -111,24 +111,24 @@ None. All 20 could be listed and cloned. The three empty ones have memos that sa
 
 This file is public, so each risk is named without the detail. The detail is in the private repos themselves.
 
-- claude-code-config-backup: a credentials-shaped string sits in the git history of a settings file. Rotate it.
-- claude-code-config-backup: the backup job pushes to a branch that is not the default branch, so the repo looks idle since July when it was last backed up on 2026-11-13. Archiving it would break the job.
-- ex-staffing: the current tree is a debranded demo apart from two harness files that still mention the old brand, and earlier commits still carry the original client's name, contact details and screenshots. Do not make this history public. Clean those two files, then publish from a fresh copy if it is ever shown outside the org.
-- ruflo-memory: agent session transcripts are stored in git. A scanner found nothing real, and a scanner cannot clear free text. Keep it private whatever else is decided.
-- re-sset-trajectory: a zip of another project and a session log are tracked as files. The zip's two credentials-shaped strings are placeholders. The log was scanned and not read.
-- dobeu-knowledge-pilot: five pull requests are open. Archive freezes them, so settle them first.
-- dobeu-online: the domain answers from Vercel, but this pass did not confirm that the deployment builds from this repo. The repo has tests and no CI.
-- This pull request publishes the names of 20 private repositories for the first time, because the memo folders are named after them. Part 1 left those names out. The names became public when this branch reached the public remote. Closing the pull request does not withdraw them.
+- P2-07: a credentials-shaped string sits in the git history of a settings file. Rotate it.
+- P2-07: the backup job pushes to a branch that is not the default branch, so the repo looks idle since July when it was last backed up on 2026-11-13. Archiving it would break the job.
+- P2-04: the current tree is a debranded demo apart from two harness files that still mention the old brand, and earlier commits still carry the original client's name, contact details and screenshots. Do not make this history public. Clean those two files, then publish from a fresh copy if it is ever shown outside the org.
+- P2-12: agent session transcripts are stored in git. A scanner found nothing real, and a scanner cannot clear free text. Keep it private whatever else is decided.
+- P2-17: a zip of another project and a session log are tracked as files. The zip's two credentials-shaped strings are placeholders. The log was scanned and not read.
+- P2-06: five pull requests are open. Archive freezes them, so settle them first.
+- P2-02: the domain answers from Vercel, but this pass did not confirm that the deployment builds from this repo. The repo has tests and no CI.
+- Repo names: each part 2 repo appears here only as a label (P2-01 to P2-20). The memos, the ledger and the label map sit in `private/`, which `.gitignore` keeps out of this public repository. The owner has them.
 
 No tracked `.env` file was found in the history of any of the 20. The env files that exist are examples, and the scan found no secrets in them.
 
 ### What ran and what did not, part 2
 
 - `ask_expert.py check-report --goal portfolio`: ran on all 20 memos, all pass. It also passes on the 20 part 1 memos.
-- `ask_expert.py sweep add`: ran. The ledger for part 2 is `sweep-20261114T153814Z.jsonl` in this folder. Part 1 has no ledger, so `sweep show` lists only these 20.
+- `ask_expert.py sweep add`: ran. The ledger for part 2 is kept in the ignored `private/` folder. Part 1 has no ledger, so `sweep show` lists only these 20.
 - Goal clarity questions: not asked. This pass ran unattended and reused part 1's unconfirmed portfolio goal.
 - Three-seat panel: not seated. It would send private-repo facts to outside providers, and the request did not ask for paid calls. Each memo is one reviewer, so no confidence is high.
-- Secret scan: gitleaks 8.30 over the full history of every branch of the 17 non-empty repos, with every hit classified by hand. The three zips tracked in re-dobeutech-agents, re-dobeutech-dev-enforcer and re-sset-trajectory were opened and scanned too. Not opened: six compressed skill archives on the claude-code-config-backup backup branch, and one zip that exists only in the early history of ex-staffing.
+- Secret scan: gitleaks 8.30 over the full history of every branch of the 17 non-empty repos, with every hit classified by hand. The three zips tracked in P2-16, P2-09 and P2-17 were opened and scanned too. Not opened: six compressed skill archives on the P2-07 backup branch, and one zip that exists only in the early history of P2-04.
 - OpenSSF Scorecard and dependency scans: not run. Security scores are estimated.
 - No code from any swept repo was run. Test counts are counts of test files, not passing tests.
 - Dates: push dates are UTC and commit dates are the committer's local date, so the two can differ by a day.
