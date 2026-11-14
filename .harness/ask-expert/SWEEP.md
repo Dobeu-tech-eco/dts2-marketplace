@@ -23,7 +23,7 @@ Sorted by score, highest first. Tick only KEEP, FOLD, TEMPLATE, or ARCHIVE. DELE
 | baldor-safety-insights | 52 | KEEP | moderate | Private Baldor app, the later of the two trees. | Upload detectors and charts. |
 | one-composio-mcp | 49 | ARCHIVE | moderate | Tested bridge, idle since June, Composio MCP is already connected. | src/ and tests/ if you self-host sessions. |
 | nailpro-inventory-purchase-platform | 48 | KEEP | low | Salon inventory app. Usage is unknown, so keep is the reversible call. | Multi-tenant inventory screens. |
-| dobeu-design-system | 45 | ARCHIVE | moderate | Design System v2. No checked-out app depends on @dobeu/tokens. | @dobeu/tokens and the token contract. |
+| dobeu-design-system | 45 | ARCHIVE | low | Design System v2. No app installs @dobeu/tokens, but new-dobeu-net copies its values. | @dobeu/tokens and the token contract. |
 | monty-ai-fullstackdev-coder | 44 | ARCHIVE | moderate | Earlier agent package. The marketplace is the harness you ship. | AUTONOMOUS_WORKFLOWS.md if a workflow is missing. |
 | baldor-safety-platform | 42 | FOLD | moderate | Same Baldor product as baldor-safety-insights, older and public. | Charts or migrations the November repo lacks. |
 | whatsapp-bot | 37 | ARCHIVE | moderate | Replit WhatsApp prototype, last push 2026-08-16, no README. | Webhook server if a client still wants WhatsApp. |
@@ -53,12 +53,13 @@ Memos and comparisons are in `.harness/ask-expert/<repo>/`.
 
 ## Review corrections, 2026-11-13
 
-A second reviewer checked the 20 memos against GitHub. No verdict, confidence or score changed. All 20 scorecards match the portfolio weighting.
+A second reviewer checked the 20 memos against GitHub. No verdict or score changed. One confidence dropped: dobeu-design-system, moderate to low. All 20 scorecards match the portfolio weighting.
 
 - Scope: the org has 53 repositories, not 33. See the first paragraph and the Not reviewed section.
 - Dates: five memos gave a branch push date to a commit on the default branch. Corrected in ai-tutor, dts-contract-engine, standards, nailpro-inventory-purchase-platform and whatsapp-bot.
 - Counts: the rows labelled open issues are GitHub's combined count of open issues and open pull requests. The label now says so. In most of these repos the count is all pull requests.
 - Claims that nothing else in the org does the same job now say nothing else among the visible repos.
+- dobeu-design-system: the memo said v2 is no longer a source for any app. new-dobeu-net, the dobeu.net production site, names @dobeu/tokens as its source of truth and copies the values. The verdict stays ARCHIVE and confidence is now low.
 - baldor-safety-insights `.env`: opened read-only. It holds the Supabase project id, URL and publishable key, the values a browser build ships. No service-role key or database password, on any branch. `.gitignore` does not list `.env`.
 - bookmark-software-cat data files: opened read-only. The findings went to the owner and are not in this public file. Archiving does not change who can read a repository, so visibility is a separate decision from archive.
 - Since the review, baldor-safety-insights and ikram-meme-and-co received new branch pushes on 2026-11-12, and the three open pull requests on ai-tutor were closed. The memos are a 2026-11-12 snapshot and were not re-dated.

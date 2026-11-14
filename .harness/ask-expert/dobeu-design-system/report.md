@@ -1,20 +1,20 @@
 VERDICT: ARCHIVE
-CONFIDENCE: moderate
+CONFIDENCE: low
 
 ## Why
 - This is Design System v2, with tokens, React, icons, and motifs, last pushed 2026-09-21.
-- No package.json in the checked-out org apps depends on @dobeu/tokens.
+- No package.json in the org installs @dobeu/tokens, but new-dobeu-net's Tailwind config names it as the source of truth and copies its values.
 - RouteReady, Chima, and the coaching site describe later design-system copies.
 
 ## What your goal means
-A design system is a portfolio asset only while apps still build from it. v2 is not that source anymore.
+A design system is a portfolio asset only while apps still build from it. No app installs v2, and the production site still follows its values by hand.
 
 ## Numbers that mattered
 | Number | Value | Label | Source and date |
 |---|---|---|---|
 | Last push | 2026-09-21 | sourced | https://github.com/Dobeu-tech-eco/dobeu-design-system, 2026-11-12 |
 | Packages named | @dobeu/tokens, components-react, icons, motifs | sourced | https://github.com/Dobeu-tech-eco/dobeu-design-system, 2026-11-12 |
-| Local consumers | none in checked-out package.json files | estimated | workspace grep on 2026-11-12 |
+| Consumers | no package.json installs it; new-dobeu-net copies its values | sourced | https://github.com/Dobeu-tech-eco/new-dobeu-net, 2026-11-13 |
 
 ## Scorecard
 | Factor | Score | Method | Evidence |
@@ -38,10 +38,10 @@ not sellable: the tokens are the Dobeu brand. Generic Next.js starters list at $
 @dobeu/tokens and docs/token-contract.md if a brand site still needs v2 values.
 
 ## What would change the answer
-A production app still installs @dobeu/tokens from this repo.
+A production app still installs @dobeu/tokens from this repo, or dobeu.net still takes its token values from here.
 
 ## Next step
-Leave it unarchived until you approve archive for Dobeu-tech-eco/dobeu-design-system.
+Leave it unarchived until you approve archive for Dobeu-tech-eco/dobeu-design-system. First confirm where new-dobeu-net's tokens are maintained.
 
 ## Appendix
 Single reviewer. The three-seat panel was not seated: `dt_gate.py bridge roster.py` returned BLOCKED unsupported-runtime-script, and paid provider calls stay unexecuted in the Cursor package. Confidence is not high. The sweep goal was taken as portfolio and is not confirmed. OpenSSF Scorecard returned 404 for the probed public repo, so security scores are estimated. No archive, delete, or fold was applied.
