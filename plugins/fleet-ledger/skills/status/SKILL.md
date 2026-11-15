@@ -7,7 +7,18 @@ description: "Read-only health check of a fleet ledger database: tables present,
 
 `/fleet-ledger:status` checks one database and changes nothing. Ask which database to check when the user has not named one. Never guess a project.
 
-## 1. Run the check
+## 1. Confirm the foundation is there
+
+The check in step 2 raises an error when the schema or the queue extension is missing, so run this first:
+
+```sql
+select to_regclass('fleet_ledger.events') is not null as foundation_applied,
+       exists (select 1 from pg_extension where extname = 'pgmq') as pgmq_installed;
+```
+
+If either value is `false`, say the foundation is not applied, point to `sql/001-foundation.sql`, and stop. Do not apply it unless the owner asks.
+
+## 2. Run the check
 
 Run this one query through whatever database tool the session has (a Supabase connector, `psql`, or another SQL client):
 
@@ -29,7 +40,7 @@ union all select 'queue_locked_down', (not exists (
         or has_table_privilege(r.rolname, c.oid, 'update') or has_table_privilege(r.rolname, c.oid, 'delete'))))::text;
 ```
 
-## 2. Report
+## 3. Report
 
 One line per check, then one verdict line.
 
@@ -43,7 +54,7 @@ One line per check, then one verdict line.
 
 - Every check healthy → `Fleet ledger: healthy.`
 - `chain_ok` is `false` → `Fleet ledger: event chain broken.` Report it to the owner and stop. Do not repair it.
-- The schema is missing → say the foundation is not applied and point to `sql/001-foundation.sql`. Do not apply it unless the owner asks.
+- `tables` is `missing` or lists fewer than four tables → `Fleet ledger: foundation incomplete.` Report it to the owner and stop.
 
 `chain_ok` only checks that each row points at the row before it. It does not recompute hashes, so it will not catch a rewrite of the whole chain. That needs a copy of the latest hash kept outside the database, which this release does not provide.
 

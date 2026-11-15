@@ -1,5 +1,8 @@
 -- Fleet ledger foundation: an isolated schema for multi-agent task coordination.
 -- Additive only. Rollback: drop schema fleet_ledger cascade; select pgmq.drop_queue('fleet_tasks'); drop extension pgmq;
+-- Runs in one transaction: a failure at any step leaves nothing behind, so the file can be run again.
+
+begin;
 
 create schema if not exists fleet_ledger;
 revoke all on schema fleet_ledger from public;
@@ -137,3 +140,5 @@ $$;
 
 insert into fleet_ledger.events (kind, payload)
 values ('ledger_created', '{"note": "foundation schema applied"}'::jsonb);
+
+commit;
