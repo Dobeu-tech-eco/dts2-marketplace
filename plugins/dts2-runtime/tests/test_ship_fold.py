@@ -77,6 +77,21 @@ class FoldableTests(unittest.TestCase):
         self.assertEqual(plan([stray(draft=True)])["listed"][0]["reason"], ship_fold.REASON_DRAFT)
         self.assertEqual(plan([stray(cross_repo=True)])["listed"][0]["reason"], ship_fold.REASON_FORK)
 
+    def test_missing_draft_fails_closed(self) -> None:
+        s = stray()
+        del s["draft"]
+        self.assertEqual(plan([s])["listed"][0]["reason"], ship_fold.REASON_DRAFT)
+
+    def test_missing_cross_repo_fails_closed(self) -> None:
+        s = stray()
+        del s["cross_repo"]
+        self.assertEqual(plan([s])["listed"][0]["reason"], ship_fold.REASON_FORK)
+
+    def test_unknown_draft_or_fork_value_fails_closed(self) -> None:
+        self.assertEqual(plan([stray(draft="maybe")])["listed"][0]["reason"], ship_fold.REASON_DRAFT)
+        self.assertEqual(plan([stray(draft=None)])["listed"][0]["reason"], ship_fold.REASON_DRAFT)
+        self.assertEqual(plan([stray(cross_repo="maybe")])["listed"][0]["reason"], ship_fold.REASON_FORK)
+
     def test_author_base_ci(self) -> None:
         self.assertEqual(plan([stray(author="bob")])["listed"][0]["reason"], ship_fold.REASON_AUTHOR)
         self.assertEqual(plan([stray(base="main")])["listed"][0]["reason"], ship_fold.REASON_BASE)

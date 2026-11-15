@@ -99,8 +99,10 @@ class Stray:
             files=file_tuple(raw.get("files")),
             mergeable=is_mergeable(raw.get("mergeable")),
             ci=str(raw.get("ci", "")).strip().lower(),
-            draft=as_bool(raw.get("draft"), False),
-            cross_repo=as_bool(raw.get("cross_repo"), False),
+            # Fail closed: a missing or unrecognized draft/fork flag is treated as draft/fork, so only an
+            # explicit false lets a stray fold. A legitimate stray always carries isDraft and isCrossRepository.
+            draft=as_bool(raw.get("draft"), True),
+            cross_repo=as_bool(raw.get("cross_repo"), True),
         )
 
 
