@@ -47,6 +47,9 @@ SCRIPT_CALL: Final[re.Pattern[str]] = re.compile(
 BARE_SCRIPT: Final[re.Pattern[str]] = re.compile(
     r"""\$\{CLAUDE_PLUGIN_ROOT\}/scripts/([A-Za-z0-9_.-]+\.py)"""
 )
+# Skills the Cursor package leaves out: the gate script there cannot run the scripts they depend on.
+EXCLUDED_SKILLS: Final[frozenset[str]] = frozenset({"go"})
+EXCLUDED_ROWS: Final[tuple[str, ...]] = tuple(f"| `{name}` |" for name in sorted(EXCLUDED_SKILLS))
 PREFACE: Final[str] = (
     "## Cursor procedure\n\n"
     "Find the plugin root: the nearest ancestor of this file that contains "
@@ -145,20 +148,21 @@ def rewrite(text: str) -> str:
         "It writes each distinct `rulesFile` (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, ...) when absent;",
         "Do not write `CLAUDE.md` or `AGENTS.md`. The Claude script writes each distinct `rulesFile` when absent;",
     )
-    return text
+    lines: list[str] = [line for line in text.split("\n") if not line.startswith(EXCLUDED_ROWS)]
+    return "\n".join(lines).replace("twenty-nine skills", "twenty-eight skills")
 
 
 def _skill_dirs() -> list[tuple[str, Path]]:
     found: list[tuple[str, Path]] = []
     for path in sorted((HARNESS / "skills").iterdir()):
-        if (path / "SKILL.md").is_file():
+        if (path / "SKILL.md").is_file() and path.name not in EXCLUDED_SKILLS:
             found.append((path.name, path))
     sdk = RUNTIME / "skills" / "sdk"
     if not any(name == "sdk" for name, _ in found):
         found.append(("sdk", sdk))
     found.sort(key=lambda item: item[0])
-    if len(found) != 29:
-        raise SystemExit(f"expected 29 skill directories, found {len(found)}")
+    if len(found) != 28:
+        raise SystemExit(f"expected 28 skill directories, found {len(found)}")
     return found
 
 

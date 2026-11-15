@@ -178,9 +178,10 @@ class TestPackage:
         commands = sorted(path.stem for path in (PACKAGE / "commands").glob("*.md"))
         assert "dt" in skills
         assert commands == [name for name in skills if name != "dt"]
-        assert len(commands) == 29
+        assert len(commands) == 28
         assert "dt-loop" in commands
-        expected_skills = {f"dt-{path.parent.name}" for path in (PLUGIN_ROOT / "skills").glob("*/SKILL.md")}
+        expected_skills = {f"dt-{path.parent.name}" for path in (PLUGIN_ROOT / "skills").glob("*/SKILL.md")} - {"dt-go"}
+        assert "dt-go" not in commands  # the Cursor gate cannot run the router scripts yet
         assert set(commands) == expected_skills
         example = PACKAGE / "templates" / "loop-experiment.example.json"
         assert json.loads(example.read_text(encoding="utf-8"))["template_only"] is True

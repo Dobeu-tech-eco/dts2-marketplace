@@ -23,7 +23,6 @@ Invoke the matching skill. Each one is a procedure, not an index entry.
 - `/dt-find-skills`
 - `/dt-fleet`
 - `/dt-fullauto`
-- `/dt-go`
 - `/dt-gtm`
 - `/dt-incidents`
 - `/dt-knowledge`
