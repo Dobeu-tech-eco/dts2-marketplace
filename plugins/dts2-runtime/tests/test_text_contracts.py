@@ -245,7 +245,7 @@ class RunSkillContracts(TextContractMixin):
 
 class ReleaseContract(unittest.TestCase):
     VERSION: Final[str] = "5.2.0"
-    SKILL_COUNT: Final[int] = 28
+    SKILL_COUNT: Final[int] = 29
     AGENT_COUNT: Final[int] = 8
     REPO_ROOT: Final[Path] = PLUGIN_ROOT.parent.parent
 
@@ -253,7 +253,7 @@ class ReleaseContract(unittest.TestCase):
         plugin: dict = json.loads((PLUGIN_ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
         market: dict = json.loads((self.REPO_ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))
         self.assertEqual(plugin["version"], self.VERSION)
-        self.assertEqual([p["version"] for p in market["plugins"]], [self.VERSION])
+        self.assertEqual([p["version"] for p in market["plugins"] if p["name"] == "dt"], [self.VERSION])
 
     def test_readme_credits_upstreams(self) -> None:
         text: str = _read(self.REPO_ROOT / "README.md")

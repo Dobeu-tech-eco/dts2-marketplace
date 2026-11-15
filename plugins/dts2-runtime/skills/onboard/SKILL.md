@@ -1,6 +1,6 @@
 ---
 name: onboard
-description: Explain the dts2 harness (eight agents, twenty-seven skills, roster, team tiers, lessons, headless runner) and recommend where to start. Use when the user asks what dts2 does, how to use it, which skill fits a job, or is new to the harness.
+description: Explain the dts2 harness (eight agents, twenty-nine skills, roster, team tiers, lessons, headless runner) and recommend where to start. Use when the user asks what dts2 does, how to use it, which skill fits a job, or is new to the harness.
 disable-model-invocation: true
 ---
 
@@ -38,6 +38,7 @@ This skill explains only, except the skill-parity step and the optional hooks st
 | `ask-expert` | `/dt:ask-expert [repo]` is available any time, before setup: tell it your goal, and an expert panel reads the code and writes a one-page memo: keep, fold into another repo, sell as a template, archive or delete. |
 | `repo-sweep` | `/dt:repo-sweep [owner]` does the same quick pass over all your repos, oldest first, then one cleanup screen. Archive is reversible; delete is one repo at a time with a backup and a typed name. |
 | `check-in` | `/dt:check-in` is available any time: a read-only checklist from where the project started through the approved end state, each item marked complete or outstanding, with an `N of M complete` percent. |
+| `go` | `/dt:go` picks the next command from the repo's state on a fixed ladder and runs it, then repeats until a person is needed. `/dt:go status` shows the ladder; it stops at the roadmap approval and at `.harness/STOP`. |
 
 Setup and run pull in companion skills from mattpocock/skills at the moment they are needed (grill-me, improve-codebase-architecture, writing-for-agents, pr, resolve-merge-conflicts (from warpdotdev/common-skills, since mattpocock retired its version), plus ask-matt and research for your questions, improve-codebase-architecture again before tests, diagnosing-bugs again at the hard 5-round fix cap, loop-me when a run starts, setup-pre-commit once per repo at the commit gate, and code-review on first contact with a new repo), recorded in keep.yaml. A pre-check before every run command installs any that are missing, proposes updates for you to approve (it never updates them in bulk), swaps one that is gone upstream, refreshes plugin marketplaces, and when a newer harness is published saves your spot and upgrades; the next run finishes the upgrade itself (there is no separate upgrade command). After every ship, open harness lessons are offered through evolve automatically.
 

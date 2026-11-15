@@ -1,6 +1,6 @@
 ---
 name: dt-onboard
-description: "Run the /dt-onboard procedure shipped in this plugin. Explain the dts2 harness (eight agents, twenty-seven skills, roster, team tiers, lessons, headless runner) and recommend where to start. Use when the user asks what dts2 does, how to use it, which skill fits a job, or is ne..."
+description: "Run the /dt-onboard procedure shipped in this plugin. Explain the dts2 harness (eight agents, twenty-eight skills, roster, team tiers, lessons, headless runner) and recommend where to start. Use when the user asks what dts2 does, how to use it, which skill fits a job, or is ne..."
 ---
 
 ## Cursor procedure

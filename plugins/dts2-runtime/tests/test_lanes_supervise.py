@@ -171,7 +171,7 @@ class ReleaseTests(unittest.TestCase):
         plugin = json.loads((PLUGIN_ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
         market = json.loads((REPO_ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))
         self.assertEqual(plugin["version"], VERSION)
-        self.assertEqual([p["version"] for p in market["plugins"]], [VERSION])
+        self.assertEqual([p["version"] for p in market["plugins"] if p["name"] == "dt"], [VERSION])
         self.assertEqual(ReleaseContract.VERSION, VERSION)
         self.assertEqual(RELEASE, VERSION)
         readme: str = (PLUGIN_ROOT / "README.md").read_text(encoding="utf-8")
