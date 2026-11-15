@@ -4,6 +4,16 @@ A map of the `dt` plugin for maintainers and AI coding assistants: the skills th
 
 Contents: Flow, Agents, State under `.harness/`, Hooks, State port, Lane tools, Containment and policy, Plan graph and briefs, Supervisor and lifecycle, Scripts by job, Library modules.
 
+## For people
+
+Read [Flow](#flow) first. Its diagram shows one run from the approved end state to the pull request. Then read Agents and State under `.harness/`. The rest is reference for maintainers, and you do not need it to use the plugin.
+
+## For agents
+
+- This page is a map. The rules are in `templates/discipline.md` and the skills. Where the map and a skill disagree, follow the skill and fix the map.
+- `tests/test_changelog_docs.py` reads this page. It needs the mermaid flowchart, a table row for every file in `agents/`, every hook event and hook script in `hooks/hooks.json`, and every script named here in backticks to exist under `scripts/`.
+- When you add a role, a hook or a script, add it here in the same change.
+
 ## Flow
 
 ```mermaid

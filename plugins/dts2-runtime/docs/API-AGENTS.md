@@ -12,6 +12,18 @@ Contents: what the harness guarantees, then four steps: create a capped key, sto
 
 The existing `grok` and `codex` profiles stay on their subscriptions. `claude-api` is never started with `--bare`, which would turn off plugins, agents and skills.
 
+## For people
+
+Follow the four numbered steps in order. You need a spend-capped key from the vendor before you start, and the key itself never goes in the repository. If you only use subscription providers, you can skip this page.
+
+## For agents
+
+- Never print, log or store a key value. Refer to a key by where it is kept: keyring, 1Password, Doppler or the name of an env var.
+- An API-key provider never leads a run and never signs off.
+- With no rules set, an API-key provider is read-only, at most the standard tier, $0.50 a run and $5 a day. It can never deploy, merge, release, touch secrets or delete.
+- Do not widen a provider's rules yourself. Step 4 is the person's decision.
+- No key means no launch. Report the skip with its reason and carry on with the other providers.
+
 ## What the harness guarantees
 
 - Max agents and sons run with every `*_API_KEY`, `ANTHROPIC_*`, `CODEX_*`, `XAI_*`, `OPENAI_*` and `CLAUDE_CODE_USE_*` variable removed.

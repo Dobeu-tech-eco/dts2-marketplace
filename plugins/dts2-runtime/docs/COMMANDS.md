@@ -17,6 +17,18 @@ Contents:
 7. Common flows
 8. Changelogs
 
+## For people
+
+Most people need two parts of this page: section 4, the slash commands you type, and section 7, the flows you can copy. The script and `lanes.py` tables are for maintainers and for assistants running the harness.
+
+## For agents
+
+- Copy an invocation exactly as its row shows it. Section 1 gives the prefix every script call needs.
+- Check the Role column before you run a command. A son is refused the head-only commands, and `owner` rows need the person's approval, which no model can write.
+- Scripts print one JSON object. Read `ok` and the exit code. Do not parse prose.
+- Ask a script for `--help` when a flag is not on this page. Do not invent one.
+- This page follows the code. When you change a command's arguments, change its row here in the same change.
+
 ## 1. How to run a command
 
 - Scripts: `python3 -I "$CLAUDE_PLUGIN_ROOT/scripts/<name>.py" <args>`. `CLAUDE_PLUGIN_ROOT` is set inside Claude Code; from a shell, use the installed plugin path (the folder holding `scripts/`, `skills/` and `hooks/`). Every script prints one JSON object on stdout unless a row says otherwise. Exit codes: 0 ok, 1 a violation or refusal, 2 a failed result (`lanes.py`, `walkthrough_fallback.py`).

@@ -12,6 +12,17 @@ Each fixture under `fixtures/<name>/` holds `task.md` (the spec), `repo/` (a tin
 `expected.json` (the outcome that must be observed). The fakes live in `fakes/` and are wired in through
 `DTS2_CLAUDE_BIN` and `DTS2_GH_BIN`.
 
+## For people
+
+Run the first command above to check the deterministic parts of the pipeline on your machine. It uses fake `claude` and `gh` programs, so it costs nothing and needs no network. It is not part of CI.
+
+## For agents
+
+- Keep the fakes. Never point `DTS2_CLAUDE_BIN` or `DTS2_GH_BIN` at a real binary in a fixture or in the baseline.
+- Run `--update-baseline` only when a behavior change is intended, and say so in the pull request. A baseline from real sessions is a manual step for the owner.
+- Exit 1 means a fixture that passed in the baseline now fails. Fix the cause. Do not record a new baseline to hide it.
+- `results/` is gitignored. Do not commit it.
+
 ## What the runner covers
 
 scope-check (session scope), `lanes.py check` (lane overlap), `lanes.py lease` (epoch, stale-epoch refusal),

@@ -21,6 +21,17 @@ Contents:
 9. Changed in 3.11.0
 10. Documentation
 
+## For people
+
+This is a lookup page. Search it for a command or script name to see what it does and what calls it. To learn how the pieces fit, read `GUIDE.md` first.
+
+## For agents
+
+- `tests/test_inventory_complete.py` fails when a `lanes.py` subcommand or a skill folder is missing from this page. Add the row in the same change that adds the command.
+- Before you change a script, read what calls it here, so you know every caller you can break.
+- The "Since" column means `new` or `changed` as the opening of this page defines. Do not use it for anything else.
+- Section 10 lists the documentation pages. Add a row when you add a page.
+
 ## 1. Skills (slash commands)
 
 Invoke as `/dt:<name>`. Skills with `disable-model-invocation: true` in their frontmatter (`composio`, `dpp-full`, `fullauto`, `knowledge`, `machine-prep`, `model`, `onboard`, `sdk`) run only when the user types them. "Runs" lists the scripts the skill's own files name; "Hands off to" lists the skills it names.

@@ -4,6 +4,17 @@ DT: Init to Ship Auto Agent Orchestrator. A Dobeu Tech Solutions LLC product. MI
 
 This folder is the Cursor instruction package. It is separate from the Claude Code plugin. Claude Code still installs the full harness from `plugins/dts2-runtime` (`/plugin install dt@dts2`) or the instruction edition at `plugins/dts2-harness`.
 
+## For people
+
+Use this package when you work in Cursor. Commands are `/dt-<name>`, not `/dt:<name>`. Follow [Install](#install), confirm the commands show in a new session, then run `/dt-check-in`. Some steps that the Claude Code plugin performs are not available here. [Precise blockers](#precise-blockers) lists them.
+
+## For agents
+
+- `scripts/dt_gate.py` decides what may run. An exit with `CURSOR_UNSUPPORTED` or `BLOCKED unsupported-runtime-script` is final. Do not imitate the blocked step another way.
+- Scaffold, build and ship each need the approval digest the gate checks. A flag such as `--yes` does not stand in for it.
+- A file on disk is not a loaded command. Confirm the slash list in the session before you report that a command is available.
+- `skills/`, `commands/`, `rules/`, `templates/` and `.cursor-plugin/` in this folder are written by `plugins/dts2-runtime/scripts/cursor_surface.py`. Edit the source skill and regenerate. This README, `SUBMISSION.md` and `scripts/dt_gate.py` are edited by hand.
+
 ## What Cursor loads
 
 | Piece | Path | Cursor name |
@@ -52,10 +63,10 @@ A file on disk is not a loaded command. Confirm the slash list in the session yo
 
 This repo already contains `.cursor/skills/dt/SKILL.md` and `.cursor/commands/dt-*.md`. A new Cursor session opened on this repo can discover those project files. A session that is already running keeps the catalog it started with. Other repositories, automations, and self-hosted workers do not receive them. Self-hosted workers show plugin skills when that plugin is installed on the worker, or project skills from the repo that worker opened.
 
-Before this package is on the branch a marketplace tracks, importing `https://github.com/Dobeu-tech-eco/dts2-marketplace` does not install these commands. Until then, install from a copy of the validated commit, in a new directory, so existing checkouts stay untouched:
+This package is on `main`. To install it as a local plugin, clone `main` into a new directory, so existing checkouts stay untouched:
 
 ```
-git clone --branch cursorchima_cursor-dt-plugin-cb0d --single-branch \
+git clone --branch main --single-branch \
   https://github.com/Dobeu-tech-eco/dts2-marketplace.git /tmp/dts2-cursor-plugin
 mkdir -p ~/.cursor/plugins/local
 if [ -e ~/.cursor/plugins/local/dt ]; then
@@ -64,7 +75,7 @@ fi
 cp -R /tmp/dts2-cursor-plugin/plugins/dt-cursor ~/.cursor/plugins/local/dt
 ```
 
-After this package is on the marketplace's tracked branch, clone that branch instead. If `dt.previous` already exists, pick another name. The move keeps the previous folder.
+If `dt.previous` already exists, pick another name. The move keeps the previous folder.
 
 Use a real copy. Cursor skips a symlink in `~/.cursor/plugins/local` when the target sits outside that folder. Reload the window. Open Customize and confirm the skill `dt` and the command `dt-check-in`. On Enterprise, local imports stay off until an admin turns on Allow Local Plugin Imports. If a marketplace plugin named `dt` is already installed, that install wins over the local copy.
 
