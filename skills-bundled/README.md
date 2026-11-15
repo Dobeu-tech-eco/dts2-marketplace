@@ -5,6 +5,17 @@ Checked against each publisher's default branch on 2026-11-07.
 
 Nothing in this folder is a skill. No third-party skill text is stored in this repository. The 27 skills under `plugins/dts2-runtime/skills/` were written here. Where a skill is "used", the harness installs or calls the publisher's copy in the user's project. Where a skill was "used in part", the harness follows a pattern and the words are ours.
 
+## For people
+
+This page is the credit register. It lists each outside publisher whose skills this project runs, recommends or learned from, with the license and what this repository does to honor it. Read [License verdict](#license-verdict) for the short answer and [Publishers](#publishers) for the detail.
+
+## For agents
+
+- Never copy a third-party skill's text into this repository. The harness installs or calls the publisher's copy in the user's project.
+- When a change starts using or recommending a new publisher's skill, add its row here in the same change, with the repository and the license.
+- Check the license on the publisher's default branch. Do not rely on memory. Update the "Checked" date at the top when you re-verify the page.
+- The same credits appear under Acknowledgements in both READMEs. Keep the three lists in step.
+
 ## License verdict
 
 No publisher below uses a license this repository is breaking.

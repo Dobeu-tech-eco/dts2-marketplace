@@ -16,6 +16,18 @@ Contents:
 6. Where state lives
 7. Unattended mode
 
+## For people
+
+Sections 1 and 2 are written for you: how to phrase a request, and which command fits which job. Section 6 says where the harness keeps its files, and section 7 covers runs that carry on while you are away. You can skip sections 3 to 5 until you run parallel lanes.
+
+## For agents
+
+- Section 4 is binding. Read it before you act in a repository that uses the harness.
+- Read `.harness/handoff/latest.md` first, then `.harness/discipline.md`.
+- Section 3 says who decides. The head plans, grants merges and talks to the person. A son builds inside its own files and asks the head. Never act above your role.
+- Take exact syntax from `COMMANDS.md`. This page explains when and why.
+- Never edit `.harness/runs/<stamp>/` by hand, and never put a secret value in chat, a log or an action item.
+
 ## 1. Talking to the harness
 
 The harness is a Claude Code plugin. Every entry point is a slash command `/dt:<skill>`. There is no other interface. The plugin has 27 skills (section 2). Eight agents (`lead`, `builder`, `fixer`, `reviewer`, `verifier`, `scout`, `auditor`, `incident-reviewer`) are dispatched by the skills and never typed by the user. To dispatch one, call the Agent tool with `subagent_type: dt:<name>`.

@@ -4,6 +4,16 @@ Which runtimes the harness supports and the exit codes each one reports. It is f
 
 `scripts/doctor.py` reports the platform, the sandbox tools (`bwrap`, `socat` on Linux) and the auth method (named, never the value). On native Windows `dpp` parks a run with the reason `windows-native` (ruling Q6). Run it under WSL or in Docker instead.
 
+## For people
+
+Parallel runs need Linux, macOS, WSL or Docker. On native Windows, run `dpp` under WSL or in Docker. Run `scripts/doctor.py` to see what your machine supports.
+
+## For agents
+
+- The exit-code table below must match `TIMEOUT_MAPPING` in `scripts/doctor.py`. `tests/test_batch11_report.py` fails when they differ, so change both together.
+- On native Windows a `dpp` run parks with the reason `windows-native`. Report that. Do not work around it.
+- `doctor.py` names the auth method and never prints its value. Keep it that way in anything you write.
+
 ## Exit codes by runtime
 
 The constants live in `scripts/doctor.py` (`TIMEOUT_MAPPING`); `tests/test_batch11_report.py` fails when this table and the constants differ.

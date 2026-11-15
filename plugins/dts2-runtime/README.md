@@ -16,6 +16,18 @@ I tested it on T3. The roster also marks these as verified in my use: Claude Cod
 
 It is for developers and small teams who already use Claude Code and want a repeatable way to run larger changes: multi-file features, cross-repo work, roadmap backlogs, cleanup passes. If your task fits in one prompt, you do not need it. It never merges, pushes to a default branch or deploys without an approval that you write yourself.
 
+## For people
+
+New here: follow [Install](#install), then [Quick start](#quick-start), then run `/dt:onboard`. Use [All commands](#all-commands) to find a command, [Configuration](#configuration) for settings and [Troubleshooting](#troubleshooting) when a run stops. The best next read is [docs/GUIDE.md](docs/GUIDE.md).
+
+## For agents
+
+- In a repository that uses `dt`, read `.harness/handoff/latest.md` first, then follow `.harness/discipline.md`. The rules every role follows are in section 4 of [docs/GUIDE.md](docs/GUIDE.md).
+- Take command syntax from [docs/COMMANDS.md](docs/COMMANDS.md). Do not guess a flag.
+- Stop at the plan and ship checkpoints and wait for the person's `approve`, `edit` or `stop`. Never merge, push to a default branch or deploy without an approval the person wrote.
+- To change the plugin, edit `plugins/dts2-runtime`. `plugins/dts2-harness` is generated from it by `scripts/directory_edition.py`, so do not edit that copy by hand.
+- Tests read this page. Keep the `## Requirements` block, the `## Changelog` heading before `## Unreleased`, and the dev requirements line. `tests/test_changelog_docs.py` and the generator fail when they move.
+
 ## Install
 
 Inside Claude Code:

@@ -6,6 +6,8 @@ The plugin's full release history lives in [plugins/dts2-runtime/CHANGELOG.md](p
 
 ## Unreleased
 
+- Docs: `AGENTS.md` at the repository root holds the rules for AI coding assistants that edit this repository. Every documentation page now opens with a "For people" section and a "For agents" section.
+- Branches: `main` and `dev` are the two long-lived branches. The Cursor package README now installs from `main`.
 - License: the current tree is MIT. Copyright Dobeu Tech Solutions LLC. Forks may add, remove, and ship the work, including in paid products. Keep the copyright notice.
 
 ## [5.1.1]

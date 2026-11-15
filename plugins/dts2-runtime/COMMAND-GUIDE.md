@@ -2,6 +2,16 @@
 
 One row per slash command, current with release 5.1.1 (27 commands, 8 roles). The same list now sits in the plugin README under "All commands". Type the command in Claude Code. Commands marked user-only (`composio`, `dpp-full`, `fullauto`, `knowledge`, `machine-prep`, `model`, `onboard`, `sdk`) never start on their own. New in 5.1: `/dt:pr-sweep`, provider profiles, per-provider rules, API-key providers, env isolation, speed defaults (note under the table).
 
+## For people
+
+Scan the table for the job you have in mind. "Best for" says when a command is the right pick, and "How to use" gives one example you can type. For every flag, read [docs/COMMANDS.md](docs/COMMANDS.md).
+
+## For agents
+
+- The commands this page marks user-only never start on their own. Run one only when the person typed it.
+- This page explains purpose. Take exact syntax from [docs/COMMANDS.md](docs/COMMANDS.md), not from the example column.
+- An API-key provider with no rules is read-only. Do not widen a provider's rules yourself. The person does that with `/dt:model`.
+
 ## Install and update
 
 - **Requirements:** Claude Code, bash, git and Python 3.10 or newer (`python3`). Without python3 the safety hooks (merge guard, policy gate) cannot run and stay off.

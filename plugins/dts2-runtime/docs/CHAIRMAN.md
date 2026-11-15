@@ -33,6 +33,18 @@ check is never voted on. Approvals remain HEAD-pinned and human-default in
 
 Council seat allocation requires --chairman-record pointing at this resolution; it excludes the exact id, runtime aliases and bare family aliases from seats and bench. Panel overlap means park.
 
+## For people
+
+The Chairman is the tiebreak seat for votes the panel cannot settle. It is always the newest generally available top Claude model, looked up when a run starts, so there is nothing for you to pin or configure. If no Claude model is available, the run parks and tells you.
+
+## For agents
+
+- Resolve the Chairman at each run from the live catalog. Never pin a version, and never treat a bundled model list as live.
+- Dispatch the exact `model` the resolver returns, and record the model the runtime reports back. A selected model is not proof it was used.
+- Restricted models are never an automatic default, even when the current organization has access.
+- Keep the resolved Chairman out of the panel and council voter seats.
+- If no Claude is available, park. Never make up a vote and never switch providers silently.
+
 ## Live catalog acquisition and ranking
 
 For an API-authenticated runtime, use its existing authenticated Anthropic SDK

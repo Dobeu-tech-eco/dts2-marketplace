@@ -19,6 +19,21 @@ This repository is the Claude Code plugin marketplace for that product. It carri
 
 You approve an end state once. Separate roles plan, build, review and verify the work, and every run ends with a receipt and a pull request. Single-file fixes do not need it.
 
+## For people
+
+Start at [Quick start](#quick-start), then run `/dt:onboard`. The [plugin README](plugins/dts2-runtime/README.md) is the manual, and the [guide](plugins/dts2-runtime/docs/GUIDE.md) says which command to use when. Each page listed under [Where to go next](#where-to-go-next) opens with its own "For people" section that says what the page is for and where to begin.
+
+## For agents
+
+If you are an AI coding assistant working in this repository, read [AGENTS.md](AGENTS.md) before you change anything. The short version:
+
+- Edit `plugins/dts2-runtime`. `plugins/dts2-harness`, `.cursor/` and the skills and commands under `plugins/dt-cursor` are generated from it. Regenerate them; do not edit them by hand.
+- Run the tests and both generator checks before you commit.
+- `main` is protected and `dev` is the integration branch. Open a pull request with the template. Merge by merge commit only. Never force-push.
+- This repository is public. Keep private repository names, client names and credentials out of files, commit messages and pull request text.
+
+Each documentation page also has a "For agents" section with the rules that apply to that page.
+
 ## Quick start
 
 Prerequisites:
@@ -120,6 +135,7 @@ Regenerate the Cursor files with `python3 plugins/dts2-runtime/scripts/cursor_su
 | [Cursor package](plugins/dt-cursor/README.md) | Cursor install, `/dt-*` names, and what a load proves |
 | [Guide](plugins/dts2-runtime/docs/GUIDE.md) | Which command to use when, and how to talk to the harness |
 | [Command reference](plugins/dts2-runtime/docs/COMMANDS.md) | Exact invocation of every command |
+| [AGENTS.md](AGENTS.md) | Rules for AI coding assistants that edit this repository |
 | [Plugin changelog](plugins/dts2-runtime/CHANGELOG.md) | Full release history |
 | [Marketplace changelog](CHANGELOG.md) | Marketplace-level changes |
 | [LICENSE](LICENSE) | MIT. Copyright Dobeu Tech Solutions LLC |
