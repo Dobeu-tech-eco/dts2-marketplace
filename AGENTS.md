@@ -53,7 +53,7 @@ python3 plugins/dts2-runtime/scripts/cursor_surface.py --check
 - Files under `plugins/dts2-runtime/` may not name a person, a client or the publisher. The plugin README is the one exception, for the publisher line and the author's note (`tests/test_orchestration_rules.py`).
 - Scripts, hooks and skills may not hard-code the GitHub organization. They read it from `plugin.json` or the git remote.
 - The instruction edition may not contain package launchers, a download piped into a shell, a shebang, or the name of a token variable. `directory_edition.py` rewrites the known ones and fails on the rest.
-- A new skill or `lanes.py` subcommand needs its row in `plugins/dts2-runtime/docs/INVENTORY.md` in the same change, or `tests/test_inventory_complete.py` fails. Add the matching row to `docs/COMMANDS.md` too.
+- A new `dt` skill (under `plugins/dts2-runtime/skills/`) or `lanes.py` subcommand needs its row in `plugins/dts2-runtime/docs/INVENTORY.md` in the same change, or `tests/test_inventory_complete.py` fails. Add the matching row to `docs/COMMANDS.md` too. A `fleet-ledger` skill is listed in `plugins/fleet-ledger/README.md` instead.
 
 ### Branches and pull requests
 
