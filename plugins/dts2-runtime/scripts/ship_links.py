@@ -2,7 +2,9 @@
 """The read-only ship gate: does a PR name real linked work, and is the repo under its open-PR cap?
 
 Pure functions over text and files. It makes no model call, no network call and no `gh` call; the number of open pull
-requests is passed in by the caller. It writes nothing.
+requests is passed in by the caller. It writes nothing. The link check is a traceability guardrail against untraceable
+PRs, not proof that the work is real: it confirms the PR body's Linked work names a current end-state section or an open
+action item. A `feature/` slug only passes when there is no end-state file at all.
 
 Subcommands:
     check   read a PR body and print {"ok", "linked", "reason"} as JSON; exit 1 when nothing real is linked
@@ -25,9 +27,10 @@ import state_io  # noqa: E402
 
 LINKED_HEADING: Final[str] = "Linked work"
 DEFAULT_CAP: Final[int] = 5
-FEATURE_SLUG: Final[re.Pattern[str]] = re.compile(r"\bfeature/[\w.-]+")
-SECTION_REF: Final[re.Pattern[str]] = re.compile(r"section\s+(\d+)", re.IGNORECASE)
-ACTION_REF: Final[re.Pattern[str]] = re.compile(r"\b([A-Z]\d+)\b")
+FEATURE_SLUG: Final[re.Pattern[str]] = re.compile(r"(?<![\w./-])feature/[\w.-]+")
+SECTION_REF: Final[re.Pattern[str]] = re.compile(r"\bsection\s+(\d+)\b", re.IGNORECASE)
+ACTION_REF: Final[re.Pattern[str]] = re.compile(r"(?<![\w-])([A-Z]\d+)(?![\w-])")
+HEADING_RE: Final[re.Pattern[str]] = re.compile(r"^\s{0,3}#{1,6}\s")
 FEATURE_PREFIX: Final[str] = "feature/"
 PLACEHOLDER_PREFIX: Final[str] = "<"
 ACTION_ITEMS_SCRIPT: Final[str] = "action-items"
@@ -35,9 +38,10 @@ STDIN_MARKER: Final[str] = "-"
 END_STATE_REL: Final[str] = state_io.END_STATE_REL
 SHIP_CAP_PATH: Final[str] = "ship.open_pr_cap"
 AUTOPILOT_CAP_PATH: Final[str] = "autopilot.open_pr_cap"
-MISSING_REASON: Final[str] = "no linked end-state section or open action item in the PR body"
+MISSING_REASON: Final[str] = "no linked end-state section or open action item in the PR body's Linked work"
 EXIT_OK: Final[int] = 0
 EXIT_REFUSED: Final[int] = 1
+EXIT_INPUT: Final[int] = 2
 LINE_SEPARATOR: Final[str] = "\n"
 
 
@@ -50,30 +54,52 @@ def section_ids(end_state: str) -> set[str]:
 
 
 def open_action_item_ids(repo: Path) -> set[str]:
-    """The id (A1, S2, D1) of every open action item; empty when the file is missing."""
+    """The id (S2, D1) of every open action item; empty when the file is missing or unreadable (fail closed)."""
     module: Any = _load.load(ACTION_ITEMS_SCRIPT)
-    lines: list[str] = module.read_lines(repo / state_io.ACTION_ITEMS_REL)
+    try:
+        lines: list[str] = module.read_lines(repo / state_io.ACTION_ITEMS_REL)
+    except OSError:
+        return set()
     items: list[dict[str, Any]] = module.list_items(lines, date.today())
     return {item["id"] for item in items if module.is_open(item["status"])}
 
 
+def linked_region(pr_body: str) -> str:
+    """The body text from the first line naming Linked work up to the next Markdown heading (blank lines included), so a
+    section cited only in the Summary above it does not count; falls back to the whole body when the label is absent."""
+    lines: list[str] = pr_body.splitlines()
+    start: int | None = next((i for i, line in enumerate(lines) if LINKED_HEADING.lower() in line.lower()), None)
+    if start is None:
+        return pr_body
+    region: list[str] = [lines[start]]
+    for line in lines[start + 1:]:
+        if HEADING_RE.match(line):
+            break
+        region.append(line)
+    return LINE_SEPARATOR.join(region)
+
+
 def links_in_body(pr_body: str) -> set[str]:
-    """Every reference token in the body: a section number, an action id, or a feature/<slug>."""
-    tokens: set[str] = set(SECTION_REF.findall(pr_body))
-    tokens.update(ACTION_REF.findall(pr_body))
-    tokens.update(FEATURE_SLUG.findall(pr_body))
+    """Every reference token in the Linked work region: a section number, an action id, or a feature/<slug>."""
+    text: str = linked_region(pr_body)
+    tokens: set[str] = set(SECTION_REF.findall(text))
+    tokens.update(ACTION_REF.findall(text))
+    tokens.update(FEATURE_SLUG.findall(text))
     return tokens
 
 
-def resolves(token: str, sections: set[str], action_ids: set[str]) -> bool:
+def resolves(token: str, sections: set[str], action_ids: set[str], allow_feature: bool) -> bool:
     if token.startswith(FEATURE_PREFIX):
-        return True
+        return allow_feature
     return token in sections or token in action_ids
 
 
-def check(pr_body: str, end_state: str, action_ids: set[str]) -> dict[str, Any]:
+def check(pr_body: str, end_state: str, action_ids: set[str], end_state_present: bool) -> dict[str, Any]:
+    """A feature slug passes only when no end-state file is present, so an ordinary feature branch cannot bypass the
+    roadmap link in a repo that has an end state."""
     sections: set[str] = section_ids(end_state)
-    linked: list[str] = sorted(t for t in links_in_body(pr_body) if resolves(t, sections, action_ids))
+    allow_feature: bool = not end_state_present
+    linked: list[str] = sorted(t for t in links_in_body(pr_body) if resolves(t, sections, action_ids, allow_feature))
     return {"ok": bool(linked), "linked": linked, "reason": "" if linked else MISSING_REASON}
 
 
@@ -102,7 +128,9 @@ def read_body(source: str) -> str:
 
 def run_check(repo: Path, body_source: str, end_state_path: str | None) -> int:
     end_state_file: Path = Path(end_state_path) if end_state_path else repo / END_STATE_REL
-    result: dict[str, Any] = check(read_body(body_source), read_text_or_empty(end_state_file), open_action_item_ids(repo))
+    result: dict[str, Any] = check(
+        read_body(body_source), read_text_or_empty(end_state_file), open_action_item_ids(repo), end_state_file.is_file()
+    )
     sys.stdout.write(json.dumps(result) + LINE_SEPARATOR)
     return EXIT_OK if result["ok"] else EXIT_REFUSED
 
@@ -129,9 +157,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args: argparse.Namespace = build_parser().parse_args(argv)
-    if args.command == "check":
-        return run_check(Path(args.repo), args.body, args.end_state)
-    return run_cap(args.config, args.open)
+    try:
+        if args.command == "check":
+            return run_check(Path(args.repo), args.body, args.end_state)
+        return run_cap(args.config, args.open)
+    except OSError as error:
+        sys.stderr.write(f"ship_links: {error}{LINE_SEPARATOR}")
+        return EXIT_INPUT
 
 
 if __name__ == "__main__":

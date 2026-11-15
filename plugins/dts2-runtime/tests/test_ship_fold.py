@@ -1,118 +1,155 @@
-"""scripts/ship_fold.py: the fold reasons and their order, the plan ordering, Stray.from_dict and the CLI."""
+"""ship_fold.py: the safe stray-PR fold planner. It must fail closed on any field it cannot confirm."""
 from __future__ import annotations
 
+import importlib.util
 import json
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import ModuleType
 from typing import Any, Final
 
 from helpers import PLUGIN_ROOT
 
-sys.path.insert(0, str(PLUGIN_ROOT / "scripts"))
-import ship_fold  # noqa: E402
-
 SCRIPT: Final[Path] = PLUGIN_ROOT / "scripts" / "ship_fold.py"
+
+
+def load() -> ModuleType:
+    spec = importlib.util.spec_from_file_location("ship_fold", SCRIPT)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["ship_fold"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+ship_fold: Final[ModuleType] = load()
+
 AUTHOR: Final[str] = "alice"
 BASE: Final[str] = "dev"
-SHIP_FILES: Final[tuple[str, ...]] = ("a.py", "b.py", "c.py")
+SHIP_FILES: Final[list[str]] = ["a.py", "b.py", "c.py"]
 
 
-def stray(number: int, **overrides: Any) -> dict[str, Any]:
+def stray(**over: Any) -> dict[str, Any]:
     base: dict[str, Any] = {
-        "number": number, "author": AUTHOR, "base": BASE,
-        "files": ["a.py"], "mergeable": True, "ci": "green",
+        "number": 10, "author": AUTHOR, "base": BASE, "files": ["a.py"],
+        "mergeable": True, "ci": "green", "draft": False, "cross_repo": False,
     }
-    return {**base, **overrides}
+    base.update(over)
+    return base
 
 
-def reason_for(raw: dict[str, Any]) -> str | None:
-    return ship_fold.fold_reason(ship_fold.Stray.from_dict(raw), AUTHOR, BASE, frozenset(SHIP_FILES))
+def plan(strays: list[dict[str, Any]], **kw: Any) -> dict[str, Any]:
+    return ship_fold.fold_plan(strays, AUTHOR, BASE, SHIP_FILES, **kw)
 
 
-def run_cli(strays: list[dict[str, Any]], files: list[str]) -> subprocess.CompletedProcess[str]:
-    folder: Path = Path(tempfile.mkdtemp(prefix="dts2-ship-fold-"))
-    (folder / "strays.json").write_text(json.dumps(strays), encoding="utf-8")
-    (folder / "files.txt").write_text("\n".join(files) + "\n", encoding="utf-8")
-    return subprocess.run(
-        [sys.executable, "-I", str(SCRIPT), "plan", "--input", str(folder / "strays.json"),
-         "--author", AUTHOR, "--base", BASE, "--files-file", str(folder / "files.txt")],
-        capture_output=True, text=True, check=False,
-    )
+class FoldableTests(unittest.TestCase):
+    def test_clean_stray_is_foldable(self) -> None:
+        self.assertEqual(plan([stray()]), {"foldable": [10], "listed": []})
+
+    def test_mergeable_string_enum(self) -> None:
+        self.assertEqual(plan([stray(mergeable="MERGEABLE")])["foldable"], [10])
+        for bad in ("CONFLICTING", "UNKNOWN", "false", ""):
+            got = plan([stray(mergeable=bad)])
+            self.assertEqual(got["foldable"], [], bad)
+            self.assertEqual(got["listed"][0]["reason"], ship_fold.REASON_MERGEABLE, bad)
+
+    def test_missing_or_empty_files_is_refused(self) -> None:
+        for files in ([], None):
+            got = plan([stray(files=files)])
+            self.assertEqual(got["foldable"], [])
+            self.assertEqual(got["listed"][0]["reason"], ship_fold.REASON_NO_FILES)
+
+    def test_missing_files_key_is_refused(self) -> None:
+        s = stray()
+        del s["files"]
+        self.assertEqual(plan([s])["listed"][0]["reason"], ship_fold.REASON_NO_FILES)
+
+    def test_non_list_files_is_refused(self) -> None:
+        self.assertEqual(plan([stray(files="a.py")])["listed"][0]["reason"], ship_fold.REASON_NO_FILES)
+
+    def test_files_outside_ship_set(self) -> None:
+        self.assertEqual(plan([stray(files=["z.py"])])["listed"][0]["reason"], ship_fold.REASON_FILES)
+
+    def test_draft_and_fork_refused(self) -> None:
+        self.assertEqual(plan([stray(draft=True)])["listed"][0]["reason"], ship_fold.REASON_DRAFT)
+        self.assertEqual(plan([stray(cross_repo=True)])["listed"][0]["reason"], ship_fold.REASON_FORK)
+
+    def test_author_base_ci(self) -> None:
+        self.assertEqual(plan([stray(author="bob")])["listed"][0]["reason"], ship_fold.REASON_AUTHOR)
+        self.assertEqual(plan([stray(base="main")])["listed"][0]["reason"], ship_fold.REASON_BASE)
+        self.assertEqual(plan([stray(ci="pending")])["listed"][0]["reason"], "CI is pending")
+
+    def test_priority_order(self) -> None:
+        # a stray that fails author, draft and mergeable reports the earliest: author.
+        s = stray(author="bob", draft=True, mergeable="CONFLICTING")
+        self.assertEqual(plan([s])["listed"][0]["reason"], ship_fold.REASON_AUTHOR)
+
+    def test_self_exclusion(self) -> None:
+        got = plan([stray(number=7)], exclude=7)
+        self.assertEqual(got["foldable"], [])
+        self.assertEqual(got["listed"][0]["reason"], ship_fold.REASON_SELF)
+
+    def test_duplicate_numbers_refused(self) -> None:
+        got = plan([stray(number=5, files=["a.py"]), stray(number=5, files=["b.py"])])
+        self.assertEqual(got["foldable"], [])
+        self.assertEqual([r["reason"] for r in got["listed"]], [ship_fold.REASON_DUPLICATE, ship_fold.REASON_DUPLICATE])
+
+    def test_results_sorted_by_number(self) -> None:
+        got = plan([stray(number=30), stray(number=10, author="bob"), stray(number=20)])
+        self.assertEqual(got["foldable"], [20, 30])
+        self.assertEqual(got["listed"], [{"number": 10, "reason": ship_fold.REASON_AUTHOR}])
 
 
-class FoldReasonTests(unittest.TestCase):
-    def test_a_matching_stray_is_foldable(self) -> None:
-        self.assertIsNone(reason_for(stray(1, files=["a.py", "b.py"])))
+class ParseTests(unittest.TestCase):
+    def test_as_int_rejects_bool_and_float_and_words(self) -> None:
+        for bad in (True, 3.9, "x", None):
+            with self.assertRaises(ship_fold.StrayError):
+                ship_fold.as_int(bad)
+        self.assertEqual(ship_fold.as_int("12"), 12)
 
-    def test_different_author(self) -> None:
-        self.assertEqual(reason_for(stray(1, author="bob")), "opened by a different author")
-
-    def test_different_base(self) -> None:
-        self.assertEqual(reason_for(stray(1, base="main")), "targets a different base")
-
-    def test_not_mergeable(self) -> None:
-        self.assertEqual(reason_for(stray(1, mergeable=False)), "not mergeable")
-
-    def test_ci_not_green_names_the_state(self) -> None:
-        for state in ("red", "pending", "unknown"):
-            self.assertEqual(reason_for(stray(1, ci=state)), f"CI is {state}")
-
-    def test_files_outside_the_ship_branch(self) -> None:
-        self.assertEqual(reason_for(stray(1, files=["a.py", "z.py"])), "changes files outside this PR")
-
-    def test_priority_order_reports_the_earlier_failure(self) -> None:
-        self.assertEqual(reason_for(stray(1, author="bob", base="main", mergeable=False, ci="red", files=["z.py"])),
-                         "opened by a different author")
-        self.assertEqual(reason_for(stray(1, base="main", mergeable=False, ci="red", files=["z.py"])),
-                         "targets a different base")
-        self.assertEqual(reason_for(stray(1, mergeable=False, ci="red", files=["z.py"])), "not mergeable")
-        self.assertEqual(reason_for(stray(1, ci="red", files=["z.py"])), "CI is red")
-
-
-class StrayTests(unittest.TestCase):
-    def test_from_dict_defaults_missing_files_and_ci(self) -> None:
-        raw: dict[str, Any] = {"number": "7", "author": AUTHOR, "base": BASE, "mergeable": 1}
-        parsed: ship_fold.Stray = ship_fold.Stray.from_dict(raw)
-        self.assertEqual(parsed, ship_fold.Stray(7, AUTHOR, BASE, (), True, "unknown"))
-
-    def test_an_empty_stray_with_no_files_is_a_subset(self) -> None:
-        self.assertEqual(reason_for({"number": 1, "author": AUTHOR, "base": BASE, "mergeable": True, "ci": "green"}), None)
-
-    def test_foldable_ci_is_green_only(self) -> None:
-        self.assertEqual(ship_fold.FOLDABLE_CI, frozenset({"green"}))
-
-
-class PlanTests(unittest.TestCase):
-    def test_lists_are_sorted_ascending_by_number(self) -> None:
-        strays: list[dict[str, Any]] = [
-            stray(9), stray(3, ci="red"), stray(5), stray(2, base="main"), stray(1),
-        ]
-        plan: dict[str, Any] = ship_fold.fold_plan(strays, AUTHOR, BASE, list(SHIP_FILES))
-        self.assertEqual(plan["foldable"], [1, 5, 9])
-        self.assertEqual(plan["listed"], [
-            {"number": 2, "reason": "targets a different base"},
-            {"number": 3, "reason": "CI is red"},
-        ])
-
-    def test_empty_input_gives_empty_plan(self) -> None:
-        self.assertEqual(ship_fold.fold_plan([], AUTHOR, BASE, []), {"foldable": [], "listed": []})
+    def test_from_dict_requires_core_keys(self) -> None:
+        with self.assertRaises(KeyError):
+            ship_fold.Stray.from_dict({"author": AUTHOR, "base": BASE})
 
 
 class CliTests(unittest.TestCase):
-    def test_plan_reads_input_and_files_file(self) -> None:
-        strays: list[dict[str, Any]] = [stray(4, files=["a.py", "q.py"]), stray(2), stray(3, mergeable=False)]
-        result: subprocess.CompletedProcess[str] = run_cli(strays, ["a.py", "", "b.py", ""])
+    def run_cli(self, *args: str, text: str | None = None) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, "-I", str(SCRIPT), *args], capture_output=True, text=True, check=False, input=text,
+        )
+
+    def test_plan_through_files(self) -> None:
+        tmp = Path(tempfile.mkdtemp(prefix="dts2-fold-"))
+        (tmp / "strays.json").write_text(json.dumps([stray(), stray(number=11, author="bob")]), encoding="utf-8")
+        (tmp / "files.txt").write_text("a.py\nb.py\n", encoding="utf-8")
+        result = self.run_cli(
+            "plan", "--input", str(tmp / "strays.json"), "--author", AUTHOR, "--base", BASE,
+            "--files-file", str(tmp / "files.txt"),
+        )
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(json.loads(result.stdout), {
-            "foldable": [2],
-            "listed": [
-                {"number": 3, "reason": "not mergeable"},
-                {"number": 4, "reason": "changes files outside this PR"},
-            ],
-        })
+        self.assertEqual(json.loads(result.stdout)["foldable"], [10])
+
+    def test_non_list_input_exits_two(self) -> None:
+        tmp = Path(tempfile.mkdtemp(prefix="dts2-fold-"))
+        (tmp / "strays.json").write_text("{}", encoding="utf-8")
+        (tmp / "files.txt").write_text("a.py\n", encoding="utf-8")
+        result = self.run_cli(
+            "plan", "--input", str(tmp / "strays.json"), "--author", AUTHOR, "--base", BASE,
+            "--files-file", str(tmp / "files.txt"),
+        )
+        self.assertEqual(result.returncode, 2)
+
+    def test_missing_files_file_exits_two(self) -> None:
+        tmp = Path(tempfile.mkdtemp(prefix="dts2-fold-"))
+        (tmp / "strays.json").write_text("[]", encoding="utf-8")
+        result = self.run_cli(
+            "plan", "--input", str(tmp / "strays.json"), "--author", AUTHOR, "--base", BASE,
+            "--files-file", str(tmp / "nope.txt"),
+        )
+        self.assertEqual(result.returncode, 2)
 
 
 if __name__ == "__main__":
