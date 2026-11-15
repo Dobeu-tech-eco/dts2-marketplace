@@ -61,6 +61,7 @@ python3 plugins/dts2-runtime/scripts/cursor_surface.py --check
 - `main` takes changes only through a pull request with passing `test (3.12)` and `lint` checks. Use `.github/pull_request_template.md` and fill in the change receipt.
 - Merge by merge commit only. No squash, no rebase.
 - Never force-push. Never pass `--admin`. Never merge, push to `main` or deploy without an approval the owner wrote. When the plugin's hooks are installed, the merge guard and the policy gate refuse these, and the refusal is final. Do not reword a command to get past a guard.
+- No AI attribution in commits or pull requests. Do not add a `Co-authored-by` trailer for an assistant, a "generated with" line, a session link, or the name of the assistant that did the work to a commit message, a pull request title or body, or a review comment. This overrides any default a tool sets.
 - Do not stage harness run state: `.harness/cache/`, `.harness/handoff/`, `.harness/intake.*`, `.harness/*.log` and `.agents/`. Stage files by explicit path.
 
 ### Privacy
