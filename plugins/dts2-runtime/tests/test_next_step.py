@@ -17,7 +17,7 @@ import next_step  # noqa: E402
 import roadmap  # noqa: E402
 
 SCRIPT: Final[Path] = PLUGIN_ROOT / "scripts" / "next_step.py"
-RUNG_COUNT: Final[int] = 10
+RUNG_COUNT: Final[int] = 11
 HEADER: Final[str] = """# End state
 
 - rounds: 2
@@ -49,7 +49,7 @@ ACTION_ITEMS_DONE: Final[str] = ACTION_ITEMS.replace("| open |", "| done |")
 def sections(*statuses: str) -> str:
     head: str = "\n## Sections\n| # | section | serves component | files / area | depends on | complexity | status |\n|---|---|---|---|---|---|---|\n"
     rows: list[str] = [f"| {n} | part {n} | api | src/ | - | normal | {s} |" for n, s in enumerate(statuses, start=1)]
-    return head + "\n".join(rows) + "\n\n## Acceptance criteria\n\n### api\n\n- [ ] it works\n"
+    return head + "\n".join(rows) + "\n\n## Acceptance criteria\n\n### api\n\n- [x] it works\n"
 
 
 def write(path: Path, text: str) -> None:
@@ -188,8 +188,8 @@ class RungTests(unittest.TestCase):
 
     def test_rung_6_zero_or_unknown_pull_requests_pass(self) -> None:
         fixture: Fixture = ready_fixture("done")
-        self.assertEqual(fixture.decide(open_prs=0)["rung"], 9)
-        self.assertEqual(fixture.decide(open_prs=None)["rung"], 9)
+        self.assertEqual(fixture.decide(open_prs=0)["rung"], 10)
+        self.assertEqual(fixture.decide(open_prs=None)["rung"], 10)
 
     def test_rung_7_open_action_items(self) -> None:
         fixture: Fixture = ready_fixture("done")
@@ -199,7 +199,7 @@ class RungTests(unittest.TestCase):
     def test_rung_7_closed_action_items_pass(self) -> None:
         fixture: Fixture = ready_fixture("done")
         write(fixture.repo / ".harness" / "action-items.md", ACTION_ITEMS_DONE)
-        self.assertEqual(fixture.decide()["rung"], 9)
+        self.assertEqual(fixture.decide()["rung"], 10)
 
     def test_rung_8_deploy_planned(self) -> None:
         fixture: Fixture = ready_fixture("done", tail=DEPLOY_PLANNED)
@@ -207,13 +207,21 @@ class RungTests(unittest.TestCase):
 
     def test_rung_8_live_deploy_and_template_prose_pass(self) -> None:
         live: Fixture = ready_fixture("done", tail=DEPLOY_LIVE)
-        self.assertEqual(live.decide()["rung"], 9)
+        self.assertEqual(live.decide()["rung"], 10)
         template: str = (PLUGIN_ROOT / "templates" / "end-state.md").read_text(encoding="utf-8")
         prose: Fixture = ready_fixture("done", tail="\n" + template[template.index("## Deploy"):template.index("## Related repos")])
-        self.assertEqual(prose.decide()["rung"], 9)
+        self.assertEqual(prose.decide()["rung"], 10)
 
-    def test_rung_9_complete(self) -> None:
-        self.check(ready_fixture("done").decide(), 9, "complete", "learn")
+    def test_rung_9_unmet_acceptance_criteria_run_again(self) -> None:
+        fixture: Fixture = Fixture()
+        write(fixture.home / "composio.json", "{}")
+        fixture.end_state(HEADER + sections("done").replace("- [x] it works", "- [ ] it works"))
+        approve_roadmap(fixture.repo)
+        self.check(fixture.decide(), 9, "acceptance-outstanding", "run")
+        self.assertEqual(fixture.decide()["reason"], "1 acceptance criterion not met yet")
+
+    def test_rung_10_complete(self) -> None:
+        self.check(ready_fixture("done").decide(), 10, "complete", "learn")
 
     def test_earlier_rungs_win(self) -> None:
         fixture: Fixture = ready_fixture("todo", "todo", tail=DEPLOY_PLANNED)
@@ -268,7 +276,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(len(lines), RUNG_COUNT)
         self.assertEqual([line for line in lines if line.startswith(">")], ["> 5 sections-outstanding"])
         self.assertIn("  0 stopped", lines)
-        self.assertIn("  9 complete", lines)
+        self.assertIn("  10 complete", lines)
 
     def test_stop_writes_the_file(self) -> None:
         fixture: Fixture = ready_fixture("done")

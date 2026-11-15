@@ -37,7 +37,8 @@ The first rung that applies wins.
 | 6 | `open-pull-requests` | `/dt-pr-sweep` |
 | 7 | `action-items-open` | `/dt-action-items` |
 | 8 | `deploy-planned` | `/dt-run` for the planned deploy |
-| 9 | `complete` | `/dt-learn` |
+| 9 | `acceptance-outstanding` | `/dt-run` for the unmet acceptance criteria |
+| 10 | `complete` | `/dt-learn` |
 
 ## Steps
 
@@ -63,6 +64,12 @@ A changed scope needs a new approval. Say so when rung 4 returns after the roadm
 
 - `/dt-go status`: run `next_step.py --repo . [--open-prs <n>] status` and show the ladder as printed. The current rung is marked `>`. Read-only.
 - `/dt-go stop <reason>`: run `next_step.py --repo . stop --reason "<reason>"`. Every later `/dt-go` returns rung 0 until a person deletes `.harness/STOP`. The loop guard for `fullauto` reads the same file. Never delete it yourself.
+
+## Any seat can start it
+
+The router is a plain script with no model call, so every seat on the roster gets the same answer from the same repo. A seat that is not Claude (a Codex, Grok or other provider session) starts the ladder by running `next_step.py --repo . next` itself and following the steps above with its own way of running a harness command.
+
+Starting the ladder gives a seat no extra authority. The owner's approvals, the hard gates and the stop file apply to every seat alike. When a rung goes to a council, the Claude seat is head of council and breaks a split, as in `autopilot`.
 
 ## Rules
 

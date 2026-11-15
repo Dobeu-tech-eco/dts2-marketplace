@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The read-only router: from the state on disk, say which command comes next.
 
-It walks a fixed ladder of rungs 0 to 9 and stops at the first one that applies. It reads files and makes no model call,
+It walks a fixed ladder of rungs 0 to 10 and stops at the first one that applies. It reads files and makes no model call,
 no network call and no `gh` call; the number of open pull requests is passed in by the caller. The only file it writes is
 `.harness/STOP`, and only a person removes that file.
 
@@ -181,6 +181,13 @@ def check_deploy(ctx: Context) -> Verdict | None:
     return "run", "a deploy is planned and not live yet", None
 
 
+def check_acceptance(ctx: Context) -> Verdict | None:
+    count: int = roadmap.status(ctx.repo)["acceptance_outstanding"]
+    if count == 0:
+        return None
+    return "run", f"{plural(count, 'acceptance criterion')} not met yet".replace("criterions", "criteria"), None
+
+
 def check_complete(_ctx: Context) -> Verdict | None:
     return "learn", "every rung is clear", None
 
@@ -195,7 +202,8 @@ RUNGS: Final[tuple[tuple[int, str, Check], ...]] = (
     (6, "open-pull-requests", check_pull_requests),
     (7, "action-items-open", check_action_items),
     (8, "deploy-planned", check_deploy),
-    (9, "complete", check_complete),
+    (9, "acceptance-outstanding", check_acceptance),
+    (10, "complete", check_complete),
 )
 
 
