@@ -33,7 +33,7 @@ class LegacyPluginIdTests(unittest.TestCase):
         market = json.loads((PLUGIN_ROOT.parents[1] / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))
         self.assertEqual(plugin["name"], "dt")
         self.assertEqual(market["name"], "dts2")
-        self.assertEqual([p["name"] for p in market["plugins"]], ["dt"])
+        self.assertEqual([p["name"] for p in market["plugins"]], ["dt", "fleet-ledger"])
 
     def test_keep_list_with_old_id_is_not_updated_as_an_extra_plugin(self) -> None:
         fx = Fixture("plugins:\n  - dts2@dts2\n  - dts2-harness@dts2\n  - impeccable@impeccable\n")
