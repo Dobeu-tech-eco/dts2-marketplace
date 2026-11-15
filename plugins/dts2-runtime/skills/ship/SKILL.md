@@ -1,6 +1,6 @@
 ---
 name: ship
-description: "Ship the current branch as a pull request: pre-check, repo checks, secret scan, verifier and reviewer, receipt, a required roadmap link, a per-repo open-PR cap, push, open PR; then sweep stale branches and fold safe strays after one confirmation. Never merges. Use for ship, open a PR, or clean up PRs."
+description: "Ship a branch as a pull request: pre-check, repo checks, secret scan, verifier and reviewer, receipt, a required roadmap link, an open-PR cap, push, open PR; then sweep stale branches and fold safe strays after one confirmation. Never merges. Use for ship, open a PR, or clean up PRs."
 ---
 
 # Ship — pre-check, verify, PR, then tidy branches and PRs
