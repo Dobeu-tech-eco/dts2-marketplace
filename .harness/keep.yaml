@@ -1,0 +1,34 @@
+# dts2-harness keep list — project-level. Setup re-runs read this first and never re-ask or prune these.
+plugins:
+  - dt@dts2
+skills:
+  - name: grill-me
+    source: npx skills add https://github.com/mattpocock/skills --skill grill-me
+    serves: harness
+  - name: writing-for-agents
+    source: npx skills add https://github.com/mattpocock/skills --skill writing-for-agents
+    serves: harness
+  - name: pr
+    source: npx skills add https://github.com/mattpocock/skills --skill pr
+    serves: harness
+  - name: postgresql-table-design
+    source: plugin
+    serves: fleet-ledger
+  - name: database-migration
+    source: plugin
+    serves: fleet-ledger
+  - name: threat-model
+    source: plugin
+    serves: fleet-ledger
+  - name: stride-analysis-patterns
+    source: plugin
+    serves: fleet-ledger
+  - name: task-coordination-strategies
+    source: plugin
+    serves: fleet-protocol
+  - name: team-composition-patterns
+    source: plugin
+    serves: fleet-protocol
+  - name: multi-reviewer-patterns
+    source: plugin
+    serves: harness
