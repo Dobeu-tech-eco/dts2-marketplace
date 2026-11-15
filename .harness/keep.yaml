@@ -5,6 +5,9 @@ skills:
   - name: grill-me
     source: npx skills add https://github.com/mattpocock/skills --skill grill-me
     serves: harness
+  - name: grilling
+    source: npx skills add https://github.com/mattpocock/skills --skill grilling
+    serves: harness
   - name: writing-for-agents
     source: npx skills add https://github.com/mattpocock/skills --skill writing-for-agents
     serves: harness
