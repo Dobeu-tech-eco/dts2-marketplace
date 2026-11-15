@@ -157,8 +157,8 @@ def _skill_dirs() -> list[tuple[str, Path]]:
     if not any(name == "sdk" for name, _ in found):
         found.append(("sdk", sdk))
     found.sort(key=lambda item: item[0])
-    if len(found) != 28:
-        raise SystemExit(f"expected 28 skill directories, found {len(found)}")
+    if len(found) != 29:
+        raise SystemExit(f"expected 29 skill directories, found {len(found)}")
     return found
 
 
