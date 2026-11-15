@@ -20,7 +20,13 @@ union all select 'chain_ok', coalesce(bool_and(prev_hash = coalesce(lag_hash, 'g
 union all select 'app_roles_locked_out', (not exists (
     select 1 from pg_roles r where r.rolname in ('anon', 'authenticated', 'service_role')
       and has_schema_privilege(r.rolname, 'fleet_ledger', 'usage')))::text
-union all select 'queue', coalesce((select string_agg(queue_name, ', ') from pgmq.list_queues()), 'missing');
+union all select 'queue', coalesce((select string_agg(queue_name, ', ') from pgmq.list_queues()), 'missing')
+union all select 'queue_locked_down', (not exists (
+    select 1 from pg_roles r, pg_class c join pg_namespace n on n.oid = c.relnamespace
+    where r.rolname in ('anon', 'authenticated', 'service_role')
+      and n.nspname = 'pgmq' and c.relname in ('q_fleet_tasks', 'a_fleet_tasks')
+      and (has_table_privilege(r.rolname, c.oid, 'select') or has_table_privilege(r.rolname, c.oid, 'insert')
+        or has_table_privilege(r.rolname, c.oid, 'update') or has_table_privilege(r.rolname, c.oid, 'delete'))))::text;
 ```
 
 ## 2. Report
@@ -33,6 +39,7 @@ One line per check, then one verdict line.
 | `chain_ok` | `true` |
 | `app_roles_locked_out` | `true` |
 | `queue` | includes `fleet_tasks` |
+| `queue_locked_down` | `true` |
 
 - Every check healthy → `Fleet ledger: healthy.`
 - `chain_ok` is `false` → `Fleet ledger: event chain broken.` Report it to the owner and stop. Do not repair it.

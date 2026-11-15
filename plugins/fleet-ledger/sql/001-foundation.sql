@@ -118,5 +118,22 @@ revoke all on all functions in schema fleet_ledger from public;
 create extension if not exists pgmq;
 select pgmq.create('fleet_tasks');
 
+-- Lock the queue down the same way as the ledger schema. A database may grant its application
+-- roles access to pgmq (for example when queues are exposed through an API), so this does not rely on defaults.
+alter table pgmq.q_fleet_tasks enable row level security;
+alter table pgmq.a_fleet_tasks enable row level security;
+revoke all on pgmq.q_fleet_tasks, pgmq.a_fleet_tasks from public;
+do $$
+declare
+  app_role text;
+begin
+  foreach app_role in array array['anon', 'authenticated', 'service_role'] loop
+    if exists (select 1 from pg_roles where rolname = app_role) then
+      execute format('revoke all on pgmq.q_fleet_tasks, pgmq.a_fleet_tasks from %I', app_role);
+    end if;
+  end loop;
+end;
+$$;
+
 insert into fleet_ledger.events (kind, payload)
 values ('ledger_created', '{"note": "foundation schema applied"}'::jsonb);
