@@ -136,7 +136,7 @@ Which command to use when: [docs/GUIDE.md](docs/GUIDE.md). Exact invocation of e
 Plugin contents:
 
 - Roles: lead, builder, fixer, reviewer, verifier, scout, auditor, incident-reviewer
-- Skills: onboard, composio, machine-prep, setup, run, learn, evolve, loop, gtm, sdk, action-items, model, find-skills, check-in, ship, feature, autopilot, dpp, dpp-full, fullauto, ask-expert, repo-sweep, pr-sweep, fleet, cooldown, knowledge, incidents, steer
+- Skills: onboard, composio, machine-prep, setup, run, learn, evolve, loop, gtm, sdk, action-items, model, find-skills, check-in, ship, feature, autopilot, dpp, dpp-full, fullauto, ask-expert, repo-sweep, pr-sweep, fleet, cooldown, knowledge, incidents, steer, go
 - Hooks: session start (lessons, cooldowns), prompt intake, pre-compact handoff, stop checks (typecheck and lint), merge guard, policy gate, PR receipt, context guard, role report check, action-items ledger, session end
 - Settings: `.claude/dts2-harness.local.md` (template in `templates/`)
 
@@ -196,6 +196,7 @@ Every slash command in the plugin (28). Commands marked "never starts on its own
 | `/dt:cooldown` | Pauses a provider that hit a usage limit until it resets; shared by every session on the machine. | `/dt:cooldown set codex 2d` |
 | **Status and memory** | | |
 | `/dt:check-in` | Read-only progress against the end state, `N of M complete`; `all` covers every session on this computer. | `/dt:check-in`, `/dt:check-in all` |
+| `/dt:go` | Picks the next command from the repo's state and runs it, then repeats until a person is needed. `status` shows where the repo stands. | `/dt:go`, `/dt:go status` |
 | `/dt:action-items` | What is waiting on a person (secrets, decisions, handoffs, deploys), with the command that resolves each. | `/dt:action-items` |
 | `/dt:fleet` | Lists every dt session on this computer and broadcasts a note, handoff or pause to them. | `/dt:fleet` |
 | `/dt:incidents` | Misfires recorded by hooks (hung spawns, missing reports), what is running now, and a root-cause review of open incidents. | `/dt:incidents review` |

@@ -110,6 +110,8 @@ Invocation shown without the prefix `python3 -I "$CLAUDE_PLUGIN_ROOT/scripts/`; 
 | `bump-version.py` | maintainer | Bump or verify the version in the four places it is recorded. | `bump-version.py <version> [--root R] [--check]` | version files (not with `--check`) |
 | `changelog-join.py` | maintainer | Join `changelog.d/` fragments into the README `## Unreleased` section; dry run unless `--apply`. | `changelog-join.py [--root R] [--version V] [--apply] [--date D]` | README, deletes joined fragments (with `--apply`) |
 | `check-in.py` | either | Complete/outstanding checklist against the end state. | `check-in.py (--items <ids> \| --from <file>) [--json]` | none (read-only) |
+| `next_step.py` | either | Read-only router for `go`: the first rung of the ladder that applies, as JSON. | `next_step.py [--repo PATH] [--open-prs N] (next \| status \| stop --reason TEXT)` | none; `.harness/STOP` on `stop` |
+| `roadmap.py` | either | Scope hash of the end state's sections and acceptance criteria, its approval state, and the roadmap view. | `roadmap.py [--repo PATH] (status \| hash \| build)` | `.harness/roadmap.md` on `build` |
 | `checks.py` | either | Deterministic checks (tests, types, lint, secret scan, scope) before any model vote, and the run ledger. | `checks.py run --stamp S [--cwd D --base B] \| gate --stamp S [--head H] \| summary --stamp S \| env-missing --stamp S <names...> \| scout-check --stamp S <file>` | `ledger.jsonl` |
 | `intake.py` | either | Prompt intake queue: records prompts typed while the harness works, scores and classifies them (fold, clarify, steer) and renders the queue. | `intake.py add [--text T] [--source hook\|cli] \| list [--status S] [--json] \| resolve <id> --as fold\|clarify\|steer\|done [--note N] \| answer <id> --text T \| status \| hook`; `--root DIR`, `--threshold N` (60), `--budget N` (2) | `.harness/intake.jsonl`, `.harness/intake.md` |
 | `clarity-score.py` | either | Requirement clarity score; the weakest component bounds it. | `clarity-score.py <ratings>` | none |
@@ -180,7 +182,7 @@ Also outside `scripts/`: `sdk/dts2-run.py <task> [--repo R] [--yes] [--api-key-e
 
 Library modules, not invoked directly (21): `_load.py`, `agent_names.py`, `agent_rules.py`, `api_keys.py`, `contracts.py`, `eval_stats.py`, `harness_skew.py`, `incidents_detect.py`, `incidents_lessons.py`, `mdparse.py`, `miniyaml.py`, `model_call.py`, `ownership_audit.py`, `pr_receipt.py`, `prep-tiers.py`, `proc.py`, `profiles.py`, `skill_pins.py`, `son_launch.py`, `son_stream.py`, `state_ids.py`. The modules of `scripts/lanes/` are libraries behind `lanes.py` and have no command line either.
 
-## 4. Skills (27 slash commands)
+## 4. Skills (29 slash commands)
 
 Typed as `/dt:<name>`. `user only` means `disable-model-invocation: true` in the skill's frontmatter: the model never starts it, a person must type it (eight skills: `composio`, `dpp-full`, `fullauto`, `knowledge`, `machine-prep`, `model`, `onboard`, `sdk`). `user or model` skills, `cooldown` included, may also be started by the model when the conversation calls for them.
 
@@ -204,6 +206,7 @@ Typed as `/dt:<name>`. `user only` means `disable-model-invocation: true` in the
 | `/dt:dpp-full` | user only | `dpp --full`: also fills lanes from a delegation scan and keeps dispatching. | `/dt:dpp-full` | as `dpp` |
 | `/dt:fullauto` | user only | `dpp-full` with autopilot forced on, looping check-in until nothing is outstanding. | `/dt:fullauto` | as `dpp` |
 | `/dt:check-in` | user or model | Read-only progress against the approved end state: `N of M complete`. `all` reports check-in items from every session on the machine and, after a yes, asks them for fresh ones. | `/dt:check-in [all [--since 24h]]` | none (broadcast inbox on a yes) |
+| `/dt:go` | user or model | Run the next command the repo's state calls for, then repeat until a person is needed or the project is complete. `status` prints the ladder; `stop` sets the stop file. | `/dt:go [status \| stop <reason>]` | whatever the chosen command writes; `.harness/roadmap.md` at the roadmap rung; `.harness/STOP` on `stop` |
 | `/dt:model` | user only | Choose which agent provider fills the lead, advisory and sign-off seats; records `lead_provider`. The new lead gets the orchestrator's current `dt@dts2` plugin and skill list (`lead_skills.py sync`). Also adds or renames a named agent such as `grok-api`. | `/dt:model` | settings file, agent plugin cache, roster |
 | `/dt:cooldown` | user or model | Pause an agent that hit a usage limit until its reset date, resume it, or list what is paused. | `/dt:cooldown set <agent> <date or duration> [reason] \| clear <agent> \| list` | agent status file |
 | `/dt:fleet` | user or model | See every harness session on this computer; read status, logs and ledgers without interrupting them; broadcast a note, handoff, pause or knowledge finding to all (confirms first). | `/dt:fleet list \| show <ref> \| logs <ref> [-n N] \| broadcast --kind K --text T [--to ...] \| status [<id>] \| label <ref> <name> \| prune` | fleet home (`~/.dts2/fleet`) |

@@ -30,7 +30,7 @@ Sections 1 and 2 are written for you: how to phrase a request, and which command
 
 ## 1. Talking to the harness
 
-The harness is a Claude Code plugin. Every entry point is a slash command `/dt:<skill>`. There is no other interface. The plugin has 27 skills (section 2). Eight agents (`lead`, `builder`, `fixer`, `reviewer`, `verifier`, `scout`, `auditor`, `incident-reviewer`) are dispatched by the skills and never typed by the user. To dispatch one, call the Agent tool with `subagent_type: dt:<name>`.
+The harness is a Claude Code plugin. Every entry point is a slash command `/dt:<skill>`. There is no other interface. The plugin has 29 skills (section 2). Eight agents (`lead`, `builder`, `fixer`, `reviewer`, `verifier`, `scout`, `auditor`, `incident-reviewer`) are dispatched by the skills and never typed by the user. To dispatch one, call the Agent tool with `subagent_type: dt:<name>`.
 
 Eight skills run only when you type them (`disable-model-invocation: true`): `composio`, `dpp-full`, `fullauto`, `knowledge`, `machine-prep`, `model`, `onboard`, `sdk`. The model may start the others when the conversation calls for them.
 
@@ -109,6 +109,7 @@ For exact syntax (required arguments, flags, who may run it, what it writes) rea
 | Run the whole backlog unattended | `fullauto` | `dpp-full` with autopilot forced on, looping check-in until `lanes.py stop-check` says nothing is outstanding. User-typed only. Budget caps in `.harness/config.yaml` bound it. |
 | Open a PR for the branch you are on | `ship [base]` | Pre-check, repo checks, secret scan, verifier and reviewer, receipt, push, PR. Never merges. Then sweeps stale branches and PRs. Base defaults to `dev` when it exists. |
 | See progress against the end state | `check-in` | Read-only checklist, `N of M complete`. |
+| Let the harness pick the next command | `go [status \| stop <reason>]` | A script reads the repo and names one rung of a fixed ladder; the skill runs that command and asks again. It stops at the roadmap approval, at `.harness/STOP`, and when a person is needed. |
 | See what needs a person | `action-items`, `action-items done <id>`, `add`, `assign` | Secrets, decisions, handoffs, deploy steps, promotions. |
 | Turn findings into lessons | `learn`, `learn promote <L-NNN>` | Prunes stale lessons only after the user approves the drops. |
 | Change the harness itself | `evolve`, `evolve deploy` | Only in the harness source repo. Edit, validate, test, bump, commit; pushes only on an explicit yes. |

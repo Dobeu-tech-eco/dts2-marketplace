@@ -8,6 +8,7 @@ on it, and the sandbox lists it under denyWrite; the head's own instructions say
 
 `merge_policy: ["auto-when-green"]` is a standing grant: the policy gate then lets a direct `gh pr merge <n> --squash --match-head-commit <sha>`
 through without a per-PR entry once the required checks are green (see policy_gate.py for the conditions).
+A `roadmap` entry is the 12-character scope key printed by `roadmap.py status`.
 
 `is_human_approved(kind, key)` reads only that file. Nothing an agent writes anywhere else counts, and `record_actor` only logs
 who asked (`agent:<session_id>` or `human`), so the log shows when an agent claimed an approval it did not hold."""
@@ -26,7 +27,7 @@ import state_io  # noqa: E402
 
 MARKER_REL: Final[str] = ".claude/settings.local.json"
 APPROVALS_KEY: Final[str] = "dts2_approvals"
-KINDS: Final[tuple[str, ...]] = ("recorded_yes", "unsafe_no_sandbox", "blocked_pr_done", "lane_override", "merge", "merge_policy")
+KINDS: Final[tuple[str, ...]] = ("recorded_yes", "unsafe_no_sandbox", "blocked_pr_done", "lane_override", "merge", "merge_policy", "roadmap")
 MERGE_POLICY_KIND: Final[str] = "merge_policy"
 AUTO_WHEN_GREEN: Final[str] = "auto-when-green"
 ACTOR_HUMAN: Final[str] = "human"

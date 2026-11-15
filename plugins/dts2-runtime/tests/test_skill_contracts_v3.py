@@ -47,7 +47,7 @@ class GtmContract(TextContractMixin):
 class OnboardV3Contract(TextContractMixin):
     def test_onboard(self) -> None:
         path = SKILLS / "onboard" / "SKILL.md"
-        self.assert_contains(path, ["twenty-seven skills", "Plan checkpoint", "Ship checkpoint", "opencode",
+        self.assert_contains(path, ["twenty-nine skills", "Plan checkpoint", "Ship checkpoint", "opencode",
                                     "run add secret NAME", "cost tier", "evolve", "gtm",
                                     "| muse | live | builder, second-opinion reviewer |"])
         self.assert_absent(path, ["Worktrees |", "six skills"])
