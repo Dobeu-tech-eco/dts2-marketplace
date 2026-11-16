@@ -109,6 +109,7 @@ Invocation shown without the prefix `python3 -I "$CLAUDE_PLUGIN_ROOT/scripts/`; 
 | `builder-audit.py` | head | Audit one builder's result against its owned files; exit 1 on a violation. | `builder-audit.py --base <ref> --owned <files> [--repo R --claimed-sha S --status S --attempt N]` | none (read-only) |
 | `bump-version.py` | maintainer | Bump or verify the version in the four places it is recorded. | `bump-version.py <version> [--root R] [--check]` | version files (not with `--check`) |
 | `changelog-join.py` | maintainer | Join `changelog.d/` fragments into the README `## Unreleased` section; dry run unless `--apply`. | `changelog-join.py [--root R] [--version V] [--apply] [--date D]` | README, deletes joined fragments (with `--apply`) |
+| `release-gate.py` | maintainer | CI gate: a PR to main that changes shipped files must bump the version and add a changelog entry. | `release-gate.py --base REF [--head REF]` | none (read-only) |
 | `check-in.py` | either | Complete/outstanding checklist against the end state. | `check-in.py (--items <ids> \| --from <file>) [--json]` | none (read-only) |
 | `next_step.py` | either | Read-only router for `go`: the first rung of the ladder that applies, as JSON. | `next_step.py [--repo PATH] [--open-prs N] (next \| status \| stop --reason TEXT)` | none; `.harness/STOP` on `stop` |
 | `roadmap.py` | either | Scope hash of the end state's sections and acceptance criteria, its approval state, and the roadmap view. | `roadmap.py [--repo PATH] (status \| hash \| build)` | `.harness/roadmap.md` on `build` |

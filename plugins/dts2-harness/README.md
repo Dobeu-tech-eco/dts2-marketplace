@@ -170,7 +170,7 @@ Effort levels beyond `medium` are verified only for claude and codex. Every othe
 
 ## All commands
 
-Every slash command in the plugin (28). Commands marked "never starts on its own" run only when you type them. Exact flags are in [docs/COMMANDS.md](docs/COMMANDS.md).
+Every slash command in the plugin (29). Commands marked "never starts on its own" run only when you type them. Exact flags are in [docs/COMMANDS.md](docs/COMMANDS.md).
 
 | Command | What it does | Example |
 |---|---|---|

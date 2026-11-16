@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Join changelog.d/ fragments into the README changelog.
 
-Each batch writes its own fragment (changelog.d/batch-<n>.md: bullets starting with "- ", optional indented continuation
+Each batch writes its own fragment (changelog.d/<name>.md, usually batch-<n>.md: bullets starting with "- ", optional indented continuation
 lines, optional `#` headings), so two pull requests never edit the same README lines. The README keeps its newest
 lines directly under `## Unreleased` and the version history (`- 3.1.0 ...` down to the first release) below them in the
 same section. The joined bullets are inserted right after the `## Unreleased` heading, newest batch first (descending
@@ -25,7 +25,8 @@ from state_io import atomic_write  # noqa: E402
 
 PLUGIN_ROOT: Final[Path] = Path(__file__).resolve().parent.parent
 FRAGMENT_DIR: Final[str] = "changelog.d"
-FRAGMENT_GLOB: Final[str] = "batch-*.md"
+FRAGMENT_GLOB: Final[str] = "*.md"
+FRAGMENT_SKIP: Final[frozenset[str]] = frozenset({"README.md"})
 UNRELEASED: Final[str] = "## Unreleased"
 MD_HEADING: Final[re.Pattern[str]] = re.compile(r"^#+\s")
 HEADING: Final[re.Pattern[str]] = re.compile(r"^## ", re.MULTILINE)
@@ -42,7 +43,8 @@ def fragment_key(path: Path) -> tuple[int, str]:
 
 def fragments(folder: Path) -> list[Path]:
     """Newest batch first (descending batch number)."""
-    return sorted(folder.glob(FRAGMENT_GLOB), key=fragment_key, reverse=True)
+    found: list[Path] = [path for path in folder.glob(FRAGMENT_GLOB) if path.name not in FRAGMENT_SKIP]
+    return sorted(found, key=fragment_key, reverse=True)
 
 
 def parse_fragment(path: Path) -> tuple[list[str], list[str]]:
