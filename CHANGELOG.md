@@ -6,9 +6,33 @@ The plugin's full release history lives in [plugins/dts2-runtime/CHANGELOG.md](p
 
 ## Unreleased
 
+## [5.3.0]
+
+_Released 2026-11-16_
+
+One command now guides the harness, ships are tied to the roadmap, and every edition reports the version it really carries. Nothing breaking. Full notes are in [plugins/dts2-runtime/CHANGELOG.md](plugins/dts2-runtime/CHANGELOG.md).
+
+### Added
+
+- `/dt:go` picks the next command from the repo's state and runs it, so a new user needs only one command.
+- Ship revamp: every PR names an end-state section or an open action item, a repo at its open-PR cap gets no new PR, and only safe strays are folded in.
+- A release gate on pull requests to `main`: a change under `plugins/dts2-runtime/` without a version bump fails the check.
+- `fleet-ledger` 0.1.0 is listed as an optional second plugin.
+
+### Changed
+
+- Dependency updates rolled up from Dependabot: `claude-agent-sdk` 0.2.180, `pytest` 9.2.0, `pytest-xdist` 3.8.0, `hypothesis` 6.170.15 and `actions/setup-node` 7.1.0.
 - Docs: `AGENTS.md` at the repository root holds the rules for AI coding assistants that edit this repository. Every documentation page now opens with a "For people" section and a "For agents" section.
 - Branches: `main` and `dev` are the two long-lived branches. The Cursor package README now installs from `main`.
 - License: the current tree is MIT. Copyright Dobeu Tech Solutions LLC. Forks may add, remove, and ship the work, including in paid products. Keep the copyright notice.
+
+## [5.2.0]
+
+_Released 2026-11-10_
+
+### Added
+
+- `/dt:loop` researches one role instruction on a frozen batch of past receipts, with fixed token and time caps, and keeps or reverts each change mechanically.
 
 ## [5.1.1]
 
