@@ -22,8 +22,8 @@
     {
       "name": "fleet-ledger",
       "source": "./plugins/fleet-ledger",
-      "description": "A shared Postgres ledger for a fleet of AI agents: tasks, votes and a hash-chained, append-only event log in one isolated schema.",
-      "version": "0.1.0",
+      "description": "A shared Postgres ledger for a fleet of AI agents: tasks, votes, owner approvals and a hash-chained, append-only event log in one isolated schema.",
+      "version": "0.2.0",
       "author": {
         "name": "Dobeu Tech Solutions LLC",
         "url": "https://dobeu.net"

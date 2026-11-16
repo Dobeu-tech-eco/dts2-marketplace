@@ -6,6 +6,10 @@ The plugin's full release history lives in [plugins/dts2-runtime/CHANGELOG.md](p
 
 ## Unreleased
 
+### Added
+
+- `fleet-ledger` 0.2.0: `sql/002-approvals.sql` adds an append-only approvals table, the `approvals_current` view and `record_approval()`. A seat the owner marks as an approvals relay records the owner's yes or no once, with the owner's own words, and every other seat or watchdog can read it. New read-only skill `/fleet-ledger:approvals`; `/fleet-ledger:status` reports whether approvals are installed.
+
 ## [5.3.0]
 
 _Released 2026-11-16_

@@ -25,6 +25,7 @@ Run this one query through whatever database tool the session has (a Supabase co
 ```sql
 select 'tables' as check, coalesce(string_agg(tablename || ' rls=' || rowsecurity, ', ' order by tablename), 'missing') as result
   from pg_tables where schemaname = 'fleet_ledger'
+union all select 'approvals_installed', (to_regclass('fleet_ledger.approvals') is not null)::text
 union all select 'event_count', count(*)::text from fleet_ledger.events
 union all select 'chain_ok', coalesce(bool_and(prev_hash = coalesce(lag_hash, 'genesis'))::text, 'empty')
   from (select prev_hash, lag(hash) over (order by seq) as lag_hash from fleet_ledger.events) t
@@ -46,7 +47,8 @@ One line per check, then one verdict line.
 
 | Check | Healthy value |
 |---|---|
-| `tables` | `events`, `seats`, `tasks`, `votes`, each with `rls=true` |
+| `tables` | `events`, `seats`, `tasks`, `votes` (plus `approvals` once `002` is applied), each with `rls=true` |
+| `approvals_installed` | `true` once `sql/002-approvals.sql` is applied; `false` before that is not a fault |
 | `chain_ok` | `true` |
 | `app_roles_locked_out` | `true` |
 | `queue` | includes `fleet_tasks` |

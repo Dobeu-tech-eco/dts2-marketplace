@@ -21,7 +21,7 @@ A Claude Code plugin marketplace that carries two plugins: `dt`, the harness, an
 | `plugins/dts2-runtime/` | The full harness: skills, roles, hooks, scripts, tests, docs. The source of truth. | Yes |
 | `plugins/dts2-harness/` | The instruction edition for the Claude plugin directory. Written by `plugins/dts2-runtime/scripts/directory_edition.py`. | No |
 | `.cursor/`, `.cursor-plugin/`, and under `plugins/dt-cursor/`: `.cursor-plugin/`, `skills/`, `commands/`, `rules/`, `templates/`, `assets/` | The Cursor surface. Written by `plugins/dts2-runtime/scripts/cursor_surface.py`. | No |
-| `plugins/fleet-ledger/` | The optional fleet ledger plugin: numbered SQL files, one read-only status skill, its README. It has its own version and no test suite yet. | Yes |
+| `plugins/fleet-ledger/` | The optional fleet ledger plugin: numbered SQL files, two read-only skills (status and approvals), its README. It has its own version and no test suite yet. | Yes |
 | `plugins/dt-cursor/README.md`, `plugins/dt-cursor/SUBMISSION.md`, `plugins/dt-cursor/scripts/dt_gate.py` | The hand-written part of the Cursor package. | Yes |
 | `README.md`, `AGENTS.md`, `CHANGELOG.md`, `PRIVACY.md`, `LEGAL.md`, `skills-bundled/` | Marketplace-level pages. | Yes |
 | `.harness/ask-expert/` | Committed review memos about public repositories. | Yes, with the privacy rules below |
