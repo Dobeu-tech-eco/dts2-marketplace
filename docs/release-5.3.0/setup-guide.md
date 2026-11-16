@@ -1,5 +1,18 @@
 # dt 5.3.0: setup guide
 
+## For people
+
+New to dt? Follow "New users". Already on an older version? Follow "Upgrading". Then run `/dt:go` and let it lead.
+
+## For agents
+
+- Do not run user-only commands unless the person typed them.
+- Never approve the end state or the roadmap for the person. Never do anything unattended on `main`.
+- `/dt:go` works with only `dt` installed.
+- A PR to `main` that changes shipped plugin files needs a version bump and a `## [X.Y.Z]` entry in `plugins/dts2-runtime/CHANGELOG.md`. `release-gate.py` checks both.
+
+## Overview
+
 This guide covers four things: setting up dt for the first time, upgrading from an older version, using `/dt:go` to take a repo from where it is now to deployed, and the checks to run after the 5.3.0 merge. Each step lists what a person types. Notes for agents are marked **Agents**.
 
 **You only need `dt`.** It gives you the full `/dt:go` path on its own. Fleet-ledger is an optional add-on for teams with several seats that run on Supabase. Skip it unless you are in that pilot. Every step below works without it.
@@ -103,7 +116,7 @@ A person runs these checks once the release PR is merged to `main`.
 
 ## Maintainer notes
 
-- **A promote to `main` is a release.** If a PR to `main` changes shipped plugin files, it must raise the version and add a `## [X.Y.Z]` entry to `CHANGELOG.md`. `scripts/release-gate.py` enforces this in CI on every PR to `main`, and you can run it locally: `python3 plugins/dts2-runtime/scripts/release-gate.py --base origin/main`.
+- **A promote to `main` is a release.** If a PR to `main` changes shipped plugin files, it must raise the version and add a `## [X.Y.Z]` entry to `plugins/dts2-runtime/CHANGELOG.md`. `scripts/release-gate.py` enforces both in CI on every PR to `main`, and you can run it locally: `python3 plugins/dts2-runtime/scripts/release-gate.py --base origin/main`.
 - **MINOR or MAJOR.** Adding things is MINOR. Removing or breaking things is MAJOR, and the runtime cannot use 6.0.0, because the directory edition already uses that line.
 - **Regenerate the editions after a plugin change.** From `plugins/dts2-runtime`, run `python3 scripts/directory_edition.py` and `python3 scripts/cursor_surface.py`, then check both with `--check`.
 - **Keep fleet-ledger optional.** `tests/test_fleet_ledger_optional.py` fails if any runtime script, hook, skill, role, command or SDK file mentions it.

@@ -1,5 +1,17 @@
 # dt 5.3.0: the commands in plain words
 
+## For people
+
+Run `/dt:onboard` once, then use `/dt:go` for everything after that. You only need the `dt` plugin. Fleet-ledger is optional.
+
+## For agents
+
+- Do not run user-only commands (`composio`, `dpp-full`, `fullauto`, `knowledge`, `machine-prep`, `model`, `onboard`, `sdk`) unless the person typed them.
+- The runtime must not depend on fleet-ledger or Supabase. `tests/test_fleet_ledger_optional.py` enforces this.
+- `plugins/dts2-runtime/docs/COMMANDS.md` is the source for exact flags.
+
+## All 29 commands
+
 The dt plugin has 29 slash commands. Most people only need three of them:
 
 1. `/dt:onboard` the first time.

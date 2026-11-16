@@ -4,10 +4,12 @@
 Claude Code updates an installed plugin only when its version changes, so a change under plugins/dts2-runtime/ that
 lands on main without a plugin.json bump never reaches anyone. This script compares the base ref with HEAD: when any
 shipped file under the runtime folder changed (tests/ and changelog.d/ are not shipped behavior), the plugin.json
-version at HEAD must be greater than the one at the base. Exit 0 when the gate passes or does not apply, 1 when it
+version at HEAD must be greater than the one at the base, and the runtime CHANGELOG.md at HEAD must hold a
+`## [X.Y.Z]` heading for that version. Exit 0 when the gate passes or does not apply, 1 when it
 fails, 2 on a usage or git error. JSON on stdout. Read-only: it never writes, fetches, or changes a ref.
 
 Usage: release-gate.py --base origin/main [--head HEAD]"""
+
 from __future__ import annotations
 
 import argparse
@@ -19,7 +21,11 @@ from typing import Final
 
 RUNTIME_PREFIX: Final[str] = "plugins/dts2-runtime/"
 MANIFEST: Final[str] = "plugins/dts2-runtime/.claude-plugin/plugin.json"
-UNSHIPPED: Final[tuple[str, ...]] = ("plugins/dts2-runtime/tests/", "plugins/dts2-runtime/changelog.d/")
+CHANGELOG: Final[str] = "plugins/dts2-runtime/CHANGELOG.md"
+UNSHIPPED: Final[tuple[str, ...]] = (
+    "plugins/dts2-runtime/tests/",
+    "plugins/dts2-runtime/changelog.d/",
+)
 SEMVER: Final[re.Pattern[str]] = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 EXIT_PASS: Final[int] = 0
 EXIT_FAIL: Final[int] = 1
@@ -47,21 +53,46 @@ def manifest_version(ref: str) -> str:
     return str(data.get("version", ""))
 
 
+def changelog_text(ref: str) -> str:
+    try:
+        return git("show", f"{ref}:{CHANGELOG}")
+    except RuntimeError:
+        return ""
+
+
+def has_entry(changelog: str, version: str) -> bool:
+    heading: re.Pattern[str] = re.compile(
+        rf"^## \[{re.escape(version)}\]", re.MULTILINE
+    )
+    return heading.search(changelog) is not None
+
+
 def shipped_changes(paths: list[str]) -> list[str]:
     in_runtime: list[str] = [p for p in paths if p.startswith(RUNTIME_PREFIX)]
     return [p for p in in_runtime if not p.startswith(UNSHIPPED)]
 
 
-def evaluate(changed: list[str], base_version: str, head_version: str) -> dict[str, object]:
+def verdict_reason(bumped: bool, logged: bool, head_version: str) -> str:
+    if not bumped:
+        return "runtime changed without a plugin.json version bump"
+    if not logged:
+        return f"version bumped but {CHANGELOG} has no ## [{head_version}] entry"
+    return "version bumped and changelog entry present"
+
+
+def evaluate(
+    changed: list[str], base_version: str, head_version: str, changelog: str
+) -> dict[str, object]:
     shipped: list[str] = shipped_changes(changed)
     if not shipped:
         return {"verdict": "pass", "reason": "no shipped runtime change", "changed": 0}
     base: tuple[int, int, int] = parse_version(base_version)
     head: tuple[int, int, int] = parse_version(head_version)
     bumped: bool = head > base
+    logged: bool = has_entry(changelog, head_version)
     return {
-        "verdict": "pass" if bumped else "fail",
-        "reason": "version bumped" if bumped else "runtime changed without a plugin.json version bump",
+        "verdict": "pass" if bumped and logged else "fail",
+        "reason": verdict_reason(bumped, logged, head_version),
         "changed": len(shipped),
         "sample": shipped[:5],
         "base_version": base_version,
@@ -70,13 +101,24 @@ def evaluate(changed: list[str], base_version: str, head_version: str) -> dict[s
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser: argparse.ArgumentParser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--base", required=True, help="base ref, for example origin/main")
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(
+        description=__doc__.splitlines()[0]
+    )
+    parser.add_argument(
+        "--base", required=True, help="base ref, for example origin/main"
+    )
     parser.add_argument("--head", default="HEAD", help="head ref (default HEAD)")
     args: argparse.Namespace = parser.parse_args(argv)
     try:
-        changed: list[str] = git("diff", "--name-only", f"{args.base}...{args.head}").split()
-        result: dict[str, object] = evaluate(changed, manifest_version(args.base), manifest_version(args.head))
+        changed: list[str] = git(
+            "diff", "--name-only", f"{args.base}...{args.head}"
+        ).split()
+        result: dict[str, object] = evaluate(
+            changed,
+            manifest_version(args.base),
+            manifest_version(args.head),
+            changelog_text(args.head),
+        )
     except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
         print(json.dumps({"verdict": "error", "reason": str(exc)}))
         return EXIT_ERROR

@@ -4,15 +4,20 @@
 #   bash docs/release-5.3.0/cleanup-branches.sh --dry-run   # list what would go
 #   bash docs/release-5.3.0/cleanup-branches.sh             # delete
 # A branch that still has an open PR is always skipped.
+# The repository comes from the checkout's git remote. Override it with REPO=owner/name.
 set -euo pipefail
 
-readonly REPO="Dobeu-tech-eco/dts2-marketplace"
 readonly KEEP=("main" "dev")
 DRY_RUN=0
 [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=1
 
 command -v gh >/dev/null 2>&1 || { echo "gh is not installed or not on PATH" >&2; exit 2; }
 gh auth status >/dev/null 2>&1 || { echo "gh is not signed in: run gh auth login" >&2; exit 2; }
+
+REPO="${REPO:-$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || true)}"
+[[ -n "$REPO" ]] || { echo "could not resolve the repository: run from the checkout or set REPO=owner/name" >&2; exit 2; }
+readonly REPO
+echo "repository: $REPO"
 
 is_kept() {
   local name="$1"
