@@ -256,6 +256,13 @@ class ChangelogJoin(unittest.TestCase):
         self.assertNotIn("never joined", text)
         self.assertEqual(sorted(p.name for p in (self.root / "changelog.d").iterdir()), ["README.md"])
 
+    def test_named_fragments_join_after_numbered_ones(self) -> None:
+        self.fragment("batch-3.md", "- three\n")
+        self.fragment("go-router.md", "- router\n")
+        out = self.mod.run(self.root, None, True, "2026-11-04")
+        self.assertEqual(out["fragments"], ["batch-3.md", "go-router.md"])
+        self.assertIn("- three\n- router\n", (self.root / "README.md").read_text(encoding="utf-8"))
+
     def test_indented_continuation_lines_join_their_bullet(self) -> None:
         self.fragment("batch-1.md", "- one\n  wrapped tail\n")
         self.mod.run(self.root, None, True, "2026-11-04")

@@ -1,6 +1,6 @@
 # changelog.d
 
-One fragment per batch: `batch-<n>.md`. Each entry is a bullet starting with `- `; a wrapped bullet may continue on indented lines (they are joined onto the bullet), and `#` headings are ignored. Anything else (prose with no bullet) is reported as `dropped`. A pull request adds its own fragment instead of editing `## Unreleased` in the README, so two open pull requests never touch the same lines.
+One fragment per batch or feature: any `<name>.md` in this folder except this README (`batch-<n>.md` sorts by number; named fragments such as `go-router.md` sort after numbered ones). Each entry is a bullet starting with `- `; a wrapped bullet may continue on indented lines (they are joined onto the bullet), and `#` headings are ignored. Anything else (prose with no bullet) is reported as `dropped`. A pull request adds its own fragment instead of editing `## Unreleased` in the README, so two open pull requests never touch the same lines.
 
 The README keeps its newest lines directly under `## Unreleased`, with the version history (`- 3.1.0 ...` down to the first release) below them in the same section. At release the lead runs `python3 scripts/changelog-join.py [--version <x.y.z>] --apply`:
 

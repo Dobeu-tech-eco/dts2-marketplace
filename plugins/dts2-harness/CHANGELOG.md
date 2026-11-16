@@ -13,6 +13,32 @@ _Released 2026-11-07_
 
 Directory edition for the Claude plugin directory. Skills, roles, and documents only. Hooks and scripts stay in the GitHub marketplace install (`plugins/dts2-runtime`), because an unverified organization cannot publish them.
 
+## [5.3.0]
+
+_Released 2026-11-16_
+
+One command now guides the harness, ships are tied to the roadmap, and every edition reports the version it really carries. Nothing breaking.
+
+### Added
+
+- `/dt:go` picks the next command from the repo's state and runs it. A read-only script, `next_step.py`, chooses one rung of a fixed ladder; the model only runs it. `roadmap.py` gives the end state's sections and acceptance criteria a scope key, and the owner approves that key in the human-only approval file (new approval kind `roadmap`). `/dt:go stop <reason>` writes `.harness/STOP`, the same stop file the loop guard reads.
+- Ship revamp: `/dt:ship` requires every PR to name a real end-state section or an open action item (`ship_links.py check`), refuses to open a new PR when the repo is at its open-PR cap (`ship_links.py cap`, `ship:` or `autopilot:` `open_pr_cap`, default 5), and folds only safe strays (same author and base, a file subset, mergeable, green CI) into one PR, one commit each, listing the rest with a reason (`ship_fold.py plan`). With an approved end state the pipeline runs from commit to PR without a question between steps.
+- `scripts/release-gate.py` and a CI step on pull requests to `main`: a change under `plugins/dts2-runtime/` without a `plugin.json` version bump fails the check, so installs never sit on a stale version again.
+- `plugins/dt-cursor`, a Cursor package for the same `dt` product: `/dt` and `/dt-<skill>`, with read-only check-in, onboard and action-items. Hooks and scripts stay in `plugins/dts2-runtime`. `scripts/cursor_surface.py --check` keeps the generated files aligned.
+- The Claude plugin directory listing is `plugins/dts2-harness` at 6.0.0: skills, roles and documents only. `scripts/directory_edition.py` regenerates it.
+
+### Changed
+
+- `/dt:model` copies the current `dt@dts2` plugin and the orchestrator's skill list into the new lead's backend, so Codex no longer keeps an older command set once it becomes the lead. `/dt:setup` and `/dt:onboard`, once the role list is final, update roles that lack the plugin or those skills.
+- `changelog-join.py` joins every `changelog.d/*.md` fragment except the README, not only `batch-<n>.md`; named fragments sort after numbered ones.
+- Dependencies: `claude-agent-sdk` 0.2.180, `pytest` 9.2.0, `pytest-xdist` 3.8.0, `hypothesis` 6.170.15, and `actions/setup-node` 7.1.0 in CI.
+- License: the current tree is MIT. Keep the copyright notice in LICENSE so the original stays credited.
+
+### Docs
+
+- Every documentation page opens with a "For people" section and a "For agents" section. The repository root gains `AGENTS.md`, the rules for AI coding assistants that edit it.
+- Corrected Python 3.10, the intake queue file, the default dpp-full ask, both unattended files, the mailbox json record, the merge approval the policy gate requires, Cloudflare bearer clients, and the current Gemini and Grok profile ids.
+
 ## [5.2.0]
 
 _Released 2026-11-10_

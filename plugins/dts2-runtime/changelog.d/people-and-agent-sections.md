@@ -1,1 +1,0 @@
-- Docs: every documentation page now opens with a "For people" section and a "For agents" section. The repository root gains `AGENTS.md`, the rules for AI coding assistants that edit it.

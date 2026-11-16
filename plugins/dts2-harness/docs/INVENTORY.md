@@ -270,6 +270,7 @@ Stamp-keyed commands:
 | `directory_edition.py` | none | `--check` | Write the Claude directory listing at `plugins/dts2-harness` from this harness. | CI `metadata` job | new |
 | `cursor_surface.py` | none | `--check` | Write the Cursor instruction package at `plugins/dt-cursor` and the repo `.cursor` skills and commands. | CI `metadata` job | new |
 | `changelog-join.py` | none | `--root`, `--version`, `--apply`, `--date` | Join `changelog.d/` fragments into the README changelog; dry run unless `--apply`. | release step | new |
+| `release-gate.py` | none | `--base` (required), `--head` | CI gate on pull requests to main: when shipped plugin files change, the runtime version must be higher than the base and `CHANGELOG.md` must carry a `## [X.Y.Z]` entry for it. JSON verdict; exit 0 pass, 1 fail, 2 error. | CI (`metadata` job) | new |
 
 ### 4.7 Hook entry points (called by hooks, usable by hand)
 
