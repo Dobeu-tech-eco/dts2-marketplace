@@ -29,12 +29,14 @@ All four run as the schema owner, take the lease version the claim returned, and
 |---|---|
 | `claim_next(p_seat, p_lease, p_task)` | Claims the oldest queued task whose `roles_needed` the seat's `capability_card.roles` cover, or the task named by `p_task`. Returns the task and its lease version, or no row. Two seats never get the same task. |
 | `heartbeat(p_task, p_lease_version, p_lease, p_seat)` | Renews the lease. Not written to the event log. |
-| `complete(p_task, p_lease_version, p_result, p_outcome, p_seat)` | `done` when the `done_when` line is met, `parked` when it waits on something outside the fleet. `p_result` is a JSON object of at most 64 KB. |
+| `complete(p_task, p_lease_version, p_result, p_outcome, p_seat)` | `done` when the `done_when` line is met, `parked` when it waits on something outside the fleet. `p_result` is a JSON object of at most 64 KB. Kept on the task row; the event log keeps only its hash and size. |
 | `release(p_task, p_lease_version, p_reason, p_seat)` | Hands the task back to the queue without counting a redelivery. |
 
-- Leases run from 1 minute to 4 hours; the default is 2 hours.
+- Leases run from 1 minute to 4 hours; the default is 2 hours. Lease times use the wall clock (`clock_timestamp()`), so a transaction that started before a lease lapsed cannot act on it.
 - Every claim first sweeps lapsed leases (`sweep_expired()`), so no scheduler is needed. A task whose lease lapses 3 times goes to `dead_letter`.
 - Who is acting: a login whose name is in `seats.db_role` acts as that seat and cannot name another. Any other caller must belong to the role that owns the schema (the router) and must pass `p_seat`. Application roles cannot call the functions.
 - The `fleet_seat` group role gets execute on the four functions and no table. A seat login is a member of it.
 - Claims, completions, releases and lapses are appended to the event log with the seat's name as the actor. The event chain is serialized, so commit right after each call.
+- Every new function in the schema needs an explicit `revoke all on function ... from public`, because Postgres grants execute to PUBLIC by default. 002 does this for its own functions.
+- A seat that holds a transaction open also holds the event-chain lock and stalls every other event write. The release that creates seat logins should give each one an `idle_in_transaction_session_timeout`.
 - `client/fleet_ledger` is a small typed Python client over any DB-API connection (psycopg 3 or psycopg2). It does not commit; the caller does.

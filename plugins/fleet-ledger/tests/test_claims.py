@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 from datetime import timedelta
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
@@ -12,6 +14,7 @@ import pytest
 from fleet_ledger import ClaimedTask, LeaseLostError, LedgerClient
 from psycopg import errors
 
+SQL_DIR: Path = Path(__file__).resolve().parent.parent / "sql"
 SHORT_LEASE: timedelta = timedelta(minutes=5)
 SEAT_LOGIN: str = "fleet_ledger_test_seat"
 MAX_REDELIVERIES: int = 3
@@ -233,3 +236,79 @@ def test_application_roles_cannot_call_seat_functions(conn: psycopg.Connection, 
             conn.execute("select * from fleet_ledger.claim_next(null)")
     finally:
         conn.execute("reset session authorization")
+
+
+def test_old_transaction_cannot_renew_a_lapsed_lease(ledger_dsn: str, conn: psycopg.Connection) -> None:
+    seat = _seat(conn, "worker", [])
+    task_id = _task(conn, "work")
+    task = LedgerClient(conn, seat).claim_next(SHORT_LEASE)
+    with psycopg.connect(ledger_dsn) as stale:
+        stale.execute("select 1")  # opens the transaction, fixing its now()
+        time.sleep(2.5)
+        conn.execute(
+            "update fleet_ledger.tasks set lease_until = clock_timestamp() - interval '1 second' where id = %s",
+            (task_id,),
+        )
+        with pytest.raises(LeaseLostError):
+            LedgerClient(stale, seat).heartbeat(task)
+
+
+def test_lapsed_but_unswept_lease_cannot_complete(conn: psycopg.Connection) -> None:
+    seat = _seat(conn, "worker", [])
+    task_id = _task(conn, "work")
+    task = LedgerClient(conn, seat).claim_next(SHORT_LEASE)
+    _lapse(conn, task_id)
+    with pytest.raises(LeaseLostError):
+        LedgerClient(conn, seat).complete(task, {"note": "late"})
+    assert _task_row(conn, task_id)["status"] == "claimed"
+
+
+def test_another_seat_cannot_finish_or_release_a_held_task(conn: psycopg.Connection) -> None:
+    holder = _seat(conn, "holder", [])
+    intruder = _seat(conn, "intruder", [])
+    _task(conn, "work")
+    task = LedgerClient(conn, holder).claim_next(SHORT_LEASE)
+    for act in (lambda c: c.complete(task, {}), lambda c: c.release(task), lambda c: c.heartbeat(task)):
+        with pytest.raises(LeaseLostError):
+            act(LedgerClient(conn, intruder))
+
+
+def test_named_task_claim_respects_roles(conn: psycopg.Connection) -> None:
+    reviewer = _seat(conn, "reviewer", ["reviewer"])
+    builder_task = _task(conn, "build", ["builder"])
+    review_task = _task(conn, "review", ["reviewer"])
+    client = LedgerClient(conn, reviewer)
+    assert client.claim_next(SHORT_LEASE, task_id=builder_task) is None
+    claimed = client.claim_next(SHORT_LEASE, task_id=review_task)
+    assert claimed is not None and claimed.task_id == review_task
+
+
+def test_event_log_keeps_result_hash_not_result(conn: psycopg.Connection) -> None:
+    seat = _seat(conn, "worker", [])
+    _task(conn, "work")
+    client = LedgerClient(conn, seat)
+    client.complete(client.claim_next(SHORT_LEASE), {"secret_ish": "kept on the task row only"})
+    payload = conn.execute("select payload from fleet_ledger.events where kind = 'task_done'").fetchone()[0]
+    assert "result" not in payload and len(payload["result_sha256"]) == 64 and payload["result_bytes"] > 0
+
+
+def test_unregistered_seat_login_is_refused(conn: psycopg.Connection) -> None:
+    stranger = "fleet_ledger_test_stranger"
+    conn.execute(
+        f"do $$ begin if not exists (select 1 from pg_roles where rolname = '{stranger}')"
+        f" then create role {stranger} nologin; end if; end $$"
+    )
+    conn.execute(f"grant fleet_seat to {stranger}")
+    seat = _seat(conn, "someone", [])
+    _task(conn, "work")
+    conn.execute(f"set session authorization {stranger}")
+    try:
+        with pytest.raises(errors.InsufficientPrivilege):
+            LedgerClient(conn, seat).claim_next(SHORT_LEASE)
+    finally:
+        conn.execute("reset session authorization")
+
+
+def test_claims_file_can_be_run_again(conn: psycopg.Connection) -> None:
+    conn.execute((SQL_DIR / "002-claims.sql").read_text(encoding="utf-8"))
+    assert _event_kinds(conn).count("claims_installed") == 2

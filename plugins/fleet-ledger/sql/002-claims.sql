@@ -5,11 +5,16 @@
 --     fleet_ledger.complete(uuid, integer, jsonb, text, uuid), fleet_ledger.release(uuid, integer, text, uuid),
 --     fleet_ledger.sweep_expired(), fleet_ledger.acting_seat(uuid), fleet_ledger.check_lease(interval),
 --     fleet_ledger.max_redeliveries(), fleet_ledger.max_result_bytes();
+--   drop index fleet_ledger.tasks_lease_idx;
 --   alter table fleet_ledger.tasks drop column claimed_at, drop column completed_at, drop column result;
 --   revoke usage on schema fleet_ledger from fleet_seat; drop role fleet_seat;  -- only once no seat role is a member
--- Runs in one transaction: a failure at any step leaves nothing behind.
+-- The claims_installed event stays after a rollback, because the event log is append-only.
+-- Runs in one transaction: a failure at any step leaves nothing behind, so the file can be run again
+-- (each run appends one more claims_installed event).
 
 begin;
+-- Shared database: give up rather than queue behind application traffic while taking table locks.
+set local lock_timeout = '5s';
 
 -- Seats log in with their own roles (a later release), each a member of this group. The group gets
 -- execute on the four seat functions below and nothing else: no table in the schema is granted to it.
@@ -17,6 +22,9 @@ do $$
 begin
   if not exists (select 1 from pg_roles where rolname = 'fleet_seat') then
     create role fleet_seat nologin;
+  elsif exists (select 1 from pg_roles where rolname = 'fleet_seat'
+                  and (rolcanlogin or rolsuper or rolcreaterole or rolcreatedb or rolbypassrls)) then
+    raise exception 'a role named fleet_seat already exists with more than nologin rights; resolve it by hand';
   end if;
 end;
 $$;
@@ -30,13 +38,13 @@ alter table fleet_ledger.tasks
 create index if not exists tasks_lease_idx on fleet_ledger.tasks (lease_until) where status = 'claimed';
 
 -- Limits, kept in one place so the tests and the docs read the same numbers.
-create function fleet_ledger.max_redeliveries() returns integer
+create or replace function fleet_ledger.max_redeliveries() returns integer
 language sql immutable set search_path = '' as $$ select 3 $$;
 
-create function fleet_ledger.max_result_bytes() returns integer
+create or replace function fleet_ledger.max_result_bytes() returns integer
 language sql immutable set search_path = '' as $$ select 65536 $$;
 
-create function fleet_ledger.check_lease(p_lease interval) returns void
+create or replace function fleet_ledger.check_lease(p_lease interval) returns void
 language plpgsql immutable set search_path = '' as $$
 begin
   if p_lease is null or p_lease < interval '1 minute' or p_lease > interval '4 hours' then
@@ -48,7 +56,7 @@ $$;
 -- Which seat is acting. A seat login (seats.db_role = session_user) always acts as itself.
 -- Any other caller must belong to the role that owns the schema (the router), and must name the seat.
 -- session_user is used because the seat functions run as their owner; SET ROLE does not change it.
-create function fleet_ledger.acting_seat(p_seat uuid) returns fleet_ledger.seats
+create or replace function fleet_ledger.acting_seat(p_seat uuid) returns fleet_ledger.seats
 language plpgsql stable set search_path = '' as $$
 declare
   chosen fleet_ledger.seats;
@@ -82,7 +90,7 @@ $$;
 -- Puts every task whose lease has lapsed back in the queue, or in dead_letter once it has lapsed
 -- max_redeliveries() times. Runs inside claim_next (check on read), so no scheduler is needed;
 -- a pg_cron job may also call it. Returns how many tasks it moved.
-create function fleet_ledger.sweep_expired() returns integer
+create or replace function fleet_ledger.sweep_expired() returns integer
 language plpgsql security definer set search_path = '' as $$
 declare
   lapsed record;
@@ -93,7 +101,7 @@ begin
     select t.id, t.lease_version, t.redeliveries, s.name as seat_name
       from fleet_ledger.tasks t
       left join fleet_ledger.seats s on s.id = t.owner_seat
-     where t.status = 'claimed' and t.lease_until < now()
+     where t.status = 'claimed' and t.lease_until < clock_timestamp()
      order by t.lease_until
        for update of t skip locked
   loop
@@ -117,7 +125,7 @@ $$;
 -- or the named task when p_task is given. Atomic: two seats never get the same task, because the
 -- row is locked and rows other callers hold are skipped. Returns no row when nothing is claimable.
 -- The returned lease_version fences every later call: a seat that lost its lease cannot act on the task.
-create function fleet_ledger.claim_next(p_seat uuid default null, p_lease interval default interval '2 hours',
+create or replace function fleet_ledger.claim_next(p_seat uuid default null, p_lease interval default interval '2 hours',
                                         p_task uuid default null)
 returns table (task_id uuid, lease_version integer, lease_until timestamptz, title text, done_when text,
                risk_tier text, roles_needed text[], roadmap_ref text, body jsonb)
@@ -150,7 +158,7 @@ begin
 
   update fleet_ledger.tasks t
      set status = 'claimed', owner_seat = seat.id, lease_version = t.lease_version + 1,
-         lease_until = now() + p_lease, claimed_at = now(), updated_at = now()
+         lease_until = clock_timestamp() + p_lease, claimed_at = clock_timestamp(), updated_at = now()
    where t.id = picked.id
   returning t.* into picked;
 
@@ -165,8 +173,9 @@ $$;
 
 -- Renews the lease. Fails with SQLSTATE 55000 when the seat no longer holds the task at that
 -- lease version, including when the lease has already lapsed: the seat must stop work on it.
--- Heartbeats are not written to the event log, to keep the chain small.
-create function fleet_ledger.heartbeat(p_task uuid, p_lease_version integer,
+-- Heartbeats are not written to the event log, to keep the chain small. Lease times use clock_timestamp(),
+-- not now(), so a transaction that started before the lease lapsed cannot renew it.
+create or replace function fleet_ledger.heartbeat(p_task uuid, p_lease_version integer,
                                        p_lease interval default interval '2 hours', p_seat uuid default null)
 returns timestamptz
 language plpgsql security definer set search_path = '' as $$
@@ -177,9 +186,9 @@ begin
   perform fleet_ledger.check_lease(p_lease);
   seat := fleet_ledger.acting_seat(p_seat);
   update fleet_ledger.tasks t
-     set lease_until = now() + p_lease, updated_at = now()
+     set lease_until = clock_timestamp() + p_lease, updated_at = now()
    where t.id = p_task and t.status = 'claimed' and t.owner_seat = seat.id
-     and t.lease_version = p_lease_version and t.lease_until >= now()
+     and t.lease_version = p_lease_version and t.lease_until >= clock_timestamp()
   returning t.lease_until into new_until;
   if not found then
     raise exception 'lease lost: seat % does not hold task % at lease version %', seat.name, p_task, p_lease_version
@@ -191,8 +200,9 @@ $$;
 
 -- Finishes the task. p_outcome 'done' means the done_when line is met; 'parked' means it waits on
 -- something outside the fleet (a gate the owner holds, a missing input). The result is a JSON object
--- of at most max_result_bytes(). Same fencing as heartbeat.
-create function fleet_ledger.complete(p_task uuid, p_lease_version integer, p_result jsonb default '{}'::jsonb,
+-- of at most max_result_bytes(), kept on the task row. The event log keeps only its hash and size, because
+-- events can never be deleted. Same fencing as heartbeat.
+create or replace function fleet_ledger.complete(p_task uuid, p_lease_version integer, p_result jsonb default '{}'::jsonb,
                                       p_outcome text default 'done', p_seat uuid default null)
 returns void
 language plpgsql security definer set search_path = '' as $$
@@ -212,19 +222,21 @@ begin
   update fleet_ledger.tasks t
      set status = p_outcome, result = p_result, completed_at = now(), lease_until = null, updated_at = now()
    where t.id = p_task and t.status = 'claimed' and t.owner_seat = seat.id
-     and t.lease_version = p_lease_version and t.lease_until >= now();
+     and t.lease_version = p_lease_version and t.lease_until >= clock_timestamp();
   if not found then
     raise exception 'lease lost: seat % does not hold task % at lease version %', seat.name, p_task, p_lease_version
       using errcode = '55000';
   end if;
   insert into fleet_ledger.events (actor, kind, task_id, payload)
   values (seat.name, 'task_' || p_outcome, p_task,
-          jsonb_build_object('lease_version', p_lease_version, 'result', p_result));
+          jsonb_build_object('lease_version', p_lease_version,
+                             'result_sha256', encode(sha256(convert_to(p_result::text, 'UTF8')), 'hex'),
+                             'result_bytes', octet_length(p_result::text)));
 end;
 $$;
 
 -- Hands the task back to the queue without counting a redelivery, for a seat that cannot finish it.
-create function fleet_ledger.release(p_task uuid, p_lease_version integer, p_reason text default null,
+create or replace function fleet_ledger.release(p_task uuid, p_lease_version integer, p_reason text default null,
                                      p_seat uuid default null)
 returns void
 language plpgsql security definer set search_path = '' as $$
@@ -235,7 +247,7 @@ begin
   update fleet_ledger.tasks t
      set status = 'queued', owner_seat = null, lease_until = null, updated_at = now()
    where t.id = p_task and t.status = 'claimed' and t.owner_seat = seat.id
-     and t.lease_version = p_lease_version and t.lease_until >= now();
+     and t.lease_version = p_lease_version and t.lease_until >= clock_timestamp();
   if not found then
     raise exception 'lease lost: seat % does not hold task % at lease version %', seat.name, p_task, p_lease_version
       using errcode = '55000';
