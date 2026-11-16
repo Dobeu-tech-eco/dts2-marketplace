@@ -56,8 +56,11 @@ Update later:
 
 ```
 /plugin marketplace update dts2
+claude plugin update dt@dts2
 /reload-plugins
 ```
+
+The marketplace update only refreshes the catalog; `claude plugin update dt@dts2` moves the installed plugin. For a project-scope install, run it from the project directory.
 
 ## How it works
 
