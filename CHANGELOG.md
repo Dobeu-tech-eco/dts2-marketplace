@@ -6,6 +6,10 @@ The plugin's full release history lives in [plugins/dts2-runtime/CHANGELOG.md](p
 
 ## Unreleased
 
+### Added
+
+- `fleet-ledger` 0.2.0: `sql/002-claims.sql` adds claim, heartbeat, complete and release with expiring leases and lease-version fencing, a `fleet_seat` group role, a typed Python client and SQL tests run in CI against Postgres.
+
 ## [5.3.0]
 
 _Released 2026-11-16_

@@ -1,7 +1,7 @@
 {
   "name": "fleet-ledger",
   "displayName": "Fleet Ledger",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A shared Postgres ledger for a fleet of AI agents: tasks, votes and a hash-chained, append-only event log in one isolated schema.",
   "author": {
     "name": "Dobeu Tech Solutions LLC",
