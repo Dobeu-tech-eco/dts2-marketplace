@@ -37,7 +37,8 @@ union all select 'queue_locked_down', (not exists (
     where r.rolname in ('anon', 'authenticated', 'service_role')
       and n.nspname = 'pgmq' and c.relname in ('q_fleet_tasks', 'a_fleet_tasks')
       and (has_table_privilege(r.rolname, c.oid, 'select') or has_table_privilege(r.rolname, c.oid, 'insert')
-        or has_table_privilege(r.rolname, c.oid, 'update') or has_table_privilege(r.rolname, c.oid, 'delete'))))::text;
+        or has_table_privilege(r.rolname, c.oid, 'update') or has_table_privilege(r.rolname, c.oid, 'delete'))))::text
+union all select 'claims_installed', (to_regprocedure('fleet_ledger.claim_next(uuid, interval, uuid)') is not null)::text;
 ```
 
 ## 3. Report
@@ -51,6 +52,7 @@ One line per check, then one verdict line.
 | `app_roles_locked_out` | `true` |
 | `queue` | includes `fleet_tasks` |
 | `queue_locked_down` | `true` |
+| `claims_installed` | `true` once `sql/002-claims.sql` is applied; `false` on a 0.1.0 install is not a fault |
 
 - Every check healthy → `Fleet ledger: healthy.`
 - `chain_ok` is `false` → `Fleet ledger: event chain broken.` Report it to the owner and stop. Do not repair it.

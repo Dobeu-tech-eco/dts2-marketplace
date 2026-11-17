@@ -44,10 +44,12 @@ Find your current plugin name with `/plugin`, then follow the matching row.
 
 | You have | Do this |
 |---|---|
-| `dt` 5.x | `/plugin marketplace update dts2`, then `/reload-plugins` |
+| `dt` 5.x | `/plugin marketplace update dts2`, then `claude plugin update dt@dts2`, then `/reload-plugins` |
 | `dts2` 4.x | `/plugin uninstall dts2@dts2`, `/plugin marketplace update dts2`, `/plugin install dt@dts2`, `/reload-plugins` |
 | `dts2-harness` (before 4.0) | `/plugin uninstall dts2-harness@dts2`, then the same steps as the `dts2` 4.x row |
 | Old `harness` or `harness-ops` copies | Disable them, or run `/dt:machine-prep` |
+
+`/plugin marketplace update dts2` only refreshes the catalog. It does not move the installed plugin, so the `claude plugin update dt@dts2` step is required. If `dt` is installed at project scope, run that command from the project directory. A project-scope install only advances when the update runs there.
 
 After any upgrade:
 
@@ -107,7 +109,7 @@ Fleet-ledger (`fleet-ledger` 0.1.0) records seats, work claims and votes in a sh
 A person runs these checks once the release PR is merged to `main`.
 
 1. **Versions agree on a fresh clone.** Run `python3 plugins/dts2-runtime/scripts/bump-version.py 5.3.0 --check`. It should exit 0.
-2. **The marketplace picked up the release.** After `/plugin marketplace update dts2`, the dt entry in `~/.claude/plugins/installed_plugins.json` should show version 5.3.0 and the merge commit SHA.
+2. **The marketplace picked up the release.** After `/plugin marketplace update dts2` and `claude plugin update dt@dts2` (run from the project directory for a project-scope install), the dt entry in `~/.claude/plugins/installed_plugins.json` should show version 5.3.0 and the merge commit SHA.
 3. **Claude Code sees it.** `/plugin` should list `dt` 5.3.0, and `/dt:go` should be available.
 4. **An upgrade from 5.2.0 advances.** Run `python3 plugins/dts2-runtime/scripts/upgrade-check.py --from-file <file holding the version recorded before the upgrade>`. It should report `advanced: true`.
 5. **Fleet-ledger did not move.** Its plugin version is still 0.1.0.
