@@ -22,6 +22,8 @@ Merges, fleet broadcast, hook install, the headless SDK, and paid provider calls
 
 Follows the agent-startup-blueprint rules. Prune means disable, never delete. Credentials are never read or printed.
 
+Scope: this skill handles the machine-level budget (claude.ai synced plugins, sync settings, context size, forbidden symlinks). It does not pick which copy of a duplicate plugin, skill, agent or MCP server to keep, because that depends on which agents are on the roster. That scrub runs in `/dt-setup` Round 2d once the roster is confirmed, with `context_scrub.py`, and it covers every rostered agent the same way. If the user has no roster yet, finish this skill's budget steps and point them to `/dt-setup`; do not dedupe plugins or agents here.
+
 Python: use `python3`; on Windows try `python` then `py -3`.
 
 ## 1. Detect the environment
@@ -58,13 +60,12 @@ Run `... machine-prep.py plan --tier <light|standard|strict>` for each tier the 
 | strict | Profile keep-set only, plus any `requiredByHarness` synced plugin | `syncClaudeAiSkills: false`; `syncClaudeAiPlugins: false` when no required plugin is synced, otherwise every other synced plugin is set off one by one | A minimal, fast, predictable start |
 
 Then present, from the audit inventory:
-- `redundantAgentPacks` as one line per group: "keep `<keep>`, disable N" (these plugins ship the same agent files, so you pay for them N times).
-- `duplicateSkillNames` as "skill X exists in A, B" so the user sees name collisions.
+- `redundantAgentPacks` and `duplicateSkillNames` as information only ("these plugins ship the same agent files; skill X exists in A, B"). Do not choose a copy to drop here: say the duplicates are resolved for every rostered agent by the setup scrub (Round 2d) once the roster is confirmed. The tier plan below still switches synced plugins off by tier; that is budget, not duplicate removal.
 - The top 10 entries of `usage` (plugin -> calls in the window), so the choice rests on what they actually use.
 - The `requiredByHarness` keep. Plugins matching the profile's `requiredByHarness` patterns (for example `marketing-skills@synced`, `impeccable@*`) are never disabled in any tier; the plan prints `(requiredByHarness)` on their line. Say why: the harness's own skills depend on them. Inside a project with `.harness/keep.yaml`, its `plugins:` list counts as additional `requiredByHarness` entries (never disabled in any tier); say so in the plan output.
 
 Plugins added on claude.ai later arrive enabled in light and standard, so re-run the plan after adding some. Also list, as manual steps the script does not perform:
-- Extra files in `~/.claude/agents` beyond the budget (suggest moving them to an archive folder).
+- Extra files in `~/.claude/agents` beyond the budget (note it; which copy to keep is decided by the Round 2d scrub after the roster is confirmed).
 - Global MCP servers that belong in one project.
 - Codex plugin flags above budget.
 

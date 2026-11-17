@@ -21,7 +21,7 @@ This skill explains only, except the skill-parity step and the optional hooks st
 ## Skills
 | Skill | Use it to |
 |---|---|
-| `machine-prep` | Scan the computer, prune plugins to the blueprint keep-set, set up the slim startup. Once per machine. |
+| `machine-prep` | Scan the computer's context budget, trim claude.ai synced plugins to the blueprint tier, set up the slim startup. Once per machine. Duplicate plugins, skills, agents and MCP servers are scrubbed per rostered agent in setup, after the roster is confirmed. |
 | `setup` | Interview to an approved end state, then scaffold `.harness/` in one repo, many repos, or a multi-repo workspace. |
 | `run` | Do a task: scout sizes it, lead plans, N builders build, reviewers and verifier check. Two checkpoints: Plan checkpoint and Ship checkpoint. Open secrets and decisions go to `.harness/action-items.md`; close a secret with `run add secret NAME`. |
 | `learn` | Turn reviewer findings into lessons that every future run reads. |
@@ -73,8 +73,8 @@ Built-in API agents `claude-api`, `codex-api` and `grok-api` need only a key (`d
 After the agent list above, run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/roster.py" detect --project .` and pass every installed name to `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lead_skills.py" gaps --agents <names> --home "$HOME"`. For each entry in `behind`, say one line: `<agent> is behind the orchestrator: <reason>.` Then run `lead_skills.py sync --agents <those names> --home "$HOME"`. The sync is silent: do not ask. A non-lead may show an older `/dts2-harness` until this step, or until `/dt:model` makes it the lead. Claude is the source and is skipped.
 
 ## Where to start
-1. New machine or cluttered tooling → `machine-prep`.
-2. New repo or repos → `setup`.
+1. New repo or repos → `setup`. It confirms the agent roster first, then (Round 2d) runs one context scrub that finds duplicate plugins, skills, agents and MCP servers for every rostered agent and disables the extras after a yes. Nothing is pruned before the roster exists.
+2. New machine or a heavy startup (many synced plugins, a large `CLAUDE.md`) → `machine-prep` for the machine-level budget and hygiene. It does not decide which duplicate to drop; that is the setup scrub, once the roster is known.
 3. Any multi-file task → `run`.
 4. After a few runs → `learn`.
 5. CI, cron, or a second machine without the desktop app → `sdk`.

@@ -102,7 +102,7 @@ This edition does not include Python scripts or shell hooks. The full harness, w
 
 Optional first steps:
 
-- `/dt:machine-prep` audits your installed plugins and MCP servers against a blueprint and disables overlap. It backs up your settings first and never deletes.
+- `/dt:machine-prep` audits your machine's context budget against a blueprint and trims synced plugins by tier. It backs up your settings first and never deletes. Duplicate plugins, skills, agents and MCP servers are scrubbed for every rostered agent in `/dt:setup` once the roster is confirmed.
 - `/dt:model` switches which provider leads (Claude by default).
 - `/dt:composio`, `/dt:sdk`, `/dt:knowledge` and `/dt:gtm` set up optional integrations (see the table below).
 

@@ -18,7 +18,7 @@ If you are about to run out of turns before finishing, stop and make the first l
 
 1. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/env-detect.py"` and report OS, WSL status, and which Claude home is live.
 2. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/machine-prep.py" audit --profile <profile>` and read its JSON.
-3. Return a table: item, current state, blueprint target, action (keep / disable / enable / set up / leave alone), and risk.
+3. Return a table: item, current state, blueprint target, action (keep / disable / enable / set up / leave alone), and risk. For duplicate plugins, skills, agents and MCP servers report the finding only and mark the action `decide in setup Round 2d`: which copy to keep is chosen per rostered agent after the roster is confirmed, not here.
 4. Flag anything the blueprint forbids: syncing agents or skills between Windows and WSL homes, symlinks into `~/.agents` or `/mnt/c`, global MCP servers that belong to one project.
 
 Never edit settings, never print token values, never read credential files.

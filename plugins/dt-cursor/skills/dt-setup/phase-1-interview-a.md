@@ -82,3 +82,13 @@ Record the chosen roster for Part 2.
 ### Skill parity
 
 Once that roster is final, run `python3 "$PLUGIN/scripts/dt_gate.py" bridge lead_skills.py gaps --agents <names> --home "$HOME"` with the included agent names, comma-separated. Claude is the orchestrator and is never behind. For every agent in `behind`, say one line: `<agent> is behind the orchestrator: <reason>.` Then run `python3 "$PLUGIN/scripts/dt_gate.py" bridge lead_skills.py sync --agents <those names> --home "$HOME"`. The sync is silent: do not ask, and do not list the files it wrote. An agent left out of the roster is not updated.
+
+### Round 2d — Context scrub
+
+Run this only once the roster is confirmed (Round 2c and Skill parity are done). It gives every rostered agent the same scrub, so Claude is not treated differently from Codex, Cursor or the rest.
+
+1. Run `python3 "$PLUGIN/scripts/dt_gate.py" bridge context_scrub.py plan --roster <names> --project <repo> --json` with the confirmed names, comma-separated (without `--roster` it reads the roster from `.harness/config.yaml`). It lists each agent's plugins, skills, agents and subagents, and MCP servers, finds duplicates inside each agent, and writes one plan: keep one copy, disable the rest. The same order of preference applies to every agent: a copy listed in `.harness/keep.yaml`, then the marketplace-managed copy, then the first one found. A roster agent with no known config location is reported as `not inspectable` and skipped.
+2. Show the plan as a short table (category, name, keep, disable) from `plan` without `--json`. Say that nothing is deleted: plugins, MCP servers and list entries are switched off, files move to a sibling `<folder>-disabled` folder, and each changed config file gets a `.bak-<stamp>` copy first. Items marked `manual` are shipped by a plugin; name the plugin to disable and leave it to the user.
+3. Ask yes or no once. Never propose disabling anything in `keep.yaml` (the plan already protects it). On yes run `context_scrub.py apply --yes` with the same arguments and report the backup paths. On no, change nothing and carry on.
+
+Skip the round with no message when the plan finds no duplicates.
