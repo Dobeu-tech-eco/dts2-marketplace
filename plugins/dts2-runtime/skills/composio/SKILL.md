@@ -33,7 +33,7 @@ Run `composio-setup.py map` (full toolkit catalogue and connected accounts, save
 
 ## 5. Find overlap
 1. Run `composio-setup.py overlap` (add `--all` to cover every toolkit, not only connected ones).
-2. Run the `/dt:machine-prep` flow's audit and plan (steps 2 and 3 of that skill) so the budget view and the Composio view agree.
+2. Run the `/dt:machine-prep` flow's audit and plan (steps 2 and 3 of that skill) so the budget view and the Composio view agree. If a roster is already confirmed, `context_scrub.py plan` (setup Round 2d) shows duplicates across the rostered agents; do not dedupe plugins or agents before then.
 3. Show one combined list: skills, plugins and MCP servers Composio already covers, each with kind, id, toolkit and scope, plus the `kept` entries and why (Composio itself, `dts2`, the blueprint `requiredByHarness` keep, `.harness/keep.yaml` plugins).
 
 ## 6. Approval gate
