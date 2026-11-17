@@ -18,11 +18,14 @@ from pathlib import Path
 from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import contracts  # noqa: E402
 from model_call import invoke, parse_result  # noqa: E402
 from proc import binary  # noqa: E402
 from son_launch import provider_env  # noqa: E402
 
 RECORD_SUFFIX: Final[str] = ".dispatch.json"
+RAW_SUFFIX: Final[str] = ".raw.txt"
+EXCERPT_CHARS: Final[int] = 600
 TIMEOUT_S: Final[float] = 900.0
 BRIEF_HEADING: Final[str] = "## Dissent brief"
 VERDICTS: Final[tuple[str, ...]] = ("APPROVE", "REJECT")
@@ -42,10 +45,11 @@ def record_path(ballot: Path) -> Path:
     return ballot.with_name(ballot.name + RECORD_SUFFIX)
 
 
-def write_record(ballot: Path, argv: list[str], model: str, session_id: str | None) -> dict[str, Any]:
-    """Write the dispatch record for the ballot text now on disk."""
+def write_record(ballot: Path, argv: list[str], model: str, session_id: str | None,
+                 extra: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Write the dispatch record for the ballot text now on disk (`extra`: what a recovered ballot adds, see `dispatch_seat`)."""
     record: dict[str, Any] = {"argv": argv, "model": model, "session_id": session_id,
-                              "sha256": sha256_text(ballot.read_text(encoding="utf-8"))}
+                              "sha256": sha256_text(ballot.read_text(encoding="utf-8")), **(extra or {})}
     record_path(ballot).write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
     return record
 
@@ -90,23 +94,45 @@ def ballot_from_structured(stdout: str) -> str | None:
     return f"VOTE: {body['verdict']}\n\n{body['reasons'].strip()}{tail}"
 
 
+def excerpt_of(call: dict[str, Any]) -> str:
+    """The end of what a seat printed (stdout, then stderr), so a failed or silent seat says why in the result."""
+    text: str = "\n".join(str(call.get(k) or "").strip() for k in ("stdout", "stderr")).strip()
+    return text[-EXCERPT_CHARS:]
+
+
+def refusal(seat: str, outcome: str, reason: str, call: dict[str, Any]) -> dict[str, Any]:
+    """A seat that cast no vote: never silent, always a parseable `ok: false` with the outcome and the end of its output."""
+    return {"ok": False, "seat": seat, "outcome": outcome, "reason": reason, "excerpt": excerpt_of(call)}
+
+
 def dispatch_seat(seat: str, argv: list[str], model: str, prompt: str, out_dir: Path, claude: bool,
                   cwd: Path | None = None) -> dict[str, Any]:
-    """Run one seat and write `<seat>.md` plus its dispatch record. A failed or unreadable answer writes nothing."""
+    """Run one seat and write `<seat>.md` plus its dispatch record. A failed or unreadable answer writes nothing and says why.
+    A non-Claude answer with words before its one `VOTE:` line is rewritten strict (`contracts.recover_ballot`); the record
+    then carries `normalized` and the SHA-256 of the raw answer, and the raw answer is kept in `<seat>.md.raw.txt`."""
     root: Path = cwd or Path.cwd()
     env: dict[str, str] = provider_env(dict(os.environ), claude=claude)
     call: dict[str, Any] = invoke(argv, root, TIMEOUT_S, f"council-{seat}", env=env, stdin_text=prompt)
     if call["code"] != 0:
-        return {"ok": False, "seat": seat, "reason": f"dispatch exited {call['code']}"}
-    text: str | None = ballot_from_structured(call["stdout"]) if claude else call["stdout"]
+        return refusal(seat, "failed", f"dispatch exited {call['code']}", call)
+    raw: str = call["stdout"]
+    text: str | None = ballot_from_structured(raw) if claude else contracts.recover_ballot(raw)
     if not text:
-        return {"ok": False, "seat": seat, "reason": "the answer carries no ballot"}
+        unable: str | None = None if claude else contracts.seat_unable(raw)
+        return refusal(seat, "unable" if unable else "no-vote",
+                       f"the seat could not run: {unable}" if unable else "the answer carries no ballot", call)
     ballot: Path = out_dir / f"{seat}.md"
     out_dir.mkdir(parents=True, exist_ok=True)
     ballot.write_text(text, encoding="utf-8")
-    parsed: dict[str, Any] | None = parse_result(call["stdout"]) if claude else None
-    record: dict[str, Any] = write_record(ballot, argv, model, parsed["session_id"] if parsed else None)
-    return {"ok": True, "seat": seat, "ballot": str(ballot), "sha256": record["sha256"], "session_id": record["session_id"]}
+    extra: dict[str, Any] | None = None
+    if not claude and text.strip() != raw.strip():
+        raw_path: Path = ballot.with_name(ballot.name + RAW_SUFFIX)
+        raw_path.write_text(raw, encoding="utf-8")
+        extra = {"normalized": True, "raw_sha256": sha256_text(raw)}
+    parsed: dict[str, Any] | None = parse_result(raw) if claude else None
+    record: dict[str, Any] = write_record(ballot, argv, model, parsed["session_id"] if parsed else None, extra)
+    return {"ok": True, "seat": seat, "ballot": str(ballot), "sha256": record["sha256"], "session_id": record["session_id"],
+            "normalized": bool(extra)}
 
 
 def main(argv: list[str] | None = None) -> int:
