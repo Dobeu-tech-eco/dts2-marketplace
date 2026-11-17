@@ -21,7 +21,7 @@ import council  # noqa: E402
 import roster  # noqa: E402
 
 EXPECTED: Final[dict[str, str | None]] = {"approve": "APPROVE", "reject": "REJECT", "none": None}
-SEAT_SCRIPT: Final[str] = "import sys\nsys.stdin.read()\nsys.stdout.write(open(sys.argv[1], encoding='utf-8').read())\n"
+SEAT_SCRIPT: Final[str] = "import sys\nsys.stdin.read()\nsys.stdout.buffer.write(open(sys.argv[1], 'rb').read())\n"
 
 
 def cases() -> list[tuple[str, str, str | None]]:
