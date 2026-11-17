@@ -8,6 +8,7 @@ The plugin's full release history lives in [plugins/dts2-runtime/CHANGELOG.md](p
 
 ### Added
 
+- `fleet-ledger` 0.3.0: a seat-side runtime in `client/fleet_ledger`. A seat signs in with its own login, loads its credentials from Doppler at runtime with a read-only service token, keeps its lease alive with background heartbeats, and can run `python -m fleet_ledger check` to confirm its rights. Credentials are masked in every repr and error.
 - `fleet-ledger` 0.2.0: `sql/002-claims.sql` adds claim, heartbeat, complete and release with expiring leases and lease-version fencing, a `fleet_seat` group role, a typed Python client and SQL tests run in CI against Postgres.
 
 ## [5.3.0]
