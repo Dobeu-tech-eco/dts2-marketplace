@@ -6,7 +6,7 @@ A shared Postgres ledger that lets a fleet of AI agents hand work to each other 
 
 Use this plugin if you run several AI agents and want one record of who is doing what.
 
-- **What it gives you today (0.2.0):** the database foundation (`sql/001-foundation.sql`): one isolated schema, `fleet_ledger`, with tables for seats, tasks and votes, an append-only event log where each row carries a hash of the row before it, and one task queue. On top of it, `sql/002-claims.sql` adds the seat functions: an agent claims the next task it can do, keeps it alive with a heartbeat, and finishes, parks or releases it. A task can only be held by one agent at a time, and a lease that lapses puts the task back in the queue.
+- **What it gives you today (0.3.0):** the database foundation (`sql/001-foundation.sql`): one isolated schema, `fleet_ledger`, with tables for seats, tasks and votes, an append-only event log where each row carries a hash of the row before it, and one task queue. On top of it, `sql/002-claims.sql` adds the seat functions: an agent claims the next task it can do, keeps it alive with a heartbeat, and finishes, parks or releases it. A task can only be held by one agent at a time, and a lease that lapses puts the task back in the queue. A seat-side runtime lets each agent sign in with its own login, load its credentials from Doppler and keep its lease alive.
 - **What it does not give you yet:** login roles for each seat, a scheduler job, an MCP server, vote counting, or the protocol document every seat follows. Those are planned and are not in this release.
 - **Where it runs:** any Postgres 15 or newer with the `pgmq` extension available, for example a Supabase project. It can share a database with an application, because it keeps to its own schema and grants nothing to application roles.
 - **To install:** run `sql/001-foundation.sql`, then `sql/002-claims.sql`, once each, as the database owner. The top of each file gives its rollback.
@@ -39,4 +39,41 @@ All four run as the schema owner, take the lease version the claim returned, and
 - Claims, completions, releases and lapses are appended to the event log with the seat's name as the actor. The event chain is serialized, so commit right after each call.
 - Every new function in the schema needs an explicit `revoke all on function ... from public`, because Postgres grants execute to PUBLIC by default. 002 does this for its own functions.
 - A seat that holds a transaction open also holds the event-chain lock and stalls every other event write. The release that creates seat logins should give each one an `idle_in_transaction_session_timeout`.
-- `client/fleet_ledger` is a small typed Python client over any DB-API connection (psycopg 3 or psycopg2). It does not commit; the caller does.
+- `client/fleet_ledger` is a small typed Python client over any DB-API connection (psycopg 3 or psycopg2). `LedgerClient` does not commit; the caller does. The seat runtime below uses an autocommit connection.
+
+## Seat runtime (0.3.0)
+
+Each seat signs in with its own login (a member of `fleet_seat`) and acts only as itself. Python 3.11+ and psycopg 3.
+
+**Credentials come from Doppler at runtime.** The seat gets a read-only Doppler service token for its own project and config (for example a project per seat with config `prd`) in `DOPPLER_TOKEN`. The client downloads the config over HTTPS when it starts and keeps nothing on disk.
+
+| Doppler key | Required | Default |
+|---|---|---|
+| `FLEET_LEDGER_LOGIN` | yes, the seat's own `fleet_seat_*` login (pooler form `<login>.<project ref>` is fine) | |
+| `FLEET_LEDGER_PASSWORD` | yes | |
+| `FLEET_LEDGER_HOST` | yes | |
+| `FLEET_LEDGER_PORT` | no | `5432` |
+| `FLEET_LEDGER_DBNAME` | no | `postgres` |
+| `FLEET_LEDGER_SSLMODE` | no, one of `require`, `verify-ca`, `verify-full` | `require` |
+| `FLEET_LEDGER_SSLROOTCERT` | for `verify-ca` and `verify-full`, path to the server's CA file | |
+
+`require` encrypts the connection but does not check the server's certificate. Use `verify-full` with the database's CA file when the seat runs outside a network you trust.
+
+```python
+from fleet_ledger import SeatSession
+
+with SeatSession.from_doppler() as seat:
+    task = seat.claim()
+    if task:
+        with seat.keep_alive(task) as beat:   # renews the lease every third of it
+            result = do_the_work(task)
+        if not beat.lost:                     # the ledger took the task back: drop the result
+            seat.complete(task, result)
+```
+
+- The connection is in autocommit mode, so every call commits at once and never holds the event-chain lock.
+- One lock guards the connection, so heartbeats from the background thread never overlap the seat's own calls. TCP keepalives and a 30-second user timeout make a dead network fail fast. Stopping the heartbeat thread and closing the session each wait at most 30 seconds.
+- The heartbeat marks the task `lost` when the ledger says the lease is gone, or when no renewal has succeeded for a whole lease.
+- `python -m fleet_ledger check` signs in and runs five checks: the connection is in autocommit; the login is in `fleet_seat`, is not a superuser, cannot bypass RLS and cannot run `sweep_expired`; a claim call runs (for a task id that cannot exist, so no real work is taken); reading a ledger table is refused; and acting for another seat is refused. It prints PASS or FAIL per check and exits 0 only when all pass.
+- Passwords and tokens are `SecretValue`s: repr, str and format show `***` and they cannot be pickled. Errors name keys or SQLSTATEs, never values, and carry no exception chain that could hold a secret in a traceback. The Doppler token is never sent on a redirect, and redirects are refused. Never put a password or token in code, chat, logs or the ledger.
+- Setting up a seat is the owner's job, not the client's: create the login, set its password, store it in the seat's Doppler config, and give the seat a read-only service token.
