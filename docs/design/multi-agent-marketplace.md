@@ -89,7 +89,7 @@ Note: this repo's `profiles/agents/grok.json` has `"verified": false`. The Grok 
 
 ## 3. Component mapping
 
-dt components counted from the repo: 29 skills (28 after the Cursor build drops `go`), 8 agents (`lead`, `builder`, `reviewer`, `verifier`, `fixer`, `auditor`, `scout`, `incident-reviewer`), 19 hook shell scripts wired to 12 Claude events, 106 Python scripts, 1 profile set, 0 bundled MCP servers (fleet-ledger is SQL plus a Python client).
+dt components counted from the repo: 29 skills (28 after the Cursor build drops `go`), 8 agents (`lead`, `builder`, `reviewer`, `verifier`, `fixer`, `auditor`, `scout`, `incident-reviewer`), 19 hook shell scripts wired to 12 Claude events, 106 Python scripts, 1 profile set, 0 bundled MCP servers.
 
 | dt component | Codex | Cursor | Grok |
 |---|---|---|---|
