@@ -1,0 +1,1 @@
+Permission to run `git diff` was denied: this headless run cannot ask for approval.

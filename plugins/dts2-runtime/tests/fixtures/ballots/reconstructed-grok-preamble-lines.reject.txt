@@ -1,0 +1,5 @@
+I read the plan, the diff and the checks.
+
+Here is my vote.
+VOTE: REJECT
+HIGH scripts/queue.py:41 — the retry loop never backs off — add a capped delay

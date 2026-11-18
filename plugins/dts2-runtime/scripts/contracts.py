@@ -111,6 +111,40 @@ def verdict_of(line: str) -> str | None:
     return match.group(1) if match else None
 
 
+PREAMBLE_LINES: Final[int] = 5  # how far down a seat's answer its one verdict may sit
+VOTE_TAIL: Final[re.Pattern[str]] = re.compile(r"^(?P<lead>.*?[\s:;,.—–-])?VOTE:\s*(?P<vote>APPROVE|REJECT)\s*$")
+VOTE_MENTION: Final[re.Pattern[str]] = re.compile(r"VOTE:\s*(?:APPROVE|REJECT)")
+UNABLE_LINE: Final[re.Pattern[str]] = re.compile(r"^UNABLE:\s*(?P<reason>\S.*)$")
+
+
+def seat_unable(text: str) -> str | None:
+    """The reason a seat gave on a first line `UNABLE: <reason>` (it could not run, and said so instead of staying silent)."""
+    match = UNABLE_LINE.match(mdparse.first_line(text).strip())
+    return match.group("reason").strip() if match else None
+
+
+def recover_ballot(text: str) -> str | None:
+    """The strict ballot (`VOTE: X` first line, the seat's own words after it) for a seat that put words before its verdict,
+    or None. Recovery is the dispatcher's job, never the tally's: `parse_ballot` still wants the strict first line.
+    A text that is already strict comes back as it is. Otherwise exactly one line in the whole answer may carry a verdict
+    (alone, or at the end of a line after a preamble) and it must sit within the first PREAMBLE_LINES lines, so a proposal
+    quoted in the answer cannot add or move a vote. Any second verdict anywhere, or none, is None."""
+    stripped = text.lstrip("﻿ \t\r\n")
+    lines = stripped.rstrip().split("\n")
+    if verdict_of(lines[0]) is not None:
+        later = any(verdict_of(line) is not None for line in lines[1:])  # the tally's own second-verdict rule
+        return None if later else stripped.rstrip() + "\n"
+    if len(VOTE_MENTION.findall(stripped)) != 1:  # an echoed instruction or a quoted second vote anywhere: no ballot
+        return None
+    hits = [(i, m) for i, m in ((i, VOTE_TAIL.match(line.strip())) for i, line in enumerate(lines)) if m]
+    if len(hits) != 1 or hits[0][0] >= PREAMBLE_LINES:
+        return None
+    i, match = hits[0]
+    lead = (match.group("lead") or "").strip()
+    body = "\n".join([*lines[:i], *([lead] if lead else []), *lines[i + 1:]]).strip()
+    return f"VOTE: {match.group('vote')}\n\n{body}\n" if body else f"VOTE: {match.group('vote')}\n"
+
+
 def parse_ballot(text: str, seat: str) -> Ballot | Invalid:
     """A ballot counts only when its first line is a strict verdict, its seat name is plain, and no later line casts a
     second, possibly conflicting, verdict (text quoted from a proposal cannot add one)."""

@@ -1,0 +1,3 @@
+Reviewed the diff and the verifier table against the end state. VOTE: REJECT
+
+HIGH scripts/queue.py:41 — the retry loop never backs off — add a capped delay

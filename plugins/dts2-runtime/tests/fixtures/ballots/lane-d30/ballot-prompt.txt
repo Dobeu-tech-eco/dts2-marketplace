@@ -1,0 +1,27 @@
+<!-- RECONSTRUCTED. The original lane-d30 ballot was not available. This follows the structure phase-1-gate.md step 1 asks for
+(the step, the end-state excerpt, the plan with its ## Done, the diff, the verifier table, the merged reviewer findings) with
+placeholder content, so the replay has a real ballot file to hand to each seat. It is not the Nov 5 text. -->
+# Ballot: lane d30, build vote, round 1
+
+Reply with exactly one first line `VOTE: APPROVE` or `VOTE: REJECT`, then at most ten findings as `severity file:line — issue — fix`, then any free-form notes.
+
+## Step
+Lane d30 (placeholder step).
+
+## End state excerpt
+(placeholder)
+
+## Plan and Done
+(placeholder)
+
+## Diff
+(placeholder: see the diff file named by the head)
+
+## Verifier table
+| check | result |
+|---|---|
+| tests | pass |
+| lint | pass |
+
+## Merged reviewer findings
+none
