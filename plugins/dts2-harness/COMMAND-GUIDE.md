@@ -1,6 +1,6 @@
 # dt commands: what each one is for
 
-One row per slash command, current with release 5.3.0 (29 commands, 8 roles). The same list now sits in the plugin README under "All commands". Type the command in Claude Code. Commands marked user-only (`composio`, `dpp-full`, `fullauto`, `knowledge`, `machine-prep`, `model`, `onboard`, `sdk`) never start on their own. New in 5.1: `/dt:pr-sweep`, provider profiles, per-provider rules, API-key providers, env isolation, speed defaults (note under the table).
+One row per slash command, current with release 5.4.0 (29 commands, 8 roles). The same list now sits in the plugin README under "All commands". Type the command in Claude Code. Commands marked user-only (`composio`, `dpp-full`, `fullauto`, `knowledge`, `machine-prep`, `model`, `onboard`, `sdk`) never start on their own. New in 5.1: `/dt:pr-sweep`, provider profiles, per-provider rules, API-key providers, env isolation, speed defaults (note under the table).
 
 ## For people
 

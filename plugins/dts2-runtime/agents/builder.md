@@ -53,6 +53,7 @@ dt:builder has no MCP tools: it has Read, Write, Edit, Grep, Glob and Bash only,
 - Never push.
 - Never spawn subagents or reviewers.
 - Never grade your own work.
+- Never skip, sleep, or retry a flaky test to get it green. Fix the root cause, or delete the test and record why in the receipt's Open risks.
 - Stay inside your worktree or scratch directory and your file set.
 - Report: status, commit, a one-line test summary, concerns.
 

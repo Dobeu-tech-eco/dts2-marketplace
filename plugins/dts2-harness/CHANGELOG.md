@@ -13,6 +13,25 @@ _Released 2026-11-07_
 
 Directory edition for the Claude plugin directory. Skills, roles, and documents only. Hooks and scripts stay in the GitHub marketplace install (`plugins/dts2-runtime`), because an unverified organization cannot publish them.
 
+## [5.4.0]
+
+_Released 2026-11-18_
+
+Reviews judge a diff against the base branch's own rules, pre-existing findings no longer block a change, a stuck failure escalates sooner, and context scrub covers every rostered agent. Nothing breaking.
+
+### Added
+
+- Base-branch review rules, built by new `scripts/review_rules.py`: every reviewer, every diff slice and the final review now judge the change against the checklist and lessons as they stand on the base ref, not the working tree. The run builds the rules block once with `review_rules.py show --base <ref>` and pastes it to each reviewer, so a diff cannot edit the checklist or lessons that judge it. The block names any rule file the diff changes, and such an edit is reviewed as a finding rather than applied as a rule.
+- Stuck-failure escalation, from new `checks.py streak`: when one deterministic check stays red the same way three reruns in a row, the fix loop stops before the round cap and escalates to the user with those three attempts and the stuck check names, instead of spending the remaining rounds on a failure that is not moving.
+- Context scrub moved after the agent roster and now covers every rostered agent. New `scripts/context_scrub.py` (`inventory`, `plan`, `apply`) lists plugins, skills, agents and MCP servers for Claude Code, Codex and Cursor, finds duplicates inside each agent and writes one plan with the same rule for all of them: a copy in `.harness/keep.yaml` wins, then the marketplace-managed copy, then the first. `apply` is a dry run unless `--yes`, backs up each config file as `<file>.bak-<stamp>`, disables only (flags, list entries, or a move to a sibling `<folder>-disabled` folder) and never deletes. Agents it cannot inspect are reported, not errors.
+- `setup` gains Round 2d (Context scrub), run after the roster and skill parity are confirmed; `onboard` now starts with `setup`, and `machine-prep`, the auditor and `composio` no longer tell you to dedupe plugins or agents before the roster exists.
+
+### Changed
+
+- `findings.py` separates pre-existing findings from the change: a `Pre-existing` finding whose cited lines the diff does not change is confirmed against the base with `--base`, moved to its own receipt section and left out of the verdict caps; a `Pre-existing` label on a line the diff did change becomes a HIGH finding instead, so a real problem the diff introduces cannot be waved through.
+- Flaky-test rule in `discipline.md`, `builder.md` and `fixer.md`: a test that fails and then passes on an unchanged tree is recorded as flaky and surfaced, never counted as a clean pass.
+- Context scrub no longer overwrites an earlier `<folder>-disabled` copy (it moves aside to `<name>.<stamp>`), drops skills and agents bundled by a plugin it disables before choosing winners, and tells MCP servers apart by a digest of their `env` and `headers` (values are never printed).
+
 ## [5.3.0]
 
 _Released 2026-11-16_

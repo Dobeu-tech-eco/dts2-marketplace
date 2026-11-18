@@ -8,6 +8,7 @@ Subcommands print one JSON object each:
                                     --base, else the run's recorded `.harness/runs/<stamp>/base`, else origin's default branch
   gate      --stamp S [--head SHA]  may the vote start? red checks mean a fix round with zero votes; with --head, checks taken on another commit count as missing
   summary   --stamp S               one markdown table built from the ledger, for the lead's brief and the PR receipt
+  streak    --stamp S               per check, how many runs in a row it has failed; stuck lists any at the escalation threshold (3) so the lead stops and asks
   env-missing --stamp S NAME ...    record env var NAMES that are missing (never values)
   scout-check FILE                  an evidence file must hold no verdict token
 The ledger is .harness/runs/<stamp>/ledger.jsonl: one JSON object per line, kind `check` (with the `head` SHA it ran on), `env` or `ballot`."""
@@ -40,6 +41,7 @@ BASE_NAME: Final[str] = "base"
 DEFAULT_BASES: Final[tuple[str, ...]] = ("origin/HEAD", "origin/main", "origin/master")
 PASS: Final[str] = "pass"
 FAIL: Final[str] = "fail"
+STUCK_STREAK: Final[int] = 3  # same check failing this many runs in a row -> escalate
 SKIP: Final[str] = "skip"
 TIMEOUT_S: Final[int] = 900
 GIT_TIMEOUT_S: Final[int] = 30
@@ -315,6 +317,36 @@ def gate(records: list[dict[str, Any]], head: str | None = None) -> dict[str, An
             "reason": "every deterministic check is green or skipped"}
 
 
+def fail_streaks(records: list[dict[str, Any]]) -> dict[str, int]:
+    """Per check name, how many of its most recent records in a row carry status fail.
+
+    Ignores `head`: the point is a check that stays red across fix rounds, even as commits move under it."""
+    history: dict[str, list[str]] = {}
+    for record in records:
+        if record.get("kind") == "check" and isinstance(record.get("name"), str) and isinstance(record.get("status"), str):
+            history.setdefault(record["name"], []).append(record["status"])
+    counts: dict[str, int] = {}
+    for name, statuses in history.items():
+        run_len: int = 0
+        for status in reversed(statuses):
+            if status != FAIL:
+                break
+            run_len += 1
+        if run_len:
+            counts[name] = run_len
+    return counts
+
+
+def streak(records: list[dict[str, Any]]) -> dict[str, Any]:
+    counts: dict[str, int] = fail_streaks(records)
+    stuck: list[str] = sorted(name for name, run_len in counts.items() if run_len >= STUCK_STREAK)
+    if stuck:
+        return {"ok": False, "streaks": counts, "stuck": stuck, "action": "escalate",
+                "reason": f"same check failing {STUCK_STREAK}+ runs in a row: {', '.join(stuck)}; stop and escalate to the user with the attempts"}
+    return {"ok": True, "streaks": counts, "stuck": [], "action": "continue",
+            "reason": "no check is stuck on the same failure"}
+
+
 def summary(records: list[dict[str, Any]]) -> str:
     lines: list[str] = ["| check | status | ms | log |", "| --- | --- | --- | --- |"]
     for name, rec in sorted(latest_checks(records).items()):
@@ -341,7 +373,7 @@ def scout_check(path: Path) -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="cmd", required=True)
-    for name in ("run", "gate", "summary", "env-missing"):
+    for name in ("run", "gate", "summary", "streak", "env-missing"):
         p = sub.add_parser(name)
         p.add_argument("--stamp", required=True)
         p.add_argument("--cwd", default=".")
@@ -365,6 +397,8 @@ def main() -> int:
         result = gate(read_ledger(path), args.head)
     elif args.cmd == "summary":
         result = {"ok": True, "markdown": summary(read_ledger(path))}
+    elif args.cmd == "streak":
+        result = streak(read_ledger(path))
     else:
         result = record_missing_env(path, args.names)
     print(json.dumps(result))

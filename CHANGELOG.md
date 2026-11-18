@@ -6,6 +6,23 @@ The plugin's full release history lives in [plugins/dts2-runtime/CHANGELOG.md](p
 
 ## Unreleased
 
+## [5.4.0]
+
+_Released 2026-11-18_
+
+Reviews judge a diff against the base branch's own rules, pre-existing findings no longer block a change, and a stuck failure escalates sooner. Full notes are in [plugins/dts2-runtime/CHANGELOG.md](plugins/dts2-runtime/CHANGELOG.md).
+
+### Added
+
+- Base-branch review rules: reviewers judge a diff against the checklist and lessons as they stand on the base ref, so a diff cannot edit the rules that judge it.
+- Stuck-failure escalation: a deterministic check that stays red the same way three reruns in a row escalates to the user instead of spending the remaining fix rounds.
+- Context scrub now covers every rostered agent and runs as `setup` Round 2d.
+
+### Changed
+
+- Pre-existing findings are separated from the change and left out of the verdict caps; a pre-existing label on a line the diff did change becomes a blocking finding.
+- A test that fails and then passes on an unchanged tree is recorded as flaky, not a clean pass.
+
 ### Removed
 
 - The `fleet-ledger` plugin is removed from the marketplace, with its SQL, client, tests and CI job. No agent could reach its database, so it did nothing useful. `dt` never depended on it and is unchanged. If you installed it, remove it with `claude plugin uninstall fleet-ledger@dts2`.

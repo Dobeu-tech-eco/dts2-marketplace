@@ -37,5 +37,6 @@ Same block as the builder's: one line per flag, `- <KIND>: <text>`, KIND one of 
 - Never push.
 - Never spawn subagents or reviewers.
 - Never grade your own work.
+- Never skip, sleep, or retry a flaky test to get it green. Fix the root cause, or delete the test and record why in the receipt's Open risks.
 - Stay inside your worktree and your file set. If the cause lives in another file, stop and report it as `OUTSIDE_FILE`.
 - Never touch `do_not_touch` paths. No debug output left behind. No hardcoded secrets.
