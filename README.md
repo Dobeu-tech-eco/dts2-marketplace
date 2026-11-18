@@ -15,7 +15,7 @@ This started as a passion project and became the orchestrator I use to take work
 
 I tested it on T3. The roster also marks these as verified in my use: Claude Code, OpenAI Codex, and OpenCode. Grok review and builder commands were exercised on 2026-10-22, and those model ids are still unverified. Parallel runs are set up for Linux, macOS, WSL, and Docker.
 
-This repository is the Claude Code plugin marketplace for that product. It carries two plugins: `dt`, the harness, and `fleet-ledger`, an optional shared ledger for people who run a fleet of agents. It is for developers and small teams who already use Claude Code and want a repeatable way to run larger changes.
+This repository is the Claude Code plugin marketplace for that product. It carries one plugin: `dt`, the harness. It is for developers and small teams who already use Claude Code and want a repeatable way to run larger changes.
 
 You approve an end state once. Separate roles plan, build, review and verify the work, and every run ends with a receipt and a pull request. Single-file fixes do not need it.
 

@@ -33,7 +33,7 @@ If the user says they are unsure whether a repo is worth keeping, point them to 
 Before anything else, run `python3 "$PLUGIN/scripts/dt_gate.py" bridge scope-check.py .`.
 - `workspace-member` → ask once `This folder is a member of workspace <root>. Run setup at the workspace root instead? (y/n)`. Yes → continue with the workspace root as the project path.
 - `workspace-root` with an existing manifest → offer `Re-link the existing workspace (no interview) or revise the end state?`.
-- If `.harness/keep.yaml` exists at the effective root, read it and say `Keeping <n> plugins, <n> skills, <n> agents from .harness/keep.yaml`. Skip the install question for every listed skill (never re-ask), pre-include the listed agents in the Agents round (still show them), and never propose disabling a listed plugin. A re-link or pivot re-run never rewrites keep.yaml except to append.
+- If `.harness/keep.yaml` exists at the effective root, read it and say `Keeping <n> plugins, <n> skills, <n> agents from .harness/keep.yaml`. Skip the install question for every listed skill (never re-ask), pre-include the listed agents in the Agents round (still show them), and never propose disabling a listed plugin (the Round 2d context scrub skips every keep.yaml entry too). A re-link or pivot re-run never rewrites keep.yaml except to append.
 
 ## Personal knowledge (optional, never blocks)
 

@@ -86,8 +86,8 @@ For exact syntax (required arguments, flags, who may run it, what it writes) rea
 | You want to | Use | Notes |
 |---|---|---|
 | Understand the harness, pick a starting point | `onboard` | Explanation only. Changes nothing. |
-| Prepare a new computer once | `machine-prep` | Audits installed agent tooling, prunes to the blueprint keep-set with a settings backup. Once per machine. |
-| Start a repo or workspace on the harness | `setup [path ...] [--scaffold-only]` | End-state interview until the user approves `.harness/end-state.md`, then scaffolds `.harness/`. Several paths means batch scaffold. |
+| Prepare a new computer once | `machine-prep` | Audits the machine's context budget and trims claude.ai synced plugins by tier with a settings backup. Once per machine. It does not choose between duplicate plugins or agents; setup does that after the roster. |
+| Start a repo or workspace on the harness | `setup [path ...] [--scaffold-only]` | End-state interview until the user approves `.harness/end-state.md`, then scaffolds `.harness/`. Once the agent roster is confirmed, Round 2d runs one context scrub for every rostered agent: duplicate plugins, skills, agents and MCP servers are listed in one plan (`.harness/keep.yaml` wins, then the marketplace-managed copy), you answer yes or no, and the extras are disabled with a backup, never deleted. Several paths means batch scaffold. |
 | Do one task with a human in the loop | `run <task>` | Scout sizes, lead plans (Plan checkpoint), builders build, reviewers and verifier check, ship (Ship checkpoint). The default for day-to-day work. |
 | Continue a parked or interrupted run | `run resume` | Reads the handoff and the run record (`lanes.py run-resume`). |
 | Build one section of the approved end state | `run section <#>` | Section numbers come from `end-state.md` and `check-in`. |
