@@ -17,6 +17,9 @@ CODEX_TOML: str = '''model = "x"
 command = "npx"
 args = ["-y", "gh-mcp"]
 
+[mcp_servers.github.env]
+TOKEN = "env"
+
 [mcp_servers.gh-twin]
 command = "npx"
 args = ["-y", "gh-mcp"]
@@ -166,6 +169,73 @@ class ContextScrubTests(unittest.TestCase):
         run(self.home, self.project, "apply", "--roster", self.roster, "--yes")
         second = run_json(self.home, self.project, "plan", "--roster", self.roster)
         self.assertEqual(0, second["disableCount"], second)
+
+    def test_move_aside_keeps_an_earlier_archive_file(self) -> None:
+        write(self.home / ".claude" / "agents-disabled" / "lead.md", "old archive")
+        report = json.loads(run(self.home, self.project, "apply", "--roster", "claude", "--yes").stdout)
+        self.assertEqual("old archive", (self.home / ".claude" / "agents-disabled" / "lead.md").read_text())
+        self.assertEqual(1, len(report["moved"]))
+        self.assertNotEqual(str(self.home / ".claude" / "agents-disabled" / "lead.md"), report["moved"][0])
+        self.assertEqual("user lead", Path(report["moved"][0]).read_text())
+
+    def test_move_aside_keeps_an_earlier_archive_folder(self) -> None:
+        archive = self.home / ".cursor" / "skills-disabled"
+        write(archive / "style" / "SKILL.md", "old archive")
+        report = json.loads(run(self.home, self.project, "apply", "--roster", "cursor", "--yes").stdout)
+        self.assertEqual("old archive", (archive / "style" / "SKILL.md").read_text())
+        self.assertFalse((archive / "style" / "style").exists(), "never moved inside the old archive")
+        moved = [Path(m) for m in report["moved"]]
+        self.assertEqual(1, len(moved))
+        self.assertNotEqual(archive / "style", moved[0])
+        self.assertEqual("s", (moved[0] / "SKILL.md").read_text())
+
+    def test_mcp_with_different_env_is_not_a_duplicate(self) -> None:
+        servers = {"a": {"command": "npx", "args": ["x"], "env": {"TOKEN": "secret-one"}},
+                   "b": {"command": "npx", "args": ["x"], "env": {"TOKEN": "secret-two"}},
+                   "c": {"command": "uvx", "args": ["y"], "env": {"TOKEN": "same-value"}},
+                   "d": {"command": "uvx", "args": ["y"], "env": {"TOKEN": "same-value"}}}
+        write(self.project / ".mcp.json", json.dumps({"mcpServers": servers}))
+        plan = run_json(self.home, self.project, "plan", "--roster", "claude")
+        mcp_groups = [g for g in plan["groups"] if g["category"] == "mcp"]
+        self.assertEqual(1, len(mcp_groups))
+        self.assertEqual(["d"], [i["name"] for i in mcp_groups[0]["disable"]])
+        for value in ("secret-one", "secret-two", "same-value"):
+            self.assertNotIn(value, json.dumps(plan))
+
+    def test_url_mcp_with_different_headers_is_not_a_duplicate(self) -> None:
+        servers = {"a": {"url": "https://x.example/mcp", "headers": {"Authorization": "Bearer one"}},
+                   "b": {"url": "https://x.example/mcp", "headers": {"Authorization": "Bearer two"}}}
+        write(self.home / ".cursor" / "mcp.json", json.dumps({"mcpServers": servers}))
+        plan = run_json(self.home, self.project, "plan", "--roster", "cursor")
+        self.assertEqual([], [g for g in plan["groups"] if g["category"] == "mcp"])
+        self.assertNotIn("Bearer", json.dumps(plan))
+
+    def test_codex_env_subtable_changes_the_target(self) -> None:
+        text = ('[mcp_servers.one]\ncommand = "npx"\n\n[mcp_servers.one.env]\nTOKEN = "tok-one"\n\n'
+                '[mcp_servers.two]\ncommand = "npx"\n\n[mcp_servers.two.env]\nTOKEN = "tok-two"\n\n'
+                '[mcp_servers.three]\ncommand = "npx"\n\n[mcp_servers.three.env]\nTOKEN = "tok-two"\n')
+        write(self.home / ".codex" / "config.toml", text)
+        plan = run_json(self.home, self.project, "plan", "--roster", "codex")
+        mcp_groups = [g for g in plan["groups"] if g["category"] == "mcp"]
+        self.assertEqual(1, len(mcp_groups))
+        self.assertEqual({"two", "three"}, {mcp_groups[0]["keep"]["name"], mcp_groups[0]["disable"][0]["name"]})
+        self.assertNotIn("tok-", json.dumps(plan))
+        run(self.home, self.project, "apply", "--roster", "codex", "--yes")
+        applied = (self.home / ".codex" / "config.toml").read_text()
+        self.assertIn('[mcp_servers.three]\nenabled = false\ncommand', applied)
+        self.assertNotIn("[mcp_servers.three.env]\nenabled", applied)
+
+    def test_bundled_copy_of_a_disabled_plugin_cannot_win(self) -> None:
+        claude = self.home / ".claude"
+        write(claude / "settings.json", json.dumps({"enabledPlugins": {"tool@a": True, "tool@b": True}}))
+        write(claude / "plugins" / "installed_plugins.json", json.dumps({"plugins": {"tool@a": [{"version": "1"}]}}))
+        write(claude / "plugins" / "cache" / "a" / "tool" / "1" / "skills" / "review" / "SKILL.md", "bundled")
+        write(claude / "skills" / "review" / "SKILL.md", "user review")
+        write(self.project / ".harness" / "keep.yaml", "plugins:\n  - tool@b\n")
+        plan = run_json(self.home, self.project, "plan", "--roster", "claude")
+        self.assertEqual(["tool@a"], [i["source"] for g in plan["groups"] if g["category"] == "plugins" for i in g["disable"]])
+        self.assertEqual([], [g for g in plan["groups"] if g["category"] == "skills"])
+        self.assertNotIn(str(claude / "skills" / "review"), json.dumps([g["disable"] for g in plan["groups"]]))
 
 
 if __name__ == "__main__":

@@ -15,6 +15,7 @@ same server in two agents is two separate contexts, not one wasted one).
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -43,7 +44,8 @@ SYNCED_DIR: Final[str] = "synced"
 MCP_DISABLE_KEY: Final[str] = "disabledMcpjsonServers"
 KEEP_PLUGINS_KEY: Final[str] = "plugins"
 NOT_INSPECTABLE: Final[str] = "not inspectable: no known config location for this agent"
-CODEX_HEADER: Final[re.Pattern[str]] = re.compile(r'^\[(mcp_servers|plugins)\.(?:"([^"]+)"|([\w-]+))\]\s*$')
+CODEX_HEADER: Final[re.Pattern[str]] = re.compile(
+    r'^\[(mcp_servers|plugins)\.(?:"([^"]+)"|([\w-]+))(?:\.(env|http_headers|headers))?\]\s*$')
 TOML_VALUE: Final[re.Pattern[str]] = re.compile(r"^(\w+)\s*=\s*(.+?)\s*$")
 TOML_STRING: Final[re.Pattern[str]] = re.compile(r'"([^"]*)"')
 OP_PLUGIN_OFF: Final[str] = "plugin-off"
@@ -52,6 +54,8 @@ OP_JSON_FLAG: Final[str] = "json-flag"
 OP_TOML_OFF: Final[str] = "toml-off"
 OP_MOVE: Final[str] = "move"
 OP_MANUAL: Final[str] = "manual"
+CONNECTION_KEYS: Final[tuple[str, ...]] = ("env", "http_headers", "headers")
+DIGEST_LENGTH: Final[int] = 12
 
 
 @dataclass
@@ -95,11 +99,20 @@ def manual_op(note: str) -> dict[str, Any]:
     return {"kind": OP_MANUAL, "note": note}
 
 
+def with_digest(base: str, connection: dict[str, Any]) -> str:
+    """Append a short digest of the connection config (env, headers). Values are never kept, only hashed."""
+    live: dict[str, Any] = {key: value for key, value in connection.items() if value}
+    if not base or not live:
+        return base
+    canonical: str = json.dumps(live, sort_keys=True, separators=(",", ":"))
+    return f"{base} #{hashlib.sha256(canonical.encode('utf-8')).hexdigest()[:DIGEST_LENGTH]}"
+
+
 def mcp_target(spec: Any) -> str:
     if not isinstance(spec, dict):
         return ""
     command: str = " ".join([str(spec.get("command", "")), *map(str, spec.get("args") or [])]).strip()
-    return command or str(spec.get("url", ""))
+    return with_digest(command or str(spec.get("url", "")), {key: spec.get(key) for key in CONNECTION_KEYS})
 
 
 # ---- Claude Code --------------------------------------------------------------------------------------------------
@@ -153,24 +166,29 @@ def collect_claude(home: Path, claude_home: Path, project: Path) -> list[Item]:
 # ---- Codex --------------------------------------------------------------------------------------------------------
 
 def parse_codex_sections(text: str) -> dict[tuple[str, str], dict[str, str]]:
-    """{(kind, name): {key: raw value}} for `[mcp_servers.x]` and `[plugins."x@m"]` tables."""
+    """{(kind, name): {key: raw value}} for `[mcp_servers.x]` and `[plugins."x@m"]` tables.
+
+    Values of an `[mcp_servers.x.env]` (or headers) sub-table are kept in the main table as `env.KEY`."""
     sections: dict[tuple[str, str], dict[str, str]] = {}
     current: dict[str, str] | None = None
+    prefix: str = ""
     for line in text.splitlines():
         stripped: str = line.strip()
         header = CODEX_HEADER.match(stripped)
         if header:
             current = sections.setdefault((header.group(1), header.group(2) or header.group(3)), {})
+            prefix = f"{header.group(4)}." if header.group(4) else ""
         elif stripped.startswith("["):
             current = None
         elif current is not None and (pair := TOML_VALUE.match(stripped)):
-            current[pair.group(1)] = pair.group(2)
+            current[prefix + pair.group(1)] = pair.group(2)
     return sections
 
 
 def codex_target(table: dict[str, str]) -> str:
     parts: list[str] = TOML_STRING.findall(table.get("command", "")) + TOML_STRING.findall(table.get("args", ""))
-    return " ".join(parts) or (TOML_STRING.findall(table.get("url", "")) or [""])[0]
+    base: str = " ".join(parts) or (TOML_STRING.findall(table.get("url", "")) or [""])[0]
+    return with_digest(base, {key: value for key, value in table.items() if key.split(".")[0] in CONNECTION_KEYS})
 
 
 def codex_config_items(config: Path) -> list[Item]:
@@ -301,10 +319,18 @@ def plan_group(group: list[Item], keep: dict[str, set[str]]) -> dict[str, Any]:
             "protected": [asdict(i) for i in losers if is_kept(i, keep)]}
 
 
+def without_disabled_bundles(items: list[Item], groups: list[dict[str, Any]]) -> list[Item]:
+    """Drop skills and agents shipped by a plugin the plan disables: they cannot win a group."""
+    off: set[tuple[str, str]] = {(i["agent"], i["source"]) for g in groups if g["category"] == KEEP_PLUGINS_KEY for i in g["disable"]}
+    return [i for i in items if not (i.op.get("kind") == OP_MANUAL and (i.agent, i.source) in off)]
+
+
 def build_plan(roster: list[str], home: Path, claude_home: Path, project: Path, cross_agent: bool) -> dict[str, Any]:
     items, skipped = inventory(roster, home, claude_home, project)
     keep: dict[str, set[str]] = keep_names(project)
-    groups: list[dict[str, Any]] = [plan_group(g, keep) for g in group_items(items, cross_agent)]
+    groups: list[dict[str, Any]] = [plan_group(g, keep) for g in group_items([i for i in items if i.category == KEEP_PLUGINS_KEY], cross_agent)]
+    rest: list[Item] = without_disabled_bundles([i for i in items if i.category != KEEP_PLUGINS_KEY], groups)
+    groups += [plan_group(g, keep) for g in group_items(rest, cross_agent)]
     return {"roster": roster, "notInspectable": [{"agent": a, "note": NOT_INSPECTABLE} for a in skipped],
             "crossAgent": cross_agent, "groups": groups,
             "disableCount": sum(len(g["disable"]) for g in groups)}
@@ -350,7 +376,7 @@ def edit_json(path: Path, ops: list[dict[str, Any]]) -> None:
 def toml_disable(text: str, section: str, name: str) -> str:
     lines: list[str] = text.splitlines(keepends=True)
     start: int | None = next((i for i, line in enumerate(lines) if (m := CODEX_HEADER.match(line.strip()))
-                              and m.group(1) == section and (m.group(2) or m.group(3)) == name), None)
+                              and not m.group(4) and m.group(1) == section and (m.group(2) or m.group(3)) == name), None)
     if start is None:
         return text
     end: int = next((i for i in range(start + 1, len(lines)) if lines[i].lstrip().startswith("[")), len(lines))
@@ -369,13 +395,24 @@ def edit_toml(path: Path, ops: list[dict[str, Any]]) -> None:
     atomic_write(path, text)
 
 
-def move_aside(op: dict[str, Any]) -> bool:
+def free_destination(target: Path, stamp: str) -> Path:
+    """`target`, or a sibling `<name>.<stamp>[-n]` that does not exist yet: an earlier archive is never replaced."""
+    candidate: Path = target
+    count: int = 1
+    while os.path.lexists(candidate):
+        count += 1
+        candidate = target.with_name(f"{target.name}.{stamp}" + (f"-{count - 1}" if count > 2 else ""))
+    return candidate
+
+
+def move_aside(op: dict[str, Any], stamp: str) -> Path | None:
     source, target = Path(op["path"]), Path(op["to"])
     if not source.exists():
-        return False
+        return None
     target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.move(str(source), str(target))
-    return True
+    destination: Path = free_destination(target, stamp)
+    shutil.move(str(source), str(destination))
+    return destination
 
 
 def apply_plan(plan: dict[str, Any], stamp: str) -> dict[str, Any]:
@@ -391,7 +428,8 @@ def apply_plan(plan: dict[str, Any], stamp: str) -> dict[str, Any]:
             backups.append(str(backup_file(path, stamp)))
         path.parent.mkdir(parents=True, exist_ok=True)
         (edit_toml if file_ops[0]["kind"] == OP_TOML_OFF else edit_json)(path, file_ops)
-    moved: list[str] = [op["to"] for op in ops if op["kind"] == OP_MOVE and move_aside(op)]
+    placed: list[Path | None] = [move_aside(op, stamp) for op in ops if op["kind"] == OP_MOVE]
+    moved: list[str] = [str(p) for p in placed if p is not None]
     manual: list[str] = [op["note"] for op in ops if op["kind"] == OP_MANUAL]
     return {"backups": backups, "moved": moved, "manual": manual}
 
