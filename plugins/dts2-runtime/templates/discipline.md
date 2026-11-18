@@ -15,6 +15,7 @@ Read by lead, builder, reviewer and verifier. Copied to `.harness/discipline.md`
 6. **Auto-add the receipt.**
    Where it bites: `hooks/pr-receipt.sh` runs on `gh pr create` and `gh pr edit`. If the PR body lacks `## Change receipt`, it edits it in, and it adds or extends the PR template in the same branch when neither the repo nor the org default has the section.
 7. **Auto hand-off on stall.** If the lead hits a usage or token limit, or goes unresponsive on a thread, immediately write the handoff (handoff-write.py) and fail over to the next eligible lead provider (failover.py `next_lead`, honoring `lead_provider`). Record the hand-off and the provider switch in the receipt. Never drop the thread silently.
+8. **No green by cheating.** Never skip, sleep, or retry a flaky test to get it green. Fix the root cause; when the cause is unknown, delete the test and record why in the receipt's Open risks. A test skipped, slept past, or retried to force a pass is a defect the review blocks on.
 
 ## Push exception
 
