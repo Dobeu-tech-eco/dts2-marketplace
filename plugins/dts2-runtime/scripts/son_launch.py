@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 from typing import Any, Final
 
+import portable
 from approvals import deny_rules as approval_deny_rules
 from briefs import PREFIX_FLAG, cached_prefix
 from model_call import read_block
@@ -318,7 +319,7 @@ def son_settings(cwd: Path, manifest: dict[str, Any], lane_id: str, worktree: Pa
     settings: dict[str, Any] = {"hooks": {"PreToolUse": [{"matcher": GUARDED_TOOLS, "hooks": [hook]}]},
                                 "permissions": {"deny": deny_list()}}
     box: dict[str, Any] = sandbox_config(cwd)
-    if box["enabled"]:
+    if box["enabled"] and not portable.IS_WINDOWS:  # native Windows has no OS sandbox; failIfUnavailable would fail every son
         allow, deny = write_scope(manifest, lane_id, cwd, worktree)
         settings["sandbox"] = {
             "enabled": True, "failIfUnavailable": True, "allowUnsandboxedCommands": False,
