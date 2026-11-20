@@ -97,6 +97,7 @@ def status(repo: Path) -> dict[str, Any]:
         "key": key,
         "approved": approved,
         "approve_with": approve_with(key, approved),
+        "lock_phrase": f"lock roadmap {key}" if key else None,
     }
 
 

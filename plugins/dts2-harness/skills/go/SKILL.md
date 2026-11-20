@@ -19,7 +19,7 @@ The first rung that applies wins.
 | 1 | `no-composio-decision` | `/dt:composio` (the user types it) |
 | 2 | `no-end-state` | `/dt:setup` |
 | 3 | `end-state-not-approved` | `/dt:setup` to revise and approve |
-| 4 | `roadmap-not-approved` | none: the owner approves the roadmap |
+| 4 | `roadmap-not-approved` | none: the owner types `lock roadmap <key>` |
 | 5 | `sections-outstanding` | `/dt:dpp` when two or more sections are `todo`, else `/dt:run` |
 | 6 | `open-pull-requests` | `/dt:pr-sweep` |
 | 7 | `action-items-open` | `/dt:action-items` |
@@ -42,8 +42,8 @@ The first rung that applies wins.
 The roadmap is the end state's sections and acceptance criteria. Its scope key changes when a section or criterion is added, removed or renamed, and stays the same when work is completed.
 
 1. Write the view: `python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.py" --repo . build`. Show `.harness/roadmap.md` to the owner.
-2. Show the `blocked_on` text. It carries the exact entry the owner adds to `.claude/settings.local.json`.
-3. Stop. Only the owner edits that file. Never write it, and never treat a yes in chat as the approval.
+2. Show the `blocked_on` text. It carries the exact phrase the owner types in chat: `lock roadmap <key>`.
+3. Stop. A hook records the phrase, and only when the owner typed the whole message. Never write `.claude/settings.local.json` yourself, and never treat a plain yes as the approval.
 
 A changed scope needs a new approval. Say so when rung 4 returns after the roadmap was approved before.
 
