@@ -44,6 +44,7 @@ The roadmap is the end state's sections and acceptance criteria. Its scope key c
 1. Write the view: `python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.py" --repo . build`. Show `.harness/roadmap.md` to the owner.
 2. Show the `blocked_on` text. It carries the exact phrase the owner types in chat: `lock roadmap <key>`.
 3. Stop. A hook records the phrase, and only when the owner typed the whole message. Never write `.claude/settings.local.json` yourself, and never treat a plain yes as the approval.
+4. No hook runs in the instruction edition from the Claude plugin directory. There the owner adds the key to `dts2_approvals.roadmap` in `.claude/settings.local.json` by hand. Tell them the exact entry, and still never write the file yourself.
 
 A changed scope needs a new approval. Say so when rung 4 returns after the roadmap was approved before.
 
