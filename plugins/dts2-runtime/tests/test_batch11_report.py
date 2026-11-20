@@ -86,11 +86,12 @@ class Decisions(unittest.TestCase):
 class DoctorRows(unittest.TestCase):
     def test_rows_present_and_windows_warns(self) -> None:
         names = {c["name"] for c in doctor.run_checks()}
-        self.assertLessEqual({"bwrap", "socat", "auth", "platform"}, names)
+        self.assertLessEqual({"bwrap", "socat", "auth", "platform", "host"}, names)
         with mock.patch.object(sys, "platform", "win32"):
             row = doctor.check_platform()
         self.assertEqual(row["status"], doctor.WARN)
-        self.assertIn(doctor.WINDOWS_PARK_REASON, row["detail"])
+        self.assertIn("unsafe_no_sandbox", row["detail"])
+        self.assertNotIn("park", row["detail"])
 
     def test_auth_names_method_not_value(self) -> None:
         with mock.patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-secret"}):

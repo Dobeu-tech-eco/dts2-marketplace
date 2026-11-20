@@ -112,7 +112,7 @@ class StatusTests(unittest.TestCase):
         info: dict[str, Any] = roadmap.status(make_repo())
         self.assertEqual(set(info), {
             "end_state", "sections", "sections_outstanding", "acceptance", "acceptance_outstanding",
-            "hash", "key", "approved", "approve_with",
+            "hash", "key", "approved", "approve_with", "lock_phrase",
         })
         self.assertEqual((info["sections"], info["sections_outstanding"]), (3, 2))
         self.assertEqual((info["acceptance"], info["acceptance_outstanding"]), (2, 1))
@@ -145,7 +145,7 @@ class StatusTests(unittest.TestCase):
         info: dict[str, Any] = roadmap.status(make_repo(None))
         self.assertFalse(info["end_state"])
         self.assertEqual((info["sections"], info["acceptance"]), (0, 0))
-        self.assertEqual((info["hash"], info["key"], info["approve_with"]), (None, None, None))
+        self.assertEqual((info["hash"], info["key"], info["approve_with"], info["lock_phrase"]), (None, None, None, None))
         self.assertFalse(info["approved"])
 
     def test_status_change_keeps_the_key(self) -> None:

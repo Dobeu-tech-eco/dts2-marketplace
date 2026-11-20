@@ -10,7 +10,9 @@ import time
 from pathlib import Path
 from typing import Any, Final
 
+import approvals
 import harness_skew
+import portable
 from agent_rules import agent_of, record_spend
 from model_call import (
     fallback_used, invoke, is_terminated, parse_result, read_budget,
@@ -70,6 +72,15 @@ def head_push_problem(cwd: Path) -> str | None:
     return "`git push --dry-run origin` fails under the head env, so the head cannot publish a lane; fix the head's push access"
 
 
+def sandbox_tool_text() -> str:
+    """What the preflight failure names as the sandbox, by platform: none on native Windows, sandbox-exec on macOS, bwrap on Linux."""
+    if portable.IS_WINDOWS:
+        return "native Windows has no OS sandbox, so check the unsafe_no_sandbox approval instead of bwrap"
+    if sys.platform == "darwin":
+        return "sandbox-exec"
+    return "bwrap"
+
+
 def preflight(runs_dir: Path, stamp: str, cwd: Path) -> dict[str, Any]:
     """Pin `claude --version` in the run's run.json and prove the real son launch answers within 30 s: `claude -p ok` with
     the son's flags, settings and env, so auth, the sandbox (bwrap with failIfUnavailable) and the flags fail once here and
@@ -91,7 +102,7 @@ def preflight(runs_dir: Path, stamp: str, cwd: Path) -> dict[str, Any]:
         problems.append(version_issue)
     if call["code"] != 0 or parsed is None or parsed["is_error"]:
         problems.append(f"`claude -p ok` with the son launch flags failed (exit {call['code']}); check auth, the sandbox "
-                        "(bwrap) and the flags")
+                        f"({sandbox_tool_text()}) and the flags")
         login: str | None = auth_problem(cwd, env)  # a probe that answered proves the login; only a failed one asks why
         problems += [login] if login is not None else []
     plugin_errors: list[str] = init_plugin_errors(call["stdout"])
@@ -207,8 +218,26 @@ def spawn(manifest: dict[str, Any], lane_id: str, worktree: Path, runs_dir: Path
         merge_json(status_path, dict.fromkeys(PID_KEYS))
 
 
+WINDOWS_REFUSAL: Final[str] = ("native Windows has no OS sandbox: grant the unsafe_no_sandbox approval, pass "
+                               "--unsafe-no-sandbox, or run under WSL2 for the full sandbox")
+
+
+def windows_refusal(runs_dir: Path, stamp: str, cwd: Path, lane_id: str, unsafe: bool) -> tuple[str, str] | None:
+    """On native Windows every son runs without an OS sandbox, so each needs --unsafe-no-sandbox or the person's
+    `unsafe_no_sandbox` approval (keyed by the lane id or the run stamp). An allowed son is logged and warned about."""
+    if not unsafe and not any(approvals.is_human_approved("unsafe_no_sandbox", key, cwd) for key in (lane_id, stamp)):
+        return REASON_SANDBOX, WINDOWS_REFUSAL
+    warning: str = f"lane {lane_id} starts without an OS sandbox on native Windows"
+    append_ledger(runs_dir, stamp, {"lane": lane_id, "event": "unsafe-no-sandbox", "warning": warning, "platform": "windows"})
+    print(f"warning: {warning}", file=sys.stderr)
+    return None
+
+
 def sandbox_refusal(runs_dir: Path, stamp: str, cwd: Path, lane_id: str, unsafe: bool) -> tuple[str, str] | None:
-    """More than one unattended son needs the sandbox on, or an explicit --unsafe-no-sandbox (which is logged)."""
+    """Native Windows: every son needs the flag or the approval. Elsewhere a second unattended son needs the sandbox on,
+    or an explicit --unsafe-no-sandbox (which is logged)."""
+    if portable.IS_WINDOWS:
+        return windows_refusal(runs_dir, stamp, cwd, lane_id, unsafe)
     if sandbox_config(cwd)["enabled"]:
         return None
     others: list[str] = [str(d.get("lane")) for _p, d in read_status_files(runs_dir, stamp)

@@ -67,3 +67,5 @@ After each son: its `report.md` lessons go into `.harness/lessons.md` (Rule 8), 
 - The head never edits lane files itself; it plans, answers, merges and reports (discipline.md).
 - Stop at `pr-open` is the default; merges happen only under autopilot's gate or the user's merge.
 - A `blocked` PR is never merged by this skill (autopilot §5a).
+
+Platforms: on native Windows there is no OS sandbox, so `lanes.py spawn` needs the `unsafe_no_sandbox` approval (or `--unsafe-no-sandbox`); every other layer stays, and WSL2 gives full sandboxing. In T3 Code (`DTS2_HOST=t3code`) sons still start only with `lanes.py spawn`, on this machine's Claude login, never T3's thread launch. See `docs/RUNTIMES.md`.

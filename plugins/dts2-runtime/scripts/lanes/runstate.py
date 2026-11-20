@@ -3,12 +3,12 @@ from __future__ import annotations
 
 import json
 import math
-import os
 import re
 import time
 from pathlib import Path
 from typing import Any, Final
 
+import portable
 from contracts import Invalid, parse_report
 from model_call import (
     is_overload, parse_result, read_budget, read_supervisor,
@@ -65,15 +65,7 @@ def pid_alive(pid: Any) -> bool:
     """True when a process with this pid exists (signal 0 sends nothing). Bad pids and missing processes are not alive."""
     if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0:
         return False
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    except OSError:
-        return False
-    return True
+    return portable.pid_alive(pid)
 
 
 def lane_alive(data: dict[str, Any]) -> bool:

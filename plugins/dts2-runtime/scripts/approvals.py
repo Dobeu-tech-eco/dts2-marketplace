@@ -8,7 +8,8 @@ on it, and the sandbox lists it under denyWrite; the head's own instructions say
 
 `merge_policy: ["auto-when-green"]` is a standing grant: the policy gate then lets a direct `gh pr merge <n> --squash --match-head-commit <sha>`
 through without a per-PR entry once the required checks are green (see policy_gate.py for the conditions).
-A `roadmap` entry is the 12-character scope key printed by `roadmap.py status`.
+A `roadmap` entry is the 12-character scope key printed by `roadmap.py status`. The owner can also type `lock roadmap <key>` in chat:
+the UserPromptSubmit hook (`hooks/roadmap-lock.sh`) runs only on typed text and calls `grant`; the model never writes the file.
 
 `is_human_approved(kind, key)` reads only that file. Nothing an agent writes anywhere else counts, and `record_actor` only logs
 who asked (`agent:<session_id>` or `human`), so the log shows when an agent claimed an approval it did not hold."""
@@ -17,6 +18,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
+import tempfile
 import sys
 import time
 from pathlib import Path
@@ -96,6 +99,71 @@ def deny_rules() -> list[str]:
     return [f"Edit({MARKER_REL})", f"Write({MARKER_REL})", f"MultiEdit({MARKER_REL})", f"NotebookEdit({MARKER_REL})"]
 
 
+LOCK_PHRASE: Final[re.Pattern[str]] = re.compile(r"^lock roadmap ([0-9a-f]{12})$", re.IGNORECASE)
+BACKUP_SUFFIX: Final[str] = ".bak"
+
+
+def grant(repo: Path, kind: str, key: str) -> bool:
+    """Append `key` under `kind` in the human file. Only the UserPromptSubmit hook calls this, on text the person typed.
+    Refused (False, nothing written) inside a son launch (`DTS2_SON` set) or when the existing file is not a JSON object."""
+    check_kind(kind)
+    if os.environ.get("DTS2_SON"):
+        return False
+    path: Path = human_marker_path(repo)
+    data: dict[str, Any] = {}
+    existed: bool = path.is_file()
+    if existed:
+        try:
+            loaded: Any = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return False
+        if not isinstance(loaded, dict):
+            return False
+        data = loaded
+    table: Any = data.get(APPROVALS_KEY)
+    if not isinstance(table, dict):
+        table = {}
+    keys: Any = table.get(kind)
+    keys = [str(k) for k in keys] if isinstance(keys, list) else []
+    if str(key) not in keys:
+        keys.append(str(key))
+    table[kind] = keys
+    data[APPROVALS_KEY] = table
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if existed:
+        path.with_name(path.name + BACKUP_SUFFIX).write_bytes(path.read_bytes())
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".approvals-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps(data, indent=2) + "\n")
+        os.replace(tmp, path)
+    except OSError:
+        Path(tmp).unlink(missing_ok=True)
+        return False
+    record_actor(kind, str(key), ACTOR_HUMAN, repo)
+    return True
+
+
+def grant_from_prompt(raw: str, repo: Path) -> str:
+    """The context line for one UserPromptSubmit payload: empty unless the whole prompt is `lock roadmap <key>`."""
+    try:
+        payload: Any = json.loads(raw)
+    except ValueError:
+        return ""
+    prompt: Any = payload.get("prompt") if isinstance(payload, dict) else None
+    match = LOCK_PHRASE.match(prompt.strip()) if isinstance(prompt, str) else None
+    if match is None:
+        return ""
+    import roadmap  # noqa: PLC0415 (roadmap imports this module)
+    typed: str = match.group(1).lower()
+    current: str | None = roadmap.status(repo)["key"]
+    if current != typed:
+        return f"dt: roadmap key {typed} does not match the current roadmap {current}; nothing locked"
+    if not grant(repo, roadmap.APPROVAL_KIND, typed):
+        return f"dt: roadmap {typed} was not locked (the approvals file could not be written)"
+    return f"dt: roadmap {typed} locked by the owner"
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", default=".")
@@ -105,8 +173,17 @@ def main(argv: list[str] | None = None) -> int:
     chk.add_argument("key")
     chk.add_argument("--session", default=None)
     sub.add_parser("path")
+    sub.add_parser("grant-from-prompt", help="read a UserPromptSubmit payload on stdin; `lock roadmap <key>` locks the roadmap")
     args = parser.parse_args(argv)
     repo: Path = Path(args.repo)
+    if args.cmd == "grant-from-prompt":
+        try:
+            line: str = grant_from_prompt(sys.stdin.read(), repo)
+        except Exception:  # noqa: BLE001 (a hook must fail open)
+            return 0
+        if line:
+            print(line)
+        return 0
     if args.cmd == "path":
         print(human_marker_path(repo))
         return 0
