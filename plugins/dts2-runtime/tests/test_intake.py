@@ -332,7 +332,10 @@ class ShellHookTests(unittest.TestCase):
         hooks: dict[str, Any] = json.loads((PLUGIN_ROOT / "hooks" / "hooks.json").read_text(encoding="utf-8"))["hooks"]
         commands: list[str] = [h["command"] for g in hooks["UserPromptSubmit"] for h in g["hooks"]]
         self.assertEqual(commands[0], 'bash "${CLAUDE_PLUGIN_ROOT}/hooks/prompt-intake.sh"')
-        self.assertEqual(commands[1:], ['bash "${CLAUDE_PLUGIN_ROOT}/hooks/fleet-session.sh" UserPromptSubmit'])
+        self.assertEqual(commands[1:], [
+            'bash "${CLAUDE_PLUGIN_ROOT}/hooks/roadmap-lock.sh"',
+            'bash "${CLAUDE_PLUGIN_ROOT}/hooks/fleet-session.sh" UserPromptSubmit',
+        ])
         self.assertTrue(os.access(HOOK, os.X_OK))
 
     def test_end_to_end_prints_context_and_records(self) -> None:

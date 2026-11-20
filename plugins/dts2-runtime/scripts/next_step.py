@@ -23,7 +23,6 @@ from typing import Any, Callable, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _load  # noqa: E402
-import approvals  # noqa: E402
 import contracts  # noqa: E402
 import mdparse  # noqa: E402
 import roadmap  # noqa: E402
@@ -146,10 +145,10 @@ def check_roadmap(ctx: Context) -> Verdict | None:
     info: dict[str, Any] = roadmap.status(ctx.repo)
     if info["approved"]:
         return None
-    command: str | None = info["approve_with"]
-    if command is None:
+    phrase: str | None = info["lock_phrase"]
+    if phrase is None:
         return None, "the roadmap has no scope to approve", NO_SCOPE_BLOCK
-    blocked: str = f"the owner approves the roadmap: add {command} to {approvals.MARKER_REL}"
+    blocked: str = f"the owner types: {phrase}"
     return None, "the roadmap scope is not approved yet", blocked
 
 

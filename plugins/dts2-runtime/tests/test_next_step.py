@@ -159,11 +159,8 @@ class RungTests(unittest.TestCase):
         (fixture.repo / ".claude" / "settings.local.json").unlink()
         result: dict[str, Any] = fixture.decide()
         self.check(result, 4, "roadmap-not-approved", None)
-        approve_with: str = roadmap.status(fixture.repo)["approve_with"]
-        self.assertEqual(
-            result["blocked_on"],
-            f"the owner approves the roadmap: add {approve_with} to .claude/settings.local.json",
-        )
+        phrase: str = roadmap.status(fixture.repo)["lock_phrase"]
+        self.assertEqual(result["blocked_on"], f"the owner types: {phrase}")
 
     def test_rung_4_without_scope_says_to_run_setup(self) -> None:
         fixture: Fixture = Fixture()
