@@ -33,3 +33,24 @@ setting() {
   fi
   echo "${value:-$fallback}"
 }
+# Portability shims for every hook that sources this file.
+# GNU timeout is missing on stock macOS (Homebrew coreutils installs it as gtimeout). Without either, steps run unbounded and
+# the hook's own timeout in hooks.json is the backstop.
+if ! command -v timeout >/dev/null 2>&1; then
+  timeout() {
+    if command -v gtimeout >/dev/null 2>&1; then
+      gtimeout "$@"
+    else
+      shift
+      "$@"
+    fi
+  }
+fi
+# Git Bash on native Windows: python3.exe is often the Microsoft Store stub, while python.exe is the real interpreter.
+case "${OSTYPE:-}" in
+  msys* | cygwin*)
+    if command -v python >/dev/null 2>&1; then
+      python3() { python "$@"; }
+    fi
+    ;;
+esac

@@ -3,6 +3,8 @@
 # never writes the approvals file itself (G-63). Prints one confirmation line as context. Never blocks a prompt.
 set -uo pipefail
 [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] || exit 0
+# shellcheck source-path=SCRIPTDIR source=lib-settings.sh
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib-settings.sh"
 LOCK_TIMEOUT_SECONDS=5
 command -v python3 >/dev/null 2>&1 || exit 0
 HOOK_INPUT=""

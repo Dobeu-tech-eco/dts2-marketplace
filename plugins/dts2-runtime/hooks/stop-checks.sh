@@ -5,18 +5,7 @@ set -uo pipefail
 # shellcheck source-path=SCRIPTDIR source=lib-settings.sh
 source "${CLAUDE_PLUGIN_ROOT}/hooks/lib-settings.sh"
 CHECK_TIMEOUT_S=30
-# GNU timeout is missing on stock macOS (Homebrew coreutils installs it as gtimeout). Without either, steps run unbounded and
-# the hook's own timeout in hooks.json is the backstop; a missing binary is never reported as a red check.
-if ! command -v timeout >/dev/null 2>&1; then
-  timeout() {
-    if command -v gtimeout >/dev/null 2>&1; then
-      gtimeout "$@"
-    else
-      shift
-      "$@"
-    fi
-  }
-fi
+# lib-settings.sh supplies a timeout shim when GNU timeout is missing (stock macOS); a missing binary is never red.
 HANDOFF_TIMEOUT_S=10
 HOOK_TIMEOUT_DEFAULT_S=45  # mirrors the Stop timeout in hooks.json when it cannot be read
 DEADLINE_MARGIN_S=5        # finish this long before the hook timeout so the fingerprint and block reply still go out
