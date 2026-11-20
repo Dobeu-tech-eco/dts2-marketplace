@@ -21,6 +21,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Callable, Final
 
+import portable
 from state_io import atomic_write
 
 EXIT_TERMINATED: Final[int] = 143
@@ -57,11 +58,8 @@ def binary(name: str, default: str) -> list[str]:
 
 def terminate(proc: subprocess.Popen[str]) -> tuple[str, str]:
     """SIGTERM the whole process group, then SIGKILL after a grace period; the partial output."""
-    for sig in (signal.SIGTERM, signal.SIGKILL):
-        try:
-            os.killpg(proc.pid, sig)
-        except (ProcessLookupError, PermissionError):
-            pass  # the group already exited or is not ours to signal; communicate() below still reaps the child
+    for stop in (portable.terminate_group, portable.kill_group):
+        stop(proc.pid)  # a group that already exited or is not ours is ignored; communicate() below still reaps the child
         try:
             out, err = proc.communicate(timeout=KILL_GRACE_S)
             return out or "", err or ""
@@ -72,15 +70,17 @@ def terminate(proc: subprocess.Popen[str]) -> tuple[str, str]:
 
 def signal_group(pgid: int, sig: int) -> bool:
     """Send `sig` to a process group; False when the group is gone or not ours."""
-    try:
-        os.killpg(pgid, sig)
-    except (ProcessLookupError, PermissionError):
-        return False
-    return True
+    if sig == 0:
+        return portable.group_alive(pgid)
+    if sig == signal.SIGINT:
+        return portable.interrupt_group(pgid)
+    if sig == signal.SIGTERM:
+        return portable.terminate_group(pgid)
+    return portable.kill_group(pgid)
 
 
 def group_alive(pgid: int) -> bool:
-    return signal_group(pgid, 0)
+    return portable.group_alive(pgid)
 
 
 def interrupt_then_kill(proc: subprocess.Popen[str], grace_s: float | None = None) -> None:
@@ -160,7 +160,7 @@ def run_once(argv: list[str], cwd: Path | str, timeout_s: float, env: dict[str, 
         proc: subprocess.Popen[str] = subprocess.Popen(
             argv, cwd=str(cwd), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             stdin=subprocess.DEVNULL if stdin_text is None else subprocess.PIPE, text=True,
-            encoding="utf-8", errors="replace", env=env, start_new_session=True)  # setsid: the child leads its own group
+            encoding="utf-8", errors="replace", env=env, **portable.new_group_popen_kwargs())  # the child leads its own group
     except OSError as exc:
         return {"code": EXIT_NOT_FOUND, "stdout": "", "stderr": str(exc), "timed_out": False}
     if on_start is not None:
@@ -362,7 +362,7 @@ def son_session(lane_dir: Path) -> str | None:
 def record_son_start(lane_dir: Path, pid: int) -> None:
     """Note the son's pid and process group (the son is its own session leader, so they are the same) in son.json."""
     try:
-        pgid: int = os.getpgid(pid)
+        pgid: int = portable.group_of(pid)
     except (ProcessLookupError, PermissionError):
         pgid = pid
     write_record(lane_dir / SON_FILE, {"pid": pid, "pgid": pgid, "started_at": int(time.time())})
@@ -372,7 +372,7 @@ def reap_old_group(lane_dir: Path, grace_s: float | None = None, sleep: Callable
     """Before a lane is dispatched again, stop whatever is left of the previous son's process group: SIGINT, then SIGKILL
     after the grace. True when a group was found and stopped. Never signals this process's own group."""
     pgid: Any = read_record(lane_dir / SON_FILE).get("pgid")
-    if not isinstance(pgid, int) or isinstance(pgid, bool) or pgid <= 1 or pgid == os.getpgid(0) or not group_alive(pgid):
+    if not isinstance(pgid, int) or isinstance(pgid, bool) or pgid <= 1 or pgid == portable.own_group() or not group_alive(pgid):
         return False
     signal_group(pgid, signal.SIGINT)
     deadline: float = time.monotonic() + (INT_GRACE_S if grace_s is None else grace_s)
