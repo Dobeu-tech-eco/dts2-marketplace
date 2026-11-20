@@ -32,7 +32,10 @@ SANDBOX_TOOLS: Final[dict[str, str]] = {"linux": "bwrap", "darwin": "sandbox-exe
 SANDBOX_OVERRIDE: Final[str] = "DTS2_SANDBOX_BIN"
 SOCAT_TOOL: Final[str] = "socat"  # the sandbox's network proxy helper on Linux
 WINDOWS_PLATFORM: Final[str] = "win32"
-WINDOWS_PARK_REASON: Final[str] = "windows-native"  # why dpp parks on native Windows (ruling Q6)
+WINDOWS_WARN: Final[str] = ("native Windows: no OS sandbox; dpp sons need the unsafe_no_sandbox approval; "
+                            "WSL2 gives full sandboxing (docs/RUNTIMES.md)")
+HOST_OVERRIDE: Final[str] = "DTS2_HOST"
+T3_ENV_PREFIXES: Final[tuple[str, ...]] = ("T3_CODE", "T3CODE")
 # Exit codes a son or a check can end with, by runtime. Mirrored in docs/RUNTIMES.md; a test keeps the two in step.
 EXIT_TIMEOUT: Final[int] = 124  # GNU `timeout` (WSL, Docker)
 EXIT_KILLED: Final[int] = 137  # SIGKILL: the OOM killer, `docker stop` after its grace period
@@ -139,8 +142,23 @@ def check_auth() -> dict[str, str]:
 
 def check_platform() -> dict[str, str]:
     if sys.platform == WINDOWS_PLATFORM:
-        return check("platform", WARN, f"native Windows: dpp parks with reason {WINDOWS_PARK_REASON}; use WSL or Docker (docs/RUNTIMES.md)")
+        return check("platform", WARN, WINDOWS_WARN)
     return check("platform", PASS, sys.platform)
+
+
+def detect_host(env: dict[str, str] | None = None) -> str:
+    """`t3code` when DTS2_HOST says so or any T3_CODE*/T3CODE* variable is set (best effort); else `claude-code`."""
+    env = dict(os.environ) if env is None else env
+    declared: str = env.get(HOST_OVERRIDE, "").strip().lower()
+    if declared:
+        return declared
+    return "t3code" if any(k.startswith(T3_ENV_PREFIXES) for k in env) else "claude-code"
+
+
+def check_host() -> dict[str, str]:
+    host: str = detect_host()
+    note: str = "; sons still start with lanes.py spawn on this machine's Claude login" if host == "t3code" else ""
+    return check("host", PASS, host + note)
 
 
 def check_fake_env() -> dict[str, str]:
@@ -179,7 +197,7 @@ def check_api_keys() -> list[dict[str, str]]:
 
 
 def run_checks() -> list[dict[str, str]]:
-    return [check_python(), check_git(), check_claude(), check_sandbox(), *check_helper_tools(), check_auth(), check_platform(), check_fake_env(),
+    return [check_python(), check_git(), check_claude(), check_sandbox(), *check_helper_tools(), check_auth(), check_platform(), check_host(), check_fake_env(),
             check_agent_rules(), *check_api_keys()]
 
 

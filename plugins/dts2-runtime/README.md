@@ -80,7 +80,7 @@ On a version before 4.0 the installed plugin is `dts2-harness`. Run `/plugin uni
 - Python 3.10 or newer (`python3`, `python`, or `py -3`). The scripts use only the standard library.
 - `git` (2.38 or newer) and bash for the hooks. On Windows, Git Bash works, and Claude Code already uses it.
 - The `gh` CLI, signed in, for anything that opens or sweeps pull requests (`ship`, `pr-sweep`, `dpp`, `autopilot`).
-- Linux, macOS, WSL or Docker for parallel runs. On native Windows `dpp` parks with the reason `windows-native` (see [docs/RUNTIMES.md](docs/RUNTIMES.md)).
+- Linux, macOS, native Windows (the `unsafe_no_sandbox` approval is required), WSL2 or T3 Code for parallel runs. WSL2 gives full sandboxing. See [docs/RUNTIMES.md](docs/RUNTIMES.md).
 - Optional: `claude-agent-sdk` for the headless runner. Optional: the command-line tools for other AI providers (`codex`, `gemini`, `grok`, `opencode`, `copilot`, `muse`) if you want them on the roster. `autopilot` votes across three providers, so it needs three installed and signed in.
 
 To check all of this on your machine, run `python3 scripts/doctor.py` from the plugin folder, or `make doctor` in a clone of the marketplace repo.
@@ -306,7 +306,7 @@ Run `python3 scripts/doctor.py` first. It reports Python, git, the `claude` CLI,
 - **Every role shows up twice.** An older `harness`, `harness-ops` or `dts2` copy is still enabled. Disable it under `/plugin`, Installed, or run `/dt:machine-prep`.
 - **Settings changes do nothing.** Edits to `.claude/dts2-harness.local.md` need a Claude Code restart.
 - **A merge or push was denied.** The policy gate or the merge guard is working as designed. Add your approval under `dts2_approvals` in `.claude/settings.local.json` and see `.harness/merge-guard.log`. Details: [docs/GUIDE.md](docs/GUIDE.md).
-- **`dpp` parks with `windows-native`.** Parallel lanes need POSIX signals. Run under WSL or Docker ([docs/RUNTIMES.md](docs/RUNTIMES.md)).
+- **`dpp` on native Windows asks for `unsafe_no_sandbox`.** Claude Code has no OS sandbox there, so spawn needs that approval (or `--unsafe-no-sandbox`). The deny hook, tool allowlist and minimal env still apply. WSL2 gives full sandboxing ([docs/RUNTIMES.md](docs/RUNTIMES.md)).
 - **A run stopped midway, or a provider hit a usage limit.** `/dt:check-in` shows what is outstanding, `/dt:action-items` shows what waits on you, and `/dt:run resume` continues from the handoff file. `/dt:cooldown set <provider> <date or duration>` skips a limited provider everywhere until it resets.
 - **WSL cannot find your Claude settings.** If `claude` in WSL wraps `claude.exe`, the Windows home is the live one. `python3 scripts/env-detect.py` shows which.
 

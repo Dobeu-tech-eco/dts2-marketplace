@@ -97,7 +97,7 @@ REQUIREMENTS_FROM: Final[str] = """## Requirements
 - Python 3.10 or newer (`python3`, `python`, or `py -3`). The scripts use only the standard library.
 - `git` (2.38 or newer) and bash for the hooks. On Windows, Git Bash works, and Claude Code already uses it.
 - The `gh` CLI, signed in, for anything that opens or sweeps pull requests (`ship`, `pr-sweep`, `dpp`, `autopilot`).
-- Linux, macOS, WSL or Docker for parallel runs. On native Windows `dpp` parks with the reason `windows-native` (see [docs/RUNTIMES.md](docs/RUNTIMES.md)).
+- Linux, macOS, native Windows (the `unsafe_no_sandbox` approval is required), WSL2 or T3 Code for parallel runs. WSL2 gives full sandboxing. See [docs/RUNTIMES.md](docs/RUNTIMES.md).
 - Optional: `claude-agent-sdk` for the headless runner. Optional: the command-line tools for other AI providers (`codex`, `gemini`, `grok`, `opencode`, `copilot`, `muse`) if you want them on the roster. `autopilot` votes across three providers, so it needs three installed and signed in.
 
 To check all of this on your machine, run `python3 scripts/doctor.py` from the plugin folder, or `make doctor` in a clone of the marketplace repo.

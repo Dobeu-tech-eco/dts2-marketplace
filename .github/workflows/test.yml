@@ -35,6 +35,29 @@ jobs:
       - name: Run tests
         run: python3 -m pytest -n auto -q tests
 
+  portable:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    defaults:
+      run:
+        working-directory: plugins/dts2-runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+          cache-dependency-path: plugins/dts2-runtime/requirements-dev.txt
+      - name: Install dev requirements
+        shell: bash
+        run: python -m pip install -r requirements-dev.txt
+      - name: Portable tests
+        shell: bash
+        run: python -m pytest -q tests/test_portable.py tests/test_doctor_platforms.py tests/test_roadmap_lock.py
+
   lint:
     runs-on: ubuntu-latest
     steps:
