@@ -185,7 +185,7 @@ Invocation shown without the prefix `python3 -I "$CLAUDE_PLUGIN_ROOT/scripts/`; 
 
 Also outside `scripts/`: `sdk/dts2-run.py <task> [--repo R] [--yes] [--api-key-env V] [--second-opinion none|codex|gemini] [--ship] [--live-only]` (headless pipeline, run by the `sdk` skill) and `evals/run.py [--fixture F] [--baseline B] [--results-dir D] [--update-baseline] [--runs N] [--arm-b-env VAR=VAL]` (smoke evals; by hand). The root `Makefile` has `make test`, `make doctor`, `make check-version` and `make package`.
 
-Library modules, not invoked directly (21): `_load.py`, `agent_names.py`, `agent_rules.py`, `api_keys.py`, `contracts.py`, `eval_stats.py`, `harness_skew.py`, `incidents_detect.py`, `incidents_lessons.py`, `mdparse.py`, `miniyaml.py`, `model_call.py`, `ownership_audit.py`, `pr_receipt.py`, `prep-tiers.py`, `proc.py`, `profiles.py`, `skill_pins.py`, `son_launch.py`, `son_stream.py`, `state_ids.py`. The modules of `scripts/lanes/` are libraries behind `lanes.py` and have no command line either.
+Library modules, not invoked directly (22): `_load.py`, `agent_names.py`, `agent_rules.py`, `api_keys.py`, `contracts.py`, `eval_stats.py`, `harness_skew.py`, `incidents_detect.py`, `incidents_lessons.py`, `mdparse.py`, `miniyaml.py`, `model_call.py`, `ownership_audit.py`, `portable.py`, `pr_receipt.py`, `prep-tiers.py`, `proc.py`, `profiles.py`, `skill_pins.py`, `son_launch.py`, `son_stream.py`, `state_ids.py`. The modules of `scripts/lanes/` are libraries behind `lanes.py` and have no command line either.
 
 ## 4. Skills (29 slash commands)
 

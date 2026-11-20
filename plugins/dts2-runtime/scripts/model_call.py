@@ -16,12 +16,8 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Final, Iterator
 
-try:
-    import fcntl
-except ImportError:  # pragma: no cover - non-POSIX: the limit is skipped and the wall-clock cap still applies
-    fcntl = None  # type: ignore[assignment]
-
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import portable  # noqa: E402
 import miniyaml  # noqa: E402
 import son_stream  # noqa: E402
 import state_io  # noqa: E402
@@ -119,7 +115,7 @@ def slot_lock(path: Path) -> Any:
     path.parent.mkdir(parents=True, exist_ok=True)
     handle = open(path, "a+")  # noqa: SIM115 - the open handle IS the held lock; the caller closes it
     try:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        portable.lock_exclusive(handle, blocking=False)
     except OSError:
         handle.close()
         return None
@@ -129,9 +125,7 @@ def slot_lock(path: Path) -> Any:
 def acquire_slot(cwd: Path, limit: int, wait_s: float, sleep: Callable[[float], None] = time.sleep,
                  clock: Callable[[], float] = time.monotonic) -> Any | None:
     """Take one of `limit` machine-wide slots (flock, so a crashed holder frees its slot). None when none frees in time.
-    Without fcntl the limit cannot be enforced and a placeholder is returned."""
-    if fcntl is None:
-        return object()
+    The lock is flock on POSIX and msvcrt.locking on Windows."""
     deadline: float = clock() + wait_s
     while True:
         for index in range(limit):

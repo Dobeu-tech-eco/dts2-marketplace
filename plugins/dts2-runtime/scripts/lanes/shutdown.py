@@ -11,6 +11,7 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Final
 
+import portable
 from state_io import atomic_write
 
 from .common import LEASE_NAME, PHASE_INCOMPLETE, PID_KEYS, REASON_SHUTDOWN, SETTLED_PHASES, STATUS_ACTIVE, STATUS_CLOSED
@@ -31,11 +32,15 @@ def signal_group(pid: int, sig: int) -> None:
     if pid == os.getpid() or pid <= 0:
         return
     try:
-        group: int = os.getpgid(pid)
-        if group == os.getpgid(0):
+        group: int = portable.group_of(pid)
+        if group == portable.own_group():
             os.kill(pid, sig)
+        elif sig == signal.SIGTERM:
+            portable.terminate_group(group)
+        elif sig == signal.SIGINT:
+            portable.interrupt_group(group)
         else:
-            os.killpg(group, sig)
+            portable.kill_group(group)
     except (ProcessLookupError, PermissionError):
         pass  # already gone, or not ours to signal
 

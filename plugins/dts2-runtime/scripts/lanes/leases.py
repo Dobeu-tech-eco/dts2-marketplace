@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 from typing import Any, Final, Iterator
 
+import portable
 from model_call import read_budget
 from state_io import StaleEpoch, atomic_write, epoch_of, require_epoch
 
@@ -160,15 +161,7 @@ def renew_lease(path: Path, now: int) -> bool:
 def process_running(pid: Any) -> bool:
     if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0:
         return False
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    except OSError:
-        return False
-    return True
+    return portable.pid_alive(pid)
 
 
 def expired_orphan(path: Path, now: int) -> bool:
