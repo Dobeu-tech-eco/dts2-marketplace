@@ -53,7 +53,8 @@ class PythonIsolationTests(unittest.TestCase):
     """G-30: every python3 a hook starts runs with -I, so a json.py in the repo is never imported."""
 
     def test_no_hook_runs_python3_without_isolation(self) -> None:
-        bare = re.compile(r"python3(?! -I)(?! >/dev/null)")
+        # A shim definition "python3() {" is allowed: callers still pass -I through it.
+        bare = re.compile(r"python3(?! -I)(?! >/dev/null)(?!\(\))")
         for hook in sorted(HOOKS.glob("*.sh")):
             for number, line in enumerate(hook.read_text(encoding="utf-8").splitlines(), 1):
                 code: str = line.split("#", 1)[0] if not line.lstrip().startswith("#") else ""

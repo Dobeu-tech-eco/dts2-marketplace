@@ -16,6 +16,7 @@ from helpers import PLUGIN_ROOT
 
 sys.path.insert(0, str(PLUGIN_ROOT / "scripts"))
 import approvals  # noqa: E402
+from test_stop_checks_portable import path_without_timeout  # noqa: E402
 import roadmap  # noqa: E402
 import state_io  # noqa: E402
 from test_roadmap import END_STATE  # noqa: E402
@@ -133,17 +134,43 @@ class GrantFromPromptTests(unittest.TestCase):
         self.assertFalse(roadmap.status(self.repo)["approved"])
 
 
-@unittest.skipUnless(shutil.which("bash"), "bash is required")
+GIT_BASH: Final[str] = r"C:\Program Files\Git\bin\bash.exe"
+
+
+def hook_bash() -> str | None:
+    """The bash Claude Code runs hooks with. On Windows that is Git Bash, never the WSL launcher in System32."""
+    found: str | None = shutil.which("bash")
+    if os.name != "nt":
+        return found
+    if found and "system32" not in found.lower() and "windowsapps" not in found.lower():
+        return found
+    return GIT_BASH if os.path.exists(GIT_BASH) else None
+
+
+@unittest.skipUnless(hook_bash(), "bash (Git Bash on Windows) is required")
 class HookTests(unittest.TestCase):
-    def run_hook(self, repo: Path, stdin: str) -> subprocess.CompletedProcess[str]:
+    def run_hook(self, repo: Path, stdin: str, path: str | None = None) -> subprocess.CompletedProcess[str]:
         env: dict[str, str] = {k: v for k, v in os.environ.items() if k != "DTS2_SON"}
         env["CLAUDE_PLUGIN_ROOT"] = str(PLUGIN_ROOT)
-        return subprocess.run(["bash", str(HOOK)], input=stdin, capture_output=True, text=True, cwd=repo, env=env, check=False)
+        if path is not None:
+            env["PATH"] = path
+        return subprocess.run([str(hook_bash()), str(HOOK)], input=stdin, capture_output=True, text=True, cwd=repo, env=env, check=False)
 
     def test_end_to_end(self) -> None:
         repo: Path = make_repo()
         key: str = roadmap.status(repo)["key"]
         result = self.run_hook(repo, payload(f"lock roadmap {key}"))
+        self.assertEqual((result.returncode, result.stdout.strip()), (0, f"dt: roadmap {key} locked by the owner"))
+        self.assertTrue(roadmap.status(repo)["approved"])
+
+    @unittest.skipIf(os.name == "nt", "symlinked PATH needs a POSIX host")
+    def test_locks_without_gnu_timeout(self) -> None:
+        """Stock macOS has no timeout or gtimeout; the hook must still lock."""
+        repo: Path = make_repo()
+        key: str = roadmap.status(repo)["key"]
+        bin_dir: Path = Path(tempfile.mkdtemp()) / "bin"
+        self.addCleanup(shutil.rmtree, bin_dir.parent, True)
+        result = self.run_hook(repo, payload(f"lock roadmap {key}"), path=path_without_timeout(bin_dir))
         self.assertEqual((result.returncode, result.stdout.strip()), (0, f"dt: roadmap {key} locked by the owner"))
         self.assertTrue(roadmap.status(repo)["approved"])
 
