@@ -1,4 +1,4 @@
-"""scripts/bump-version.py keeps the four version locations in step."""
+"""scripts/bump-version.py keeps the recorded version locations in step, including the root README badge."""
 from __future__ import annotations
 
 import json
@@ -20,6 +20,7 @@ LOCATIONS: Final[tuple[str, ...]] = (
     "plugins/dts2-runtime/.claude-plugin/plugin.json",
     "plugins/dts2-runtime/tests/test_text_contracts.py",
     "plugins/dts2-runtime/tests/test_upgrade_check.py",
+    "README.md",
 )
 
 
@@ -48,7 +49,7 @@ class BumpVersionTests(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertTrue(out["ok"])
 
-    def test_bump_updates_all_four(self) -> None:
+    def test_bump_updates_every_location(self) -> None:
         root = temp_copy()
         self.addCleanup(shutil.rmtree, root, ignore_errors=True)
         code, out = run("9.9.9", "--root", str(root))

@@ -6,6 +6,21 @@ The plugin's full release history lives in [plugins/dts2-runtime/CHANGELOG.md](p
 
 ## Unreleased
 
+## [5.5.0]
+
+_Released 2026-11-25_
+
+An optional team charter maps named providers onto the seats the harness already uses, and the root README badge stays on the plugin version. Nothing breaking. Full notes are in [plugins/dts2-runtime/CHANGELOG.md](plugins/dts2-runtime/CHANGELOG.md).
+
+### Added
+
+- Optional `TEAM.md` names which roster provider fills the lead, builders, reviewer, playtester, copywriter and dispatcher. Without the file, seat assignment is unchanged. A provider or connector that does not answer is a one-line warning and the next provider, or the usual roster.
+- Handoffs under a charter use a seven-field brief. A review loop stops after 3 rounds and asks the person. Merges, deploys and spending still need an explicit human approval.
+
+### Fixed
+
+- The root README version badge now tracks the plugin version through `bump-version.py`.
+
 ## [5.4.0]
 
 _Released 2026-11-18_
