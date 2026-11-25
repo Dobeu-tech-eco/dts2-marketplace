@@ -320,6 +320,16 @@ class RosterLocationTests(unittest.TestCase):
         self.assertEqual(data["roles"]["reviewer"]["agent"], "claude")
         self.assertIn("team charter: reviewer seat grok unreachable; using claude", data["warnings"])
 
+    def test_unreadable_legacy_file_does_not_block_a_config_yaml_roster(self) -> None:
+        repo = adopted_repo()
+        write(repo, ".harness/config.yaml", CONFIG_ROSTER)
+        (repo / ".claude" / "dts2-harness.local.md").mkdir(parents=True)
+        result = run_live(repo)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = payload(result)
+        self.assertEqual({role: info["agent"] for role, info in data["roles"].items()}, ADOPTED)
+        self.assertEqual(data["warnings"], [])
+
     def test_config_yaml_alias_binds_its_profile(self) -> None:
         repo = Path(tempfile.mkdtemp(prefix="dts2-charter-"))
         write(repo, ".harness/config.yaml", "roster:\n  - name: paid\n    profile: codex-api\n  - name: claude\n")

@@ -211,10 +211,14 @@ def repo_roster(repo: Path) -> list[dict[str, Any]]:
 
 
 def repo_budget(repo: Path) -> dict[str, str]:
-    """`budget:` statuses, with .harness/config.yaml overriding the legacy local settings file."""
+    """`budget:` statuses, with .harness/config.yaml overriding the legacy local settings file.
+    The legacy file is only a fallback, so an unreadable copy of it is skipped, not raised."""
     budget: dict[str, str] = {}
-    for name in reversed(ROSTER_FILES):
-        budget.update(roster.read_budget(repo / name))
+    try:
+        budget.update(roster.read_budget(repo / LEGACY_ROSTER))
+    except (OSError, UnicodeDecodeError):
+        pass
+    budget.update(roster.read_budget(repo / state_io.CONFIG_REL))
     return budget
 
 
