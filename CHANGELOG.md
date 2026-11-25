@@ -6,6 +6,16 @@ The plugin's full release history lives in [plugins/dts2-runtime/CHANGELOG.md](p
 
 ## Unreleased
 
+## [5.5.2]
+
+_Released 2026-11-25_
+
+A dependency update for the headless runner. Nothing breaking. Full notes are in [plugins/dts2-runtime/CHANGELOG.md](plugins/dts2-runtime/CHANGELOG.md).
+
+### Changed
+
+- Dependency update from Dependabot: `claude-agent-sdk` 0.2.185.
+
 ## [5.5.1]
 
 _Released 2026-11-25_

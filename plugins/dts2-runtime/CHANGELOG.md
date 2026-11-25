@@ -7,6 +7,16 @@ Released versions live in this file. Work that has not been released yet lives i
 Each version heading is followed by its release date on the first line (`_Released YYYY-MM-DD_`). The repository holds no release tags, so each date is the date of the commit that bumped the version.
 The plugin was renamed twice: `dts2-harness` became `dts2` in 4.0.0 and `dts2` became `dt` in 5.0.0. Older entries keep the command names that were current at the time.
 
+## [5.5.2]
+
+_Released 2026-11-25_
+
+A dependency update for the headless runner. Nothing breaking.
+
+### Changed
+
+- Dependencies: `claude-agent-sdk` 0.2.185 (was 0.2.180) for `sdk/dts2-run.py` (`/dt:sdk`).
+
 ## [5.5.1]
 
 _Released 2026-11-25_

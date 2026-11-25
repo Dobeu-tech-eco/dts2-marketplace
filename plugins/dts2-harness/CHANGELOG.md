@@ -13,6 +13,16 @@ _Released 2026-11-07_
 
 Directory edition for the Claude plugin directory. Skills, roles, and documents only. Hooks and scripts stay in the GitHub marketplace install (`plugins/dts2-runtime`), because an unverified organization cannot publish them.
 
+## [5.5.2]
+
+_Released 2026-11-25_
+
+A dependency update for the headless runner. Nothing breaking.
+
+### Changed
+
+- Dependencies: `claude-agent-sdk` 0.2.185 (was 0.2.180) for `sdk/dts2-run.py` (`/dt:sdk`).
+
 ## [5.5.1]
 
 _Released 2026-11-25_
