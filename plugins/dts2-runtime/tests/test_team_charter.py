@@ -147,6 +147,60 @@ class UnreachableSeatTests(unittest.TestCase):
         self.assertIn("probe unreadable", result.stderr)
 
 
+class SeatEligibilityTests(unittest.TestCase):
+    def test_ineligible_provider_falls_through(self) -> None:
+        repo = Path(tempfile.mkdtemp(prefix="dts2-charter-"))
+        (repo / "TEAM.md").write_text(charter(
+            "| playtester | signoff | codex-api, claude |",
+            "| builder | execution | codex |",
+        ), encoding="utf-8")
+        probe = repo / "probe.json"
+        probe.write_text(json.dumps({
+            "agents": {
+                "codex-api": {"available": True},
+                "claude": {"available": True},
+                "codex": {"available": True, "roles": ["builder"]},
+            },
+        }), encoding="utf-8")
+        result = run(repo, "resolve", "--repo", str(repo), "--probe-json", str(probe))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = payload(result)
+        playtester = data["roles"]["playtester"]
+        self.assertEqual(playtester["agent"], "claude")
+        self.assertEqual(playtester["source"], "charter")
+        self.assertEqual(playtester["skipped"], ["codex-api"])
+        self.assertIn(
+            "team charter: playtester seat codex-api cannot fill signoff; using claude",
+            data["warnings"],
+        )
+        self.assertEqual(data["roles"]["builder"]["agent"], "codex")
+        self.assertEqual(data["roles"]["builder"]["source"], "charter")
+
+    def test_probe_roles_narrow_a_profile(self) -> None:
+        repo = Path(tempfile.mkdtemp(prefix="dts2-charter-"))
+        (repo / "TEAM.md").write_text(
+            charter("| playtester | signoff | claude |"), encoding="utf-8",
+        )
+        probe = repo / "probe.json"
+        probe.write_text(json.dumps({
+            "agents": {"claude": {"available": True, "roles": ["builder"]}},
+        }), encoding="utf-8")
+        result = run(repo, "resolve", "--repo", str(repo), "--probe-json", str(probe))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = payload(result)
+        self.assertEqual(data["roles"]["playtester"]["source"], "harness")
+        self.assertIsNone(data["roles"]["playtester"]["agent"])
+        self.assertIn(
+            "team charter: playtester seat claude cannot fill signoff; using the harness roster",
+            data["warnings"],
+        )
+
+    def test_build_phase_keeps_the_chosen_fallback(self) -> None:
+        text = (PLUGIN_ROOT / "skills" / "run" / "phase-2-build.md").read_text(encoding="utf-8")
+        self.assertIn("a warning does not drop that agent", text)
+        self.assertNotIn("or any `warnings` line", text)
+
+
 class ReviewCapTests(unittest.TestCase):
     def test_third_round_continues_and_fourth_asks_the_person(self) -> None:
         repo = Path(tempfile.mkdtemp(prefix="dts2-charter-"))

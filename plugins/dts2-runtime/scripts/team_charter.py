@@ -24,6 +24,7 @@ from typing import Any, Final
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import roster  # noqa: E402
 import state_io  # noqa: E402
+from profiles import ADVISORY_ROLES  # noqa: E402
 
 PLUGIN_ROOT: Final[Path] = Path(__file__).resolve().parent.parent
 BRIEF_TEMPLATE: Final[Path] = PLUGIN_ROOT / "templates" / "brief.md"
@@ -56,6 +57,16 @@ DEFAULT_SEAT: Final[dict[str, str]] = {
     "copywriter": "advisory",
     "dispatcher": "lead",
 }
+# Profile roles that may fill a charter seat. Lead matches /dt:model (a lead, a reviewer, or a
+# second opinion, and never an API-key agent). Sign-off is the verifier, which the same agents
+# are also refused.
+SEAT_ROLES: Final[dict[str, frozenset[str]]] = {
+    "lead": frozenset({"lead", *ADVISORY_ROLES}),
+    "execution": frozenset({"builder"}),
+    "advisory": frozenset(ADVISORY_ROLES),
+    "signoff": frozenset({"verifier"}),
+}
+LEAD_BOUND_SEATS: Final[frozenset[str]] = frozenset({"lead", "signoff"})
 SEAT_ALIASES: Final[dict[str, str]] = {
     "lead": "lead",
     "planner": "lead",
@@ -167,6 +178,67 @@ def read_charter(repo: Path) -> tuple[Path | None, dict[str, tuple[str, list[str
     return path, rows, warnings
 
 
+def known_profiles(repo: Path) -> dict[str, Any]:
+    """Bundled and project profiles, with no roster warning on stderr. A load failure leaves none."""
+    try:
+        return roster.Profiles.load(project=repo).as_dict()
+    except Exception:
+        return {}
+
+
+def agent_facts(
+    name: str, probe: dict[str, Any], profiles: dict[str, Any],
+) -> tuple[list[str] | None, bool]:
+    """(roles, may_lead). Roles stay None when neither the probe nor a profile lists them."""
+    roles: list[str] | None = None
+    lead: bool | None = None
+    agents: Any = probe.get("agents")
+    info: Any = agents.get(name) if isinstance(agents, dict) else None
+    if isinstance(info, dict):
+        listed: Any = info.get("roles")
+        if isinstance(listed, list):
+            roles = [str(role) for role in listed]
+        if isinstance(info.get("leadEligible"), bool):
+            lead = info["leadEligible"]
+    profile: Any = profiles.get(name)
+    if isinstance(profile, dict):
+        if roles is None:
+            listed = profile.get("roles")
+            roles = [str(role) for role in listed] if isinstance(listed, list) else []
+        if lead is None and isinstance(profile.get("leadEligible"), bool):
+            lead = profile["leadEligible"]
+    return roles, lead is not False
+
+
+def covers(roles: list[str], seat: str) -> bool:
+    if seat == "lead":
+        return "lead" in roles or any(role in ADVISORY_ROLES for role in roles)
+    bases = {roster.base_role(role) for role in roles}
+    return bool(bases & SEAT_ROLES[seat])
+
+
+def seat_eligible(name: str, seat: str, probe: dict[str, Any], profiles: dict[str, Any]) -> bool:
+    """A known profile or a probe role list must be allowed to fill the seat. An unknown connector is."""
+    roles, may_lead = agent_facts(name, probe, profiles)
+    if roles is None:
+        return True
+    if not covers(roles, seat):
+        return False
+    return may_lead or seat not in LEAD_BOUND_SEATS
+
+
+def fallback_warning(role: str, skipped: list[tuple[str, str]], chosen: str | None) -> str:
+    tail = f"using {chosen}" if chosen else "using the harness roster"
+    if all(reason == "unreachable" for _, reason in skipped):
+        names = ", ".join(name for name, _ in skipped)
+        return f"team charter: {role} seat {names} unreachable; {tail}"
+    parts = [
+        f"{name} unreachable" if reason == "unreachable" else f"{name} {reason}"
+        for name, reason in skipped
+    ]
+    return f"team charter: {role} seat {', '.join(parts)}; {tail}"
+
+
 def provider_available(name: str, probe: dict[str, Any]) -> bool:
     agents: Any = probe.get("agents")
     if isinstance(agents, dict):
@@ -210,6 +282,7 @@ def load_probe(repo: Path, probe_path: Path | None) -> tuple[dict[str, Any] | No
 
 def assign_role(
     role: str, seat: str, providers: list[str], probe: dict[str, Any] | None,
+    profiles: dict[str, Any],
 ) -> tuple[dict[str, Any], str | None]:
     named = [name for name in providers if name not in HARNESS_NAMES]
     if not named:
@@ -218,18 +291,21 @@ def assign_role(
         return {"seat": seat, "agent": None, "source": "harness", "skipped": named}, (
             f"team charter: {role} seat {', '.join(named)} unreachable; using the harness roster"
         )
-    skipped: list[str] = []
+    skipped: list[tuple[str, str]] = []
     for name in named:
-        if provider_available(name, probe):
-            warning = None
-            if skipped:
-                warning = (
-                    f"team charter: {role} seat {', '.join(skipped)} unreachable; using {name}"
-                )
-            return {"seat": seat, "agent": name, "source": "charter", "skipped": skipped}, warning
-        skipped.append(name)
-    return {"seat": seat, "agent": None, "source": "harness", "skipped": skipped}, (
-        f"team charter: {role} seat {', '.join(skipped)} unreachable; using the harness roster"
+        if not provider_available(name, probe):
+            skipped.append((name, "unreachable"))
+            continue
+        if not seat_eligible(name, seat, probe, profiles):
+            skipped.append((name, f"cannot fill {seat}"))
+            continue
+        warning = fallback_warning(role, skipped, name) if skipped else None
+        return {
+            "seat": seat, "agent": name, "source": "charter",
+            "skipped": [item for item, _ in skipped],
+        }, warning
+    return {"seat": seat, "agent": None, "source": "harness", "skipped": [item for item, _ in skipped]}, (
+        fallback_warning(role, skipped, None)
     )
 
 
@@ -257,6 +333,7 @@ def resolve_charter(
             }
         wanted = names
     chosen: dict[str, Any] = {}
+    profiles = known_profiles(repo)
     for name in wanted:
         if name not in rows:
             warnings.append(f"team charter: {name} is not in TEAM.md; using the harness roster")
@@ -265,7 +342,7 @@ def resolve_charter(
             }
             continue
         seat, providers = rows[name]
-        record, warning = assign_role(name, seat, providers, probe)
+        record, warning = assign_role(name, seat, providers, probe, profiles)
         if warning and not probe_warning:
             warnings.append(warning)
         chosen[name] = record

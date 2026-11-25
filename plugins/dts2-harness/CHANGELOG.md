@@ -28,6 +28,7 @@ An optional team charter maps named providers onto the seats the harness already
 ### Fixed
 
 - The root README version badge is one of the locations `scripts/bump-version.py` checks, so it cannot stay on an older release than `plugin.json`.
+- A charter warning no longer tells the build phase to drop the provider `resolve` already chose. A provider whose profile cannot fill the seat is skipped, and the next provider in the row is used.
 
 ## [5.4.0]
 

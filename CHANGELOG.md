@@ -20,6 +20,7 @@ An optional team charter maps named providers onto the seats the harness already
 ### Fixed
 
 - The root README version badge now tracks the plugin version through `bump-version.py`.
+- A charter warning keeps the provider `resolve` chose. A provider whose profile cannot fill the seat is skipped for the next one in the row.
 
 ## [5.4.0]
 
