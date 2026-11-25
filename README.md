@@ -5,7 +5,7 @@
 A **Dobeu Tech Solutions LLC** product. New York, NY · [dobeu.net](https://dobeu.net)
 
 ![License: MIT](https://img.shields.io/badge/license-MIT-5A4FAB)
-![Version 5.1.1](https://img.shields.io/badge/version-5.1.1-6B5CE7)
+![Version 5.5.0](https://img.shields.io/badge/version-5.5.0-6B5CE7)
 
 `dt` turns one task into a planned, built, reviewed and verified pull request, with you approving at the points that matter. Commands stay `/dt:<command>`. The listing title is “DT: Init to Ship Auto Agent Orchestrator.”
 
@@ -100,6 +100,11 @@ flowchart TD
     class PJ,SK,HK,SC,TP,DC part
     class AG,TS,CI accent
 ```
+
+## What's new in 5.5.0
+
+- The version badge tracks the plugin version.
+- An optional team charter (`TEAM.md`) names which roster provider fills each existing seat. Without that file, runs are unchanged. If a named provider or connector does not answer, the run warns once and uses the next provider, or the usual roster.
 
 ## What's new in 5.1.1
 

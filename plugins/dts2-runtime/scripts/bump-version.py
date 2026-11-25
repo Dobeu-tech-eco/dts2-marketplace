@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Bump or verify the plugin version across the four places it is recorded.
+"""Bump or verify the plugin version across the places it is recorded.
+
+The root README badge is one of them, so the shield cannot stay on an older release.
 
 Usage: bump-version.py X.Y.Z [--root <repo root>] [--check]
 Prints JSON {ok, version, files}. With --check nothing is written; exit 1 when any
@@ -23,6 +25,7 @@ MARKETPLACE: Final[str] = ".claude-plugin/marketplace.json"
 PLUGIN_JSON: Final[str] = "plugins/dts2-runtime/.claude-plugin/plugin.json"
 TEXT_CONTRACTS: Final[str] = "plugins/dts2-runtime/tests/test_text_contracts.py"
 UPGRADE_CHECK: Final[str] = "plugins/dts2-runtime/tests/test_upgrade_check.py"
+README_BADGE: Final[str] = "README.md"
 JSON_INDENT: Final[int] = 2
 EXIT_FAIL: Final[int] = 1
 REPO_ROOT_INDEX: Final[int] = 3
@@ -30,6 +33,10 @@ PY_CONSTANTS: Final[dict[str, str]] = {
     TEXT_CONTRACTS: "VERSION",
     UPGRADE_CHECK: "RELEASE",
 }
+BADGE_PATTERNS: Final[tuple[re.Pattern[str], ...]] = (
+    re.compile(r"(?P<head>https://img\.shields\.io/badge/version-)(?P<ver>\d+\.\d+\.\d+)(?P<tail>-)"),
+    re.compile(r"(?P<head>!\[Version )(?P<ver>\d+\.\d+\.\d+)(?P<tail>\])"),
+)
 
 
 def py_pattern(name: str) -> re.Pattern[str]:
@@ -64,12 +71,25 @@ def read_py_version(path: Path, name: str) -> list[str | None]:
     return [match.group("ver") if match else None]
 
 
+def read_badge_versions(path: Path) -> list[str | None]:
+    """The shield URL and the alt text. Both must name the plugin version."""
+    if not path.is_file():
+        return [None for _ in BADGE_PATTERNS]
+    text = path.read_text(encoding="utf-8")
+    found: list[str | None] = []
+    for pattern in BADGE_PATTERNS:
+        match = pattern.search(text)
+        found.append(match.group("ver") if match else None)
+    return found
+
+
 def current_versions(root: Path) -> dict[str, list[str | None]]:
     found: dict[str, list[str | None]] = {}
     for rel in (MARKETPLACE, PLUGIN_JSON):
         found[rel] = read_json_versions(root / rel, rel)
     for rel, name in PY_CONSTANTS.items():
         found[rel] = read_py_version(root / rel, name)
+    found[README_BADGE] = read_badge_versions(root / README_BADGE)
     return found
 
 
@@ -87,6 +107,17 @@ def write_py(path: Path, name: str, version: str) -> None:
     )
     if count:
         atomic_write(path, new)
+
+
+def write_badge(path: Path, version: str) -> None:
+    text = path.read_text(encoding="utf-8")
+    for pattern in BADGE_PATTERNS:
+        text, count = pattern.subn(
+            lambda m: m.group("head") + version + m.group("tail"), text, count=1
+        )
+        if not count:
+            return
+    atomic_write(path, text)
 
 
 def mismatches(root: Path, version: str) -> list[str]:
@@ -110,6 +141,7 @@ def apply(root: Path, version: str) -> None:
     write_json(root / PLUGIN_JSON, PLUGIN_JSON, version)
     for rel, name in PY_CONSTANTS.items():
         write_py(root / rel, name, version)
+    write_badge(root / README_BADGE, version)
 
 
 def emit(payload: dict[str, Any], code: int) -> int:
@@ -138,7 +170,7 @@ def main(argv: list[str]) -> int:
         return emit({"ok": False, "version": args.version, "files": missing}, EXIT_FAIL)
     apply(root, args.version)
     bad = mismatches(root, args.version)
-    files = [MARKETPLACE, PLUGIN_JSON, *PY_CONSTANTS]
+    files = [MARKETPLACE, PLUGIN_JSON, *PY_CONSTANTS, README_BADGE]
     return emit({"ok": not bad, "version": args.version, "files": files}, EXIT_FAIL if bad else 0)
 
 

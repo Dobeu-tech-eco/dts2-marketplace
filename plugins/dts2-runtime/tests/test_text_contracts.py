@@ -6,6 +6,7 @@ self.assert_contains(path, phrases) / self.assert_absent(path, phrases).
 from __future__ import annotations
 
 import json
+import re
 import unittest
 from pathlib import Path
 from typing import Final, Sequence
@@ -244,7 +245,7 @@ class RunSkillContracts(TextContractMixin):
 
 
 class ReleaseContract(unittest.TestCase):
-    VERSION: Final[str] = "5.4.0"
+    VERSION: Final[str] = "5.5.0"
     SKILL_COUNT: Final[int] = 29
     AGENT_COUNT: Final[int] = 8
     REPO_ROOT: Final[Path] = PLUGIN_ROOT.parent.parent
@@ -254,6 +255,13 @@ class ReleaseContract(unittest.TestCase):
         market: dict = json.loads((self.REPO_ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))
         self.assertEqual(plugin["version"], self.VERSION)
         self.assertEqual([p["version"] for p in market["plugins"] if p["name"] == "dt"], [self.VERSION])
+
+    def test_root_readme_badge_matches_plugin_version(self) -> None:
+        plugin: dict = json.loads((PLUGIN_ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
+        readme: str = (self.REPO_ROOT / "README.md").read_text(encoding="utf-8")
+        versions = set(re.findall(r"https://img\.shields\.io/badge/version-(\d+\.\d+\.\d+)-", readme))
+        versions.update(re.findall(r"!\[Version (\d+\.\d+\.\d+)\]", readme))
+        self.assertEqual(versions, {plugin["version"]})
 
     def test_readme_credits_upstreams(self) -> None:
         text: str = _read(self.REPO_ROOT / "README.md")
