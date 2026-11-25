@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -228,6 +229,136 @@ class SeatEligibilityTests(unittest.TestCase):
         text = (PLUGIN_ROOT / "skills" / "run" / "phase-2-build.md").read_text(encoding="utf-8")
         self.assertIn("a warning does not drop that agent", text)
         self.assertNotIn("or any `warnings` line", text)
+
+
+PROVIDER_BINARIES: Final[tuple[str, ...]] = ("claude", "codex", "grok", "agy", "muse", "gh")
+CONFIG_ROSTER: Final[str] = (
+    "roster:\n  - name: claude\n  - name: codex\n  - name: grok\n"
+    "  - name: gemini\n  - name: muse\n  - name: copilot\n"
+)
+ADOPTED: Final[dict[str, str]] = {
+    "lead": "claude", "builder": "codex", "reviewer": "grok",
+    "playtester": "claude", "copywriter": "gemini", "dispatcher": "claude",
+}
+
+
+def fake_bin_dir() -> str:
+    """Provider CLIs that answer their status command, so the live probe marks them available."""
+    folder = Path(tempfile.mkdtemp(prefix="dts2-fake-"))
+    for name in PROVIDER_BINARIES:
+        script = folder / name
+        script.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        script.chmod(0o755)
+    return str(folder)
+
+
+def run_live(repo: Path) -> subprocess.CompletedProcess[str]:
+    """resolve with no saved probe: the live roster probe sees only the fake CLIs and an empty HOME."""
+    path = fake_bin_dir()
+    home = tempfile.mkdtemp(prefix="dts2-home-")
+    env = {
+        "PATH": path, "DTS2_PROBE_PATH": path,
+        "HOME": home, "LOCALAPPDATA": home, "APPDATA": home,
+    }
+    return subprocess.run(
+        [sys.executable, "-I", str(SCRIPT), "resolve", "--repo", str(repo)],
+        cwd=repo, capture_output=True, text=True, check=False, env=env,
+    )
+
+
+def adopted_repo() -> Path:
+    repo = Path(tempfile.mkdtemp(prefix="dts2-charter-"))
+    (repo / "TEAM.md").write_text(charter(
+        "| lead | lead | claude |",
+        "| builder | execution | codex, muse, copilot, claude |",
+        "| reviewer | advisory | grok, claude |",
+        "| playtester | signoff | claude |",
+        "| copywriter | advisory | gemini, claude |",
+        "| dispatcher | lead | claude |",
+    ), encoding="utf-8")
+    return repo
+
+
+def write(repo: Path, rel: str, text: str) -> None:
+    target = repo / rel
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(text, encoding="utf-8")
+
+
+class RosterLocationTests(unittest.TestCase):
+    """The live probe reads the roster where /dt:setup writes it, .harness/config.yaml."""
+
+    def test_config_yaml_roster_seats_the_charter(self) -> None:
+        repo = adopted_repo()
+        write(repo, ".harness/config.yaml", CONFIG_ROSTER)
+        write(repo, ".claude/dts2-harness.local.md", "---\nintake: true\n---\nThe roster lives in .harness/config.yaml.\n")
+        result = run_live(repo)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = payload(result)
+        self.assertEqual({role: info["agent"] for role, info in data["roles"].items()}, ADOPTED)
+        self.assertTrue(all(info["source"] == "charter" for info in data["roles"].values()))
+        self.assertEqual(data["warnings"], [])
+        self.assertEqual(result.stderr, "")
+
+    def test_legacy_local_roster_still_probes(self) -> None:
+        repo = adopted_repo()
+        write(repo, ".claude/dts2-harness.local.md", CONFIG_ROSTER)
+        result = run_live(repo)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = payload(result)
+        self.assertEqual({role: info["agent"] for role, info in data["roles"].items()}, ADOPTED)
+        self.assertEqual(data["warnings"], [])
+
+    def test_config_yaml_wins_over_the_legacy_file(self) -> None:
+        repo = adopted_repo()
+        write(repo, ".harness/config.yaml", "roster:\n  - name: claude\n  - name: codex\n")
+        write(repo, ".claude/dts2-harness.local.md", CONFIG_ROSTER)
+        result = run_live(repo)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = payload(result)
+        self.assertEqual(data["roles"]["builder"]["agent"], "codex")
+        self.assertEqual(data["roles"]["reviewer"]["agent"], "claude")
+        self.assertIn("team charter: reviewer seat grok unreachable; using claude", data["warnings"])
+
+    def test_unreadable_legacy_file_does_not_block_a_config_yaml_roster(self) -> None:
+        repo = adopted_repo()
+        write(repo, ".harness/config.yaml", CONFIG_ROSTER)
+        (repo / ".claude" / "dts2-harness.local.md").mkdir(parents=True)
+        result = run_live(repo)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = payload(result)
+        self.assertEqual({role: info["agent"] for role, info in data["roles"].items()}, ADOPTED)
+        self.assertEqual(data["warnings"], [])
+
+    def test_config_yaml_alias_binds_its_profile(self) -> None:
+        repo = Path(tempfile.mkdtemp(prefix="dts2-charter-"))
+        write(repo, ".harness/config.yaml", "roster:\n  - name: paid\n    profile: codex-api\n  - name: claude\n")
+        (repo / "TEAM.md").write_text(charter("| lead | lead | paid, claude |"), encoding="utf-8")
+        probe = repo / "probe.json"
+        probe.write_text(json.dumps({
+            "agents": {
+                "paid": {"available": True, "roles": ["reviewer", "second-opinion"]},
+                "claude": {"available": True, "roles": ["lead", "verifier", "builder", "reviewer"]},
+            },
+        }), encoding="utf-8")
+        result = run(repo, "resolve", "--repo", str(repo), "--probe-json", str(probe))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = payload(result)
+        self.assertEqual(data["roles"]["lead"]["agent"], "claude")
+        self.assertEqual(data["roles"]["lead"]["skipped"], ["paid"])
+        self.assertIn("team charter: lead seat paid cannot fill lead; using claude", data["warnings"])
+
+    def test_unreadable_config_yaml_warns_once_and_exits_zero(self) -> None:
+        repo = adopted_repo()
+        (repo / ".harness" / "config.yaml").mkdir(parents=True)
+        result = run_live(repo)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = payload(result)
+        self.assertEqual(data["mode"], "charter")
+        self.assertTrue(all(info["source"] == "harness" for info in data["roles"].values()))
+        self.assertEqual(len(data["warnings"]), 1)
+        self.assertIn("roster probe unreachable", data["warnings"][0])
+        self.assertEqual(len(result.stderr.strip().splitlines()), 1)
 
 
 class ReviewCapTests(unittest.TestCase):
