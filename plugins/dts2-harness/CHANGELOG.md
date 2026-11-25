@@ -13,6 +13,16 @@ _Released 2026-11-07_
 
 Directory edition for the Claude plugin directory. Skills, roles, and documents only. Hooks and scripts stay in the GitHub marketplace install (`plugins/dts2-runtime`), because an unverified organization cannot publish them.
 
+## [5.5.1]
+
+_Released 2026-11-25_
+
+The team charter's live roster probe reads the roster where `/dt:setup` writes it. Nothing breaking.
+
+### Fixed
+
+- `team_charter.py resolve` without `--probe-json` read the roster only from `.claude/dts2-harness.local.md`. A repo that keeps its roster in `.harness/config.yaml` got the claude-only default, so codex, grok, gemini and the other charter providers were reported unreachable and every seat fell back to claude. The probe, the `profile:` alias check and the `budget:` read now use `.harness/config.yaml` first and the local settings file second. When both files declare a roster, `.harness/config.yaml` wins. A missing or unreadable roster is still one warning and exit 0.
+
 ## [5.5.0]
 
 _Released 2026-11-25_

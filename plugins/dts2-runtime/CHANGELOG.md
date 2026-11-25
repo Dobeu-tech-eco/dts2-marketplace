@@ -7,6 +7,16 @@ Released versions live in this file. Work that has not been released yet lives i
 Each version heading is followed by its release date on the first line (`_Released YYYY-MM-DD_`). The repository holds no release tags, so each date is the date of the commit that bumped the version.
 The plugin was renamed twice: `dts2-harness` became `dts2` in 4.0.0 and `dts2` became `dt` in 5.0.0. Older entries keep the command names that were current at the time.
 
+## [5.5.1]
+
+_Released 2026-11-25_
+
+The team charter's live roster probe reads the roster where `/dt:setup` writes it. Nothing breaking.
+
+### Fixed
+
+- `team_charter.py resolve` without `--probe-json` read the roster only from `.claude/dts2-harness.local.md`. A repo that keeps its roster in `.harness/config.yaml` got the claude-only default, so codex, grok, gemini and the other charter providers were reported unreachable and every seat fell back to claude. The probe, the `profile:` alias check and the `budget:` read now use `.harness/config.yaml` first and the local settings file second. When both files declare a roster, `.harness/config.yaml` wins. A missing or unreadable roster is still one warning and exit 0.
+
 ## [5.5.0]
 
 _Released 2026-11-25_

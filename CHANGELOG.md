@@ -6,6 +6,16 @@ The plugin's full release history lives in [plugins/dts2-runtime/CHANGELOG.md](p
 
 ## Unreleased
 
+## [5.5.1]
+
+_Released 2026-11-25_
+
+The team charter reads the roster from `.harness/config.yaml`. Nothing breaking. Full notes are in [plugins/dts2-runtime/CHANGELOG.md](plugins/dts2-runtime/CHANGELOG.md).
+
+### Fixed
+
+- Without a saved probe file, a charter whose roster lives in `.harness/config.yaml` no longer falls back to claude on every seat. The older `.claude/dts2-harness.local.md` roster still works.
+
 ## [5.5.0]
 
 _Released 2026-11-25_

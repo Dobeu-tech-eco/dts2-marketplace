@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import miniyaml  # noqa: E402
 import roster  # noqa: E402
 import state_io  # noqa: E402
 from profiles import ADVISORY_ROLES  # noqa: E402
@@ -29,6 +30,10 @@ from profiles import ADVISORY_ROLES  # noqa: E402
 PLUGIN_ROOT: Final[Path] = Path(__file__).resolve().parent.parent
 BRIEF_TEMPLATE: Final[Path] = PLUGIN_ROOT / "templates" / "brief.md"
 ROOT_CHARTER: Final[str] = "TEAM.md"
+# Where a roster is read from, in order: the harness config (where /dt:setup writes it), then the
+# local settings file older setups used. The first file that declares a `roster:` list wins.
+LEGACY_ROSTER: Final[str] = ".claude/dts2-harness.local.md"
+ROSTER_FILES: Final[tuple[str, ...]] = (state_io.CONFIG_REL, LEGACY_ROSTER)
 REVIEW_CAP: Final[int] = 3
 APPROVAL: Final[str] = (
     "Merges, deploys and spending need an explicit human approval. This brief does not grant them."
@@ -186,11 +191,38 @@ def known_profiles(repo: Path) -> dict[str, Any]:
         return {}
 
 
+def declared_roster(path: Path) -> list[dict[str, Any]] | None:
+    """The roster entries a file declares, or None when it is absent or has no `roster:` list.
+    An unreadable file raises, so the caller's warning covers it."""
+    if not path.exists():
+        return None
+    block: Any = miniyaml.parse(path.read_text(encoding="utf-8")).get("roster")
+    entries = [entry for entry in map(roster.roster_entry, block) if entry] if isinstance(block, list) else []
+    return entries or None
+
+
+def repo_roster(repo: Path) -> list[dict[str, Any]]:
+    """The roster from .harness/config.yaml, else the legacy local settings file, else the default."""
+    for name in ROSTER_FILES:
+        entries = declared_roster(repo / name)
+        if entries:
+            return entries
+    return [dict(item) for item in roster.DEFAULT_ROSTER]
+
+
+def repo_budget(repo: Path) -> dict[str, str]:
+    """`budget:` statuses, with .harness/config.yaml overriding the legacy local settings file."""
+    budget: dict[str, str] = {}
+    for name in reversed(ROSTER_FILES):
+        budget.update(roster.read_budget(repo / name))
+    return budget
+
+
 def bound_profiles(repo: Path, profiles: dict[str, Any]) -> dict[str, Any]:
     """Profile by the name a charter row uses, including a roster entry whose `profile:` points elsewhere."""
     bound = dict(profiles)
     try:
-        entries = roster.read_roster(repo / ".claude" / "dts2-harness.local.md")
+        entries = repo_roster(repo)
     except Exception:
         return bound
     for entry in entries:
@@ -268,15 +300,14 @@ def provider_available(name: str, probe: dict[str, Any]) -> bool:
 
 def live_probe(repo: Path) -> dict[str, Any]:
     """Roster probe only. A failure is the caller's warning, not a raised error for the run."""
-    config = repo / ".claude" / "dts2-harness.local.md"
     profiles = roster.load_profiles(repo)
     entries = [
-        entry for entry in roster.read_roster(config)
+        entry for entry in repo_roster(repo)
         if (entry.get("profile") or entry["name"]) in profiles
     ]
     if not entries:
         entries = [dict(item) for item in roster.DEFAULT_ROSTER if item["name"] in profiles]
-    return roster.probe(entries, profiles, roster.read_budget(config), repo)
+    return roster.probe(entries, profiles, repo_budget(repo), repo)
 
 
 def load_probe(repo: Path, probe_path: Path | None) -> tuple[dict[str, Any] | None, str | None]:
