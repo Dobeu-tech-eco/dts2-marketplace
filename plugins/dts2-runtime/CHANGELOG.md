@@ -7,6 +7,34 @@ Released versions live in this file. Work that has not been released yet lives i
 Each version heading is followed by its release date on the first line (`_Released YYYY-MM-DD_`). The repository holds no release tags, so each date is the date of the commit that bumped the version.
 The plugin was renamed twice: `dts2-harness` became `dts2` in 4.0.0 and `dts2` became `dt` in 5.0.0. Older entries keep the command names that were current at the time.
 
+## [5.5.1]
+
+_Released 2026-11-25_
+
+The team charter's live roster probe reads the roster where `/dt:setup` writes it. Nothing breaking.
+
+### Fixed
+
+- `team_charter.py resolve` without `--probe-json` read the roster only from `.claude/dts2-harness.local.md`. A repo that keeps its roster in `.harness/config.yaml` got the claude-only default, so codex, grok, gemini and the other charter providers were reported unreachable and every seat fell back to claude. The probe, the `profile:` alias check and the `budget:` read now use `.harness/config.yaml` first and the local settings file second. When both files declare a roster, `.harness/config.yaml` wins. A missing or unreadable roster is still one warning and exit 0.
+
+## [5.5.0]
+
+_Released 2026-11-25_
+
+An optional team charter maps named providers onto the seats the harness already uses, and the root README badge stays on the plugin version. Nothing breaking.
+
+### Added
+
+- Optional `TEAM.md` (`templates/TEAM.md`, also read from `.harness/TEAM.md`). `scripts/team_charter.py` maps lead, builder, reviewer, playtester, copywriter and dispatcher onto the lead, execution, advisory and sign-off seats from `/dt:model`, lanes and the autopilot vote. No file means those seats are unchanged.
+- A seven-field handoff brief (`templates/brief.md`): objective, context, scope, authorized and prohibited actions, inputs, deliverable and evidence, deadline and dependencies. The prohibited section always says merges, deploys and spending need an explicit human approval.
+- While a charter is present, a review loop stops after 3 rounds and asks the person (`team_charter.py review-cap`). The five-round fix cap for a red check is unchanged. The autopilot vote and its council are unchanged.
+
+### Fixed
+
+- The root README version badge is one of the locations `scripts/bump-version.py` checks, so it cannot stay on an older release than `plugin.json`.
+- A charter warning no longer tells the build phase to drop the provider `resolve` already chose. A provider whose profile cannot fill the seat is skipped, and the next provider in the row is used.
+- A roster entry that names another profile is checked against that profile, so an API-key alias cannot take lead or sign-off.
+
 ## [5.4.0]
 
 _Released 2026-11-18_

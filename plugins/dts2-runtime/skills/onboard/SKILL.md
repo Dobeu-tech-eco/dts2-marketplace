@@ -49,6 +49,9 @@ The frontier tier is for advice and sign-off only (the lead, the reviewers' fina
 
 Every run checks which agents are usable and what budget is left (the budget check), then assigns work by cost tier, cheapest capable agent first.
 
+## Optional team charter
+A repo may add `TEAM.md` (template `templates/TEAM.md`, or `.harness/TEAM.md`) to name which roster provider fills the lead, the builders, the reviewer, the playtester (the verifier), the copywriter and the dispatcher. Those are the seats `/dt:model`, lanes and the autopilot vote already use. `scripts/team_charter.py` reads the file. Without it, nothing here changes. If a named provider, a provider CLI, T3 Code, an MCP server or any other connector does not answer, the command warns once, uses the next provider in that row or the usual roster, and the run continues. Handoffs then use a seven-field brief (objective, context, scope, authorized and prohibited actions, inputs, deliverable and evidence, deadline and dependencies). A review loop stops after 3 rounds and asks the person. Merges, deploys and spending still need an explicit human approval. See `docs/RUNTIMES.md`. If `team_charter.py` is blocked, missing, or exits non-zero, print `team charter: reader unavailable; using the harness roster` once and continue with today's seats. Do not stop the run.
+
 ## Agent roster (`profiles/agents/`)
 | Agent | Invocation | Typical role |
 |---|---|---|

@@ -20,6 +20,7 @@ Frontier-tier seats (lead planning, advisory review, sign-off) default to Claude
 - A stalled lead fails over to the next eligible provider automatically (`scripts/failover.py`); the handoff file is the same one the run Pre-check writes before an upgrade.
 - Restart Claude Code after editing so hooks pick up the setting.
 - A provider outside the eligible list is ignored and Claude is used instead.
+- If `TEAM.md` is in the repo, run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/team_charter.py" resolve --repo . --role lead` and show the agent it returns when that role's `source` is `charter`, including when a warning names a provider that was skipped. Still write `lead_provider` only from the user's answer. A `source` of `harness` means the named providers cannot lead: Claude, or the next eligible provider, remains the one you offer. The command exits 0 either way. Absent `TEAM.md`, skip this note. If that command is blocked, missing, or exits non-zero, print `team charter: reader unavailable; using the harness roster` once and continue with today's seats. Do not stop the run.
 
 ## Add or rename an agent
 Use this when the user wants a second agent on the same provider, such as `grok` on the subscription plus `grok-api` on a pay-as-you-go key. Lead-provider steps above are unchanged.

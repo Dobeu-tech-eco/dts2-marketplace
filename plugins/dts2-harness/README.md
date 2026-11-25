@@ -260,6 +260,10 @@ Budgets, spend caps, council, merge target, shared files and the roster live in 
 
 Approvals are not a setting. They are a top-level `dts2_approvals` key in `.claude/settings.local.json`, for example `{"dts2_approvals": {"merge": ["42"]}}`. Only a person edits that file, and `scripts/approvals.py` reads nothing else. The kinds are `recorded_yes`, `unsafe_no_sandbox`, `blocked_pr_done`, `lane_override` and `merge`. A merge that deploys production (`merge: deploys_production: true` in `.harness/config.yaml`) needs its PR number there.
 
+### Team charter
+
+Copy `templates/TEAM.md` to `TEAM.md` at the repo root (or `.harness/TEAM.md`) when you want named providers on the seats `/dt:model`, lanes and the autopilot vote already use: lead, builder, reviewer, playtester (the verifier), copywriter and dispatcher. Leave it out and those seats stay as they are. `scripts/team_charter.py` reads it. If a named provider, CLI, MCP server or other connector does not answer, the run warns once and uses the next name, or the usual roster. Handoffs then use `templates/brief.md` (objective, context, scope, authorized and prohibited actions, inputs, deliverable and evidence, deadline and dependencies). A review loop stops after 3 rounds and asks you. The charter does not approve a merge, a deploy or a spend. Details are in [docs/RUNTIMES.md](docs/RUNTIMES.md).
+
 ### Environment variables
 
 | Variable | What it does | Sensitive |
@@ -277,6 +281,7 @@ Keep secrets out of chat, repos and the roster file. Secrets never go into logs 
 | Location | What it holds |
 |---|---|
 | `<repo>/.claude/dts2-harness.local.md` | Per-repo settings. |
+| `<repo>/TEAM.md` | Optional. Which roster provider fills each existing seat. Absent means today's assignment. |
 | `<repo>/.harness/end-state.md` | The approved end state every run is measured against. |
 | `<repo>/.harness/config.yaml` | Budgets, council, merge target, shared files, timeouts. |
 | `<repo>/.harness/` (the rest) | Lessons, state, handoff, action items, receipts, run records. |
@@ -289,6 +294,7 @@ What it does without asking: the hooks run as soon as the plugin is installed, e
 
 What it will not do without you:
 
+- **Treat a team charter as permission.** `TEAM.md` chooses providers. It does not approve a merge, a deploy or a spend.
 - **Merge or push to a protected branch.** The policy gate allows `gh pr merge` only when that PR number is in `dts2_approvals`, or when `merge_policy` includes `auto-when-green` and the command is `gh pr merge <n> --squash --match-head-commit <sha>`. Under `dpp`, `merge-go.md` satisfies the lane's merge guard. It does not replace that approval. `/dt:ship` never merges. If `python3` is missing, the merge guard and policy gate do not run. Refusals are logged in `.harness/merge-guard.log`.
 - **Run risky commands.** The policy gate denies force-push, `--admin`, deploy CLIs, `gh secret`, `vercel env` and a bare `env`, for the head session and every worker.
 - **Approve itself.** Workers cannot write `dts2_approvals`. Under `dpp`, workers commit a branch, and only the head pushes and opens PRs.

@@ -205,7 +205,7 @@ Sons are untrusted by construction: they commit a branch and report; the head do
 | Deterministic gate | `checks.py` (tests, types, lint, secret scan, scope; run ledger), `plan-gate.py` (PASS or FAIL for a lead plan), `builder-audit.py` over `ownership_audit.py` (empty diff with DONE, file outside the owned set, claimed commit not HEAD), `flags_collect.py` (`FLAGS:` blocks into `runs/<stamp>/flags.md`) |
 | Review | `findings.py` (severity calibrated by the `DIMENSIONS` table, deduped by file:line, digest for the final reviewer), `review_split.py` (path-group slices above a line threshold), `rollback_ref.py` (`refs/dts2/<stamp>/base` and the human-run Rollback line) |
 | Council | `council.py` (dossier, tally, route, blind ballots, seats, wrap), `seat_swap.py` (swap a timed-out seat for the next bench provider; note identical findings in the run ledger) |
-| Roster | `roster.py`, `delegate.py`, `failover.py`, `profiles.py` (which agent and model for which seat) |
+| Roster | `roster.py`, `delegate.py`, `failover.py`, `profiles.py`, `team_charter.py` (optional `TEAM.md`: which roster provider fills an existing seat; absent file and unreachable seats stay on the roster) |
 | Contracts | `mdparse.py` (one Markdown tokenizer), `contracts.py` (parsers for vote entry, ballot, decision, sections, acceptance, report: a dataclass or `Invalid`) |
 | Metrics and reports | `metrics.py`, `run_metrics.py` (lanes, tokens, wall-clock; plan-time and post-run warnings), `run_report.py` (one run as a markdown table) |
 | Project and setup | `prod-scaffold.py`, `app-type-detect.py`, `deploy-detect.py`, `repo-size.py`, `doctor.py` (`make doctor`), `walkthrough_fallback.py` (optional Playwright post-merge walkthrough: sandbox only, host allowlist, no `file://`) |
