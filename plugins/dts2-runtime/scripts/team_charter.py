@@ -186,6 +186,22 @@ def known_profiles(repo: Path) -> dict[str, Any]:
         return {}
 
 
+def bound_profiles(repo: Path, profiles: dict[str, Any]) -> dict[str, Any]:
+    """Profile by the name a charter row uses, including a roster entry whose `profile:` points elsewhere."""
+    bound = dict(profiles)
+    try:
+        entries = roster.read_roster(repo / ".claude" / "dts2-harness.local.md")
+    except Exception:
+        return bound
+    for entry in entries:
+        if not isinstance(entry, dict) or not isinstance(entry.get("name"), str):
+            continue
+        backing: Any = profiles.get(entry.get("profile") or entry["name"])
+        if isinstance(backing, dict):
+            bound[entry["name"]] = backing
+    return bound
+
+
 def agent_facts(
     name: str, probe: dict[str, Any], profiles: dict[str, Any],
 ) -> tuple[list[str] | None, bool]:
@@ -333,7 +349,7 @@ def resolve_charter(
             }
         wanted = names
     chosen: dict[str, Any] = {}
-    profiles = known_profiles(repo)
+    profiles = bound_profiles(repo, known_profiles(repo))
     for name in wanted:
         if name not in rows:
             warnings.append(f"team charter: {name} is not in TEAM.md; using the harness roster")

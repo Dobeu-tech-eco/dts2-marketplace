@@ -20,7 +20,7 @@ An optional team charter maps named providers onto the seats the harness already
 ### Fixed
 
 - The root README version badge now tracks the plugin version through `bump-version.py`.
-- A charter warning keeps the provider `resolve` chose. A provider whose profile cannot fill the seat is skipped for the next one in the row.
+- A charter warning keeps the provider `resolve` chose. A provider whose profile cannot fill the seat is skipped for the next one in the row. A roster alias of an API-key profile cannot take lead or sign-off.
 
 ## [5.4.0]
 

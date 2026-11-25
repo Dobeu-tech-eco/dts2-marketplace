@@ -195,6 +195,35 @@ class SeatEligibilityTests(unittest.TestCase):
             data["warnings"],
         )
 
+    def test_roster_alias_of_an_api_profile_cannot_lead(self) -> None:
+        repo = Path(tempfile.mkdtemp(prefix="dts2-charter-"))
+        folder = repo / ".claude"
+        folder.mkdir()
+        (folder / "dts2-harness.local.md").write_text(
+            "roster:\n  - name: paid\n    profile: codex-api\n  - name: claude\n",
+            encoding="utf-8",
+        )
+        (repo / "TEAM.md").write_text(
+            charter("| lead | lead | paid, claude |"), encoding="utf-8",
+        )
+        probe = repo / "probe.json"
+        probe.write_text(json.dumps({
+            "agents": {
+                "paid": {"available": True, "roles": ["reviewer", "second-opinion"]},
+                "claude": {"available": True, "roles": ["lead", "verifier", "builder", "reviewer"]},
+            },
+        }), encoding="utf-8")
+        result = run(repo, "resolve", "--repo", str(repo), "--probe-json", str(probe))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = payload(result)
+        self.assertEqual(data["roles"]["lead"]["agent"], "claude")
+        self.assertEqual(data["roles"]["lead"]["source"], "charter")
+        self.assertEqual(data["roles"]["lead"]["skipped"], ["paid"])
+        self.assertIn(
+            "team charter: lead seat paid cannot fill lead; using claude",
+            data["warnings"],
+        )
+
     def test_build_phase_keeps_the_chosen_fallback(self) -> None:
         text = (PLUGIN_ROOT / "skills" / "run" / "phase-2-build.md").read_text(encoding="utf-8")
         self.assertIn("a warning does not drop that agent", text)
