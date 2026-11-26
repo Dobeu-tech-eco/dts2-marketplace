@@ -225,6 +225,31 @@ class HooksInstallTests(unittest.TestCase):
         self.assertTrue(settings.is_file())
         self.assertEqual(json.loads(settings.read_text(encoding="utf-8")), {})
 
+    def test_muse_refusing_hooks_get_the_exit_2_flag_and_other_agents_do_not(self) -> None:
+        run_json(*self.args("muse"))
+        refusing = [c for c in commands_in(self.load("muse")) if "merge-guard.sh" in c or "policy-gate.sh" in c]
+        self.assertEqual(len(refusing), 3)
+        self.assertTrue(all(c.endswith(" --deny-exit-code=2") for c in refusing), refusing)
+        others = [c for c in commands_in(self.load("muse")) if c not in refusing]
+        self.assertTrue(others)
+        self.assertFalse(any("--deny-exit-code" in c for c in others))
+        for agent in ("claude", "codex", "cursor", "antigravity", "grok"):
+            with self.subTest(agent=agent):
+                run_json(*self.args(agent))
+                self.assertNotIn("--deny-exit-code", self.config(agent).read_text(encoding="utf-8"))
+
+    def test_muse_reinstall_over_an_install_without_the_flag_leaves_no_duplicates(self) -> None:
+        run_json(*self.args("muse"))
+        fresh = sorted(commands_in(self.load("muse")))
+        text = self.config("muse").read_text(encoding="utf-8")
+        self.config("muse").write_text(text.replace(" --deny-exit-code=2", ""), encoding="utf-8")
+        run_json(*self.args("muse"))
+        commands = commands_in(self.load("muse"))
+        self.assertEqual(sorted(commands), fresh)
+        refusing = [c for c in commands if "merge-guard.sh" in c or "policy-gate.sh" in c]
+        self.assertEqual(len(refusing), 3)
+        self.assertTrue(all(c.endswith(" --deny-exit-code=2") for c in refusing), refusing)
+
     def test_unknown_agent_refused(self) -> None:
         result = run("--agent", "emacs", "--repo", str(self.repo))
         self.assertEqual(result.returncode, 2)
@@ -260,6 +285,44 @@ class HookScriptsWithoutPluginRootTests(unittest.TestCase):
                 text = script.read_text(encoding="utf-8")
                 self.assertNotIn('[ -n "${CLAUDE_PLUGIN_ROOT:-}" ] || exit 0', text)
                 self.assertNotIn("${CLAUDE_PLUGIN_ROOT}/", text)
+
+
+@unittest.skipUnless(HAVE_BASH, "bash is not installed")
+class RefusalExitCodeTests(unittest.TestCase):
+    """Muse blocks a tool call only on exit 2; every other agent keeps the JSON deny with exit 0."""
+
+    PAYLOAD: Final[str] = json.dumps({"tool_name": "Bash", "tool_input": {"command": "git " + "push --force origin main"}})
+
+    def hook(self, script: str, *args: str) -> subprocess.CompletedProcess[str]:
+        env = {k: v for k, v in os.environ.items() if k not in ("CLAUDE_PLUGIN_ROOT", "CLAUDE_PROJECT_DIR", "DTS2_AGENT")}
+        with tempfile.TemporaryDirectory() as cwd:
+            return subprocess.run(["bash", str(HOOKS / script), *args], input=self.PAYLOAD, capture_output=True,
+                                  text=True, cwd=cwd, env=env, check=False, timeout=60)
+
+    def test_refusal_exits_0_with_json_by_default(self) -> None:
+        for script in ("merge-guard.sh", "policy-gate.sh"):
+            with self.subTest(script=script):
+                result = self.hook(script)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                decision = json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"]
+                self.assertEqual(decision, "deny")
+
+    def test_refusal_exits_2_with_reason_on_stderr_under_muse_flag(self) -> None:
+        for script in ("merge-guard.sh", "policy-gate.sh"):
+            with self.subTest(script=script):
+                result = self.hook(script, "--deny-exit-code=2")
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertIn("force", result.stderr.lower())
+
+    def test_allowed_call_still_exits_0_under_muse_flag(self) -> None:
+        payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": "ls"}})
+        env = {k: v for k, v in os.environ.items() if k not in ("CLAUDE_PLUGIN_ROOT", "CLAUDE_PROJECT_DIR", "DTS2_AGENT")}
+        for script in ("merge-guard.sh", "policy-gate.sh"):
+            with self.subTest(script=script), tempfile.TemporaryDirectory() as cwd:
+                result = subprocess.run(["bash", str(HOOKS / script), "--deny-exit-code=2"], input=payload,
+                                        capture_output=True, text=True, cwd=cwd, env=env, check=False, timeout=60)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.strip(), "")
 
 
 if __name__ == "__main__":

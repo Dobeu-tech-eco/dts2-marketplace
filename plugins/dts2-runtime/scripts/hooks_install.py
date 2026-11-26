@@ -39,6 +39,8 @@ CLAUDE_TOOLS: Final[tuple[str, ...]] = (
 SAME_TOOLS: Final[dict[str, str | None]] = {tool: tool for tool in CLAUDE_TOOLS}
 # A matcher alternative that names these (plugin subagent types, the SubagentHandback tool) only exists under Claude Code.
 CLAUDE_ONLY_MATCHER: Final[re.Pattern[str]] = re.compile(r"^dt:|^SubagentHandback$")
+# The hook scripts that refuse tool calls. For an agent with deny_exit_code set they get a flag telling them to exit with it.
+DENY_HOOKS: Final[re.Pattern[str]] = re.compile(r"[/\\]hooks[/\\](?:merge-guard|policy-gate)\.sh\b")
 
 
 @dataclass(frozen=True)
@@ -56,6 +58,7 @@ class AgentSpec:
     source: str  # where the format comes from, or the assumption made
     notes: tuple[str, ...] = ()
     user_defaults: tuple[tuple[str, Any], ...] = ()  # top-level keys a user-scope file must carry, set only when missing
+    deny_exit_code: int = 0  # non-zero: the refusing hooks exit with this code instead of 0 (the agent ignores a JSON deny)
 
 
 # One table row per agent. Change a path, a layout or an event name here and nothing else needs to move.
@@ -130,9 +133,10 @@ AGENTS: Final[dict[str, AgentSpec]] = {
                 "the hooks block of ~/.config/muse/settings.json (schema_version 1). Handler keys: type, command, timeout. "
                 "ASSUMPTION: tool names match Claude's."),
         notes=("Muse clears the environment to USER and HOME, so commands use absolute paths (this installer always does).",
-               "Muse honours a refusal only with exit code 2. The dts2 hooks print the deny JSON and exit 0, so Muse may "
-               "show the refusal without blocking the call."),
+               "Muse honours a refusal only with exit code 2, so the merge guard and policy gate get --deny-exit-code=2: "
+               "they then exit 2 on a refusal and print the reason on stderr."),
         user_defaults=(("schema_version", 1),),
+        deny_exit_code=2,
     ),
 }
 
@@ -209,6 +213,8 @@ def render(spec: AgentSpec, root: Path, source: dict[str, list[dict[str, Any]]])
                 if not isinstance(hook, dict) or hook.get("type") != "command" or not isinstance(hook.get("command"), str):
                     continue
                 command = hook["command"].replace(ROOT_VAR, root_text)
+                if spec.deny_exit_code and DENY_HOOKS.search(command):
+                    command += f" --deny-exit-code={spec.deny_exit_code}"
                 key = (matcher or "", command, hook.get("if") if spec.keeps_if else None)
                 if key in seen:  # without the `if` filter, copies of one command collapse into one
                     continue
@@ -236,10 +242,18 @@ def render(spec: AgentSpec, root: Path, source: dict[str, list[dict[str, Any]]])
     return out, skipped
 
 
+DENY_FLAG: Final[re.Pattern[str]] = re.compile(r" --deny-exit-code=\d+$")
+
+
+def command_key(command: Any) -> Any:
+    """A command without the deny-exit-code flag, so an install with and without the flag is the same entry."""
+    return DENY_FLAG.sub("", command) if isinstance(command, str) else command
+
+
 def entry_key(layout: str, entry: dict[str, Any]) -> tuple[Any, ...]:
     if layout == NESTED:
-        return (entry.get("matcher"), tuple(h.get("command") for h in entry.get("hooks", []) if isinstance(h, dict)))
-    return (entry.get("matcher"), entry.get("command"))
+        return (entry.get("matcher"), tuple(command_key(h.get("command")) for h in entry.get("hooks", []) if isinstance(h, dict)))
+    return (entry.get("matcher"), command_key(entry.get("command")))
 
 
 def ours_hooks(layout: str, entry: Any) -> bool:
