@@ -120,10 +120,12 @@ def escalate(repo: Path, row: dict[str, Any]) -> None:
 
 def escalate_existing(repo: Path, rows: list[dict[str, Any]], row: dict[str, Any]) -> dict[str, Any]:
     """A repeat suggestion that now needs a service escalates the open row instead of being dropped."""
-    if row.get("status") != STATUS_PROPOSED:
+    if row.get("status") != STATUS_PROPOSED and not row.get("escalation_pending"):
         return row
+    row.update(status=STATUS_ESCALATED, escalated=now(), escalation_pending=True)
+    write_rows(repo, rows)
     escalate(repo, row)
-    row.update(status=STATUS_ESCALATED, escalated=now())
+    row.pop("escalation_pending")
     write_rows(repo, rows)
     return row
 
@@ -218,6 +220,8 @@ def apply(repo: Path, gap_id: str) -> dict[str, Any]:
     row: dict[str, Any] = find_row(rows, gap_id)
     if row["status"] != STATUS_PROPOSED:
         raise GapError(f"{gap_id} is {row['status']}; only proposed suggestions can be applied")
+    if NEEDS_SERVICE.search(f"{row['text']} {row.get('why', '')}"):
+        raise GapError(f"{gap_id} needs a new service or account; it goes to the owner, not the roadmap")
     before: str | None = roadmap.read_end_state(repo)
     if before is None:
         raise GapError("no end state")

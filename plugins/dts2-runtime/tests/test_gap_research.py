@@ -178,6 +178,21 @@ class GapResearchTest(unittest.TestCase):
             gap_research.reject(self.repo, "G-1", "late")
         self.assertEqual(gap_research.apply(self.repo, "G-1")["status"], gap_research.STATUS_APPLIED)
 
+    def test_failed_repeat_escalation_keeps_row_out_of_apply(self) -> None:
+        self.add("section", "api", "send receipts")
+        (self.repo / ".harness" / "action-items.md").mkdir()
+        with self.assertRaises(gap_research.GapError):
+            self.add("section", "api", "send receipts", why="needs a paid email API key")
+        row: dict[str, Any] = gap_research.read_rows(self.repo)[0]
+        self.assertEqual((row["status"], row["escalation_pending"]), (gap_research.STATUS_ESCALATED, True))
+        with self.assertRaises(gap_research.GapError):
+            gap_research.apply(self.repo, "G-1")
+        (self.repo / ".harness" / "action-items.md").rmdir()
+        retried: dict[str, Any] = self.add("section", "api", "send receipts", needs=True)
+        self.assertNotIn("escalation_pending", retried)
+        self.assertIn("Gap research G-1", (self.repo / ".harness" / "action-items.md").read_text(encoding="utf-8"))
+        self.assertEqual(self.end_state(), END_STATE)
+
     def test_failed_escalation_writes_no_row(self) -> None:
         (self.repo / ".harness" / "action-items.md").mkdir()
         with self.assertRaises(gap_research.GapError):
