@@ -159,8 +159,10 @@ class RungTests(unittest.TestCase):
         (fixture.repo / ".claude" / "settings.local.json").unlink()
         result: dict[str, Any] = fixture.decide()
         self.check(result, 4, "roadmap-not-approved", None)
-        phrase: str = roadmap.status(fixture.repo)["lock_phrase"]
-        self.assertEqual(result["blocked_on"], f"the owner says \"lock it in\" in chat, or types: {phrase} (any harness: approvals.py lock-roadmap)")
+        info: dict[str, Any] = roadmap.status(fixture.repo)
+        phrase: str = info["lock_phrase"]
+        key: str = info["key"]
+        self.assertEqual(result["blocked_on"], f"the owner says \"lock it in\" in chat, or types: {phrase} (any harness: approvals.py lock-roadmap {key})")
 
     def test_rung_4_without_scope_says_to_run_setup(self) -> None:
         fixture: Fixture = Fixture()

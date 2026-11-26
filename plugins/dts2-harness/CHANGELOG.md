@@ -13,6 +13,20 @@ _Released 2026-11-07_
 
 Directory edition for the Claude plugin directory. Skills, roles, and documents only. Hooks and scripts stay in the GitHub marketplace install (`plugins/dts2-runtime`), because an unverified organization cannot publish them.
 
+## [5.8.0]
+
+_Released 2026-11-26_
+
+The harness now merges the way this repository does: with a merge commit. Nothing breaking.
+
+### Changed
+
+- The harness merges a pull request with a merge commit (`gh pr merge --merge`) instead of squashing it.
+- The standing merge grant in the docs, the policy gate message and the approvals header now reads `--merge --match-head-commit <sha>`.
+- Autopilot squashes only when branch protection requires linear history. Otherwise it uses `--merge`.
+- When the roadmap is not locked yet, the next-step hint now includes the key that `approvals.py lock-roadmap` needs.
+- The approvals.py header now says who can write an approval, instead of saying that agents never can.
+
 ## [5.7.0]
 
 _Released 2026-11-26_
@@ -23,6 +37,7 @@ The owner can approve a roadmap from any model, in their own words. Nothing brea
 
 - `approvals.py grant-from-prompt` locks a pending roadmap from the owner's own words in Claude Code, such as "looks good, lock it in". The exact `lock in roadmap <key>` phrase still works. Questions, negations, conditions and a bare "yes" never lock, and a lock only happens while a roadmap is pending.
 - `approvals.py lock-roadmap [key]` locks from the owner's own terminal for tools without the prompt hook, such as Codex, T3 Code and Cursor. It asks the owner to type yes, and it refuses with no terminal or inside a son.
+- Implicit locks ignore curly-apostrophe negations ("don’t"), deferrals ("tomorrow", "once CI is green"), quoted or pasted text, multi-line prompts and non-ASCII look-alike letters. `lock-roadmap` also refuses when an agent process (Claude Code, Codex, Gemini, Cursor agent and others) is its parent.
 
 ### Changed
 
@@ -31,6 +46,8 @@ The owner can approve a roadmap from any model, in their own words. Nothing brea
 
 ### Fixed
 
+- `lock-roadmap` can open the owner's terminal. It always failed before with "no terminal attached".
+- `hooks/roadmap-lock.sh` writes the approval to the project root (`CLAUDE_PROJECT_DIR`) when the session has changed directory.
 - `tests/test_text_contracts.py`: `ReceiptFieldsContract` checks the receipt fields where the builders now write them.
 
 ## [5.6.1]

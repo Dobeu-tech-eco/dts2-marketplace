@@ -148,7 +148,7 @@ def check_roadmap(ctx: Context) -> Verdict | None:
     phrase: str | None = info["lock_phrase"]
     if phrase is None:
         return None, "the roadmap has no scope to approve", NO_SCOPE_BLOCK
-    blocked: str = f"the owner says \"lock it in\" in chat, or types: {phrase} (any harness: approvals.py lock-roadmap)"
+    blocked: str = f"the owner says \"lock it in\" in chat, or types: {phrase} (any harness: approvals.py lock-roadmap {info['key']})"
     return None, "the roadmap scope is not approved yet", blocked
 
 
