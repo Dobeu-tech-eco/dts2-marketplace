@@ -7,6 +7,21 @@ Released versions live in this file. Work that has not been released yet lives i
 Each version heading is followed by its release date on the first line (`_Released YYYY-MM-DD_`). The repository holds no release tags, so each date is the date of the commit that bumped the version.
 The plugin was renamed twice: `dts2-harness` became `dts2` in 4.0.0 and `dts2` became `dt` in 5.0.0. Older entries keep the command names that were current at the time.
 
+## [5.6.0]
+
+_Released 2026-11-26_
+
+Planning and pull request rules, a glossary, and an onboarding step that offers the same rules to your own `CLAUDE.md`. Nothing breaking.
+
+### Added
+
+- `scripts/claude-md-rules.py` (`plan`, `apply`, `check`) writes the planning, checks-over-prose and Merge danger rules into `~/.claude/CLAUDE.md` between `dts2-plan-rules` markers. A rerun replaces the block in place, text outside the markers is never touched, and `apply` backs the file up first. `machine-prep` step 7 shows the diff and writes only after a yes.
+- The PR template, the plugin PR template and the receipt carry `### Merge danger` (one-way or two-way door, and the blast radius) and `### Evidence` (before and after). Tests pin both.
+
+### Changed
+
+- `discipline.md` rule 4: prose rules are for judgement calls only. A recurring mistake becomes a lint rule, a test or a hook.
+
 ## [5.5.2]
 
 _Released 2026-11-25_

@@ -86,7 +86,7 @@ For exact syntax (required arguments, flags, who may run it, what it writes) rea
 | You want to | Use | Notes |
 |---|---|---|
 | Understand the harness, pick a starting point | `onboard` | Explanation only. Changes nothing. |
-| Prepare a new computer once | `machine-prep` | Audits the machine's context budget and trims claude.ai synced plugins by tier with a settings backup. Once per machine. It does not choose between duplicate plugins or agents; setup does that after the roster. |
+| Prepare a new computer once | `machine-prep` | Audits the machine's context budget and trims claude.ai synced plugins by tier with a settings backup. Once per machine. It does not choose between duplicate plugins or agents; setup does that after the roster. Its last step offers the planning and PR rules for your `CLAUDE.md` (below). |
 | Start a repo or workspace on the harness | `setup [path ...] [--scaffold-only]` | End-state interview until the user approves `.harness/end-state.md`, then scaffolds `.harness/`. Once the agent roster is confirmed, Round 2d runs one context scrub for every rostered agent: duplicate plugins, skills, agents and MCP servers are listed in one plan (`.harness/keep.yaml` wins, then the marketplace-managed copy), you answer yes or no, and the extras are disabled with a backup, never deleted. Several paths means batch scaffold. |
 | Do one task with a human in the loop | `run <task>` | Scout sizes, lead plans (Plan checkpoint), builders build, reviewers and verifier check, ship (Ship checkpoint). The default for day-to-day work. |
 | Continue a parked or interrupted run | `run resume` | Reads the handoff and the run record (`lanes.py run-resume`). |
@@ -129,6 +129,18 @@ Decision shortcuts:
 - Only a PR, no build: `ship`. Only a plan, no PR of code: `feature`.
 - Something is stuck: `check-in` first, then `action-items`, then `run resume` or `autopilot resume`.
 - Never run `dpp`, `setup` or `onboard` inside a son (section 3).
+
+### Adding the planning and PR rules to your CLAUDE.md
+
+`/dt:machine-prep` ends by offering three rules for your own `~/.claude/CLAUDE.md`: short scannable plans, a Merge danger line on every pull request, and a check instead of a new prose rule when a mistake recurs. It shows the exact lines first and writes nothing unless you say yes. To do it by hand:
+
+```
+python3 <plugin>/scripts/claude-md-rules.py plan    # show the diff, write nothing
+python3 <plugin>/scripts/claude-md-rules.py apply   # back up CLAUDE.md, then add the rules
+python3 <plugin>/scripts/claude-md-rules.py check   # current, stale or missing
+```
+
+The rules sit between `dts2-plan-rules` markers, so running it again updates them in place and never adds a second copy. Your other lines are not touched. To undo, delete the block or restore the backup that `apply` names.
 
 ### When a model runs out of usage
 

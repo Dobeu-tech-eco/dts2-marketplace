@@ -73,7 +73,12 @@ Run `... machine-prep.py apply --tier <chosen>`. It backs up `settings.json` to 
 - Remind them to restart Claude Code and to sign in with `claude auth login` on the binary they actually run.
 
 ## 7. Add the planning and PR rules to CLAUDE.md
-Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/claude-md-rules.py" plan` and show the user the diff it prints for `~/.claude/CLAUDE.md`. Ask once: add these rules, or skip. Do nothing without a yes. On a yes run `... claude-md-rules.py apply` and report the backup path. The block sits between `<!-- dts2-plan-rules:start -->` and `<!-- dts2-plan-rules:end -->`, so a rerun replaces it in place and never duplicates it; `check` says whether it is current. When `plan` says "already current", skip the question.
+The rules ask for short scannable plans (files and a check per step, assumptions, numbered open questions with a default), a Merge danger line on every PR (one-way or two-way door, and the blast radius), and a check instead of a new prose rule when a mistake recurs.
+1. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/claude-md-rules.py" check`. When it prints `current`, say the rules are already in place and stop.
+2. Run `... claude-md-rules.py plan` and show the user the diff it prints for `~/.claude/CLAUDE.md`. It writes nothing.
+3. Ask once: add these rules, or skip. Do nothing without a yes.
+4. On a yes run `... claude-md-rules.py apply` and report the backup path it prints.
+The block sits between `<!-- dts2-plan-rules:start -->` and `<!-- dts2-plan-rules:end -->`. A rerun replaces it in place and never duplicates it, and text outside the markers is never touched. To undo, delete the block or restore the backup.
 
 ## Guardrails
 - Never uninstall. Uninstall only if the user names the plugin and says uninstall.

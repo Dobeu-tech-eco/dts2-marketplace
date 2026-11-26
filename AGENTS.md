@@ -25,6 +25,35 @@ A Claude Code plugin marketplace that carries one plugin: `dt`, the harness. It 
 | `README.md`, `AGENTS.md`, `GLOSSARY.md`, `CHANGELOG.md`, `PRIVACY.md`, `LEGAL.md`, `skills-bundled/` | Marketplace-level pages. | Yes |
 | `.harness/ask-expert/` | Committed review memos about public repositories. | Yes, with the privacy rules below |
 
+How a change travels from the source to public `main`:
+
+```mermaid
+flowchart TD
+    SRC["Source of truth<br/>plugins/dts2-runtime/"] -->|directory_edition.py| IE["Instruction edition<br/>plugins/dts2-harness/"]
+    IE -->|cursor_surface.py| CS["Cursor surface<br/>.cursor/, .cursor-plugin/, plugins/dt-cursor/"]
+    ROOT["Marketplace pages<br/>README, AGENTS, GLOSSARY, CHANGELOG"] --> BR
+    SRC --> BR["Short-lived branch<br/>explicit paths staged"]
+    IE --> BR
+    CS --> BR
+    BR --> PR["Pull request<br/>template + change receipt"]
+    PR --> CK{"CI checks<br/>test (3.12), lint, metadata"}
+    CK -->|fail| BR
+    CK -->|pass| OK{"Owner approval<br/>written by the owner"}
+    OK -->|no| BR
+    OK -->|yes| MAIN["Merge commit to main<br/>one-way door: public"]
+
+    classDef src fill:#5A4FAB,stroke:#5A4FAB,color:#FFF8F0
+    classDef gen fill:#FFF8F0,stroke:#5A4FAB,color:#1A1A2E,stroke-dasharray: 4 3
+    classDef gate fill:#F4A261,stroke:#1A1A2E,color:#1A1A2E
+    classDef door fill:#1A1A2E,stroke:#1A1A2E,color:#FFF8F0
+    class SRC,ROOT src
+    class IE,CS gen
+    class CK,OK gate
+    class MAIN door
+```
+
+Dashed boxes are generated: never edit them by hand. Orange diamonds are gates that send the change back to the branch when they fail.
+
 After any change under `plugins/dts2-runtime/`, regenerate in this order, because the Cursor surface is built from the instruction edition:
 
 ```
@@ -48,7 +77,7 @@ python3 plugins/dts2-runtime/scripts/cursor_surface.py --check
 
 ### Plans and checks
 
-The plan format itself (scan-friendly bullets, files and verification per step, Assumptions and numbered Unresolved questions with a default) is a user-level rule. `plugins/dts2-runtime/scripts/claude-md-rules.py` writes it into `~/.claude/CLAUDE.md`, and `/dt:machine-prep` step 7 offers it. It is not repeated here. In this repository, also:
+The plan format is a user-level rule, so it is not repeated here. In short: scan-friendly bullets, the files and the check for each step, Assumptions, and numbered Unresolved questions with a default. `plugins/dts2-runtime/scripts/claude-md-rules.py` writes the full rule into `~/.claude/CLAUDE.md`, and `/dt:machine-prep` step 7 offers it. In this repository, also:
 
 - A plan step that changes `plugins/dts2-runtime/` names both generator reruns (`directory_edition.py`, then `cursor_surface.py`) and the checks above as its verification.
 - Name every one-way door. Here that includes a merge to `main`, which is public, and any commit that would carry private names into history that cannot be recalled.
