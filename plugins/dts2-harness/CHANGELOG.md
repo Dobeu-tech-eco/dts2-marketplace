@@ -13,7 +13,7 @@ _Released 2026-11-07_
 
 Directory edition for the Claude plugin directory. Skills, roles, and documents only. Hooks and scripts stay in the GitHub marketplace install (`plugins/dts2-runtime`), because an unverified organization cannot publish them.
 
-## [5.9.1]
+## [5.9.2]
 
 _Released 2026-11-26_
 
