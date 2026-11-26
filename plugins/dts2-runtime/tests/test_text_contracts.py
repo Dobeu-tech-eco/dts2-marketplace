@@ -277,3 +277,26 @@ class ReleaseContract(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReceiptFieldsContract(unittest.TestCase):
+    """Every place that builds or describes a receipt names the door and evidence fields."""
+
+    FIELDS: Final[tuple[str, ...]] = ("merge danger", "evidence")
+    BUILDERS: Final[tuple[Path, ...]] = (
+        PLUGIN_ROOT / "skills" / "ship" / "SKILL.md",
+        PLUGIN_ROOT / "skills" / "run" / "phase-4-ship.md",
+        PLUGIN_ROOT / "templates" / "discipline.md",
+    )
+
+    def test_template_has_fields(self) -> None:
+        text: str = _read(PLUGIN_ROOT / "templates" / "receipt.md").lower()
+        for field in self.FIELDS:
+            self.assertIn(f"### {field}", text)
+
+    def test_builders_fill_fields(self) -> None:
+        for path in self.BUILDERS:
+            text: str = _read(path).lower()
+            for field in self.FIELDS:
+                with self.subTest(path=path.name, field=field):
+                    self.assertIn(field, text)
