@@ -56,7 +56,6 @@
   },
   "modelsVerified": false,
   "subscriptionName": "GitHub Copilot",
-  "apiKeyEnv": null,
   "searchPaths": [],
   "fallback": {
     "reviewer:security": "grok"
@@ -75,5 +74,7 @@
     "standard": 2,
     "economy": 1
   },
-  "readOnlyRoles": ["reviewer"]
+  "readOnlyRoles": [
+    "reviewer"
+  ]
 }

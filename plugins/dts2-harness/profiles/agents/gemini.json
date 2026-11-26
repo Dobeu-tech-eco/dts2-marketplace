@@ -29,7 +29,6 @@
   },
   "modelsVerified": false,
   "subscriptionName": "Gemini Pro",
-  "apiKeyEnv": "GEMINI_API_KEY",
   "searchPaths": [
     "~/.antigravity/bin",
     "$LOCALAPPDATA/Programs/Antigravity",
@@ -84,5 +83,7 @@
     "standard": 2,
     "economy": 1
   },
-  "readOnlyRoles": ["reviewer"]
+  "readOnlyRoles": [
+    "reviewer"
+  ]
 }

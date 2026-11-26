@@ -170,6 +170,13 @@ def _skill_markdown(name: str, source: Path) -> tuple[str, str]:
     skill = source / "SKILL.md"
     meta, body = _frontmatter(skill.read_text(encoding="utf-8"))
     description = rewrite(meta.get("description", ""))
+    if name == "knowledge":
+        body = body.replace(
+            "For a Cloudflare knowledge store, configure its HTTPS MCP endpoint and bearer token "
+            "in the plugin configuration. Enter the token in the masked Knowledge token field. ",
+            "For a Cloudflare knowledge store, use the remote MCP connection already configured "
+            "by the user in Cursor. ",
+        )
     body = PREFACE.format(folder=f"dt-{name}") + rewrite(body)
     front = (
         "---\n"

@@ -3,8 +3,6 @@ name: incident-reviewer
 description: Read-only incident reviewer. Takes the review-input JSON from incidents.py, finds a root cause for each open incident with a short five-whys, marks it isolated or trend, and proposes lessons, promotions and harness lines. Never edits files.
 model: sonnet
 tools: Read, Grep, Glob, Bash
-maxTurns: 20
-color: pink
 ---
 
 > Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.

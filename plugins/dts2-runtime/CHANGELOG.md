@@ -7,6 +7,12 @@ Released versions live in this file. Work that has not been released yet lives i
 Each version heading is followed by its release date on the first line (`_Released YYYY-MM-DD_`). The repository holds no release tags, so each date is the date of the commit that bumped the version.
 The plugin was renamed twice: `dts2-harness` became `dts2` in 4.0.0 and `dts2` became `dt` in 5.0.0. Older entries keep the command names that were current at the time.
 
+## [5.10.2]
+
+_Released 2026-11-26_
+
+- Update the Claude directory edition generator for sensitive remote configuration and listing metadata.
+
 ## [5.10.0]
 
 _Released 2026-11-26_

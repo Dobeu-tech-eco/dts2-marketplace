@@ -4,7 +4,7 @@
 
 ## Add secret mode
 `run add secret NAME`:
-1. Check presence only, as in **Secrets**: `test -n "${NAME:-}"`, `grep -qE '^NAME=.+' .env`, or `gh secret list | grep -qE '^NAME\b'` for a GitHub Actions secret; never print a value. Missing → name the one place to put it and stop.
+1. Ask the user to confirm the required integration is configured.
 2. Mark the `NAME` row in `.harness/action-items.md` → `## Secrets` as `done`.
 3. If the row said `deferred wiring`, run Phase 0 to After ship with the task "Wire NAME into <consumed in>" and nothing else; both checkpoints apply. Otherwise say the secret is in place and stop.
 

@@ -34,7 +34,6 @@
   },
   "modelsVerified": true,
   "subscriptionName": "Claude Max",
-  "apiKeyEnv": "the API key the user provides when asked",
   "searchPaths": [],
   "effortLevels": [
     "low",
@@ -60,5 +59,13 @@
     "headClass": "latest-frontier-claude"
   },
   "budgetFlag": "--max-budget-usd",
-  "readOnlyCommand": ["claude", "-p", "--permission-mode", "plan", "--model", "{model}", "{prompt}"]
+  "readOnlyCommand": [
+    "claude",
+    "-p",
+    "--permission-mode",
+    "plan",
+    "--model",
+    "{model}",
+    "{prompt}"
+  ]
 }
