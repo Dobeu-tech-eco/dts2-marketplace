@@ -13,6 +13,17 @@ _Released 2026-11-07_
 
 Directory edition for the Claude plugin directory. Skills, roles, and documents only. Hooks and scripts stay in the GitHub marketplace install (`plugins/dts2-runtime`), because an unverified organization cannot publish them.
 
+## [5.6.1]
+
+_Released 2026-11-26_
+
+A fix to 5.6.0. Nothing breaking.
+
+### Fixed
+
+- `/dt:ship` step 1, run phase 4 step 2 and the discipline template rule 2 now tell the builder to fill the receipt's `Merge danger` and `Evidence` fields. 5.6.0 added both sections to the template but no step filled them.
+- `tests/test_text_contracts.py`: `ReceiptFieldsContract` fails if the template or any receipt builder drops either field.
+
 ## [5.6.0]
 
 _Released 2026-11-26_

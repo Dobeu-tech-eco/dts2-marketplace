@@ -7,6 +7,17 @@ Released versions live in this file. Work that has not been released yet lives i
 Each version heading is followed by its release date on the first line (`_Released YYYY-MM-DD_`). The repository holds no release tags, so each date is the date of the commit that bumped the version.
 The plugin was renamed twice: `dts2-harness` became `dts2` in 4.0.0 and `dts2` became `dt` in 5.0.0. Older entries keep the command names that were current at the time.
 
+## [5.6.1]
+
+_Released 2026-11-26_
+
+A fix to 5.6.0. Nothing breaking.
+
+### Fixed
+
+- `/dt:ship` step 1, run phase 4 step 2 and the discipline template rule 2 now tell the builder to fill the receipt's `Merge danger` and `Evidence` fields. 5.6.0 added both sections to the template but no step filled them.
+- `tests/test_text_contracts.py`: `ReceiptFieldsContract` fails if the template or any receipt builder drops either field.
+
 ## [5.6.0]
 
 _Released 2026-11-26_
