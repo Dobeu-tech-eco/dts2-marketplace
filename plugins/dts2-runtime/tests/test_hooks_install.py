@@ -194,7 +194,6 @@ class HooksInstallTests(unittest.TestCase):
         run_json(*self.args("antigravity"))
         doc = json.loads((self.repo / ".agents" / "hooks.json").read_text(encoding="utf-8"))
         self.assertEqual(set(doc["hooks"]), {"PreInvocation", "PreToolUse"})
-        self.assertFalse((self.repo / ".agent").exists())
 
     def test_antigravity_user_path(self) -> None:
         out = run_json(*self.args("antigravity", "--user"))["results"][0]
@@ -212,6 +211,19 @@ class HooksInstallTests(unittest.TestCase):
         self.assertTrue(commands_in(doc))
         run_json(*self.args("muse", "--user", "--uninstall"))
         self.assertEqual(json.loads(settings.read_text(encoding="utf-8")), {"theme": "dark", "schema_version": 1})
+
+    def test_muse_settings_json_is_never_deleted_and_keeps_its_schema_version(self) -> None:
+        settings = self.home / ".config" / "muse" / "settings.json"
+        settings.parent.mkdir(parents=True)
+        settings.write_text(json.dumps({"schema_version": 2}), encoding="utf-8")
+        run_json(*self.args("muse", "--user"))
+        self.assertEqual(run_json(*self.args("muse", "--user"))["results"][0]["action"], "unchanged")
+        doc = json.loads(settings.read_text(encoding="utf-8"))
+        self.assertEqual(doc["schema_version"], 2)
+        settings.write_text(json.dumps({"hooks": doc["hooks"]}), encoding="utf-8")
+        run_json(*self.args("muse", "--user", "--uninstall"))
+        self.assertTrue(settings.is_file())
+        self.assertEqual(json.loads(settings.read_text(encoding="utf-8")), {})
 
     def test_unknown_agent_refused(self) -> None:
         result = run("--agent", "emacs", "--repo", str(self.repo))

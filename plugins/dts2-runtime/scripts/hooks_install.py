@@ -380,7 +380,9 @@ def run_agent(name: str, repo: Path, home: Path, user: bool, dry_run: bool, unin
         for key, value in spec.user_defaults:
             new_doc.setdefault(key, value)
     changed = new_doc != original
-    remove_file = uninstall and changed and is_blank(spec, new_doc) and path.is_file()
+    # A user-scope file with defaults is the agent's own settings file: strip our hooks but never delete it.
+    keep_file = user and bool(spec.user_defaults)
+    remove_file = uninstall and changed and not keep_file and is_blank(spec, new_doc) and path.is_file()
     before, after = count_entries(original), count_entries(new_doc)
     if not changed:
         action = "unchanged"
