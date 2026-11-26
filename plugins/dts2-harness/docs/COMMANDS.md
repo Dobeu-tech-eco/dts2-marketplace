@@ -94,7 +94,7 @@ Most people need two parts of this page: section 4, the slash commands you type,
 | `mailbox` | either | The head/son mailbox. Son ops: ask, need-human, check, wait, park, merge-go-check, rules, request. Head ops: answer, decide (refused in a son). A wait that runs out parks the lane (`mailbox_wait_min`). | `lanes.py mailbox ask <stamp> --lane a --text "<question>"  \|  mailbox answer <stamp> --lane a --id q1 --text "<answer>"  \|  mailbox park <stamp> --lane a --reason context-guard [--session-id S]  \|  mailbox rules <stamp> --lane a --point start\|vote\|ship\|merge  \|  mailbox request <stamp> --lane a --files f1,f2 --text "<why>"  \|  mailbox decide <stamp> --lane a --id r1 --outcome escalate\|granted\|denied  \|  mailbox merge-go-check <stamp> --lane a [--worktree D]` | `questions/`, `merge-go.json`, status |
 | `report-check` | head | Check the final report against lane ids; with `--stamp` also cross-check the son run records. | `lanes.py report-check dpp-report.md --lanes a,b [--stamp <stamp>]` | none (read-only) |
 
-## 3. Standalone scripts (75 with a command line)
+## 3. Standalone scripts (76 with a command line)
 
 Invocation shown without the prefix `python3 -I "$CLAUDE_PLUGIN_ROOT/scripts/`; add it and the closing `"`. Scripts marked `hook` read the hook JSON on stdin and are called by `hooks/*.sh`.
 
@@ -103,7 +103,7 @@ Invocation shown without the prefix `python3 -I "$CLAUDE_PLUGIN_ROOT/scripts/`; 
 | `action-items.py` | either (`reserve`, `release`, `fold`: head) | List and update the action-item file. | `action-items.py <repo> list \| done <row> \| add <group> <text...> [--id I --holder H --task T] \| assign <row> <agent> \| reserve <group> <count> --holder H \| release --holder H \| fold <lane_file> --holder H` | action-items file |
 | `agent-memory.py` | either | Give each detected agent a project memory file from one shared source. | `agent-memory.py --write <dir> [--agents a,b] [--project P]` | memory files |
 | `app-type-detect.py` | either | Detect the app type and print the readiness table. | `app-type-detect.py <repo> [--type web-app\|api\|cli\|library\|static-site] [--table]` | none |
-| `approvals.py` | either | Approval channel (`dts2_approvals` in `.claude/settings.local.json`); the model cannot write it directly, and `lock-roadmap <key>` is the one agent path. | `approvals.py [--repo R] check <kind> <key> [--session S] \| path \| lock-roadmap [key]` (`lock-roadmap`: the owner locks the roadmap from their own terminal in any harness after typing yes; an agent locks it by passing the current key, logged as `agent:<name>`; exit 2 with no terminal for the owner or no key for an agent, exit 1 on a stale key) | none |
+| `approvals.py` | either | Approval channel (`dts2_approvals` in `.claude/settings.local.json`); the model cannot write it directly, and `lock-roadmap <key>` is the one agent path. | `approvals.py [--repo R] check <kind> <key> [--session S] \| path \| sign-roadmap <key> [--provider P] [--note N] \| lock-roadmap [key] [--skip-review REASON \| --single-provider REASON]` (`lock-roadmap`: the owner locks the roadmap from their own terminal in any harness after typing yes. An agent locks it by passing the current key, and only after reviewers from two different providers have each run `sign-roadmap` on that key; the lock is logged as `agent:<name>`. `--skip-review` is for when the owner says to skip the review or doesn't want to wait, and `--single-provider` is for when only one provider is available; both need a reason, which the lock log keeps. Exit 2 with no terminal for the owner, no key for an agent, or an empty override reason; exit 3 when fewer than two providers have signed, naming the ones still missing; exit 1 on a stale key) | none |
 | `ballot_dispatch.py` | head | Run one council seat through the shared call limit; writes the ballot and its `.dispatch.json`. | `ballot_dispatch.py dispatch --seat S --model M --prompt-file F --out-dir D [--provider P] [-- argv]` | ballot, `.dispatch.json` |
 | `briefs.py` | head | Son and lead briefs and the cached prompt prefix; starts no process. | `briefs.py son-brief <manifest> --lane L --epoch N [--max-bundle N --out F] \| prefix --stamp S \| dry-run <manifest> --lane L --worktree D \| lead-brief --stamp S [--task-file F --roster-json J --probe-json J]` | `brief.md` / `--out` file |
 | `builder-audit.py` | head | Audit one builder's result against its owned files; exit 1 on a violation. | `builder-audit.py --base <ref> --owned <files> [--repo R --claimed-sha S --status S --attempt N]` | none (read-only) |
@@ -172,6 +172,7 @@ Invocation shown without the prefix `python3 -I "$CLAUDE_PLUGIN_ROOT/scripts/`; 
 | `session_end.py` | hook | Release the lane leases this session took (hook JSON on stdin). | `session_end.py` | lease files |
 | `settings_cache.py` | either | Parsed settings from `.harness/config.yaml` and the local frontmatter, cached. | `settings_cache.py [repo] [--get key]` | cache file |
 | `hooks-setup.py` | either | List, recommend and add optional hooks (`command-guard`, `auto-format`, `test-on-stop`, `notify`, `merge-on-green`, `db-guard`, `migration-check`) to settings; merge only, backup first. | `hooks-setup.py list \| recommend [--cwd D --home H] \| apply --ids A,B [--scope project\|local\|user --cwd D --home H --dry-run]` | settings file, `.claude/hooks/dts2/` (`apply`) |
+| `hooks_install.py` | either | Write the `hooks/hooks.json` hooks into an agent's own hook config (claude, codex, cursor, antigravity, grok, muse) with absolute script paths; merge only, `--uninstall` removes only its entries. | `hooks_install.py --agent A\|all [--repo D \| --user --home H] [--dry-run] [--uninstall]` | the agent's hook config file |
 | `improve-scan.py` | either | Read-only audit of hooks, MCP servers, database tooling, plugins, commands, subagents, permissions, CI and agent docs; ranked recommendations. | `improve-scan.py [--cwd D] [--home H]` | none |
 | `skill-suggest.py` | either | Ranked candidate skill names from repo facts. | `skill-suggest.py [--facts F]` | none |
 | `skills-check.py` | either | Pre-run check of harness version, marketplaces, companion and keep-list skills; proposal-only updates. | `skills-check.py <repo> [--fix] [--swap OLD=REF] [--apply-update NAME=SHA] [--no-upstream] [--force-full] [--son-root P] [--home H] [--plugin-root P]` | `skill-updates.json`, installed skills (`--fix`) |
@@ -264,6 +265,23 @@ Registered in `hooks/hooks.json` and run by Claude Code. Agents do not call hook
 | UserPromptSubmit | `hooks/prompt-intake.sh` | Never blocks. Appends each prompt typed while the harness works to the intake queue, classifies it and injects a one-line instruction for the agent. Off with `intake: false` in `.claude/dts2-harness.local.md`. |
 
 `hooks/lib-settings.sh` is a shared helper, not a registered hook.
+
+### Hooks under other agents (`hooks_install.py`)
+
+The hook scripts find their own plugin folder, so they run under any agent that can call a shell command, not only Claude Code. `CLAUDE_PLUGIN_ROOT` is used when it is set; otherwise each script works out its location from its own path. `hooks_install.py` writes the hooks into the config each agent reads, with absolute paths to the scripts:
+
+```
+python3 -I "$CLAUDE_PLUGIN_ROOT/scripts/hooks_install.py" --agent cursor --repo . --dry-run
+python3 -I "$CLAUDE_PLUGIN_ROOT/scripts/hooks_install.py" --agent all --repo .
+python3 -I "$CLAUDE_PLUGIN_ROOT/scripts/hooks_install.py" --agent codex --user
+python3 -I "$CLAUDE_PLUGIN_ROOT/scripts/hooks_install.py" --agent all --repo . --uninstall
+```
+
+`--agent` takes `claude`, `codex`, `cursor`, `antigravity` (the Google Antigravity IDE, not the Gemini CLI), `grok`, `muse` or `all`. The default scope is the project given by `--repo`. `--user` writes the user-level file under your home folder instead (`--home` overrides that folder, which tests use). The source is `hooks/hooks.json`, with Claude's event names translated to each agent's own. An event an agent has no equivalent for is skipped and listed under `skipped` in the output.
+
+The installer merges and never overwrites. Your own entries stay where they are, a second run changes nothing, and `--uninstall` removes only the entries that run a script from this plugin's `hooks/` folder. A file that is not valid JSON is left alone and reported. `--dry-run` prints the document it would write and touches nothing.
+
+Where each agent's file lives, and how sure the format is, sits in a small table at the top of the script (`AGENTS`). Claude (`.claude/settings.local.json` in a project), Cursor (`.cursor/hooks.json`) and the Grok event names are documented. The Codex, Antigravity and Muse files are assumptions about a Claude-shaped format, so each result carries `verified: false` and a `source` line saying what was assumed. Check those against the agent before you rely on them. Codex also needs its hooks feature switched on in `config.toml`. The paths are absolute, so keep the project files out of a shared repo.
 
 ### `/dt:fleet` in short
 

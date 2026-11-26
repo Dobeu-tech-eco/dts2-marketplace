@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # PostToolUse (all tools): stop a run on a context spike before the plan checkpoint, or when started in a member repo. Never fails the session.
 set -uo pipefail
-[ -n "${CLAUDE_PLUGIN_ROOT:-}" ] || exit 0
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)}"
+[ -n "$PLUGIN_ROOT" ] || exit 0
 # shellcheck source-path=SCRIPTDIR source=lib-settings.sh
-source "${CLAUDE_PLUGIN_ROOT}/hooks/lib-settings.sh"
+source "${PLUGIN_ROOT}/hooks/lib-settings.sh"
 TOOL_CALLS_DEFAULT=250
 MB_DEFAULT=12
 [[ "$(setting enabled true)" == "true" ]] || exit 0
@@ -23,9 +24,9 @@ MB_LIMIT="$(number_or "$mb_setting" "$MB_DEFAULT")"
 stop_setting="$(setting context_guard_stop false)"
 payload="$(cat)"
 if [[ "$stop_setting" == "true" ]]; then
-  guard_out="$(printf '%s' "$payload" | python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/context-guard.py" --tool-calls "$TOOL_LIMIT" --mb "$MB_LIMIT" --stop)"
+  guard_out="$(printf '%s' "$payload" | python3 -I "${PLUGIN_ROOT}/scripts/context-guard.py" --tool-calls "$TOOL_LIMIT" --mb "$MB_LIMIT" --stop)"
 else
-  guard_out="$(printf '%s' "$payload" | python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/context-guard.py" --tool-calls "$TOOL_LIMIT" --mb "$MB_LIMIT")"
+  guard_out="$(printf '%s' "$payload" | python3 -I "${PLUGIN_ROOT}/scripts/context-guard.py" --tool-calls "$TOOL_LIMIT" --mb "$MB_LIMIT")"
 fi
 [[ -n "$guard_out" ]] && printf '%s\n' "$guard_out"
 # Inside a son (branch prefix dts2/<stamp>/lane-<lane>) a fired guard parks the lane through the mailbox, never by writing phase files.
@@ -33,9 +34,9 @@ if [[ -n "$guard_out" && "${DTS2_SON_BRANCH_PREFIX:-}" =~ ^dts2/([^/]+)/lane-(.+
   park_stamp="${BASH_REMATCH[1]}"
   park_lane="${BASH_REMATCH[2]}"
   if [[ -n "${CLAUDE_CODE_SESSION_ID:-}" ]]; then
-    python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/lanes.py" mailbox park "$park_stamp" --lane "$park_lane" --reason context-guard --session-id "$CLAUDE_CODE_SESSION_ID" >/dev/null 2>&1 || true
+    python3 -I "${PLUGIN_ROOT}/scripts/lanes.py" mailbox park "$park_stamp" --lane "$park_lane" --reason context-guard --session-id "$CLAUDE_CODE_SESSION_ID" >/dev/null 2>&1 || true
   else
-    python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/lanes.py" mailbox park "$park_stamp" --lane "$park_lane" --reason context-guard >/dev/null 2>&1 || true
+    python3 -I "${PLUGIN_ROOT}/scripts/lanes.py" mailbox park "$park_stamp" --lane "$park_lane" --reason context-guard >/dev/null 2>&1 || true
   fi
 fi
 exit 0
