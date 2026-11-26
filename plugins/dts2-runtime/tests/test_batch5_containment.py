@@ -315,6 +315,23 @@ class HandoverTests(unittest.TestCase):
         self.assertNotIn("--squash", merge_call)
         self.assertEqual(done["walkthrough_env"], {})
 
+    def test_g65_a_linear_history_base_squashes_instead(self) -> None:
+        self.pr_answers([{"conclusion": "SUCCESS"}])
+        self.answers = {"api repos/{owner}/{repo}/branches": (0, json.dumps({"required_linear_history": {"enabled": True}})),
+                        **self.answers}
+        self.assertTrue(head_publish.merge_pr(self.repo, "5", True, "main", False, self.runner)["merged"])
+        merge_call = [c for c in self.calls if c[1:3] == ["pr", "merge"]][0]
+        self.assertIn("--squash", merge_call)
+        self.assertNotIn("--merge", merge_call)
+
+    def test_g65_a_linear_history_ruleset_squashes_too(self) -> None:
+        self.pr_answers([{"conclusion": "SUCCESS"}])
+        self.answers = {"api repos/{owner}/{repo}/rules": (0, json.dumps([{"type": "required_linear_history"}])),
+                        **self.answers}
+        self.assertTrue(head_publish.merge_pr(self.repo, "5", True, "main", False, self.runner)["merged"])
+        merge_call = [c for c in self.calls if c[1:3] == ["pr", "merge"]][0]
+        self.assertIn("--squash", merge_call)
+
     def test_g65_no_checks_means_no_merge_and_production_walkthroughs_are_read_only(self) -> None:
         self.pr_answers([])
         self.assertFalse(head_publish.merge_pr(self.repo, "5", True, "main", False, self.runner)["merged"])

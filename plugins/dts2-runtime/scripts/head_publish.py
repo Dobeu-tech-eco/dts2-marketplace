@@ -184,10 +184,13 @@ def pr_facts(repo: Path, pr: str, runner: Runner = run_tool) -> dict[str, Any]:
     rules_code, rules = gh(repo, "api", f"repos/{{owner}}/{{repo}}/rules/branches/{base}", runner=runner)
     listed: Any = json_of(rules) if rules_code == 0 else None
     contexts: Any = (protection or {}).get("required_status_checks") if isinstance(protection, dict) else None
+    linear: Any = (protection or {}).get("required_linear_history") if isinstance(protection, dict) else None
     return {
         "base": base, "head": view.get("headRefOid"), "checks": [c for c in view.get("statusCheckRollup") or [] if isinstance(c, dict)],
         "review": view.get("reviewDecision"), "required_checks": bool(contexts),
         "merge_queue": isinstance(listed, list) and any(isinstance(r, dict) and r.get("type") == "merge_queue" for r in listed),
+        "linear_history": (isinstance(linear, dict) and bool(linear.get("enabled"))) or (isinstance(listed, list) and any(
+            isinstance(r, dict) and r.get("type") == "required_linear_history" for r in listed)),
         "readable": code == 0,
     }
 
@@ -217,7 +220,9 @@ def merge_pr(repo: Path, pr: str, verifier_ok: bool, default_branch: str | None 
     blockers: list[str] = merge_blockers(facts, default_branch, prod, pr, repo)
     if blockers:
         return {"ok": False, "merged": False, "blockers": blockers}
-    args: list[str] = ["pr", "merge", pr, "--merge", *(["--match-head-commit", str(facts["head"])] if facts["head"] else [])]
+    # Merge commits by default; a base that requires linear history rejects them, so squash there instead.
+    method: str = "--squash" if facts.get("linear_history") else "--merge"
+    args: list[str] = ["pr", "merge", pr, method, *(["--match-head-commit", str(facts["head"])] if facts["head"] else [])]
     code, out = gh(repo, *args, runner=runner)
     return {"ok": code == 0, "merged": code == 0, "blockers": [] if code == 0 else [out.strip()[:200]],
             "walkthrough_read_only": prod, "walkthrough_env": walkthrough_env(prod)}

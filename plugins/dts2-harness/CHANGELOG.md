@@ -13,6 +13,16 @@ _Released 2026-11-07_
 
 Directory edition for the Claude plugin directory. Skills, roles, and documents only. Hooks and scripts stay in the GitHub marketplace install (`plugins/dts2-runtime`), because an unverified organization cannot publish them.
 
+## [5.9.1]
+
+_Released 2026-11-26_
+
+A fix for 5.9.0. Nothing breaking.
+
+### Fixed
+
+- `lanes.py publish --merge` now squashes when the base branch's protection or rulesets require linear history. GitHub rejects merge commits on those branches, so 5.9.0 failed there. Other branches still get a merge commit.
+
 ## [5.9.0]
 
 _Released 2026-11-26_

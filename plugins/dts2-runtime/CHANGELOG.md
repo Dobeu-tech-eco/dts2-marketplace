@@ -7,6 +7,16 @@ Released versions live in this file. Work that has not been released yet lives i
 Each version heading is followed by its release date on the first line (`_Released YYYY-MM-DD_`). The repository holds no release tags, so each date is the date of the commit that bumped the version.
 The plugin was renamed twice: `dts2-harness` became `dts2` in 4.0.0 and `dts2` became `dt` in 5.0.0. Older entries keep the command names that were current at the time.
 
+## [5.9.1]
+
+_Released 2026-11-26_
+
+A fix for 5.9.0. Nothing breaking.
+
+### Fixed
+
+- `lanes.py publish --merge` now squashes when the base branch's protection or rulesets require linear history. GitHub rejects merge commits on those branches, so 5.9.0 failed there. Other branches still get a merge commit.
+
 ## [5.9.0]
 
 _Released 2026-11-26_
