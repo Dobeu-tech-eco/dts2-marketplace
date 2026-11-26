@@ -35,6 +35,7 @@ Use this page when a skill, a plan or a review uses a word you do not recognise.
 | keep-set | The plugins and companion skills a profile or `.harness/keep.yaml` says must stay on. | allowlist, whitelist |
 | tier | The prune level `machine-prep` applies: light, standard or strict. | mode, level, preset |
 | action item | A row in `.harness/action-items.md` that a person must act on, such as a missing secret or a decision. | todo, ticket, task |
+| gap research | A pass of `/dt:loop` that reads the end state and records missing sections, criteria and useful features as suggestions in `.harness/research/gaps.jsonl`. | audit, brainstorm, backlog |
 | lesson | A rule learned from a run and stored in `.harness/lessons.md` for every later run to read. | memory, note, insight |
 | incident | A recorded harness failure that `incidents.py` tracks until a review finds its root cause. | bug, outage, error |
 | one-way door | A change that cannot be undone after it lands, such as a merge to public `main`, a published release or pushed history. | irreversible-ish, risky change |
