@@ -288,7 +288,7 @@ What it does without asking: the hooks run as soon as the plugin is installed, e
 What it will not do without you:
 
 - **Treat a team charter as permission.** `TEAM.md` chooses providers. It does not approve a merge, a deploy or a spend.
-- **Merge or push to a protected branch.** The policy gate allows `gh pr merge` only when that PR number is in `dts2_approvals`, or when `merge_policy` includes `auto-when-green` and the command is `gh pr merge <n> --squash --match-head-commit <sha>`. Under `dpp`, `merge-go.md` satisfies the lane's merge guard. It does not replace that approval. `/dt:ship` never merges. If `python3` is missing, the merge guard and policy gate do not run. Refusals are logged in `.harness/merge-guard.log`.
+- **Merge or push to a protected branch.** The policy gate allows `gh pr merge` only when that PR number is in `dts2_approvals`, or when `merge_policy` includes `auto-when-green` and the command is `gh pr merge <n> --merge --match-head-commit <sha>`. Under `dpp`, `merge-go.md` satisfies the lane's merge guard. It does not replace that approval. `/dt:ship` never merges. If `python3` is missing, the merge guard and policy gate do not run. Refusals are logged in `.harness/merge-guard.log`.
 - **Run risky commands.** The policy gate denies force-push, `--admin`, deploy CLIs, `gh secret`, `vercel env` and a bare `env`, for the head session and every worker.
 - **Approve itself.** Workers cannot write `dts2_approvals`. Under `dpp`, workers commit a branch, and only the head pushes and opens PRs.
 - **Delete.** `/dt:machine-prep` disables and never deletes. `/dt:repo-sweep` never deletes in bulk. `/dt:evolve` pushes only on your yes.

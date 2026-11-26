@@ -57,7 +57,7 @@ class NewSkillsContract(TextContractMixin):
             "three frontier", "model: <resolved Chairman model>", "the latest frontier Claude Chairman", "tiebreaker", "never sits on the panel",
             "Falling back to the normal human checkpoints", "VOTE: APPROVE", "VOTE: REJECT",
             "3-0 APPROVE", "2-1 APPROVE", "Split", "roster.py command", "--tier frontier",
-            "--squash --delete-branch", "never `--admin`", "required_linear_history",
+            "--squash --delete-branch", "--merge --delete-branch", "never `--admin`", "required_linear_history",
             "gh pr comment", ".harness/autopilot/latest.md", "autopilot resume", "park",
             "Never build on a previous step's unmerged branch", "5-round cap",
         ])

@@ -5,7 +5,7 @@
 A **Dobeu Tech Solutions LLC** product. New York, NY · [dobeu.net](https://dobeu.net)
 
 ![License: MIT](https://img.shields.io/badge/license-MIT-5A4FAB)
-![Version 5.8.0](https://img.shields.io/badge/version-5.8.0-6B5CE7)
+![Version 5.9.0](https://img.shields.io/badge/version-5.9.0-6B5CE7)
 
 `dt` turns one task into a planned, built, reviewed and verified pull request, with you approving at the points that matter. Commands use the form `/dt:<command>`. In the plugin directory it is listed as DT: Init to Ship Auto Agent Orchestrator.
 
