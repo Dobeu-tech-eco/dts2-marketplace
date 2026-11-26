@@ -24,6 +24,7 @@ The harness now merges the way this repository does: with a merge commit. Nothin
 - The harness merges a pull request with a merge commit (`gh pr merge --merge`) instead of squashing it.
 - The standing merge grant in the docs, the policy gate message and the approvals header now reads `--merge --match-head-commit <sha>`.
 - Autopilot squashes only when branch protection requires linear history. Otherwise it uses `--merge`.
+- `lanes.py publish --merge` follows the same rule. It squashes when the base branch's protection or rulesets require linear history, since GitHub rejects merge commits there.
 - When the roadmap is not locked yet, the next-step hint now includes the key that `approvals.py lock-roadmap` needs.
 - The approvals.py header now says who can write an approval, instead of saying that agents never can.
 
