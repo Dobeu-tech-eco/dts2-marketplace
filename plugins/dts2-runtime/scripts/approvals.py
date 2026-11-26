@@ -20,11 +20,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import io
 import os
 import re
 import tempfile
 import sys
 import time
+import unicodedata
 from pathlib import Path
 from typing import Any, Final
 
@@ -111,8 +113,11 @@ LOCK_INTENT: Final[tuple[re.Pattern[str], ...]] = (
     re.compile(r"\bapprove(?:d)?\s+(?:the\s+|that\s+|this\s+)?roadmap\b"),
 )
 NOT_LOCK: Final[re.Pattern[str]] = re.compile(
-    r"\b(?:don'?t|do\s+not|not|never|no|wait|hold|unlock|later|until|before|if|when|unless|after|should|could|would|can|how|what|why)\b"
+    r"\b(?:\w+n'?t|do\s+not|not|never|no|nah|nope|wait|hold|stop|cancel|unlock|later|until|before|if|when|unless|after|once|"
+    r"yet|tomorrow|tonight|next|soon|maybe|otherwise|won|should|could|would|can|how|what|why)\b"
 )
+APOSTROPHES: Final[dict[int, str]] = {0x2018: "'", 0x2019: "'", 0x02BC: "'", 0x0060: "'"}
+
 INTENT_MAX_WORDS: Final[int] = 16
 BACKUP_SUFFIX: Final[str] = ".bak"
 
@@ -166,8 +171,12 @@ def lock_intent(prompt: str) -> tuple[bool, str | None]:
     exact = LOCK_PHRASE.match(text)
     if exact is not None:
         return True, exact.group(1).lower()
-    lowered: str = text.lower()
-    if "?" in lowered or len(lowered.split()) > INTENT_MAX_WORDS or NOT_LOCK.search(lowered):
+    if "\n" in text or "`" in text or '"' in text:
+        return False, None
+    lowered: str = unicodedata.normalize("NFKC", text).translate(APOSTROPHES).lower()
+    if not lowered.isascii() or "?" in lowered or len(lowered.split()) > INTENT_MAX_WORDS or NOT_LOCK.search(lowered):
+        return False, None
+    if re.search(r"(?<![a-z])'\s*lock|lock[^']*'(?![a-z])", lowered):
         return False, None
     if not any(pattern.search(lowered) for pattern in LOCK_INTENT):
         return False, None
@@ -205,9 +214,37 @@ def grant_from_prompt(raw: str, repo: Path) -> str:
 def open_terminal() -> Any:
     """The controlling terminal for reading and writing, or None when none is attached (a model's shell, CI, a pipe)."""
     try:
-        return open("/dev/tty", "r+", encoding="utf-8")  # noqa: SIM115 (the caller closes it)
+        raw: io.FileIO = io.FileIO("/dev/tty", "r+")
     except OSError:
         return None
+    # A terminal is not seekable, so a plain open(..., "r+") in text mode fails; pair the raw stream instead.
+    return io.TextIOWrapper(io.BufferedRWPair(raw, raw), encoding="utf-8", line_buffering=True)
+
+
+AGENT_PROCESSES: frozenset[str] = frozenset({"claude", "codex", "gemini", "cursor-agent", "aider", "opencode", "goose", "amp"})
+AGENT_ENV: tuple[str, ...] = ("CLAUDECODE", "CODEX_SANDBOX", "CODEX_SANDBOX_NETWORK_DISABLED", "GEMINI_CLI")
+MAX_ANCESTORS: int = 64
+
+
+def agent_ancestor() -> str | None:
+    """The name of an agent CLI this process runs under (by environment marker or /proc ancestry), or None.
+    A command an agent runs is its child; the owner's own shell is the agent's parent, never its child."""
+    for name in AGENT_ENV:
+        if os.environ.get(name):
+            return name
+    pid: int = os.getppid()
+    for _ in range(MAX_ANCESTORS):
+        if pid <= 1:
+            return None
+        try:
+            stat: str = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+        except OSError:
+            return None
+        comm: str = stat[stat.index("(") + 1 : stat.rindex(")")]
+        if comm.lower() in AGENT_PROCESSES:
+            return comm
+        pid = int(stat[stat.rindex(")") + 2 :].split()[1])
+    return None
 
 
 def lock_roadmap(repo: Path, key: str | None = None, terminal: Any = None) -> tuple[int, str]:
@@ -215,6 +252,9 @@ def lock_roadmap(repo: Path, key: str | None = None, terminal: Any = None) -> tu
     Refused inside a son launch, when no terminal is attached, when a given key does not match, or without a typed yes."""
     if os.environ.get("DTS2_SON"):
         return 2, "dt: lock-roadmap is refused inside an agent launch; run it in your own terminal"
+    agent: str | None = agent_ancestor() if terminal is None else None
+    if agent is not None:
+        return 2, f"dt: lock-roadmap is refused under an agent ({agent}); run it in your own terminal"
     import roadmap  # noqa: PLC0415 (roadmap imports this module)
     info: dict[str, Any] = roadmap.status(repo)
     current: str | None = info["key"]

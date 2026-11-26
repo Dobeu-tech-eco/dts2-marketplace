@@ -17,6 +17,7 @@ The owner can approve a roadmap from any model, in their own words. Nothing brea
 
 - `approvals.py grant-from-prompt` locks a pending roadmap from the owner's own words in Claude Code, such as "looks good, lock it in". The exact `lock in roadmap <key>` phrase still works. Questions, negations, conditions and a bare "yes" never lock, and a lock only happens while a roadmap is pending.
 - `approvals.py lock-roadmap [key]` locks from the owner's own terminal for tools without the prompt hook, such as Codex, T3 Code and Cursor. It asks the owner to type yes, and it refuses with no terminal or inside a son.
+- Implicit locks ignore curly-apostrophe negations ("don’t"), deferrals ("tomorrow", "once CI is green"), quoted or pasted text, multi-line prompts and non-ASCII look-alike letters. `lock-roadmap` also refuses when an agent process (Claude Code, Codex, Gemini, Cursor agent and others) is its parent.
 
 ### Changed
 
@@ -25,6 +26,8 @@ The owner can approve a roadmap from any model, in their own words. Nothing brea
 
 ### Fixed
 
+- `lock-roadmap` can open the owner's terminal. It always failed before with "no terminal attached".
+- `hooks/roadmap-lock.sh` writes the approval to the project root (`CLAUDE_PROJECT_DIR`) when the session has changed directory.
 - `tests/test_text_contracts.py`: `ReceiptFieldsContract` checks the receipt fields where the builders now write them.
 
 ## [5.6.1]
