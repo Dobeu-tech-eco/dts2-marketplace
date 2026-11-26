@@ -7,13 +7,19 @@ Released versions live in this file. Work that has not been released yet lives i
 Each version heading is followed by its release date on the first line (`_Released YYYY-MM-DD_`). The repository holds no release tags, so each date is the date of the commit that bumped the version.
 The plugin was renamed twice: `dts2-harness` became `dts2` in 4.0.0 and `dts2` became `dt` in 5.0.0. Older entries keep the command names that were current at the time.
 
+## [6.0.1]
+
+_Released 2026-11-26_
+
+Use masked configuration for remote knowledge access, simplify listing metadata and restrict component frontmatter.
+
 ## [6.0.0]
 
 _Released 2026-11-07_
 
 Directory edition for the Claude plugin directory. Skills, roles, and documents only. Hooks and scripts stay in the GitHub marketplace install (`plugins/dts2-runtime`), because an unverified organization cannot publish them.
 
-## [5.10.1]
+## [5.10.3]
 
 _Released 2026-11-26_
 
@@ -28,6 +34,12 @@ Hooks now install where Antigravity and Muse read them, and Muse blocks the call
 ### Upgrade note
 
 If you installed hooks for Antigravity or Muse before this release, delete the old files by hand: `.agent/hooks.json`, `~/.gemini/antigravity/hooks.json` and `~/.muse/hooks.json`.
+## [5.10.2]
+
+_Released 2026-11-26_
+
+- Update the Claude directory edition generator for sensitive remote configuration and listing metadata.
+
 ## [5.10.0]
 
 _Released 2026-11-26_

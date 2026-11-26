@@ -2,11 +2,7 @@
 name: verifier
 description: Read-only verifier. Runs the configured build, type, lint, and test commands, checks for stubs, and walks changed screens in a browser when asked. Produces evidence, never fixes.
 model: sonnet
-omitClaudeMd: true
 tools: Read, Grep, Glob, Bash
-disallowedTools: Write, Edit, NotebookEdit
-maxTurns: 40
-color: green
 ---
 
 > Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.

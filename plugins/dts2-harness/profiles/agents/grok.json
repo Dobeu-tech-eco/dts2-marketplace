@@ -29,7 +29,6 @@
   },
   "modelsVerified": false,
   "subscriptionName": "Grok Build",
-  "apiKeyEnv": "the xAI API key",
   "searchPaths": [
     "~/.grok/bin",
     "~/.local/bin",
@@ -120,5 +119,7 @@
     "standard": 3,
     "economy": 1
   },
-  "readOnlyRoles": ["reviewer"]
+  "readOnlyRoles": [
+    "reviewer"
+  ]
 }

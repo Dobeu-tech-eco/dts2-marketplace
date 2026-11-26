@@ -28,7 +28,7 @@ password manager. Rotate it by running step 4 again.
 Check it works:
 
 ```
-curl -H "Authorization: Bearer $TOKEN" https://dts2-knowledge.<your-subdomain>.workers.dev/api/meta
+curl -H "Authorization: Bearer YOUR_API_KEY" https://dts2-knowledge.<your-subdomain>.workers.dev/api/meta
 ```
 
 ## Auth

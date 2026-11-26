@@ -12,7 +12,7 @@ You describe the end state you want once. A scout sizes the job, a lead plans it
 
 This folder is the instruction edition published to the Claude plugin directory. It contains skills, roles, and documents. It does not contain hooks or scripts. The directory accepts those only from a Verified organization.
 
-Follow each skill with Claude's own tools. When a step names a file under `scripts/` or `hooks/`, do the work the step describes and write the files it names. Ask the user for a missing token or key. Do not read one from the machine, and do not download a program and run it.
+Follow each skill with Claude's own tools. When a step names a file under `scripts/` or `hooks/`, do the work the step describes and write the files it names. Configure remote connections through Claude Code. Enter credentials only in the masked configuration field for the connection. Do not download a program and run it.
 
 The full harness installs from GitHub. The commands are in Install below.
 

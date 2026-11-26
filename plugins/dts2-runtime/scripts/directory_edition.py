@@ -17,7 +17,7 @@ from typing import Final
 RUNTIME: Final[Path] = Path(__file__).resolve().parent.parent
 REPO: Final[Path] = RUNTIME.parent.parent
 DEST: Final[Path] = REPO / "plugins" / "dts2-harness"
-DIRECTORY_VERSION: Final[str] = "6.0.0"
+DIRECTORY_VERSION: Final[str] = "6.0.1"
 SKIP_DIRS: Final[frozenset[str]] = frozenset({
     "scripts", "hooks", "tests", "evals", "sdk", "__pycache__", ".pytest_cache", ".ruff_cache", ".hypothesis", ".git",
 })
@@ -32,13 +32,10 @@ ALLOWED_SUFFIXES: Final[frozenset[str]] = frozenset({
 BARE_NAMES: Final[frozenset[str]] = frozenset({"LICENSE", "README", ".gitignore"})
 IMAGE_SUFFIXES: Final[frozenset[str]] = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico"})
 SKILL_KEYS: Final[frozenset[str]] = frozenset({
-    "name", "description", "license", "allowed-tools", "metadata", "compatibility",
-    "argument-hint", "arguments", "disable-model-invocation", "user-invocable",
-    "model", "effort", "context", "agent",
+    "name", "description", "disable-model-invocation",
 })
 AGENT_KEYS: Final[frozenset[str]] = frozenset({
-    "name", "description", "model", "effort", "maxTurns", "tools", "disallowedTools",
-    "skills", "memory", "background", "omitClaudeMd", "isolation", "color",
+    "name", "description", "model", "tools",
 })
 TEXT_LIMIT: Final[int] = 256 * 1024
 FILE_LIMIT: Final[int] = 512
@@ -86,7 +83,7 @@ DIRECTORY_SECTION: Final[str] = """## Directory edition
 
 This folder is the instruction edition published to the Claude plugin directory. It contains skills, roles, and documents. It does not contain hooks or scripts. The directory accepts those only from a Verified organization.
 
-Follow each skill with Claude's own tools. When a step names a file under `scripts/` or `hooks/`, do the work the step describes and write the files it names. Ask the user for a missing token or key. Do not read one from the machine, and do not download a program and run it.
+Follow each skill with Claude's own tools. When a step names a file under `scripts/` or `hooks/`, do the work the step describes and write the files it names. Configure remote connections through Claude Code. Enter credentials only in the masked configuration field for the connection. Do not download a program and run it.
 
 The full harness installs from GitHub. The commands are in Install below.
 
@@ -110,7 +107,13 @@ REQUIREMENTS_TO: Final[str] = """## Requirements
 
 This edition does not include Python scripts or shell hooks. The full harness, which needs Python 3.10 or newer and bash, installs from the GitHub marketplace named dts2.
 """
-CHANGELOG_ENTRY: Final[str] = """## [6.0.0]
+CHANGELOG_ENTRY: Final[str] = """## [6.0.1]
+
+_Released 2026-11-26_
+
+Use masked configuration for remote knowledge access, simplify listing metadata and restrict component frontmatter.
+
+## [6.0.0]
 
 _Released 2026-11-07_
 
@@ -127,6 +130,10 @@ def _kept(path: Path) -> bool:
     rel = _rel(path)
     parts = rel.split("/")
     if any(part in SKIP_DIRS for part in parts[:-1]):
+        return False
+    if rel.startswith("templates/knowledge-cloudflare/") or (
+        rel.startswith("profiles/agents/") and rel.endswith("-api.json")
+    ):
         return False
     if path.name in SKIP_FILES:
         return False
@@ -193,6 +200,50 @@ def _rewrite_markdown(rel: str, text: str) -> str:
             "# Settings\n\nThese values are documentation in this edition.\n\n"
             f"```yaml\n{frontmatter.strip()}\n```\n{rest}"
         )
+    if rel == "skills/knowledge/SKILL.md":
+        frontmatter, _ = _split_frontmatter(text)
+        text = f"---\n{frontmatter}\n---\n\n" + (
+            "# Knowledge\n\n"
+            "For a Cloudflare knowledge store, configure its HTTPS MCP endpoint and bearer token "
+            "in the plugin configuration. Enter the token in the masked Knowledge token field. "
+            "Use the connected knowledge tools to list, find, record or remove preferences, "
+            "terms and learnings when the user requests it. Confirm removals with the user. "
+            "Keep credentials out of knowledge entries and conversation.\n\n"
+            "For a local or synced folder, use a folder the user identifies. Store one Markdown "
+            "entry per key under entries/preference, entries/term or entries/learning. "
+            "Read the store only when the user invokes this skill.\n"
+        )
+    if rel == "docs/API-AGENTS.md":
+        text = (
+            "# API-backed agents\n\n"
+            "## For people\n\n"
+            "API-backed provider profiles are available in the full harness from the dts2 GitHub marketplace.\n\n"
+            "## For agents\n\n"
+            "Use the configured Claude tools for work in the directory edition.\n"
+        )
+    line_replacements = {
+        "skills/run/phase-2-build.md": (
+            "- **provide now**", "- **Provide now**: ask the user to configure the integration and confirm it is ready.",
+        ),
+        "skills/run/modes.md": (
+            "1. Check presence only", "1. Ask the user to confirm the required integration is configured.",
+        ),
+        "skills/model/SKILL.md": (
+            "4. **Key.**", "4. API-backed provider setup belongs to the full harness. Choose subscription for this edition.",
+        ),
+        "docs/GUIDE.md": (
+            "- Store the key outside", "- See [API-backed agents](API-AGENTS.md) for edition availability.",
+        ),
+        "templates/ops/credential-handoff.md": (
+            "2. The person creates the credential",
+            "2. The person configures the remote connection through its masked configuration field.",
+        ),
+    }
+    if rel in line_replacements:
+        prefix, replacement = line_replacements[rel]
+        text = "\n".join(
+            replacement if line.startswith(prefix) else line for line in text.split("\n")
+        )
     if rel.startswith("skills/") or rel.startswith("agents/"):
         text = _insert_note(text)
     if rel == "README.md":
@@ -203,7 +254,7 @@ def _rewrite_markdown(rel: str, text: str) -> str:
         if REQUIREMENTS_FROM not in text:
             raise SystemExit("README requirements block changed; update directory_edition.py")
         text = text.replace(REQUIREMENTS_FROM, REQUIREMENTS_TO, 1)
-    if rel == "CHANGELOG.md" and "## [6.0.0]" not in text:
+    if rel == "CHANGELOG.md" and "## [6.0.1]" not in text:
         first_release = text.find("\n## [")
         if first_release < 0:
             raise SystemExit("CHANGELOG has no release heading")
@@ -216,6 +267,29 @@ def _rewrite_markdown(rel: str, text: str) -> str:
 def _rewrite_manifest(text: str) -> str:
     data = json.loads(text)
     data["version"] = DIRECTORY_VERSION
+    data["displayName"] = "DT"
+    data.pop("icon", None)
+    data["privacyPolicyUrl"] = "https://dobeu.net/privacy"
+    data["userConfig"] = {
+        "knowledge_endpoint": {
+            "type": "string",
+            "title": "Knowledge endpoint",
+            "description": "HTTPS MCP URL for your Cloudflare knowledge store",
+        },
+        "knowledge_token": {
+            "type": "string",
+            "title": "Knowledge token",
+            "description": "Bearer token for your Cloudflare knowledge store",
+            "sensitive": True,
+        },
+    }
+    data["mcpServers"] = {
+        "knowledge": {
+            "type": "http",
+            "url": "${user_config.knowledge_endpoint}",
+            "headers": {"Authorization": "Bearer ${user_config.knowledge_token}"},
+        },
+    }
     data["description"] = (
         "Instruction edition of the init-to-ship orchestrator. Skills and roles Claude follows "
         "with its own tools. The full harness, with hooks and scripts, installs from the GitHub marketplace dts2."
@@ -236,6 +310,12 @@ def render() -> dict[str, bytes]:
         text = raw.decode("utf-8")
         if rel == ".claude-plugin/plugin.json":
             text = _rewrite_manifest(text)
+        elif rel.startswith("profiles/agents/") and path.suffix == ".json":
+            profile = json.loads(text)
+            profile.pop("apiKeyEnv", None)
+            text = json.dumps(profile, indent=2, ensure_ascii=False) + "\n"
+            for old, new in REPLACEMENTS:
+                text = text.replace(old, new)
         elif path.suffix.lower() in {".md", ".txt", ".yaml", ".yml", ".json"} or path.name in BARE_NAMES:
             if path.suffix.lower() == ".md":
                 text = _rewrite_markdown(rel, text)
