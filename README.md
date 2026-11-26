@@ -5,15 +5,15 @@
 A **Dobeu Tech Solutions LLC** product. New York, NY · [dobeu.net](https://dobeu.net)
 
 ![License: MIT](https://img.shields.io/badge/license-MIT-5A4FAB)
-![Version 5.8.0](https://img.shields.io/badge/version-5.8.0-6B5CE7)
+![Version 5.9.0](https://img.shields.io/badge/version-5.9.0-6B5CE7)
 
-`dt` turns one task into a planned, built, reviewed and verified pull request, with you approving at the points that matter. Commands stay `/dt:<command>`. The listing title is “DT: Init to Ship Auto Agent Orchestrator.”
+`dt` turns one task into a planned, built, reviewed and verified pull request, with you approving at the points that matter. Commands use the form `/dt:<command>`. In the plugin directory it is listed as DT: Init to Ship Auto Agent Orchestrator.
 
 ## From Jeremy
 
 This started as a passion project and became the orchestrator I use to take work from init to ship. I was not planning to release it. It paid off in my own productivity, so I am putting it out. I hope it helps. Edits are welcome.
 
-I tested it on T3. The roster also marks these as verified in my use: Claude Code, OpenAI Codex, and OpenCode. Grok review and builder commands were exercised on 2026-10-22, and those model ids are still unverified. Parallel runs are set up for Linux, macOS, WSL, and Docker.
+I tested it on T3. The roster also marks these as verified in my use: Claude Code, OpenAI Codex, and OpenCode. I have also run the Grok review and builder commands, but I have not confirmed their model ids yet. Parallel runs are set up for Linux, macOS, WSL, and Docker.
 
 This repository is the Claude Code plugin marketplace for that product. It carries one plugin: `dt`, the harness. It is for developers and small teams who already use Claude Code and want a repeatable way to run larger changes.
 
@@ -101,21 +101,13 @@ flowchart TD
     class AG,TS,CI accent
 ```
 
-## What's new in 5.5.0
+## Releases
 
-- The version badge tracks the plugin version.
-- An optional team charter (`TEAM.md`) names which roster provider fills each existing seat. Without that file, runs are unchanged. If a named provider or connector does not answer, the run warns once and uses the next provider, or the usual roster.
-
-## What's new in 5.1.1
-
-- Ready for the Claude plugin directory: hook scripts now pass its checks.
-- Rewritten READMEs with an "All commands" table, plus a listing icon.
-- Composio: connections map correctly, including a `composio` CLI installed inside WSL.
-- Composio: if you say yes during onboarding, always-use is now on by default. You can turn it off.
+The [plugin changelog](plugins/dts2-runtime/CHANGELOG.md) lists every release, newest first.
 
 ### What's new in 3.0.0
 
-The first release of the end-state interview, Plan and Ship checkpoints, roster and deployment verification. Every later release is in the [plugin changelog](plugins/dts2-runtime/CHANGELOG.md).
+3.0.0 was the first public release. It introduced the end-state interview, the Plan and Ship checkpoints, the roster and deployment verification.
 
 The Claude plugin directory tracks `plugins/dts2-harness`, an instruction edition generated from the full harness. It has the skills and roles, and it does not include hooks or scripts. Regenerate it with `python3 plugins/dts2-runtime/scripts/directory_edition.py`.
 
@@ -152,7 +144,7 @@ Regenerate the Cursor files with `python3 plugins/dts2-runtime/scripts/cursor_su
 
 Day to day: run `/dt:setup` once per repo to agree an end state. Then `/dt:run <task>` takes one task from plan to pull request with checkpoints, and `/dt:check-in` shows progress. Use `/dt:ship` when the work is already on a branch and you want a checked pull request.
 
-For bounded role-instruction research, `/dt:loop <experiment.json>` compares one editable file on a frozen past-month receipt batch under fixed token and wall-clock caps. One metric decides keep/revert; every attempt is ledger-logged. The [experiment spec example](plugins/dts2-runtime/templates/loop-experiment.example.json) is inert. Improvements remain proposals for `/dt:ship` and existing merge gates; this update runs no production experiment.
+To tune a role's instructions, `/dt:loop <experiment.json>` tries changes to one file against a fixed set of last month's receipts, within set token and time limits. One metric decides whether each change is kept or reverted, and every attempt is written to a log. The [example spec](plugins/dts2-runtime/templates/loop-experiment.example.json) is a template and does nothing until you edit it. A change that wins is only a proposal: it still goes through `/dt:ship` and the usual merge checks, and nothing runs against production.
 
 ## Known limits
 

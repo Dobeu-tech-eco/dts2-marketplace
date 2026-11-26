@@ -7,7 +7,7 @@ Released versions live in this file. Work that has not been released yet lives i
 Each version heading is followed by its release date on the first line (`_Released YYYY-MM-DD_`). The repository holds no release tags, so each date is the date of the commit that bumped the version.
 The plugin was renamed twice: `dts2-harness` became `dts2` in 4.0.0 and `dts2` became `dt` in 5.0.0. Older entries keep the command names that were current at the time.
 
-## [5.8.0]
+## [5.9.0]
 
 _Released 2026-11-26_
 
@@ -20,6 +20,24 @@ The harness now merges the way this repository does: with a merge commit. Nothin
 - Autopilot squashes only when branch protection requires linear history. Otherwise it uses `--merge`.
 - When the roadmap is not locked yet, the next-step hint now includes the key that `approvals.py lock-roadmap` needs.
 - The approvals.py header now says who can write an approval, instead of saying that agents never can.
+
+## [5.8.0]
+
+_Released 2026-11-26_
+
+Agents can lock the roadmap once two different providers sign off, and the hooks now run under any agent. Nothing breaking.
+
+### Changed
+
+- An agent can now lock the roadmap only after two different providers have signed off on the same roadmap key. Each reviewer records its sign-off with `approvals.py sign-roadmap <key> [--provider P] [--note N]`. If fewer than two providers have signed, `lock-roadmap` exits 3 and says which providers are still missing.
+- `lock-roadmap` takes `--skip-review REASON` or `--single-provider REASON` for the cases where the second review is waived. Use the first when the owner says to skip the review or doesn't want to wait, and the second when only one provider is available. The lock log records the mode and the reason.
+- When the owner is asked to approve a lock, the prompt now names the providers that have signed.
+- This is a cooperative workflow gate. It assumes the local agents are honest, and a hostile local agent could forge sign-offs.
+- Hook scripts now find the plugin folder on their own, so they run under any agent and no longer need `CLAUDE_PLUGIN_ROOT`. Under Claude Code they behave as before.
+
+### Added
+
+- `scripts/hooks_install.py` writes the harness hooks into another agent's own config (Claude, Codex, Cursor, Antigravity, Grok Build or Muse). It merges with existing entries, adds nothing on a second run, and `--uninstall` removes only its own entries. `--dry-run` shows what it would write. The Codex, Antigravity, Grok and Muse formats are best guesses and are marked as such in the script.
 
 ## [5.7.0]
 

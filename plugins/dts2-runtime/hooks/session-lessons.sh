@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # SessionStart: put the most recent harness lessons, open state items and open action items into context. Never fails the session.
 set -uo pipefail
-[ -n "${CLAUDE_PLUGIN_ROOT:-}" ] || exit 0
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)}"
+[ -n "$PLUGIN_ROOT" ] || exit 0
 # shellcheck source-path=SCRIPTDIR source=lib-settings.sh
-source "${CLAUDE_PLUGIN_ROOT}/hooks/lib-settings.sh"
+source "${PLUGIN_ROOT}/hooks/lib-settings.sh"
 MAX_LESSONS_DEFAULT=5
 MAX_OPEN_ITEMS=5
 STAMP_DIR_RE='^[0-9]{8}-[0-9]{1,6}$'  # same shape as state_ids.STAMP_PATTERN
@@ -18,8 +19,8 @@ HOOK_INPUT=""
 matching_lessons() {
   local max="$1"
   command -v python3 >/dev/null 2>&1 || return 1
-  timeout 4 python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/scope-check.py" --lessons "$PWD" 2>/dev/null \
-    | python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/hook_util.py" lessons-tail "$max" 2>/dev/null
+  timeout 4 python3 -I "${PLUGIN_ROOT}/scripts/scope-check.py" --lessons "$PWD" 2>/dev/null \
+    | python3 -I "${PLUGIN_ROOT}/scripts/hook_util.py" lessons-tail "$max" 2>/dev/null
 }
 print_lessons() {
   local max found
@@ -35,14 +36,14 @@ print_lessons() {
 }
 print_open_items() {
   local items
-  items="$(python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/hook_util.py" open-items "$STATE" "$MAX_OPEN_ITEMS" 2>/dev/null)"
+  items="$(python3 -I "${PLUGIN_ROOT}/scripts/hook_util.py" open-items "$STATE" "$MAX_OPEN_ITEMS" 2>/dev/null)"
   [[ -n "$items" ]] || return 0
   echo "dts2-harness state (open items):"
   echo "$items"
 }
 print_action_items() {
   local items
-  items="$(python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/hook_util.py" open-action-items "$ACTION_ITEMS" "$MAX_OPEN_ITEMS" 2>/dev/null)"
+  items="$(python3 -I "${PLUGIN_ROOT}/scripts/hook_util.py" open-action-items "$ACTION_ITEMS" "$MAX_OPEN_ITEMS" 2>/dev/null)"
   [[ -n "$items" ]] || return 0
   echo "dts2-harness action items (open):"
   echo "$items"
@@ -50,7 +51,7 @@ print_action_items() {
 # After a compact the handoff file is the resume point: print a short pointer (under 300 tokens), not the digest.
 run_field() {
   local lease="$1" field="$2"
-  python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/hook_util.py" json-field "$field" --file "$lease" 2>/dev/null
+  python3 -I "${PLUGIN_ROOT}/scripts/hook_util.py" json-field "$field" --file "$lease" 2>/dev/null
 }
 run_phase() {
   local run="$1"
@@ -87,7 +88,7 @@ fi
 UNTRUSTED_MAX_CHARS=4000
 wrap_untrusted() {
   command -v python3 >/dev/null 2>&1 || return 0
-  timeout 4 python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/council.py" wrap - --source "dts2-harness session state" --max-chars "$UNTRUSTED_MAX_CHARS" 2>/dev/null
+  timeout 4 python3 -I "${PLUGIN_ROOT}/scripts/council.py" wrap - --source "dts2-harness session state" --max-chars "$UNTRUSTED_MAX_CHARS" 2>/dev/null
 }
 print_state_blocks() {
   [[ -f "$LESSONS" ]] && print_lessons
@@ -100,9 +101,9 @@ state_text="$(print_state_blocks)"
 print_scope() {
   local info scope root dir_name
   command -v python3 >/dev/null 2>&1 || return 0
-  info="$(timeout 4 python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/scope-check.py" "$PWD" 2>/dev/null)" || return 0
-  scope="$(printf '%s' "$info" | python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/hook_util.py" json-field scope 2>/dev/null)" || return 0
-  root="$(printf '%s' "$info" | python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/hook_util.py" json-field workspaceRoot --or-empty 2>/dev/null)" || return 0
+  info="$(timeout 4 python3 -I "${PLUGIN_ROOT}/scripts/scope-check.py" "$PWD" 2>/dev/null)" || return 0
+  scope="$(printf '%s' "$info" | python3 -I "${PLUGIN_ROOT}/scripts/hook_util.py" json-field scope 2>/dev/null)" || return 0
+  root="$(printf '%s' "$info" | python3 -I "${PLUGIN_ROOT}/scripts/hook_util.py" json-field workspaceRoot --or-empty 2>/dev/null)" || return 0
   dir_name="$(basename "$PWD")"
   case "$scope" in
     workspace-member) echo "dts2-harness scope: you are inside $dir_name, a member of workspace $root. Run /dt:run from $root (run pivots there automatically)." ;;
