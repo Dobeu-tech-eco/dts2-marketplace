@@ -17,7 +17,7 @@ The first rung that applies wins.
 | 1 | `no-composio-decision` | `/dt:composio` (the user types it) |
 | 2 | `no-end-state` | `/dt:setup` |
 | 3 | `end-state-not-approved` | `/dt:setup` to revise and approve |
-| 4 | `roadmap-not-approved` | none: the owner says "lock it in" in chat, or runs `approvals.py lock-roadmap` in their own terminal |
+| 4 | `roadmap-not-approved` | none: the owner says "lock it in" in chat, or runs `approvals.py lock-roadmap` in their own terminal; an agent may run `approvals.py lock-roadmap <key>` with the current key |
 | 5 | `sections-outstanding` | `/dt:dpp` when two or more sections are `todo`, else `/dt:run` |
 | 6 | `open-pull-requests` | `/dt:pr-sweep` |
 | 7 | `action-items-open` | `/dt:action-items` |
@@ -41,7 +41,8 @@ The roadmap is the end state's sections and acceptance criteria. Its scope key c
 
 1. Write the view: `python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.py" --repo . build`. Show `.harness/roadmap.md` to the owner.
 2. Show the `blocked_on` text. In Claude Code the owner locks it in chat in their own words ("lock it in", "approved, lock the roadmap") or with `lock roadmap <key>`. In any other harness (Codex, T3 Code, Cursor) the owner runs `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/approvals.py" lock-roadmap` in their own terminal and types yes.
-3. Stop. A hook records the lock, and only from the owner's own typed message: a question, a negation or a condition is never a lock, and neither is a plain yes. Never write `.claude/settings.local.json` yourself, and never run `lock-roadmap` for the owner.
+   An agent may lock it itself with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/approvals.py" lock-roadmap <key>`, passing the key from `blocked_on`, when the roadmap has a scope and is not locked yet. A stale or missing key locks nothing, and the log records the lock as `agent:<name>`.
+3. Stop. A hook records the lock, and only from the owner's own typed message: a question, a negation or a condition is never a lock, and neither is a plain yes. Never write `.claude/settings.local.json` yourself, and run `lock-roadmap` only with the current key.
 4. No hook runs in the instruction edition from the Claude plugin directory. There the owner adds the key to `dts2_approvals.roadmap` in `.claude/settings.local.json` by hand. Tell them the exact entry, and still never write the file yourself.
 
 A changed scope needs a new approval. Say so when rung 4 returns after the roadmap was approved before.

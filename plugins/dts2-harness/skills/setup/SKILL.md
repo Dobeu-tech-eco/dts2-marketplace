@@ -5,7 +5,7 @@ description: Interview the user to an approved end state (.harness/end-state.md)
 
 > Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
 
-# Setup — interview to an end state, then scaffold
+# Setup: interview to an end state, then scaffold
 
 Setup has two parts. **Part 1** interviews the user until the end state is clear and approved. **Part 2** writes the harness files. Part 2 never starts until the user approves the end state, unless `--scaffold-only` was given.
 

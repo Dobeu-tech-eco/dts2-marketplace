@@ -2,7 +2,7 @@
 
 # setup - Part 1, the interview (topology, sections, question loop, skills, grill, end state)
 
-### Round 3 — Topology
+### Round 3: Topology
 
 1. If you don't yet know what the user is building or changing, ask: `In a sentence or two, what are you building or changing?` Greenfield: from the answer, note whether it will have a UI and a marketing surface (landing or pricing page); if that is unclear, ask once. This stands in for scout's `Marketing surface:` line in Part 2.
 2. Propose 1 to 6 top-level components (from scout's modules, imported specs, and the answer above). One line each: name and what it does.
@@ -27,9 +27,9 @@ Read the threshold from `end_state_threshold` in `.claude/dts2-harness.local.md`
 
 Each round:
 1. Rate every component from 0 to 100 on each dimension, using only what the user has said and what you have read. Do not inflate. Guide: 0 nothing known, 50 stated but vague, 80 specific and checkable, 100 nothing left to ask.
-   - `goal` — what it must do.
-   - `constraints` — limits it must respect (stack, performance, security, budget, deadlines, must-not-change).
-   - `success` — how we'll know it works (acceptance criteria someone can check).
+   - `goal`: what it must do.
+   - `constraints`: limits it must respect (stack, performance, security, budget, deadlines, must-not-change).
+   - `success`: how we'll know it works (acceptance criteria someone can check).
    - `context` (brownfield only) — how it fits the existing code.
 2. Write the ratings to a temp file outside the repo (`mktemp`), shaped as
    `{"mode":"brownfield","components":[{"name":"...","goal":0,"constraints":0,"success":0,"context":0}]}`
@@ -45,7 +45,7 @@ Ways out of the loop:
 - The user replies with the literal text `Continue anyway`. Nothing else counts; if they say something similar, tell them that typing `Continue anyway` ends the interview below the threshold. Record `continuedAnyway: yes (at NN%)`.
 - 20 rounds. Stop, say so, and list what is still unclear under Open questions.
 
-### Round 4b — Skills
+### Round 4b: Skills
 
 Runs after the loop and before Round 5, when every component and its acceptance criteria are known. Search; do not install anything yet.
 
@@ -57,13 +57,13 @@ Runs after the loop and before Round 5, when every component and its acceptance 
 3. Ask once which to install **for this project only**. On yes, run `the publisher's installer for <source> --skill <name>` from the repo root, which installs into the project (`.claude/skills/`); for a plugin, add it to `enabledPlugins` in the project's `.claude/settings.json`. Never pass `-g` and never install into the user's home folder.
 4. Build the **skill plan**: one row per proposed skill, installed or not, with the columns `skill | source | installed | serves component | phase | order`. Phase is `plan`, `build`, `review` or `verify`. Order is the order a builder uses them within that component. Declined skills stay in the table with `installed: no`.
 
-### Round 4c — 4c. Grill the draft
+### Round 4c: 4c. Grill the draft
 
 Runs after the interview loop (and Round 4b) ends and before Round 5's approval question. Install each companion skill only at this step, with `the publisher's installer for https://github.com/mattpocock/skills --skill <name>` (see Companion skills in `.harness/discipline.md`), and record it in `.harness/keep.yaml` → `skills:` as `- name: <name>` / `source: the publisher's installer for https://github.com/mattpocock/skills --skill <name>` / `serves: harness`. Invoke it by slash name with the Skill tool, or read its SKILL.md and follow it inline when headless. If `a package launcher` is unavailable or the install fails, print `Skill <name> not installed (a package launcher unavailable or offline); continuing without it.`, add a Decisions action item with the command, and continue.
 
 Install and run `/grill-me` against the draft end state (components, Done criteria, Blueprint, Sections). Fold its hard questions into the interview as one more round of answers; unresolved ones go to Open questions. Then proceed to Round 5.
 
-### Round 5 — Write the end state and ask for approval
+### Round 5: Write the end state and ask for approval
 
 1. Copy `${CLAUDE_PLUGIN_ROOT}/templates/end-state.md` to `.harness/end-state.md` and fill it:
    - metadata: `rounds`, `clarity`, `threshold`, `thresholdSource`, `roster`, `status: pending approval`, `continuedAnyway` (`no`, or `yes (at NN%)`);

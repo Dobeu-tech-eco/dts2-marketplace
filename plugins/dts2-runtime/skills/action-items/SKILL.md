@@ -3,7 +3,7 @@ name: action-items
 description: Show open action items (Secrets, Decisions, Handoff, Deploy, Promotions) with age, owner and resolving command; mark done, add, or assign. Use when asked what is left, what is blocked on me, action items, or to hand this to another agent.
 ---
 
-# Action items — what is still open and who owns it
+# Action items: what is still open and who owns it
 
 Reads `.harness/action-items.md`; handoff briefs under `.harness/handoff/` appear as Handoff rows. All reading and writing goes through `scripts/action-items.py`; never edit the table by hand.
 

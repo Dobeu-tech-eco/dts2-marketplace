@@ -1,6 +1,6 @@
 > Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
 
-# Phase 2 — CI triage
+# Phase 2: CI triage
 
 ## Required checks
 Read them from branch protection per base branch: `gh api repos/<o>/<r>/branches/<base>/protection`, then `required_status_checks.contexts` and `required_status_checks.checks[].context`. `inventory` already does this and stores them in `inventory.json`. If protection is unreadable (403 or 404), treat every check as required.

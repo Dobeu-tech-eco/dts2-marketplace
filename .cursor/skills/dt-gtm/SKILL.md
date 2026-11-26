@@ -18,14 +18,14 @@ Merges, fleet broadcast, hook install, the headless SDK, and paid provider calls
 
 > Cursor edition: run scripts/dt_gate.py from this plugin for every gate. Do not read tokens or credential files. Do not merge, broadcast, install hooks, or spend a provider API. Carry out file work with Read, Edit, Grep, Glob, and git.
 
-# GTM — one seamless pass
+# GTM: one pass from audit to readiness
 
 This command never hard-stops. If something is missing it installs it, falls back, or continues with what is available.
 
 ## 1. Ensure marketing-skills (never stop)
 - Already available? Check with `/plugin` or `ListPlugins`, or by whether the Skill tool can invoke `marketing-skills:<name>`. If so, use it.
 - Not available: install headlessly with `the publisher's installer for https://github.com/coreyhaines31/marketingskills` (the same headless mechanism the harness uses for its companion skills), then use the installed skills.
-- Only if that genuinely cannot run (offline, or a non-synced environment): print ONE line — enable `marketing-skills@synced` under synced plugins, or run `/plugin install marketing-skills@claude-cowork` — and continue with whatever is available.
+- Only if that genuinely cannot run (offline, or a non-synced environment): print one line: enable `marketing-skills@synced` under synced plugins, or run `/plugin install marketing-skills@claude-cowork` — and continue with whatever is available.
 - Prefer the marketing-skills skills and do not hand-reimplement them when they are available.
 
 Run `python3 "$PLUGIN/scripts/dt_gate.py" bridge ensure-ignored.py <repo>`.
@@ -46,14 +46,14 @@ Run `python3 "$PLUGIN/scripts/dt_gate.py" bridge marketing-select.py --facts '<j
 Execute the selected skills back to back, feeding each the end state, the marketing-surface list, and `.agents/product-marketing-context.md`. Narrate it as a single GTM pass: do not announce each skill or present them as separate skills to the user. Each still writes its report behind the scenes.
 
 Canonical order (the full pipeline):
-1. `/marketing-skills:product-marketing-context` — auto-draft from the repo.
+1. `/marketing-skills:product-marketing-context`: auto-draft from the repo.
 2. `/marketing-skills:competitor-profiling`
 3. `/marketing-skills:seo-audit`
 4. `/marketing-skills:page-cro`
 5. `/marketing-skills:copywriting`
 6. `/marketing-skills:copy-editing`
 7. `/marketing-skills:launch-strategy`
-8. `/marketing-skills:analytics-tracking` — runs only when selected (analytics fact true).
+8. `/marketing-skills:analytics-tracking`: runs only when selected (analytics fact true).
 
 ## 5. Outputs
 Write to `.harness/gtm/<stamp>/` (`<stamp>` = `YYYYMMDD-HHMM`):

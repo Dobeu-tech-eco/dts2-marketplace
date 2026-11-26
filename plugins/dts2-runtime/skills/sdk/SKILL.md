@@ -4,7 +4,7 @@ description: Set up and run the dts2 pipeline headless with the Claude Agent SDK
 disable-model-invocation: true
 ---
 
-# SDK — headless runner
+# SDK: headless runner
 
 Runner: `${CLAUDE_PLUGIN_ROOT}/sdk/dts2-run.py`. It reuses this plugin's agent files, so headless and interactive runs follow the same rules.
 

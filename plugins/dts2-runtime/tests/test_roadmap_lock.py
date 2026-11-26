@@ -244,11 +244,24 @@ class LockRoadmapTests(unittest.TestCase):
     def test_no_scope(self) -> None:
         self.assertEqual(approvals.lock_roadmap(Path(tempfile.mkdtemp()), terminal=FakeTerminal("yes\n"))[0], 1)
 
-    def test_refused_for_a_son(self) -> None:
+    def test_son_locks_with_the_matching_key(self) -> None:
+        with mock.patch.dict(os.environ, {"DTS2_SON": "1"}):
+            code, message = approvals.lock_roadmap(self.repo, self.key, terminal=FakeTerminal(""))
+        self.assertEqual(code, 0)
+        self.assertIn("agent (son)", message)
+        self.assertTrue(roadmap.status(self.repo)["approved"])
+
+    def test_son_without_a_key_locks_nothing(self) -> None:
         with mock.patch.dict(os.environ, {"DTS2_SON": "1"}):
             code, message = approvals.lock_roadmap(self.repo, terminal=FakeTerminal("yes\n"))
         self.assertEqual(code, 2)
-        self.assertIn("own terminal", message)
+        self.assertIn(self.key, message)
+        self.assertFalse(roadmap.status(self.repo)["approved"])
+
+    def test_son_with_a_stale_key_locks_nothing(self) -> None:
+        with mock.patch.dict(os.environ, {"DTS2_SON": "1"}):
+            code, _ = approvals.lock_roadmap(self.repo, "0" * 12, terminal=FakeTerminal(""))
+        self.assertEqual(code, 1)
         self.assertFalse(roadmap.status(self.repo)["approved"])
 
     def test_refused_without_a_terminal(self) -> None:
@@ -258,8 +271,16 @@ class LockRoadmapTests(unittest.TestCase):
         self.assertIn("no terminal", message)
         self.assertFalse(roadmap.status(self.repo)["approved"])
 
-    def test_refused_under_an_agent_even_with_a_terminal(self) -> None:
-        # An agent can get a terminal of its own (a pty from `script`, or a tool that writes to a pty), so a terminal alone is not proof.
+    def test_agent_locks_with_the_matching_key_and_logs_it(self) -> None:
+        with mock.patch.object(approvals, "agent_ancestor", return_value="codex"), \
+                mock.patch.object(approvals, "open_terminal", return_value=None):
+            code, message = approvals.lock_roadmap(self.repo, self.key)
+        self.assertEqual(code, 0)
+        self.assertIn("codex", message)
+        self.assertTrue(roadmap.status(self.repo)["approved"])
+        self.assertIn("agent:codex", (self.repo / approvals.LOG_REL).read_text(encoding="utf-8"))
+
+    def test_agent_without_a_key_locks_nothing(self) -> None:
         with mock.patch.object(approvals, "agent_ancestor", return_value="codex"), \
                 mock.patch.object(approvals, "open_terminal", return_value=FakeTerminal("yes\n")):
             code, message = approvals.lock_roadmap(self.repo)

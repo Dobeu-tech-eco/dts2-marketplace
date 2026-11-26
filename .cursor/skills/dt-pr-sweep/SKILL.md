@@ -18,7 +18,7 @@ Merges, fleet broadcast, hook install, the headless SDK, and paid provider calls
 
 > Cursor edition: run scripts/dt_gate.py from this plugin for every gate. Do not read tokens or credential files. Do not merge, broadcast, install hooks, or spend a provider API. Carry out file work with Read, Edit, Grep, Glob, and git.
 
-# PR-sweep — get open PRs down to the ones that need you
+# PR-sweep: get open PRs down to the ones that need you
 
 `/dt-pr-sweep [owner/repo] [--stale-days N] [--mine|--author A|--head-prefix P] [--optimise-ci]`. The repo defaults to the current one (`gh repo view --json nameWithOwner`); `--stale-days` defaults to 3. `--mine` is the signed-in user (`gh api user`), `--author A` one login, `--head-prefix P` only branches starting with `P`.
 

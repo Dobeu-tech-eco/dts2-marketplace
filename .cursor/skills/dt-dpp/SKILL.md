@@ -18,7 +18,7 @@ Merges, fleet broadcast, hook install, the headless SDK, and paid provider calls
 
 > Cursor edition: run scripts/dt_gate.py from this plugin for every gate. Do not read tokens or credential files. Do not merge, broadcast, install hooks, or spend a provider API. Carry out file work with Read, Edit, Grep, Glob, and git.
 
-# dpp — parallel autopilot under one head
+# dpp: parallel autopilot under one head
 
 `/dt-dpp [dry-run] [--full] [resume]` is the head. Each lane is `/dt-autopilot --son <stamp>/<lane>` (autopilot §6) in its own worktree on `dts2/<stamp>/lane-<lane>` (the head works on `dts2/<stamp>/main`), run dir `.harness/runs/<stamp>/<lane>/`. The rules are `discipline.md`, the run and ship skills and autopilot §0–§5a; this file only says what the head does with them.
 

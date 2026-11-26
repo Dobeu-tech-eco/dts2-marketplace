@@ -17,7 +17,7 @@ Merges, fleet broadcast, hook install, the headless SDK, and paid provider calls
 
 > Cursor edition: run scripts/dt_gate.py from this plugin for every gate. Do not read tokens or credential files. Do not merge, broadcast, install hooks, or spend a provider API. Carry out file work with Read, Edit, Grep, Glob, and git.
 
-# Repo-sweep — decide on all your repos in one sitting
+# Repo-sweep: decide on all your repos in one sitting
 
 `/dt-repo-sweep [owner]` is the batch version of `/dt-ask-expert`. It reviews each repo quickly, collects the answers in one table, and lets you apply the cleanup in one go. Nothing is deleted automatically.
 

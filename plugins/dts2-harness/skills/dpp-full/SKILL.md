@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 > Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
 
-# dpp-full — dpp with `--full`
+# dpp-full: dpp with `--full`
 
 Everything is `skills/dpp/SKILL.md`; run it with `--full`.
 The only differences: the delegation scan joins the lane sources (section 1), and continuous dispatch starts the next eligible lane (section 5). Outside autopilot, section 8 asks before each new lane while `dpp_full_ask_each_lane` is true (the default). Autopilot and fullauto skip that ask.

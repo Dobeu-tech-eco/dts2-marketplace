@@ -4,7 +4,7 @@ description: Explain the dts2 harness (eight agents, twenty-nine skills, roster,
 disable-model-invocation: true
 ---
 
-# dts2 harness — orientation
+# dts2 harness: orientation
 
 This skill explains only, except the skill-parity step and the optional hooks step. Skill parity updates agent backends without asking. Hooks change files only after the user picks them. Do not invoke agents.
 
@@ -26,7 +26,7 @@ This skill explains only, except the skill-parity step and the optional hooks st
 | `sdk` | Run the same pipeline headless with the Agent SDK, using your existing Claude login, or an API key or key command for CI. |
 | `evolve` | Change the harness itself in its source repo: edit, validate, test, bump both manifests, commit; push only on an explicit yes. |
 | `action-items` | List open secrets, decisions, handoffs, deploy steps and promotions with the command that resolves each; `done`, `add`, `assign`. Pass-off for any agent: `.harness/handoff/latest.md`, resumed with `run resume`. |
-| `gtm` | Go-to-market in one seamless pass: auto-installs `marketing-skills` if missing, runs a deep-dive, picks the applicable skills, and ends in a `readiness.md` scorecard. |
+| `gtm` | Go-to-market in one pass: auto-installs `marketing-skills` if missing, runs a deep-dive, picks the applicable skills, and ends in a `readiness.md` scorecard. |
 | `ship` | `/dt:ship` opens a PR on your own initiative: pre-check, type/lint/test/build, secret and do-not-touch scan, verifier and reviewer, receipt, PR template, push and open; then sweeps PRs and branches so only main and dev remain. Never merges. |
 | `feature` | `/dt:feature <idea>` adds a feature to the roadmap: clarity score, a scoped deep interview when it is unclear, the lead writes it into the end state and every plan doc, then a PR. |
 | `autopilot` | `/dt:autopilot <steps>` runs steps unattended: three frontier providers must agree on the plan and the build (the latest frontier Claude Chairman breaks a split), one PR per step merged on green CI before the next. Progress shows in check-in. |

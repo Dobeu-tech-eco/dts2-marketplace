@@ -3,7 +3,7 @@ name: dpp
 description: Run several autopilot lanes in parallel as headless sons, one worktree each, under a head that plans lanes, supervises, serialises merges and writes one report. Use when the user says dpp, parallel autopilot, or work several check-in items at once.
 ---
 
-# dpp — parallel autopilot under one head
+# dpp: parallel autopilot under one head
 
 `/dt:dpp [dry-run] [--full] [resume]` is the head. Each lane is `/dt:autopilot --son <stamp>/<lane>` (autopilot §6) in its own worktree on `dts2/<stamp>/lane-<lane>` (the head works on `dts2/<stamp>/main`), run dir `.harness/runs/<stamp>/<lane>/`. The rules are `discipline.md`, the run and ship skills and autopilot §0–§5a; this file only says what the head does with them.
 

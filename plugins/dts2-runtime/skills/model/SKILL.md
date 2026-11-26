@@ -4,7 +4,7 @@ description: Choose which agent provider fills the lead, advisory and sign-off s
 disable-model-invocation: true
 ---
 
-# Model — pick the orchestration provider
+# Model: pick the orchestration provider
 
 Frontier-tier seats (lead planning, advisory review, sign-off) default to Claude. This skill switches which provider fills them. Execution seats are never affected: builders keep running the cheapest capable model at a complexity-scaled effort, resolved by `scripts/delegate.py`, whichever provider leads. The rule that frontier is only for advice and sign-off holds for every provider.
 

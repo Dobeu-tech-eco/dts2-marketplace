@@ -1,4 +1,4 @@
-# Phase 3 — execute, close out, report
+# Phase 3: execute, close out, report
 
 ## Model rule
 The lead only coordinates and signs off. Every rebase, fix or CI change is done by a worker with the model named explicitly in the dispatch: `sonnet` for code, CI and rebases, `haiku` for mechanical edits (changelog lines, version bumps, comments). One worker per PR, each in its own worktree:

@@ -5,7 +5,7 @@ description: See every harness session on this computer, read their status, logs
 
 > Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
 
-# Fleet — every harness session on this machine, and one message to all of them
+# Fleet: every harness session on this machine, and one message to all of them
 
 Hooks register each session in a shared home (`DTS2_FLEET_HOME`, else `DTS2_HOME/fleet`, else `~/.dts2/fleet`). This skill reads that registry and writes to a broadcast inbox that each session picks up on its own. It never types into a terminal.
 

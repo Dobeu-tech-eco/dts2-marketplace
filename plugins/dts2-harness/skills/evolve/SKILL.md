@@ -5,7 +5,7 @@ description: "Change the dts2 harness itself in its source repo: edit a skill, a
 
 > Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
 
-# Evolve — change the harness at its source
+# Evolve: change the harness at its source
 
 Never edit the installed copy. `plugins/cache` and `plugins/synced` are generated; edits there are lost on the next update and are never made.
 

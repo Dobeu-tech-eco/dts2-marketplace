@@ -2,7 +2,7 @@
 
 # setup - Part 2, scaffold
 
-## Part 2 — Scaffold
+## Part 2: Scaffold
 
 Gate: `.harness/end-state.md` has `status: approved`, and `dt_gate.py scaffold` accepts the matching approval digest.
 
@@ -13,14 +13,14 @@ Gate: `.harness/end-state.md` has `status: approved`, and `dt_gate.py scaffold` 
 3. Detect the stack from root files (`package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `Gemfile`, `composer.json`, workspace markers such as `pnpm-workspace.yaml`, `turbo.json`, `nx.json`, `go.work`).
 4. For each harness the user chose to retire: move it to `.harness.bak-<stamp>/<folder>`. Leave `coexist` folders untouched.
 5. Write:
-   - `.harness/config.yaml` — `project`, `commands` (`test`, `typecheck`, `lint`, `build`, `quick`) taken from real scripts only, `paths` (src, tests, docs, config, generated), `do_not_touch` (`.env`, `.env.*`, `secrets/**`, `**/credentials*`), and a `roster:` block from the Agents round (default `- name: claude`; with `--scaffold-only`, run `roster.py detect` and use the default unless other agents are installed, then ask once). For a monorepo add `packages:` with each package path and its own commands.
-   - `.harness/review-checklist.md` — correctness, types, tests, security, conventions, scope, tuned to the stack.
-   - `.harness/lessons.md` — header only: `# Lessons` and one line explaining the format `- [L-001] <rule> (source: <run or PR>)`.
-   - `.harness/discipline.md` — copy `$PLUGIN/templates/discipline.md`.
-   - `.harness/keep.yaml` — copy `$PLUGIN/templates/keep.yaml` if absent; fill `agents:` from the Agents round and append every skill the user said yes to in the Skills round under `skills:` with its `source` (`the publisher's installer for <ref>` exactly as installed, `plugin`, or `synced`) and `serves`. Any plugin the user names as must-keep goes under `plugins:`. Append only; never remove entries. It is committed with the harness and never gitignored.
-   - `.harness/state.md` — copy `$PLUGIN/templates/state.md` if absent. Append each harness decision from Round 2b as `- <date> <folder>: <decision>`.
-   - `.claude/dts2-harness.local.md` — copy `$PLUGIN/templates/dts2-harness.local.md`.
-   - `.agents/product-marketing-context.md` — a stub with headings (product, audience, positioning, pricing, voice), **only** if the repo has a marketing surface (scout's `Marketing surface: yes` for brownfield, the user's stated surface for greenfield) and the file does not exist. This is marketingskills' shared context file and the one file the harness may write under `.agents/`.
+   - `.harness/config.yaml`: `project`, `commands` (`test`, `typecheck`, `lint`, `build`, `quick`) taken from real scripts only, `paths` (src, tests, docs, config, generated), `do_not_touch` (`.env`, `.env.*`, `secrets/**`, `**/credentials*`), and a `roster:` block from the Agents round (default `- name: claude`; with `--scaffold-only`, run `roster.py detect` and use the default unless other agents are installed, then ask once). For a monorepo add `packages:` with each package path and its own commands.
+   - `.harness/review-checklist.md`: correctness, types, tests, security, conventions, scope, tuned to the stack.
+   - `.harness/lessons.md`: header only: `# Lessons` and one line explaining the format `- [L-001] <rule> (source: <run or PR>)`.
+   - `.harness/discipline.md`: copy `$PLUGIN/templates/discipline.md`.
+   - `.harness/keep.yaml`: copy `$PLUGIN/templates/keep.yaml` if absent; fill `agents:` from the Agents round and append every skill the user said yes to in the Skills round under `skills:` with its `source` (`the publisher's installer for <ref>` exactly as installed, `plugin`, or `synced`) and `serves`. Any plugin the user names as must-keep goes under `plugins:`. Append only; never remove entries. It is committed with the harness and never gitignored.
+   - `.harness/state.md`: copy `$PLUGIN/templates/state.md` if absent. Append each harness decision from Round 2b as `- <date> <folder>: <decision>`.
+   - `.claude/dts2-harness.local.md`: copy `$PLUGIN/templates/dts2-harness.local.md`.
+   - `.agents/product-marketing-context.md`: a stub with headings (product, audience, positioning, pricing, voice), **only** if the repo has a marketing surface (scout's `Marketing surface: yes` for brownfield, the user's stated surface for greenfield) and the file does not exist. This is marketingskills' shared context file and the one file the harness may write under `.agents/`.
 6. Run `python3 "$PLUGIN/scripts/dt_gate.py" bridge roster.py resolve --config .harness/config.yaml`. If it errors, show the error and fix the roster with the user.
 7. If the Impeccable skill is installed and the repo has a marketing surface (as in step 5) or a UI (a frontend framework, HTML templates, or app screens in the stack; for greenfield, the user's stated surface), run `/impeccable init`.
 8. Run `python3 "$PLUGIN/scripts/dt_gate.py" bridge ensure-ignored.py <repo>` to add the harness's ignore entries to `.gitignore`.

@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 > Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
 
-# Knowledge — your personal preferences and glossary, on every device
+# Knowledge: your personal preferences and glossary, on every device
 
 A small private store of things that are true for you, not for one repo: standing defaults ("my standard team is 6 agents"), glossary terms (a brand or product line and the repos in it) and lessons that apply everywhere. It is personal and private, and it is never part of the plugin. One Markdown file per entry lives under `entries/<kind>/<key>.md`; the store is a folder (`DTS2_KNOWLEDGE`, else `$DTS2_HOME/knowledge`, else `~/.dts2/knowledge`) that is usually a private git repo you own, so it can sync between devices.
 

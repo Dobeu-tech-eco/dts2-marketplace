@@ -12,7 +12,9 @@ A `roadmap` entry is the 12-character scope key printed by `roadmap.py status`. 
 - In Claude Code, the owner says it in chat, in their own words ("lock it in", "approve the roadmap", or `lock roadmap <key>`).
   The UserPromptSubmit hook (`hooks/roadmap-lock.sh`) runs only on typed text and calls `grant`; the model never writes the file.
 - In any other harness or model (Codex, T3 Code, Cursor), the owner runs `approvals.py lock-roadmap` in their own terminal.
-  It asks for a yes on the terminal itself, and refuses inside a son launch or when no terminal is attached.
+  It asks for a yes on the terminal itself, and refuses when no terminal is attached.
+- An agent launch may run `approvals.py lock-roadmap <key>` itself when the roadmap has a scope, the key matches the
+  current roadmap and it is not locked yet. No prompt is shown, and the log records the lock as `agent:<name>`.
 
 `is_human_approved(kind, key)` reads only that file. Nothing an agent writes anywhere else counts, and `record_actor` only logs
 who asked (`agent:<session_id>` or `human`), so the log shows when an agent claimed an approval it did not hold."""
@@ -122,11 +124,13 @@ INTENT_MAX_WORDS: Final[int] = 16
 BACKUP_SUFFIX: Final[str] = ".bak"
 
 
-def grant(repo: Path, kind: str, key: str) -> bool:
-    """Append `key` under `kind` in the human file. Only the UserPromptSubmit hook calls this, on text the person typed.
-    Refused (False, nothing written) inside a son launch (`DTS2_SON` set) or when the existing file is not a JSON object."""
+def grant(repo: Path, kind: str, key: str, agent_lock: bool = False) -> bool:
+    """Append `key` under `kind` in the human file. The UserPromptSubmit hook calls this on text the person typed, and
+    `lock_roadmap` calls it with `agent_lock=True` for an agent that passed the matching roadmap key.
+    Refused (False, nothing written) inside a son launch (`DTS2_SON` set) unless `agent_lock`, or when the existing file
+    is not a JSON object."""
     check_kind(kind)
-    if os.environ.get("DTS2_SON"):
+    if os.environ.get("DTS2_SON") and not agent_lock:
         return False
     path: Path = human_marker_path(repo)
     data: dict[str, Any] = {}
@@ -248,13 +252,12 @@ def agent_ancestor() -> str | None:
 
 
 def lock_roadmap(repo: Path, key: str | None = None, terminal: Any = None) -> tuple[int, str]:
-    """(exit code, message) for `approvals.py lock-roadmap`: the owner locks the roadmap from their own terminal, in any harness.
-    Refused inside a son launch, when no terminal is attached, when a given key does not match, or without a typed yes."""
-    if os.environ.get("DTS2_SON"):
-        return 2, "dt: lock-roadmap is refused inside an agent launch; run it in your own terminal"
-    agent: str | None = agent_ancestor() if terminal is None else None
-    if agent is not None:
-        return 2, f"dt: lock-roadmap is refused under an agent ({agent}); run it in your own terminal"
+    """(exit code, message) for `approvals.py lock-roadmap`, in any harness.
+    The owner runs it in their own terminal and types yes. An agent launch (a son, or a process under an agent CLI) may
+    run it too, with no prompt, when the roadmap has a scope, the agent passes the current roadmap key, and the roadmap
+    is not locked yet; the lock is logged as `agent:<name>`. Refused when a given key does not match, when an agent
+    gives no key, when no terminal is attached for the owner, or without the owner's typed yes."""
+    agent: str | None = "son" if os.environ.get("DTS2_SON") else (agent_ancestor() if terminal is None else None)
     import roadmap  # noqa: PLC0415 (roadmap imports this module)
     info: dict[str, Any] = roadmap.status(repo)
     current: str | None = info["key"]
@@ -264,6 +267,8 @@ def lock_roadmap(repo: Path, key: str | None = None, terminal: Any = None) -> tu
         return 1, f"dt: roadmap key {key.lower()} does not match the current roadmap {current}; nothing locked"
     if info["approved"]:
         return 0, f"dt: roadmap {current} is already locked"
+    if agent is not None:
+        return agent_lock_roadmap(repo, current, key, agent)
     tty: Any = terminal if terminal is not None else open_terminal()
     if tty is None:
         return 2, "dt: lock-roadmap needs your own terminal (no terminal is attached); nothing locked"
@@ -281,6 +286,17 @@ def lock_roadmap(repo: Path, key: str | None = None, terminal: Any = None) -> tu
     return 0, f"dt: roadmap {current} locked by the owner"
 
 
+def agent_lock_roadmap(repo: Path, current: str, key: str | None, agent: str) -> tuple[int, str]:
+    """Lock for an agent launch: it must name the current roadmap key, so it locks the scope it read and nothing newer."""
+    import roadmap  # noqa: PLC0415 (roadmap imports this module)
+    if key is None:
+        return 2, f"dt: an agent ({agent}) must pass the roadmap key: approvals.py lock-roadmap {current}; nothing locked"
+    if not grant(repo, roadmap.APPROVAL_KIND, current, agent_lock=True):
+        return 1, f"dt: roadmap {current} was not locked (the approvals file could not be written)"
+    record_actor(roadmap.APPROVAL_KIND, current, f"agent:{agent}", repo)
+    return 0, f"dt: roadmap {current} locked by an agent ({agent})"
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", default=".")
@@ -291,7 +307,7 @@ def main(argv: list[str] | None = None) -> int:
     chk.add_argument("--session", default=None)
     sub.add_parser("path")
     sub.add_parser("grant-from-prompt", help="read a UserPromptSubmit payload on stdin; a typed lock (\"lock it in\") locks the roadmap")
-    lock = sub.add_parser("lock-roadmap", help="lock the current roadmap from your own terminal, in any harness; asks for a yes")
+    lock = sub.add_parser("lock-roadmap", help="lock the current roadmap in any harness; the owner types yes, an agent passes the roadmap key")
     lock.add_argument("key", nargs="?", default=None)
     args = parser.parse_args(argv)
     repo: Path = Path(args.repo)

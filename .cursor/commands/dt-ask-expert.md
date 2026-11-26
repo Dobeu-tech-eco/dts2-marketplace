@@ -17,7 +17,7 @@ Merges, fleet broadcast, hook install, the headless SDK, and paid provider calls
 
 > Cursor edition: run scripts/dt_gate.py from this plugin for every gate. Do not read tokens or credential files. Do not merge, broadcast, install hooks, or spend a provider API. Carry out file work with Read, Edit, Grep, Glob, and git.
 
-# Ask-expert — should I keep this repo?
+# Ask-expert: should I keep this repo?
 
 `/dt-ask-expert [repo] ["what I'm unsure about"]` reviews one repo in depth and ends with a one-page memo in plain words. It runs on its own, before setup, and changes nothing in the repo. Archiving or deleting is a separate step you confirm yourself.
 

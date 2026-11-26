@@ -4,7 +4,7 @@ description: Keep your own standing preferences, glossary terms (brands, product
 disable-model-invocation: true
 ---
 
-# Knowledge — your personal preferences and glossary, on every device
+# Knowledge: your personal preferences and glossary, on every device
 
 A small private store of things that are true for you, not for one repo: standing defaults ("my standard team is 6 agents"), glossary terms (a brand or product line and the repos in it) and lessons that apply everywhere. It is personal and private, and it is never part of the plugin. One Markdown file per entry lives under `entries/<kind>/<key>.md`; the store is a folder (`DTS2_KNOWLEDGE`, else `$DTS2_HOME/knowledge`, else `~/.dts2/knowledge`) that is usually a private git repo you own, so it can sync between devices.
 

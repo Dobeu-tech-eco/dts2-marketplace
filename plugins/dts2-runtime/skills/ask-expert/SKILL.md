@@ -3,7 +3,7 @@ name: ask-expert
 description: "Ask an expert panel whether to keep, fold, sell as a template, archive or delete one repo. Reads the code, checks your goal, votes across three model providers, and writes a one-page decision memo. Use for should I keep this repo or what do I do with this project."
 ---
 
-# Ask-expert — should I keep this repo?
+# Ask-expert: should I keep this repo?
 
 `/dt:ask-expert [repo] ["what I'm unsure about"]` reviews one repo in depth and ends with a one-page memo in plain words. It runs on its own, before setup, and changes nothing in the repo. Archiving or deleting is a separate step you confirm yourself.
 

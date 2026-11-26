@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 > Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
 
-# Composio — one connection for app tools
+# Composio: one connection for app tools
 
 Composio is a third-party tools integration. Memory stays in the knowledge store (`/dt:knowledge`), never in Composio. Credentials are never read, printed or pasted: the CLI keeps them in its own secure config (`~/.composio`). Prune means disable or archive with a backup, never delete.
 

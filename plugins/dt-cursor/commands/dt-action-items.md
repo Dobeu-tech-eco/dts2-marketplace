@@ -17,7 +17,7 @@ Merges, fleet broadcast, hook install, the headless SDK, and paid provider calls
 
 > Cursor edition: run scripts/dt_gate.py from this plugin for every gate. Do not read tokens or credential files. Do not merge, broadcast, install hooks, or spend a provider API. Carry out file work with Read, Edit, Grep, Glob, and git.
 
-# Action items — what is still open and who owns it
+# Action items: what is still open and who owns it
 
 Reads `.harness/action-items.md`; handoff briefs under `.harness/handoff/` appear as Handoff rows. All reading and writing goes through `scripts/action-items.py`; never edit the table by hand.
 

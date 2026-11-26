@@ -17,7 +17,7 @@ Merges, fleet broadcast, hook install, the headless SDK, and paid provider calls
 
 > Cursor edition: run scripts/dt_gate.py from this plugin for every gate. Do not read tokens or credential files. Do not merge, broadcast, install hooks, or spend a provider API. Carry out file work with Read, Edit, Grep, Glob, and git.
 
-# Steer — redirect a running harness without losing work
+# Steer: redirect a running harness without losing work
 
 Prompts typed mid-run are captured by the prompt-intake hook and folded in without stopping. Only an explicit `/dt-steer <new direction>` (or a prompt starting `steer:`) stops and redirects. Without `/dt-steer` nothing stops.
 

@@ -22,12 +22,12 @@ Read by lead, builder, reviewer and verifier. Copied to `.harness/discipline.md`
 
 Agents never push. The one exception is `pr-receipt.sh`, which pushes only the PR's own branch, and only to add or extend the PR template. It never pushes any other branch.
 
-## Rule 9 — Orchestration (frontier for advice and sign-off, execution on the cheapest capable tier)
+## Rule 9: Orchestration (frontier for advice and sign-off, execution on the cheapest capable tier)
 
 Applies to every agent provider the roster can dispatch; the lead is the session running `run`.
 
 1. **Lead thinks, workers type.** The lead (frontier tier) decomposes, writes briefs, merges and verifies. It never implements a builder section itself except a trivial single-file change under ~20 lines.
-2. **Frontier is for advice and sign-off only.** The frontier tier runs the lead (planning), the axis-scaled reviewers' final whole-diff review, and the verifier. Execution — every builder — never runs a frontier model; it takes the cheapest capable model and raises effort (low/medium/high/max) for harder lanes. Every dispatch names both a model and an effort. A builder dispatched on a frontier model is a defect the final review blocks on.
+2. **Frontier is for advice and sign-off only.** The frontier tier runs the lead (planning), the axis-scaled reviewers' final whole-diff review, and the verifier. Execution, meaning every builder, never runs a frontier model; it takes the cheapest capable model and raises effort (low/medium/high/max) for harder lanes. Every dispatch names both a model and an effort. A builder dispatched on a frontier model is a defect the final review blocks on.
 3. **Parallel by file set.** Independent builders run in one dispatch message. Two writers never share a file, section or tree.
 4. **Briefs, not history.** A worker receives its plan section (goal, owned files, read-only files, acceptance criteria, lessons, test command, commit message, report path) and nothing else. It returns status, commit, a one-line test summary and concerns.
 5. **Worker contract.** A worker never pushes, never spawns subagents or reviewers, never grades its own work, never edits outside its file set, and stops to report when the plan is wrong instead of improvising.
@@ -42,7 +42,7 @@ Applies to every agent provider the roster can dispatch; the lead is the session
 14. **Optional team charter.** A `TEAM.md` at the repo root (or `.harness/TEAM.md`) maps lead, builder, reviewer, playtester, copywriter and dispatcher onto the seats `/dt:model`, lanes and the autopilot vote already use. `scripts/team_charter.py` is the only reader. No file means those seats stay as they are. A provider, CLI, MCP server or other connector that does not answer is skipped for the next name in that row, or the harness roster, with one warning line, and the run continues. While the file is present, a review loop stops after 3 rounds and asks the person; the five-round fix cap for a red check stays. Merges, deploys and spending still need an explicit human approval.
 14. **One model per agent session.** A session keeps the model it started on, including when it is resumed; to change model, start a fresh worker (fix rounds 1-3 on Sonnet, rounds 4-5 on Opus).
 
-## Rule 10 — Branches, worktrees and pull requests
+## Rule 10: Branches, worktrees and pull requests
 
 1. **One run, one branch.** `run` creates `dts2/<stamp>/main` from the current branch and all builder work lands there. The default branch is never a run's working branch.
 2. **One builder, one worktree (git).** In a git repo each builder gets `git worktree add ../<repo>-dts2-<n> -b dts2/<stamp>/main-b<n> dts2/<stamp>/main` and works only inside it. `use_worktrees: never` is the explicit opt-out; `always` forces it in workspace mode too.
@@ -54,7 +54,7 @@ Applies to every agent provider the roster can dispatch; the lead is the session
 
 ## Companion skills (installed per project, recorded in keep.yaml)
 
-Installed with `the publisher's installer for https://github.com/mattpocock/skills --skill <name>` (plus `-a claude-code --copy -y`, so Claude Code gets a real copy; a bare install's symlink silently fails on Windows) by the run Pre-check (`scripts/skills-check.py <repo> --fix`), which runs before every run command, installs any missing companion or keep.yaml skill. Its freshness sweep — removing retired skills, detecting one gone upstream, and writing update proposals for approval (never a bulk update) — is the network-heavy part, so it runs at most once a day (marker `.harness/.skills-checked`); the rest of the day the pre-check is a filesystem-only presence check that still installs anything missing. The per-moment install lines below remain as a fallback when the pre-check could not run. Each is recorded in `.harness/keep.yaml` so a setup re-run keeps them. Each is recorded as `- name: <name>` / `source: the publisher's installer for https://github.com/mattpocock/skills --skill <name>` / `serves: harness` under `skills:`. Invoke an installed skill by its slash name with the Skill tool; when headless or the Skill tool is unavailable, read the installed skill's SKILL.md and follow it inline.
+Installed with `the publisher's installer for https://github.com/mattpocock/skills --skill <name>` (plus `-a claude-code --copy -y`, so Claude Code gets a real copy; a bare install's symlink silently fails on Windows) by the run Pre-check (`scripts/skills-check.py <repo> --fix`), which runs before every run command, installs any missing companion or keep.yaml skill. Its freshness sweep (removing retired skills, detecting one gone upstream, and writing update proposals for approval, never a bulk update) is the network-heavy part, so it runs at most once a day (marker `.harness/.skills-checked`); the rest of the day the pre-check is a filesystem-only presence check that still installs anything missing. The per-moment install lines below remain as a fallback when the pre-check could not run. Each is recorded in `.harness/keep.yaml` so a setup re-run keeps them. Each is recorded as `- name: <name>` / `source: the publisher's installer for https://github.com/mattpocock/skills --skill <name>` / `serves: harness` under `skills:`. Invoke an installed skill by its slash name with the Skill tool; when headless or the Skill tool is unavailable, read the installed skill's SKILL.md and follow it inline.
 
 | skill | when the harness runs it |
 |---|---|

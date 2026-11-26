@@ -4,9 +4,9 @@ Rules for AI coding assistants (Claude Code, Codex, Cursor or any other) that wo
 
 ## For people
 
-This page is written for AI coding assistants. It is the short list of things an assistant must know before it edits this repository: which folders are the source, which are generated, what to run before a commit, and how changes reach `main`.
+This page is for AI coding assistants. It lists what one must know before editing this repository: which folders are source and which are generated, what to run before a commit, and how changes reach `main`.
 
-You do not need it to use the plugin. Start at the [README](README.md). If you maintain this repository, keep this page current when a rule below changes, because assistants read it first and act on it.
+To use the plugin, start at the [README](README.md) instead. If you maintain the repository, update this page whenever a rule here changes, because assistants read it first.
 
 ## For agents
 
@@ -80,12 +80,12 @@ python3 plugins/dts2-runtime/scripts/cursor_surface.py --check
 The plan format is a user-level rule, so it is not repeated here. In short: scan-friendly bullets, the files and the check for each step, Assumptions, and numbered Unresolved questions with a default. `plugins/dts2-runtime/scripts/claude-md-rules.py` writes the full rule into `~/.claude/CLAUDE.md`, and `/dt:machine-prep` step 7 offers it. In this repository, also:
 
 - A plan step that changes `plugins/dts2-runtime/` names both generator reruns (`directory_edition.py`, then `cursor_surface.py`) and the checks above as its verification.
-- Name every one-way door. Here that includes a merge to `main`, which is public, and any commit that would carry private names into history that cannot be recalled.
+- Name every one-way door, meaning a change that cannot be undone once it lands (see [GLOSSARY.md](GLOSSARY.md)). Here that includes a merge to `main`, which is public, and any commit that would carry private names into history that cannot be recalled.
 - Use the terms in [GLOSSARY.md](GLOSSARY.md) in code, plans, briefs and reviews. A new harness concept gets its row in the same change.
 - When a mistake or review comment recurs, add a deterministic check (a test, a ruff rule or a hook) instead of a new line on this page. Prose here is for judgement calls only; delete a line that changes nothing.
-- Worker briefs, handoffs and run state stay complete and explicit. The short format is for plans a person reads.
+- Briefs written for builders, handoffs and run state stay complete and explicit. The short format is for plans a person reads.
 - A bug fix starts with a test that fails on the code before the fix. Quote it failing, then passing, in the receipt's Evidence.
-- Split work that mixes door types into stacked pull requests: two-way doors first, the one-way door last and on its own.
+- Split work that mixes one-way and two-way doors into stacked pull requests: two-way doors first, the one-way door last and on its own.
 - A one-way-door diff (approval or lock logic, a release, anything that rewrites user files) also gets one review from a second model family, such as `codex:review`. Filter its findings before acting; cross-model reviewers over-report. Two-way-door diffs skip this.
 - A test that needs a gitignored fixture fails when the fixture is missing. It does not skip, because a worktree has no copy and a skip there reads as a pass.
 

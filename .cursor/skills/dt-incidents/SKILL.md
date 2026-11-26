@@ -18,7 +18,7 @@ Merges, fleet broadcast, hook install, the headless SDK, and paid provider calls
 
 > Cursor edition: run scripts/dt_gate.py from this plugin for every gate. Do not read tokens or credential files. Do not merge, broadcast, install hooks, or spend a provider API. Carry out file work with Read, Edit, Grep, Glob, and git.
 
-# Incidents — catch agent problems, learn from them
+# Incidents: catch agent problems, learn from them
 
 Hooks write every subagent start, stop and incident to `.harness/agents.jsonl` with no model call. This skill reads that record. All counting is plain Python; the only model step is `review`.
 
@@ -29,13 +29,13 @@ All commands: `python3 "$PLUGIN/scripts/dt_gate.py" bridge incidents.py <sub>`.
 2. **End-of-shift debrief.** On Stop and SessionEnd a hook writes `.harness/briefs/<session>.md`: per agent class, spawned, finished, partial, no-report, incidents, rework, average duration. `review` turns open incidents into root causes and lessons.
 
 ## Subcommands
-- `list [--open] [--json]` — incidents with id, category, severity, agent and status. `--open` keeps only unresolved ones.
-- `live` — agents started and not stopped (age, class, parent) plus active son lanes. A hung agent shows here first.
-- `brief [--session S]` — print the end-of-run brief for this session, or for session S.
-- `resolve <id> --root-cause "<text>" --how "<text>"` — close one incident by hand.
-- `lessons stats` — helpful, harmful and unused counts per lesson, and which are demoted or expired.
-- `promote --tier harness|knowledge <id>` — move a trend one tier up (see the ladder below).
-- `review` — the debrief, described next.
+- `list [--open] [--json]`: incidents with id, category, severity, agent and status. `--open` keeps only unresolved ones.
+- `live`: agents started and not stopped (age, class, parent) plus active child lanes (lanes started by another lane). A hung agent shows here first.
+- `brief [--session S]`: print the end-of-run brief for this session, or for session S.
+- `resolve <id> --root-cause "<text>" --how "<text>"`: close one incident by hand.
+- `lessons stats`: helpful, harmful and unused counts per lesson, and which are demoted or expired.
+- `promote --tier harness|knowledge <id>`: move a trend one tier up (see the ladder below).
+- `review`: the debrief, described next.
 
 ## review
 1. Run `python3 "$PLUGIN/scripts/dt_gate.py" bridge incidents.py review-input`. When it lists no open incidents, say so and stop; no model is spawned.

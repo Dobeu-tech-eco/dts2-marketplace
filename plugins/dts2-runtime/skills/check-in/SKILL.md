@@ -3,7 +3,7 @@ name: check-in
 description: Show project progress against the approved end state as a checklist with N of M complete and a percent, from the Sections map, acceptance boxes and open action items. Read-only. Use when asked for a check-in, progress, status, or what is left, or across every session on the machine (`all`).
 ---
 
-# Check-in — complete versus outstanding, against the end state
+# Check-in: complete versus outstanding, against the end state
 
 Read-only and runnable any time, mid-run or between runs. It changes no files.
 

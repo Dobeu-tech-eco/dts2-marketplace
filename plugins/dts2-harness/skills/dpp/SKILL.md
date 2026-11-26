@@ -5,7 +5,7 @@ description: Run several autopilot lanes in parallel as headless sons, one workt
 
 > Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
 
-# dpp — parallel autopilot under one head
+# dpp: parallel autopilot under one head
 
 `/dt:dpp [dry-run] [--full] [resume]` is the head. Each lane is `/dt:autopilot --son <stamp>/<lane>` (autopilot §6) in its own worktree on `dts2/<stamp>/lane-<lane>` (the head works on `dts2/<stamp>/main`), run dir `.harness/runs/<stamp>/<lane>/`. The rules are `discipline.md`, the run and ship skills and autopilot §0–§5a; this file only says what the head does with them.
 

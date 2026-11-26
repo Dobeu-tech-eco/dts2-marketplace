@@ -18,7 +18,7 @@ Merges, fleet broadcast, hook install, the headless SDK, and paid provider calls
 
 > Cursor edition: run scripts/dt_gate.py from this plugin for every gate. Do not read tokens or credential files. Do not merge, broadcast, install hooks, or spend a provider API. Carry out file work with Read, Edit, Grep, Glob, and git.
 
-# Cooldown — pause an agent until its usage limit resets
+# Cooldown: pause an agent until its usage limit resets
 
 Usage limits belong to the account, so one status file (`~/.dts2/agent-status.json`, or the path in `DTS2_AGENT_STATUS`) is shared by every session on the machine. The roster probe, the lead failover and the SessionStart hook all read it. A paused agent is never called, probed or picked as lead until its reset time passes; it then comes back on its own.
 

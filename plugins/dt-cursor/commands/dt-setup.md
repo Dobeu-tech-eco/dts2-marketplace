@@ -17,7 +17,7 @@ Merges, fleet broadcast, hook install, the headless SDK, and paid provider calls
 
 > Cursor edition: run scripts/dt_gate.py from this plugin for every gate. Do not read tokens or credential files. Do not merge, broadcast, install hooks, or spend a provider API. Carry out file work with Read, Edit, Grep, Glob, and git.
 
-# Setup — interview to an end state, then scaffold
+# Setup: interview to an end state, then scaffold
 
 Setup has two parts. **Part 1** interviews the user until the end state is clear and approved. **Part 2** writes the harness files. Part 2 never starts until `dt_gate.py approve` records the sha256 of `.harness/end-state.md`. The gate rejects `--scaffold-only`.
 

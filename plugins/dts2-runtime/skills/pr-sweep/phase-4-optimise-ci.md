@@ -1,4 +1,4 @@
-# Phase 4 — CI optimisation (only with `--optimise-ci`)
+# Phase 4: CI optimisation (only with `--optimise-ci`)
 
 Runs after the sweep is done, never with `--run <stamp>`. One separate PR on branch `sweep/ci-optimise`, built by a sonnet worker in its own worktree from the CI logs and `flaky.md` the sweep produced.
 

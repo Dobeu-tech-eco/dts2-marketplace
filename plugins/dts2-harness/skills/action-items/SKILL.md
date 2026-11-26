@@ -5,7 +5,7 @@ description: Show open action items (Secrets, Decisions, Handoff, Deploy, Promot
 
 > Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
 
-# Action items — what is still open and who owns it
+# Action items: what is still open and who owns it
 
 Reads `.harness/action-items.md`; handoff briefs under `.harness/handoff/` appear as Handoff rows. All reading and writing goes through `scripts/action-items.py`; never edit the table by hand.
 
