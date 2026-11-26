@@ -252,6 +252,10 @@ def reject(repo: Path, gap_id: str, reason: str) -> dict[str, Any]:
     row: dict[str, Any] = find_row(rows, gap_id)
     if row["status"] == STATUS_APPLIED:
         raise GapError(f"{gap_id} is already applied; edit the end state instead")
+    current: str | None = roadmap.read_end_state(repo)
+    pending: str | None = row.get("pending_key_after")
+    if pending is not None and current is not None and pending == scope_key(current):
+        raise GapError(f"{gap_id} is already in the end state; rerun apply to finish it")
     row.update(status=STATUS_REJECTED, reason=clean(reason), rejected=now())
     write_rows(repo, rows)
     return row

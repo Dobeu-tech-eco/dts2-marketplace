@@ -167,6 +167,17 @@ class GapResearchTest(unittest.TestCase):
         self.assertNotEqual(row["key_before"], row["key_after"])
         self.assertNotIn("pending_key_after", gap_research.read_rows(self.repo)[0])
 
+    def test_reject_refuses_a_partial_apply(self) -> None:
+        self.add("criterion", "web", "users can sign out")
+        rows: list[dict[str, Any]] = gap_research.read_rows(self.repo)
+        after: str = END_STATE.replace("- [ ] users can sign in", "- [ ] users can sign in\n- [ ] users can sign out")
+        rows[0]["pending_key_after"] = gap_research.scope_key(after)
+        gap_research.write_rows(self.repo, rows)
+        (self.repo / ".harness" / "end-state.md").write_text(after, encoding="utf-8")
+        with self.assertRaises(gap_research.GapError):
+            gap_research.reject(self.repo, "G-1", "late")
+        self.assertEqual(gap_research.apply(self.repo, "G-1")["status"], gap_research.STATUS_APPLIED)
+
     def test_failed_escalation_writes_no_row(self) -> None:
         (self.repo / ".harness" / "action-items.md").mkdir()
         with self.assertRaises(gap_research.GapError):
