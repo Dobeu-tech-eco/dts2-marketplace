@@ -311,6 +311,8 @@ class HandoverTests(unittest.TestCase):
         self.assertTrue(done["merged"])
         merge_call = [c for c in self.calls if c[1:3] == ["pr", "merge"]][0]
         self.assertIn("--match-head-commit", merge_call)
+        self.assertIn("--merge", merge_call)
+        self.assertNotIn("--squash", merge_call)
         self.assertEqual(done["walkthrough_env"], {})
 
     def test_g65_no_checks_means_no_merge_and_production_walkthroughs_are_read_only(self) -> None:

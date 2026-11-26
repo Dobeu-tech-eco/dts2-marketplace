@@ -217,7 +217,7 @@ def merge_pr(repo: Path, pr: str, verifier_ok: bool, default_branch: str | None 
     blockers: list[str] = merge_blockers(facts, default_branch, prod, pr, repo)
     if blockers:
         return {"ok": False, "merged": False, "blockers": blockers}
-    args: list[str] = ["pr", "merge", pr, "--squash", *(["--match-head-commit", str(facts["head"])] if facts["head"] else [])]
+    args: list[str] = ["pr", "merge", pr, "--merge", *(["--match-head-commit", str(facts["head"])] if facts["head"] else [])]
     code, out = gh(repo, *args, runner=runner)
     return {"ok": code == 0, "merged": code == 0, "blockers": [] if code == 0 else [out.strip()[:200]],
             "walkthrough_read_only": prod, "walkthrough_env": walkthrough_env(prod)}

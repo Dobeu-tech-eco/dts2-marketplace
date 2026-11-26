@@ -9,7 +9,7 @@ Per-agent rules (batch D): when `DTS2_AGENT` names a roster agent, a tool call i
 
 Three tables: `deny` (always refused: force-push, `--admin`, deploy CLIs, `gh secret`, `vercel env`, a bare `env`, repo
 deletes), `require_approval` (`gh pr merge` and a push to the default branch pass only when `approvals.is_human_approved`
-holds the PR number or branch; a direct `gh pr merge <n> --squash --match-head-commit <sha>` also passes under the standing grant
+holds the PR number or branch; a direct `gh pr merge <n> --merge --match-head-commit <sha>` also passes under the standing grant
 `merge_policy: ["auto-when-green"]` when the sha is the one `lanes.py merge-go-step` recorded and is the live PR head, the PR touches no
 `auto_merge_never_paths` file and every required check of the base branch is green on that head. `--auto` is always refused: GitHub native
 auto-merge is never armed, so every merge runs through the merge mutex) and `scanner_required` (staging everything in an unattended run needs a secret scanner; its
@@ -449,7 +449,7 @@ def standing_merge_refusal(policy: dict[str, Any], rule: dict[str, Any], words: 
         return "a merge under the standing grant needs `--match-head-commit <sha>` (the PR head that `lanes.py merge-go-step` recorded) so a later push cannot ride along"
     key: str | None = pr_key(merge_args)
     if not key:
-        return "a merge under the standing grant names the PR by number or URL (`gh pr merge <n> --squash --match-head-commit <sha>`), not by branch or the current branch"
+        return "a merge under the standing grant names the PR by number or URL (`gh pr merge <n> --merge --match-head-commit <sha>`), not by branch or the current branch"
     url = REPO_FROM_URL.match(guard.merge_selector(merge_args) or "")
     repo = repo or (url.group(1) if url else "")
     if not any(sha.startswith(g["head"].lower()) or g["head"].lower().startswith(sha) for g in guard.grants(cwd)):
