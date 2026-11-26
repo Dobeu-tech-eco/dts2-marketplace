@@ -13,6 +13,21 @@ _Released 2026-11-07_
 
 Directory edition for the Claude plugin directory. Skills, roles, and documents only. Hooks and scripts stay in the GitHub marketplace install (`plugins/dts2-runtime`), because an unverified organization cannot publish them.
 
+## [5.6.0]
+
+_Released 2026-11-26_
+
+Planning and pull request rules, a glossary, and an onboarding step that offers the same rules to your own `CLAUDE.md`. Nothing breaking.
+
+### Added
+
+- `scripts/claude-md-rules.py` (`plan`, `apply`, `check`) writes the planning, checks-over-prose and Merge danger rules into `~/.claude/CLAUDE.md` between `dts2-plan-rules` markers. A rerun replaces the block in place, text outside the markers is never touched, and `apply` backs the file up first. `machine-prep` step 7 shows the diff and writes only after a yes.
+- The PR template, the plugin PR template and the receipt carry `### Merge danger` (one-way or two-way door, and the blast radius) and `### Evidence` (before and after). Tests pin both.
+
+### Changed
+
+- `discipline.md` rule 4: prose rules are for judgement calls only. A recurring mistake becomes a lint rule, a test or a hook.
+
 ## [5.5.2]
 
 _Released 2026-11-25_

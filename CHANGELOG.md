@@ -6,6 +6,19 @@ The plugin's full release history lives in [plugins/dts2-runtime/CHANGELOG.md](p
 
 ## Unreleased
 
+## [5.6.0]
+
+_Released 2026-11-26_
+
+Planning and pull request rules, a glossary, and an onboarding step for your own `CLAUDE.md`. Nothing breaking. Full notes are in [plugins/dts2-runtime/CHANGELOG.md](plugins/dts2-runtime/CHANGELOG.md).
+
+### Added
+
+- [GLOSSARY.md](GLOSSARY.md): one meaning per harness term, with the words to avoid.
+- `AGENTS.md` section "Plans and checks": the repository's planning rules.
+- `claude-md-rules.py` and `/dt:machine-prep` step 7: add the planning and PR rules to your own `CLAUDE.md`, after you see the diff.
+- PR template: Merge danger and Evidence sections.
+
 ## [5.5.2]
 
 _Released 2026-11-25_

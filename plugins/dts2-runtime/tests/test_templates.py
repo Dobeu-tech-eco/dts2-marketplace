@@ -9,7 +9,7 @@ from helpers import PLUGIN_ROOT
 
 TEMPLATES: Final[Path] = PLUGIN_ROOT / "templates"
 RECEIPT_HEADINGS: Final[list[str]] = [
-    "## Change receipt", "### Tests run", "### Review verdict", "### Approved by",
+    "## Change receipt", "### Tests run", "### Merge danger", "### Evidence", "### Review verdict", "### Approved by",
     "### Steps outside this change", "### Open risks", "### Rollback point",
 ]
 EXPECTED: Final[dict[str, list[str]]] = {
