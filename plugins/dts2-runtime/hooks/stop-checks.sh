@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Stop: refresh .harness/handoff/latest.md, then quick typecheck and lint on changed files. Warnings go to stderr; with stop_checks_block: true a red check blocks the stop once.
 set -uo pipefail
-[ -n "${CLAUDE_PLUGIN_ROOT:-}" ] || exit 0
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)}"
+[ -n "$PLUGIN_ROOT" ] || exit 0
 # shellcheck source-path=SCRIPTDIR source=lib-settings.sh
-source "${CLAUDE_PLUGIN_ROOT}/hooks/lib-settings.sh"
+source "${PLUGIN_ROOT}/hooks/lib-settings.sh"
 CHECK_TIMEOUT_S=30
 # lib-settings.sh supplies a timeout shim when GNU timeout is missing (stock macOS); a missing binary is never red.
 HANDOFF_TIMEOUT_S=10
@@ -12,7 +13,7 @@ DEADLINE_MARGIN_S=5        # finish this long before the hook timeout so the fin
 START_S=$SECONDS
 hook_timeout_s() {
   local value
-  value="$(python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/hook_util.py" stop-timeout "${CLAUDE_PLUGIN_ROOT}/hooks/hooks.json" "$HOOK_TIMEOUT_DEFAULT_S" 2>/dev/null)" || value=""
+  value="$(python3 -I "${PLUGIN_ROOT}/scripts/hook_util.py" stop-timeout "${PLUGIN_ROOT}/hooks/hooks.json" "$HOOK_TIMEOUT_DEFAULT_S" 2>/dev/null)" || value=""
   [[ "$value" =~ ^[1-9][0-9]*$ ]] || value="$HOOK_TIMEOUT_DEFAULT_S"
   echo "$value"
 }
@@ -36,7 +37,7 @@ step_budget_s() {
 [[ "$(setting enabled true)" == "true" ]] || exit 0
 write_handoff() {
   [[ -d ".harness" ]] || return 0
-  timeout "$HANDOFF_TIMEOUT_S" python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/handoff-write.py" "$PWD" >/dev/null 2>&1 || true
+  timeout "$HANDOFF_TIMEOUT_S" python3 -I "${PLUGIN_ROOT}/scripts/handoff-write.py" "$PWD" >/dev/null 2>&1 || true
 }
 write_handoff
 # The hook payload is read once, before any check step runs: a child that reads stdin cannot starve maybe_block of it.
@@ -154,7 +155,7 @@ maybe_block() {
   [[ -n "$RED_OUTPUT" ]] || return 0
   [[ "$(setting stop_checks_block false)" == "true" ]] || return 0
   [[ "$PAYLOAD" =~ \"stop_hook_active\"[[:space:]]*:[[:space:]]*true ]] && return 0
-  printf '%s' "$RED_OUTPUT" | python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/hook_util.py" block-reply
+  printf '%s' "$RED_OUTPUT" | python3 -I "${PLUGIN_ROOT}/scripts/hook_util.py" block-reply
 }
 run_checks
 save_fingerprint

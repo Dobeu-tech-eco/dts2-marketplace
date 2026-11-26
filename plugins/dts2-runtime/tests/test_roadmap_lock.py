@@ -244,11 +244,29 @@ class LockRoadmapTests(unittest.TestCase):
     def test_no_scope(self) -> None:
         self.assertEqual(approvals.lock_roadmap(Path(tempfile.mkdtemp()), terminal=FakeTerminal("yes\n"))[0], 1)
 
-    def test_refused_for_a_son(self) -> None:
+    def sign_twice(self) -> None:
+        for provider in ("claude", "codex"):
+            self.assertEqual(approvals.sign_roadmap(self.repo, self.key, provider)[0], 0)
+
+    def test_son_locks_with_the_matching_key(self) -> None:
+        self.sign_twice()
+        with mock.patch.dict(os.environ, {"DTS2_SON": "1"}):
+            code, message = approvals.lock_roadmap(self.repo, self.key, terminal=FakeTerminal(""))
+        self.assertEqual(code, 0)
+        self.assertIn("agent (son)", message)
+        self.assertTrue(roadmap.status(self.repo)["approved"])
+
+    def test_son_without_a_key_locks_nothing(self) -> None:
         with mock.patch.dict(os.environ, {"DTS2_SON": "1"}):
             code, message = approvals.lock_roadmap(self.repo, terminal=FakeTerminal("yes\n"))
         self.assertEqual(code, 2)
-        self.assertIn("own terminal", message)
+        self.assertIn(self.key, message)
+        self.assertFalse(roadmap.status(self.repo)["approved"])
+
+    def test_son_with_a_stale_key_locks_nothing(self) -> None:
+        with mock.patch.dict(os.environ, {"DTS2_SON": "1"}):
+            code, _ = approvals.lock_roadmap(self.repo, "0" * 12, terminal=FakeTerminal(""))
+        self.assertEqual(code, 1)
         self.assertFalse(roadmap.status(self.repo)["approved"])
 
     def test_refused_without_a_terminal(self) -> None:
@@ -258,8 +276,17 @@ class LockRoadmapTests(unittest.TestCase):
         self.assertIn("no terminal", message)
         self.assertFalse(roadmap.status(self.repo)["approved"])
 
-    def test_refused_under_an_agent_even_with_a_terminal(self) -> None:
-        # An agent can get a terminal of its own (a pty from `script`, or a tool that writes to a pty), so a terminal alone is not proof.
+    def test_agent_locks_with_the_matching_key_and_logs_it(self) -> None:
+        self.sign_twice()
+        with mock.patch.object(approvals, "agent_ancestor", return_value="codex"), \
+                mock.patch.object(approvals, "open_terminal", return_value=None):
+            code, message = approvals.lock_roadmap(self.repo, self.key)
+        self.assertEqual(code, 0)
+        self.assertIn("codex", message)
+        self.assertTrue(roadmap.status(self.repo)["approved"])
+        self.assertIn("agent:codex", (self.repo / approvals.LOG_REL).read_text(encoding="utf-8"))
+
+    def test_agent_without_a_key_locks_nothing(self) -> None:
         with mock.patch.object(approvals, "agent_ancestor", return_value="codex"), \
                 mock.patch.object(approvals, "open_terminal", return_value=FakeTerminal("yes\n")):
             code, message = approvals.lock_roadmap(self.repo)
@@ -281,7 +308,7 @@ class LockRoadmapTests(unittest.TestCase):
         stats: dict[str, str] = {"/proc/40/stat": "40 (bash) S 30 40", "/proc/30/stat": "30 (codex) S 20 30"}
         clean: dict[str, str] = {k: v for k, v in os.environ.items() if k not in approvals.AGENT_ENV}
         with mock.patch.dict(os.environ, clean, clear=True), mock.patch.object(approvals.os, "getppid", return_value=40), \
-                mock.patch.object(approvals.Path, "read_text", lambda self, encoding=None: stats[str(self)]):
+                mock.patch.object(approvals.Path, "read_text", lambda self, encoding=None: stats[self.as_posix()]):
             self.assertEqual(approvals.agent_ancestor(), "codex")
 
     @unittest.skipUnless(sys.platform.startswith("linux"), "needs a Linux pty")
@@ -304,6 +331,105 @@ class LockRoadmapTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertFalse(roadmap.status(self.repo)["approved"])
 
+
+
+class SignOffTests(unittest.TestCase):
+    """An agent locks only after two different providers signed the same roadmap key, or with an override and a reason."""
+
+    def setUp(self) -> None:
+        self.repo: Path = make_repo()
+        self.key: str = roadmap.status(self.repo)["key"]
+        self.env = mock.patch.dict(os.environ, {}, clear=False)
+        self.env.start()
+        os.environ.pop("DTS2_SON", None)
+
+    def tearDown(self) -> None:
+        self.env.stop()
+
+    def agent_lock(self, override: tuple[str, str] | None = None) -> tuple[int, str]:
+        with mock.patch.object(approvals, "agent_ancestor", return_value="codex"), \
+                mock.patch.object(approvals, "open_terminal", return_value=None):
+            return approvals.lock_roadmap(self.repo, self.key, override=override)
+
+    def test_known_provider_signs(self) -> None:
+        code, message = approvals.sign_roadmap(self.repo, self.key, "Claude", note="read all sections")
+        self.assertEqual(code, 0)
+        self.assertIn("1/2", message)
+        self.assertEqual(approvals.signoffs(self.repo, self.key), ["claude"])
+
+    def test_detected_provider_signs(self) -> None:
+        with mock.patch.object(approvals, "agent_ancestor", return_value="CLAUDECODE"):
+            self.assertEqual(approvals.sign_roadmap(self.repo, self.key)[0], 0)
+        self.assertEqual(approvals.signoffs(self.repo, self.key), ["claude"])
+
+    def test_unknown_provider_is_refused(self) -> None:
+        with mock.patch.object(approvals, "agent_ancestor", return_value=None):
+            code, message = approvals.sign_roadmap(self.repo, self.key, "mystery-bot")
+            self.assertEqual(code, 2)
+            self.assertIn("unknown provider", message)
+            self.assertEqual(approvals.sign_roadmap(self.repo, self.key)[0], 2)
+        self.assertEqual(approvals.signoffs(self.repo, self.key), [])
+
+    def test_stale_key_signs_nothing(self) -> None:
+        self.assertEqual(approvals.sign_roadmap(self.repo, OTHER_KEY, "claude")[0], 1)
+        self.assertEqual(approvals.signoffs(self.repo, self.key), [])
+
+    def test_no_scope_signs_nothing(self) -> None:
+        self.assertEqual(approvals.sign_roadmap(Path(tempfile.mkdtemp()), self.key, "claude")[0], 1)
+
+    def test_two_providers_let_an_agent_lock(self) -> None:
+        approvals.sign_roadmap(self.repo, self.key, "claude")
+        approvals.sign_roadmap(self.repo, self.key, "grok")
+        code, _ = self.agent_lock()
+        self.assertEqual(code, 0)
+        self.assertTrue(roadmap.status(self.repo)["approved"])
+
+    def test_same_provider_twice_is_not_enough(self) -> None:
+        approvals.sign_roadmap(self.repo, self.key, "claude")
+        approvals.sign_roadmap(self.repo, self.key, "claudecode")
+        code, message = self.agent_lock()
+        self.assertEqual(code, 3)
+        self.assertIn("sign-roadmap", message)
+        self.assertFalse(roadmap.status(self.repo)["approved"])
+
+    def test_signoffs_for_another_key_do_not_count(self) -> None:
+        line: str = json.dumps({"key": OTHER_KEY, "provider": "codex"}) + "\n"
+        state_io.append_text(self.repo / approvals.SIGNOFF_REL, line + "not json\n")
+        approvals.sign_roadmap(self.repo, self.key, "claude")
+        self.assertEqual(self.agent_lock()[0], 3)
+
+    def test_overrides_with_a_reason_lock_and_log_it(self) -> None:
+        for mode in approvals.OVERRIDES:
+            repo: Path = make_repo()
+            self.repo = repo
+            code, _ = self.agent_lock((mode, "owner said do not wait"))
+            self.assertEqual(code, 0, mode)
+            self.assertIn(f"override:{mode}", (repo / approvals.LOG_REL).read_text(encoding="utf-8"))
+
+    def test_override_without_a_reason_is_refused(self) -> None:
+        for override in (("skip-review", "  "), ("bogus", "a reason")):
+            self.assertEqual(self.agent_lock(override)[0], 2, override)
+        self.assertFalse(roadmap.status(self.repo)["approved"])
+
+    def test_owner_prompt_names_the_signers(self) -> None:
+        approvals.sign_roadmap(self.repo, self.key, "codex")
+        tty = FakeTerminal("yes\n")
+        self.assertEqual(approvals.lock_roadmap(self.repo, terminal=tty)[0], 0)
+        self.assertIn("signed by codex", tty.getvalue())
+
+    def test_cli_signs_and_parses_overrides(self) -> None:
+        quiet = mock.patch("sys.stdout", io.StringIO()), mock.patch("sys.stderr", io.StringIO())
+        with quiet[0], quiet[1]:
+            self.cli_signs_and_parses_overrides()
+
+    def cli_signs_and_parses_overrides(self) -> None:
+        self.assertEqual(approvals.main(["--repo", str(self.repo), "sign-roadmap", self.key, "--provider", "cursor"]), 0)
+        self.assertEqual(approvals.signoffs(self.repo, self.key), ["cursor"])
+        with mock.patch.object(approvals, "lock_roadmap", return_value=(0, "ok")) as lock:
+            approvals.main(["--repo", str(self.repo), "lock-roadmap", self.key, "--single-provider", "only claude here"])
+        self.assertEqual(lock.call_args.kwargs["override"], ("single-provider", "only claude here"))
+        with self.assertRaises(SystemExit):
+            approvals.main(["--repo", str(self.repo), "lock-roadmap", self.key, "--skip-review", "a", "--single-provider", "b"])
 
 GIT_BASH: Final[str] = r"C:\Program Files\Git\bin\bash.exe"
 
