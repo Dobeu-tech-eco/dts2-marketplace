@@ -19,6 +19,7 @@ import json
 import re
 import subprocess
 import sys
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Final
@@ -48,7 +49,8 @@ ACCEPTANCE_HEADING: Final[str] = "## Acceptance criteria"
 LEVEL_TWO: Final[str] = "## "
 LEVEL_THREE: Final[str] = "### "
 TABLE_PREFIX: Final[str] = "|"
-BOX_PREFIX: Final[str] = "- ["
+BOX_PATTERN: Final[re.Pattern[str]] = re.compile(r"^- \[[ xX]\] ")
+INDENT: Final[tuple[str, ...]] = (" ", "\t")
 ROW_DEFAULTS: Final[dict[str, str]] = {"complexity": "normal", "status": "todo"}
 EMPTY_CELL: Final[str] = "-"
 DECISIONS_GROUP: Final[str] = "Decisions"
@@ -71,8 +73,15 @@ def read_rows(repo: Path) -> list[dict[str, Any]]:
     path: Path = ledger_path(repo)
     if not path.is_file():
         return []
-    lines: list[str] = path.read_text(encoding="utf-8").splitlines()
-    return [json.loads(line) for line in lines if line.strip()]
+    rows: list[dict[str, Any]] = []
+    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError as error:
+            raise GapError(f"{LEDGER_REL} line {number} is not valid JSON") from error
+    return rows
 
 
 def write_rows(repo: Path, rows: list[dict[str, Any]]) -> None:
@@ -100,8 +109,13 @@ def now() -> str:
 def escalate(repo: Path, row: dict[str, Any]) -> None:
     script: Path = Path(__file__).resolve().parent / "action-items.py"
     text: str = f"Gap research {row['id']} needs a new service or account: {row['text']}"
-    subprocess.run([sys.executable, "-I", str(script), str(repo), "add", DECISIONS_GROUP, text],
-                   capture_output=True, text=True, check=True)
+    command: list[str] = [sys.executable, "-I", str(script), str(repo), "add", DECISIONS_GROUP, text,
+                          "--stamp", "gap-research", "--step", str(row["id"])]
+    try:
+        subprocess.run(command, capture_output=True, text=True, check=True)
+    except (subprocess.CalledProcessError, OSError) as error:
+        detail: str = " ".join(filter(None, [getattr(error, "stdout", ""), getattr(error, "stderr", "")])).strip()
+        raise GapError(f"could not add the Decisions item for {row['id']}: {detail or error}") from error
 
 
 def add(repo: Path, kind: str, lane: str, text: str, why: str, source: str, needs_service: bool) -> dict[str, Any]:
@@ -109,17 +123,17 @@ def add(repo: Path, kind: str, lane: str, text: str, why: str, source: str, need
     text, lane = clean(text), clean(lane)
     if not text or not lane:
         raise GapError("text and lane must not be empty")
-    same: list[dict[str, Any]] = [r for r in rows if r["kind"] == kind and r["text"].lower() == text.lower()
-                                  and r["status"] != STATUS_REJECTED]
+    same: list[dict[str, Any]] = [r for r in rows if r.get("kind") == kind and str(r.get("text", "")).lower() == text.lower()
+                                  and r.get("status") != STATUS_REJECTED]
     if same:
         return same[0]
     escalated: bool = needs_service or bool(NEEDS_SERVICE.search(f"{text} {why}"))
     row: dict[str, Any] = {"id": next_id(rows), "kind": kind, "lane": lane, "text": text, "why": clean(why),
                            "source": source, "status": STATUS_ESCALATED if escalated else STATUS_PROPOSED,
                            "added": now()}
-    write_rows(repo, [*rows, row])
     if escalated:
         escalate(repo, row)
+    write_rows(repo, [*rows, row])
     return row
 
 
@@ -147,8 +161,15 @@ def insert_criterion(lines: list[str], lane: str, text: str) -> list[str]:
         return [*lines[:cut], "", f"{LEVEL_THREE}{lane}", "", f"- [ ] {text}", *([""] if end < len(lines) else []),
                 *lines[end:]]
     sub_end: int = min(block_end(lines, lane_rows[0], LEVEL_THREE), end)
-    boxes: list[int] = [i for i in range(lane_rows[0], sub_end) if lines[i].startswith(BOX_PREFIX)]
-    at: int = boxes[-1] + 1 if boxes else lane_rows[0] + 1
+    boxes: list[int] = [i for i in range(lane_rows[0], sub_end) if BOX_PATTERN.match(lines[i])]
+    if not boxes:
+        at: int = lane_rows[0] + 1
+        while at < sub_end and not lines[at].strip():
+            at += 1
+        return [*lines[:lane_rows[0] + 1], "", f"- [ ] {text}", *([""] if at < len(lines) else []), *lines[at:]]
+    at = boxes[-1] + 1
+    while at < sub_end and lines[at].strip() and lines[at].startswith(INDENT):
+        at += 1
     return [*lines[:at], f"- [ ] {text}", *lines[at:]]
 
 
@@ -175,6 +196,13 @@ def scope_key(end_state: str) -> str | None:
     return full[:roadmap.KEY_LENGTH] if full else None
 
 
+def on_roadmap(lines: list[str], kind: str, text: str) -> bool:
+    """True when a scope line of the same kind carries this text, compared case-insensitively."""
+    prefix: str = "acceptance|" if kind == "criterion" else "section|"
+    names: list[str] = [line.split("|", 2)[-1] for line in lines if line.startswith(prefix)]
+    return text.lower() in {name.lower() for name in names}
+
+
 def apply(repo: Path, gap_id: str) -> dict[str, Any]:
     rows: list[dict[str, Any]] = read_rows(repo)
     row: dict[str, Any] = find_row(rows, gap_id)
@@ -183,10 +211,13 @@ def apply(repo: Path, gap_id: str) -> dict[str, Any]:
     before: str | None = roadmap.read_end_state(repo)
     if before is None:
         raise GapError("no end state")
-    if any(line.endswith(f"|{row['text']}") for line in roadmap.scope_lines(before)):
+    if on_roadmap(roadmap.scope_lines(before), row["kind"], row["text"]):
         raise GapError(f"{gap_id} is already on the roadmap")
     insert = insert_criterion if row["kind"] == "criterion" else insert_section
     after: str = "\n".join(insert(before.splitlines(), row["lane"], row["text"])) + "\n"
+    added: list[str] = list((Counter(roadmap.scope_lines(after)) - Counter(roadmap.scope_lines(before))).elements())
+    if len(added) != 1 or not on_roadmap(added, row["kind"], row["text"]) or scope_key(after) == scope_key(before):
+        raise GapError("the end state layout is not one this script can edit; add it by hand")
     atomic_write(repo / state_io.END_STATE_REL, after)
     row.update(status=STATUS_APPLIED, applied=now(), key_before=scope_key(before), key_after=scope_key(after))
     write_rows(repo, rows)

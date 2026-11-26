@@ -137,5 +137,48 @@ class GapResearchTest(unittest.TestCase):
         self.assertIn("no suggestion G-9", json.loads(missing.stdout)["error"])
 
 
+    def test_failed_escalation_writes_no_row(self) -> None:
+        (self.repo / ".harness" / "action-items.md").mkdir()
+        with self.assertRaises(gap_research.GapError):
+            self.add("section", "api", "send receipts", needs=True)
+        self.assertEqual(gap_research.read_rows(self.repo), [])
+
+    def test_unparsed_layout_is_refused_and_left_unchanged(self) -> None:
+        odd: str = END_STATE.replace("| # | section | serves component |", "| No | Section | Component |")
+        (self.repo / ".harness" / "end-state.md").write_text(odd, encoding="utf-8")
+        self.add("section", "web", "password reset flow")
+        with self.assertRaises(gap_research.GapError):
+            gap_research.apply(self.repo, "G-1")
+        self.assertEqual(self.end_state(), odd)
+        self.assertEqual(gap_research.read_rows(self.repo)[0]["status"], gap_research.STATUS_PROPOSED)
+
+    def test_placeholder_text_is_refused(self) -> None:
+        self.add("section", "web", "<fill in later>")
+        with self.assertRaises(gap_research.GapError):
+            gap_research.apply(self.repo, "G-1")
+        self.assertEqual(self.end_state(), END_STATE)
+
+    def test_duplicate_check_ignores_case_and_respects_kind(self) -> None:
+        self.add("criterion", "web", "Users can sign in")
+        with self.assertRaises(gap_research.GapError):
+            gap_research.apply(self.repo, "G-1")
+        self.add("criterion", "web", "login page")
+        gap_research.apply(self.repo, "G-2")
+        self.assertIn("acceptance|login page", roadmap.scope_lines(self.end_state()))
+
+    def test_criterion_goes_after_continuation_lines(self) -> None:
+        text: str = END_STATE.replace("- [ ] users can sign in\n", "- [ ] users can sign in\n  with a password\n")
+        (self.repo / ".harness" / "end-state.md").write_text(text, encoding="utf-8")
+        self.add("criterion", "web", "users can sign out")
+        gap_research.apply(self.repo, "G-1")
+        self.assertIn("- [ ] users can sign in\n  with a password\n- [ ] users can sign out\n", self.end_state())
+
+    def test_first_criterion_in_empty_lane(self) -> None:
+        text: str = END_STATE.replace("### web\n\n- [ ] users can sign in\n", "### web\n")
+        (self.repo / ".harness" / "end-state.md").write_text(text, encoding="utf-8")
+        self.add("criterion", "Web", "users can sign out")
+        gap_research.apply(self.repo, "G-1")
+        self.assertIn("### web\n\n- [ ] users can sign out\n\n## Assumptions", self.end_state())
+
 if __name__ == "__main__":
     unittest.main()

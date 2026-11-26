@@ -27,7 +27,7 @@ Lessons live in the repo, so they travel with the code and every agent and machi
 6. After writing, clear the processed entries from the inbox.
 
 ## Gap research
-At each checkpoint, including Auto mode, run the gap research pass from `loop` section 6 against `.harness/end-state.md`, then run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/gap_research.py" <repo> list --status proposed`. Apply proposed rows only. Never apply an escalated row; the owner decides those from the Decisions item. Report the applied ids and the new scope key in the summary, and say that the roadmap needs a new lock.
+At each checkpoint, including Auto mode, run the gap research pass from `loop` section 6 against `.harness/end-state.md`, then run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/gap_research.py" <repo> list --status proposed`. Apply a proposed row only while the roadmap is not locked yet, or when the owner says to; otherwise list it in the summary and leave it proposed. Never apply an escalated row; the owner decides those from the Decisions item. Report any applied ids and the new scope key, and say that the roadmap needs a new lock.
 
 ## Harness lessons
 A candidate whose text starts with `harness:` is about the plugin, not the repo. Do not put it in `lessons.md`. Write it, with the same one-line format and `[H-NNN]` ids, to `.harness/harness-lessons.md` (create it from `${CLAUDE_PLUGIN_ROOT}/templates/harness-lessons.md` if absent). `evolve` reads that file and offers each line as a plugin change. These writes follow the same approval rule as step 5.
