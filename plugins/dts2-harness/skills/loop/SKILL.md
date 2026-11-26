@@ -50,3 +50,11 @@ The event sequence is `started` → `decision` → `finalized`. Keep previous ev
 ## 5. Propose through existing gates
 
 Report attempted/valid/invalid counts, incumbent delta on this frozen batch, hashes, ledger location, model/auth used, and any stopped condition. Improvement on this batch is not a general performance claim. A kept change remains a research proposal. The loop **never self-approves** gated effects, changes `merge_policy` or approvals, votes for itself, merges, pushes to protected branches, deploys, or enables production integrations. Hand the proposal and audit trail to `/dt:ship`; its review, CI and receipt gates and the standing `merge_policy` decide publication and merge. `auto-when-green` applies only through those existing gates, never because this metric improved.
+
+## 6. Gap research
+
+A second mode of this loop looks for gaps instead of tuning a role. It reuses this research step and adds no agent. It runs before the roadmap is locked, after a section ships, and during `/dt:learn`.
+
+Read `.harness/end-state.md` and look for missing sections, missing acceptance criteria and useful features. Record each finding with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/gap_research.py" <repo> add --kind section|criterion --lane <component> --text "<suggestion>" [--why "<reason>"] [--source loop|learn|checkpoint] [--needs-service]`. Rows go to `.harness/research/gaps.jsonl` as `G-N`. A suggestion that needs a paid service, account, sign-up or API key is stored as `escalated`, and the script adds a Decisions action item for the owner. Do not apply it.
+
+Use `list [--status proposed|escalated|applied|rejected]` to read the rows. `apply <id>` writes a proposed row into the end state and prints the old and new scope keys. `reject <id> --reason "<why>"` closes one. Apply a proposed row only while the roadmap is not locked yet, or when the owner says to. Applying changes the scope key, so the roadmap needs a new lock: show the new key to the owner and let `/dt:go` handle the lock. Gap research never runs `lock-roadmap` itself. When unsure whether a suggestion needs a paid service, pass `--needs-service`. Token spend is not a reason to skip a pass.

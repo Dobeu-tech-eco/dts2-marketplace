@@ -7,7 +7,7 @@ Released versions live in this file. Work that has not been released yet lives i
 Each version heading is followed by its release date on the first line (`_Released YYYY-MM-DD_`). The repository holds no release tags, so each date is the date of the commit that bumped the version.
 The plugin was renamed twice: `dts2-harness` became `dts2` in 4.0.0 and `dts2` became `dt` in 5.0.0. Older entries keep the command names that were current at the time.
 
-## [5.9.2]
+## [5.10.1]
 
 _Released 2026-11-26_
 
@@ -22,6 +22,15 @@ Hooks now install where Antigravity and Muse read them, and Muse blocks the call
 ### Upgrade note
 
 If you installed hooks for Antigravity or Muse before this release, delete the old files by hand: `.agent/hooks.json`, `~/.gemini/antigravity/hooks.json` and `~/.muse/hooks.json`.
+## [5.10.0]
+
+_Released 2026-11-26_
+
+Gap research joins the loop. Nothing breaking.
+
+### Added
+
+- Gap research: a mode of `/dt:loop` that looks for gaps, missed items and useful features in the end state and records each as a suggestion with `scripts/gap_research.py`. It runs before the roadmap is locked and at checkpoints, including `/dt:learn`. Applying a suggestion edits the end state, so the roadmap needs a new lock. Suggestions that need a paid service, account or API key are escalated to the owner as Decisions items and are never applied by an agent.
 
 ## [5.9.0]
 

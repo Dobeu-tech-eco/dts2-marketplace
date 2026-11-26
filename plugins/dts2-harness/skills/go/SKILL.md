@@ -42,6 +42,7 @@ The first rung that applies wins.
 The roadmap is the end state's sections and acceptance criteria. Its scope key changes when a section or criterion is added, removed or renamed, and stays the same when work is completed.
 
 1. Write the view: `python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.py" --repo . build`. Show `.harness/roadmap.md` to the owner.
+   Before the lock, a gap research pass can add suggestions to the end state (`loop` section 6). Applying one changes the key, so lock after it.
 2. Show the `blocked_on` text. In Claude Code the owner locks it in chat in their own words ("lock it in", "approved, lock the roadmap") or with `lock roadmap <key>`. In any other harness (Codex, T3 Code, Cursor) the owner runs `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/approvals.py" lock-roadmap` in their own terminal and types yes.
    An agent may lock it itself with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/approvals.py" lock-roadmap <key>`, passing the key from `blocked_on`, when the roadmap has a scope and is not locked yet. A stale or missing key locks nothing, and the log records the lock as `agent:<name>`.
 3. Stop, unless you locked it with the current key in step 2. Otherwise a hook records the lock, and only from the owner's own typed message: a question, a negation or a condition is never a lock, and neither is a plain yes. Never write `.claude/settings.local.json` yourself, and run `lock-roadmap` only with the current key.
