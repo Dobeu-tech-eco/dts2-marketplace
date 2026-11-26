@@ -17,7 +17,7 @@ class DirectoryEditionTests(unittest.TestCase):
     def test_listing_release_notes_keep_version_order(self) -> None:
         changelog = (LISTING / "CHANGELOG.md").read_text(encoding="utf-8")
         versions = re.findall(r"^## \[(\d+\.\d+\.\d+)\]$", changelog, re.MULTILINE)
-        self.assertEqual(versions[0], "6.0.0")
+        self.assertEqual(versions[0], "6.0.1")
         self.assertIn("5.2.0", versions)
         self.assertEqual(versions, sorted(versions, key=lambda value: tuple(map(int, value.split("."))), reverse=True))
 
@@ -30,14 +30,27 @@ class DirectoryEditionTests(unittest.TestCase):
     def test_listing_version_is_independent_of_the_runtime(self) -> None:
         listing = json.loads((LISTING / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
         runtime = json.loads((PLUGIN_ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
-        self.assertEqual(listing["version"], "6.0.0")
+        self.assertEqual(listing["version"], "6.0.1")
         self.assertEqual(listing["name"], "dt")
         self.assertNotEqual(listing["version"], runtime["version"])
         self.assertNotIn("hooks", listing)
 
+    def test_knowledge_credential_is_only_bound_to_the_remote_mcp_header(self) -> None:
+        manifest = json.loads((LISTING / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
+        option = manifest["userConfig"]["knowledge_token"]
+        self.assertIs(option["sensitive"], True)
+        self.assertNotIn("default", option)
+        server = manifest["mcpServers"]["knowledge"]
+        self.assertEqual(server["type"], "http")
+        self.assertEqual(server["url"], "${user_config.knowledge_endpoint}")
+        self.assertEqual(server["headers"], {"Authorization": "Bearer ${user_config.knowledge_token}"})
+        for profile in (LISTING / "profiles" / "agents").glob("*.json"):
+            self.assertNotIn("apiKeyEnv", json.loads(profile.read_text(encoding="utf-8")))
+
     def test_agents_drop_experimental_frontmatter(self) -> None:
         builder = (LISTING / "agents" / "builder.md").read_text(encoding="utf-8")
-        self.assertNotIn("experimental:", builder)
+        for key in ("experimental", "maxTurns", "effort", "color", "omitClaudeMd"):
+            self.assertNotRegex(builder.split("---", 2)[1], rf"(?m)^{key}:")
         self.assertIn("name: builder", builder)
         self.assertIn("tools: Read, Write, Edit, Grep, Glob, Bash", builder)
         runtime = (PLUGIN_ROOT / "agents" / "builder.md").read_text(encoding="utf-8")

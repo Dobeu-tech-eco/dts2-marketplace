@@ -1,7 +1,7 @@
 {
   "name": "dt",
-  "displayName": "DT: Init to Ship Auto Agent Orchestrator",
-  "version": "6.0.0",
+  "displayName": "DT",
+  "version": "6.0.1",
   "description": "Instruction edition of the init-to-ship orchestrator. Skills and roles Claude follows with its own tools. The full harness, with hooks and scripts, installs from the GitHub marketplace dts2.",
   "author": {
     "name": "Dobeu Tech Solutions LLC",
@@ -10,7 +10,6 @@
   "homepage": "https://dobeu.net",
   "repository": "https://github.com/Dobeu-tech-eco/dts2-marketplace",
   "license": "MIT",
-  "icon": ".claude-plugin/icon.png",
   "keywords": [
     "harness",
     "multi-agent",
@@ -18,5 +17,28 @@
     "monorepo",
     "agent-sdk",
     "wsl"
-  ]
+  ],
+  "privacyPolicyUrl": "https://dobeu.net/privacy",
+  "userConfig": {
+    "knowledge_endpoint": {
+      "type": "string",
+      "title": "Knowledge endpoint",
+      "description": "HTTPS MCP URL for your Cloudflare knowledge store"
+    },
+    "knowledge_token": {
+      "type": "string",
+      "title": "Knowledge token",
+      "description": "Bearer token for your Cloudflare knowledge store",
+      "sensitive": true
+    }
+  },
+  "mcpServers": {
+    "knowledge": {
+      "type": "http",
+      "url": "${user_config.knowledge_endpoint}",
+      "headers": {
+        "Authorization": "Bearer ${user_config.knowledge_token}"
+      }
+    }
+  }
 }

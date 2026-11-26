@@ -15,7 +15,7 @@ Never issued to an agent: write access to production data, deploy keys, billing,
 ## Handoff steps
 
 1. The agent records what it needs as an action item in the Secrets group: the name, what it unlocks, and the scope and lifetime above. It never writes the value anywhere.
-2. The person creates the credential in the provider with that scope and expiry and puts it in the agent's environment for this session only (not in a file in the repo).
+2. The person configures the remote connection through its masked configuration field.
 3. The agent uses it for the named task and stops. It does not copy it, log it or pass it to a subagent.
 4. The person revokes it (or lets it expire) and marks the action item done.
 
