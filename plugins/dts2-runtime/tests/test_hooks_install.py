@@ -314,6 +314,15 @@ class RefusalExitCodeTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
                 self.assertIn("force", result.stderr.lower())
 
+    def test_refusal_still_exits_2_when_the_log_cannot_be_written(self) -> None:
+        env = {k: v for k, v in os.environ.items() if k not in ("CLAUDE_PLUGIN_ROOT", "CLAUDE_PROJECT_DIR", "DTS2_AGENT")}
+        for script in ("merge-guard.sh", "policy-gate.sh"):
+            with self.subTest(script=script), tempfile.TemporaryDirectory() as cwd:
+                (Path(cwd) / ".harness").write_text("not a directory", encoding="utf-8")
+                result = subprocess.run(["bash", str(HOOKS / script), "--deny-exit-code=2"], input=self.PAYLOAD,
+                                        capture_output=True, text=True, cwd=cwd, env=env, check=False, timeout=60)
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+
     def test_allowed_call_still_exits_0_under_muse_flag(self) -> None:
         payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": "ls"}})
         env = {k: v for k, v in os.environ.items() if k not in ("CLAUDE_PLUGIN_ROOT", "CLAUDE_PROJECT_DIR", "DTS2_AGENT")}

@@ -58,7 +58,7 @@ class AgentSpec:
     source: str  # where the format comes from, or the assumption made
     notes: tuple[str, ...] = ()
     user_defaults: tuple[tuple[str, Any], ...] = ()  # top-level keys a user-scope file must carry, set only when missing
-    deny_exit_code: int = 0  # non-zero: the refusing hooks exit with this code instead of 0 (the agent ignores a JSON deny)
+    deny_exit_code: int = 0  # 2: the refusing hooks exit 2 instead of 0 (the agent ignores a JSON deny); no other value is used
 
 
 # One table row per agent. Change a path, a layout or an event name here and nothing else needs to move.
@@ -213,7 +213,7 @@ def render(spec: AgentSpec, root: Path, source: dict[str, list[dict[str, Any]]])
                 if not isinstance(hook, dict) or hook.get("type") != "command" or not isinstance(hook.get("command"), str):
                     continue
                 command = hook["command"].replace(ROOT_VAR, root_text)
-                if spec.deny_exit_code and DENY_HOOKS.search(command):
+                if spec.deny_exit_code == 2 and DENY_HOOKS.search(command):  # the hooks accept only 2
                     command += f" --deny-exit-code={spec.deny_exit_code}"
                 key = (matcher or "", command, hook.get("if") if spec.keeps_if else None)
                 if key in seen:  # without the `if` filter, copies of one command collapse into one

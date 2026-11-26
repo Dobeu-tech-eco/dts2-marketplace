@@ -675,7 +675,10 @@ def main() -> int:
         if args.deny_exit_code:
             print(reason, file=sys.stderr)
         command: str = guard.command_of(payload)[:300]
-        append_text(cwd / LOG_REL, json.dumps({"event": "denied", "reason": reason, "command": command}) + "\n")
+        try:  # a failed log write must not turn the refusal into exit 1, which lets the call through
+            append_text(cwd / LOG_REL, json.dumps({"event": "denied", "reason": reason, "command": command}) + "\n")
+        except OSError:
+            pass
     return args.deny_exit_code if reason is not None else 0
 
 
