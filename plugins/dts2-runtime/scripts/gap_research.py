@@ -118,6 +118,16 @@ def escalate(repo: Path, row: dict[str, Any]) -> None:
         raise GapError(f"could not add the Decisions item for {row['id']}: {detail or error}") from error
 
 
+def escalate_existing(repo: Path, rows: list[dict[str, Any]], row: dict[str, Any]) -> dict[str, Any]:
+    """A repeat suggestion that now needs a service escalates the open row instead of being dropped."""
+    if row.get("status") != STATUS_PROPOSED:
+        return row
+    escalate(repo, row)
+    row.update(status=STATUS_ESCALATED, escalated=now())
+    write_rows(repo, rows)
+    return row
+
+
 def add(repo: Path, kind: str, lane: str, text: str, why: str, source: str, needs_service: bool) -> dict[str, Any]:
     rows: list[dict[str, Any]] = read_rows(repo)
     text, lane = clean(text), clean(lane)
@@ -125,9 +135,9 @@ def add(repo: Path, kind: str, lane: str, text: str, why: str, source: str, need
         raise GapError("text and lane must not be empty")
     same: list[dict[str, Any]] = [r for r in rows if r.get("kind") == kind and str(r.get("text", "")).lower() == text.lower()
                                   and r.get("status") != STATUS_REJECTED]
-    if same:
-        return same[0]
     escalated: bool = needs_service or bool(NEEDS_SERVICE.search(f"{text} {why}"))
+    if same:
+        return escalate_existing(repo, rows, same[0]) if escalated else same[0]
     row: dict[str, Any] = {"id": next_id(rows), "kind": kind, "lane": lane, "text": text, "why": clean(why),
                            "source": source, "status": STATUS_ESCALATED if escalated else STATUS_PROPOSED,
                            "added": now()}
@@ -211,6 +221,9 @@ def apply(repo: Path, gap_id: str) -> dict[str, Any]:
     before: str | None = roadmap.read_end_state(repo)
     if before is None:
         raise GapError("no end state")
+    pending: str | None = row.get("pending_key_after")
+    if pending is not None and pending == scope_key(before):
+        return finish_apply(repo, rows, row, row.get("pending_key_before"), pending)
     if on_roadmap(roadmap.scope_lines(before), row["kind"], row["text"]):
         raise GapError(f"{gap_id} is already on the roadmap")
     insert = insert_criterion if row["kind"] == "criterion" else insert_section
@@ -218,8 +231,18 @@ def apply(repo: Path, gap_id: str) -> dict[str, Any]:
     added: list[str] = list((Counter(roadmap.scope_lines(after)) - Counter(roadmap.scope_lines(before))).elements())
     if len(added) != 1 or not on_roadmap(added, row["kind"], row["text"]) or scope_key(after) == scope_key(before):
         raise GapError("the end state layout is not one this script can edit; add it by hand")
+    row.update(pending_key_before=scope_key(before), pending_key_after=scope_key(after))
+    write_rows(repo, rows)
     atomic_write(repo / state_io.END_STATE_REL, after)
-    row.update(status=STATUS_APPLIED, applied=now(), key_before=scope_key(before), key_after=scope_key(after))
+    return finish_apply(repo, rows, row, scope_key(before), scope_key(after))
+
+
+def finish_apply(repo: Path, rows: list[dict[str, Any]], row: dict[str, Any], key_before: str | None,
+                 key_after: str | None) -> dict[str, Any]:
+    """Mark the row applied. A rerun after the end state was written but the ledger was not lands here too."""
+    row.pop("pending_key_before", None)
+    row.pop("pending_key_after", None)
+    row.update(status=STATUS_APPLIED, applied=now(), key_before=key_before, key_after=key_after)
     write_rows(repo, rows)
     return {**row, "next": "the roadmap scope changed; it needs a new lock through approvals.py"}
 

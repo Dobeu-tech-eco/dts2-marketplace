@@ -137,6 +137,36 @@ class GapResearchTest(unittest.TestCase):
         self.assertIn("no suggestion G-9", json.loads(missing.stdout)["error"])
 
 
+    def test_repeat_with_service_need_escalates_open_row(self) -> None:
+        self.add("section", "api", "send receipts")
+        row: dict[str, Any] = self.add("section", "api", "send receipts", why="needs a paid email API key")
+        self.assertEqual((row["id"], row["status"]), ("G-1", gap_research.STATUS_ESCALATED))
+        self.assertEqual(gap_research.read_rows(self.repo)[0]["status"], gap_research.STATUS_ESCALATED)
+        self.assertIn("Gap research G-1", (self.repo / ".harness" / "action-items.md").read_text(encoding="utf-8"))
+
+    def test_rerun_after_partial_apply_finishes_the_row(self) -> None:
+        self.add("criterion", "web", "users can sign out")
+        real_write = gap_research.write_rows
+        calls: list[int] = []
+
+        def flaky(repo: Path, rows: list[dict[str, Any]]) -> None:
+            calls.append(1)
+            if len(calls) == 2:
+                raise OSError("disk full")
+            real_write(repo, rows)
+
+        gap_research.write_rows = flaky
+        try:
+            with self.assertRaises(OSError):
+                gap_research.apply(self.repo, "G-1")
+        finally:
+            gap_research.write_rows = real_write
+        self.assertIn("users can sign out", self.end_state())
+        row: dict[str, Any] = gap_research.apply(self.repo, "G-1")
+        self.assertEqual(row["status"], gap_research.STATUS_APPLIED)
+        self.assertNotEqual(row["key_before"], row["key_after"])
+        self.assertNotIn("pending_key_after", gap_research.read_rows(self.repo)[0])
+
     def test_failed_escalation_writes_no_row(self) -> None:
         (self.repo / ".harness" / "action-items.md").mkdir()
         with self.assertRaises(gap_research.GapError):
