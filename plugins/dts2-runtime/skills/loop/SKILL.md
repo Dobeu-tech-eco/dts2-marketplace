@@ -3,7 +3,7 @@ name: loop
 description: "Research one role instruction on a frozen receipt batch with fixed token and time caps, one metric, and mechanical keep or revert. Proposes improvements for dt:ship; never approves effects."
 ---
 
-# Loop: bounded research on one role
+# Loop — bounded research on one role
 
 `/dt:loop <experiment.json>` follows [Karpathy's autoresearch README](https://github.com/karpathy/autoresearch): one editable `train.py`, 5 minutes per training run, one metric (`val_bpb`, lower is better), then keep or discard. Here the editable surface is **one role-instruction file**, and a frozen receipt replay replaces training. This is an instruction workflow, not a bundled experiment runner. Do not claim enforcement from this document alone.
 

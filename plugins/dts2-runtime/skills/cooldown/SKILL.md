@@ -3,7 +3,7 @@ name: cooldown
 description: Pause an agent that hit a usage limit until its reset date, resume it, or list what is paused. Use for set a cooldown, agent is out of usage, clear a cooldown, or which agents are paused.
 ---
 
-# Cooldown: pause an agent until its usage limit resets
+# Cooldown — pause an agent until its usage limit resets
 
 Usage limits belong to the account, so one status file (`~/.dts2/agent-status.json`, or the path in `DTS2_AGENT_STATUS`) is shared by every session on the machine. The roster probe, the lead failover and the SessionStart hook all read it. A paused agent is never called, probed or picked as lead until its reset time passes; it then comes back on its own.
 

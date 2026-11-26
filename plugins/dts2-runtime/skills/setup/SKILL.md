@@ -3,7 +3,7 @@ name: setup
 description: Interview the user to an approved end state (.harness/end-state.md), then scaffold dts2 config in one repo, many repos or a workspace. Use to set up, init or configure the harness, run the interview, or revise the end state. --scaffold-only skips it.
 ---
 
-# Setup: interview to an end state, then scaffold
+# Setup — interview to an end state, then scaffold
 
 Setup has two parts. **Part 1** interviews the user until the end state is clear and approved. **Part 2** writes the harness files. Part 2 never starts until the user approves the end state, unless `--scaffold-only` was given.
 

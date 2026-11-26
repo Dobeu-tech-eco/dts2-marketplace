@@ -5,7 +5,7 @@ description: Rescan the repo, audit every improvement option (skills, database t
 
 > Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
 
-# Find skills: rescan, audit, recommend, wire in
+# Find skills — rescan, audit, recommend, wire in
 
 Runnable at any point in a project, not only during the setup deep interview. It never changes anything without a yes.
 

@@ -1,6 +1,6 @@
 > Cursor edition: run scripts/dt_gate.py from this plugin for every gate. Do not read tokens or credential files. Do not merge, broadcast, install hooks, or spend a provider API. Carry out file work with Read, Edit, Grep, Glob, and git.
 
-# Phase 1: standing rules, inventory, buckets
+# Phase 1 — standing rules, inventory, buckets
 
 ## Standing rules
 Invoking `/dt-pr-sweep` is the user's approval to:

@@ -18,7 +18,7 @@ Merges, fleet broadcast, hook install, the headless SDK, and paid provider calls
 
 > Cursor edition: run scripts/dt_gate.py from this plugin for every gate. Do not read tokens or credential files. Do not merge, broadcast, install hooks, or spend a provider API. Carry out file work with Read, Edit, Grep, Glob, and git.
 
-# Fleet: every harness session on this machine, and one message to all of them
+# Fleet — every harness session on this machine, and one message to all of them
 
 Hooks register each session in a shared home (`DTS2_FLEET_HOME`, else `DTS2_HOME/fleet`, else `~/.dts2/fleet`). This skill reads that registry and writes to a broadcast inbox that each session picks up on its own. It never types into a terminal.
 

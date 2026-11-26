@@ -17,12 +17,12 @@ Merges, fleet broadcast, hook install, the headless SDK, and paid provider calls
 
 > Cursor edition: run scripts/dt_gate.py from this plugin for every gate. Do not read tokens or credential files. Do not merge, broadcast, install hooks, or spend a provider API. Carry out file work with Read, Edit, Grep, Glob, and git.
 
-# Learn: the harness lessons loop
+# Learn — the harness lessons loop
 
 Lessons live in the repo, so they travel with the code and every agent and machine sees the same list.
 
 ## Inputs
-- `.harness/lessons-inbox.md`: raw candidates from `run` and the SDK runner.
+- `.harness/lessons-inbox.md` — raw candidates from `run` and the SDK runner.
 - `.harness/runs/*/3-review.md` from recent headless runs.
 - Anything the user just said to remember.
 - The current `.harness/lessons.md`.

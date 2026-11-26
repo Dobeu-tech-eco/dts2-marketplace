@@ -2,33 +2,33 @@
 
 # setup - Part 1, the interview (first rounds: repos, deploy target, other harnesses, agents)
 
-## Part 1: Interview
+## Part 1 — Interview
 
 Rules for the whole interview:
 - Ask **one question per message**. Plain words, no jargon, no internal names like "dimension" or "weakest".
 - Until the end state is written, the only writes are the temporary ratings file (outside the repo) and any skill installs the user says yes to.
 - Keep a running record as you go: mode (greenfield or brownfield), related repos, harness decisions, roster, components, answers, rounds, clarity.
 
-### Round 1: Greenfield or brownfield
+### Round 1 — Greenfield or brownfield
 
 1. Look at the repo root. **Greenfield** if there is no source code yet (empty, or only README, LICENSE, `.gitignore`, config stubs). Otherwise **brownfield**.
 2. Brownfield: dispatch the `dt:scout` agent on the repo and keep its output. You need its `Harnesses:` line, its `Marketing surface:` line, and the stack and modules it reports. Also read any existing `.harness/` files (config, lessons, state) for context.
    A scout report whose first line is `PARTIAL: hit turn cap at <step>` is incomplete: re-dispatch the scout with a narrower scope or a fresh agent before using its output.
 3. Tell the user in one line what you found, for example: `Brownfield: TypeScript monorepo, 4 packages, marketing site found.`
 
-### Round 2: Repos
+### Round 2 — Repos
 
 Always ask this before any question about components. Ask exactly:
 
 > Paste any other repos that matter here, one per line. Say "none" if there aren't any.
 
 For each repo the user pastes, ask in one message: **what is it, and what it serves** in relation to this project. Store the answer as its `role`. Then tag it (propose a tag and let the user correct it):
-- `context`: read for conventions and contracts; never edited.
-- `linked`: it ships with this repo and joins a multi-repo workspace. Any `linked` repo switches the mode to **workspace**. Ask for its local path (or offer to clone it next to this repo).
+- `context` — read for conventions and contracts; never edited.
+- `linked` — it ships with this repo and joins a multi-repo workspace. Any `linked` repo switches the mode to **workspace**. Ask for its local path (or offer to clone it next to this repo).
 
 Context repos are cloned only when someone needs to read them: `git clone --depth 1 <url> ~/.dts2/context/<owner>-<repo>`. Never clone into the project.
 
-### Round 2 (continued): Deploy target
+### Round 2 (continued) — Deploy target
 
 Greenfield: skip this step here and ask it right after the Topology round, once you know what is being built.
 
@@ -43,7 +43,7 @@ Run `python3 "$PLUGIN/scripts/dt_gate.py" bridge deploy-detect.py <repo>` (it on
 
 Record the answer for the end state's `deploy:` block. A `planned` deploy is built by `run` as its own run before any feature run; see **Deployment verification** in the run skill.
 
-### Round 2b: Other harnesses
+### Round 2b — Other harnesses
 
 Skip with no message if the repo is greenfield or scout listed nothing besides `CLAUDE.md`, `AGENTS.md` and `.agents`.
 
@@ -57,7 +57,7 @@ Skip with no message if the repo is greenfield or scout listed nothing besides `
 
 Record each folder and decision for the end state's Other harnesses table.
 
-### Round 2c: Agents
+### Round 2c — Agents
 
 Run `python3 "$PLUGIN/scripts/dt_gate.py" bridge roster.py detect --project <repo>`.
 
@@ -71,7 +71,7 @@ Auth mode comes from `detect`'s `auth` map (subscriptions first, API keys by opt
 
 Gemini is reached through the Antigravity CLI, so its binary is `agy`, not `gemini`.
 
-If `detect` reports an agent as not available but the user says its CLI is installed, it is off the PATH the harness sees (common on Windows, WSL, and npm- or bun-global installs). Do not drop it. Tell the user to either add its folder to `searchPaths` in its profile, or set `DTS2_BIN_<NAME>` (e.g. `DTS2_BIN_AGY` or `DTS2_BIN_GROK`) to the binary's full path (or its folder) and re-run detect. Record the resolved path as a Decisions action item so later runs keep finding it.
+If `detect` reports an agent as not available but the user says its CLI is installed, it is off the PATH the harness sees (common on Windows, WSL, and npm- or bun-global installs). Do not drop it — tell the user to either add its folder to `searchPaths` in its profile, or set `DTS2_BIN_<NAME>` (e.g. `DTS2_BIN_AGY` or `DTS2_BIN_GROK`) to the binary's full path (or its folder) and re-run detect. Record the resolved path as a Decisions action item so later runs keep finding it.
 - `auth: none` → list the agent as not available with its login command (the login counterpart of its `statusCommand`, e.g. `codex login`). Do not add it to the proposed roster and do not ask anything.
 - Handoff (IDE) agents are included as before; their login cannot be checked.
 
@@ -83,7 +83,7 @@ Record the chosen roster for Part 2.
 
 Once that roster is final, run `python3 "$PLUGIN/scripts/dt_gate.py" bridge lead_skills.py gaps --agents <names> --home "$HOME"` with the included agent names, comma-separated. Claude is the orchestrator and is never behind. For every agent in `behind`, say one line: `<agent> is behind the orchestrator: <reason>.` Then run `python3 "$PLUGIN/scripts/dt_gate.py" bridge lead_skills.py sync --agents <those names> --home "$HOME"`. The sync is silent: do not ask, and do not list the files it wrote. An agent left out of the roster is not updated.
 
-### Round 2d: Context scrub
+### Round 2d — Context scrub
 
 Run this only once the roster is confirmed (Round 2c and Skill parity are done). It gives every rostered agent the same scrub, so Claude is not treated differently from Codex, Cursor or the rest.
 

@@ -16,7 +16,7 @@ Phase files for this command are in `$PLUGIN/skills/dt-sdk/`.
 
 Merges, fleet broadcast, hook install, the headless SDK, and paid provider calls are `CURSOR_UNSUPPORTED` even after a permission phrase is recorded.
 
-# SDK: headless runner
+# SDK — headless runner
 
 Runner: `$PLUGIN/sdk/dts2-run.py`. It reuses this plugin's agent files, so headless and interactive runs follow the same rules.
 

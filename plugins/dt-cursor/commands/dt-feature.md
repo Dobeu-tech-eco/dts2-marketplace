@@ -17,7 +17,7 @@ Merges, fleet broadcast, hook install, the headless SDK, and paid provider calls
 
 > Cursor edition: run scripts/dt_gate.py from this plugin for every gate. Do not read tokens or credential files. Do not merge, broadcast, install hooks, or spend a provider API. Carry out file work with Read, Edit, Grep, Glob, and git.
 
-# Feature: from idea to planned sections, every plan in sync
+# Feature — from idea to planned sections, every plan in sync
 
 `/dt-feature <description>` plans a feature; it does not build it. Building is `/dt-run section <#>` or `/dt-autopilot <#…>` afterwards.
 

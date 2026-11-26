@@ -18,7 +18,7 @@ Merges, fleet broadcast, hook install, the headless SDK, and paid provider calls
 
 > Cursor edition: run scripts/dt_gate.py from this plugin for every gate. Do not read tokens or credential files. Do not merge, broadcast, install hooks, or spend a provider API. Carry out file work with Read, Edit, Grep, Glob, and git.
 
-# Knowledge: your personal preferences and glossary, on every device
+# Knowledge — your personal preferences and glossary, on every device
 
 A small private store of things that are true for you, not for one repo: standing defaults ("my standard team is 6 agents"), glossary terms (a brand or product line and the repos in it) and lessons that apply everywhere. It is personal and private, and it is never part of the plugin. One Markdown file per entry lives under `entries/<kind>/<key>.md`; the store is a folder (`DTS2_KNOWLEDGE`, else `$DTS2_HOME/knowledge`, else `~/.dts2/knowledge`) that is usually a private git repo you own, so it can sync between devices.
 

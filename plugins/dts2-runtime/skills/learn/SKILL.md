@@ -3,12 +3,12 @@ name: learn
 description: Consolidate reviewer and verifier findings into durable per-repo lessons in .harness/lessons.md that future runs read, and prune stale ones. Use after runs, or for learn from this, learn promote L-NNN, remember this mistake, or update lessons.
 ---
 
-# Learn: the harness lessons loop
+# Learn — the harness lessons loop
 
 Lessons live in the repo, so they travel with the code and every agent and machine sees the same list.
 
 ## Inputs
-- `.harness/lessons-inbox.md`: raw candidates from `run` and the SDK runner.
+- `.harness/lessons-inbox.md` — raw candidates from `run` and the SDK runner.
 - `.harness/runs/*/3-review.md` from recent headless runs.
 - Anything the user just said to remember.
 - The current `.harness/lessons.md`.

@@ -3,7 +3,7 @@ name: autopilot
 description: "Run harness steps end to end without human plan or ship approval: a gate of three frontier models from different providers and a council for deadlocks replace the checkpoints. One branch and PR per step. Use for autopilot or run unattended."
 ---
 
-# Autopilot: the harness pipeline with a consensus gate instead of a human
+# Autopilot — the harness pipeline with a consensus gate instead of a human
 
 `/dt:autopilot <steps>` where `<steps>` is any mix of end-state section numbers (`3,4,7` or `3-5`), action-item ids (`D2`, `S1` when the secret is already present), `feature "<description>"`, or quoted free-text tasks. `autopilot resume` continues the last autopilot run. `autopilot status` prints the progress table and stops.
 

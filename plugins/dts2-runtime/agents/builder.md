@@ -9,7 +9,7 @@ maxTurns: 60
 color: blue
 ---
 
-# Builder: file-set implementer
+# Builder — file-set implementer
 
 ## Turn cap
 If you are about to run out of turns before finishing, stop and make the first line of your final report exactly `PARTIAL: hit turn cap at <step>`, naming the step you reached, then list what is done and what remains. Never present cut-off work as complete.

@@ -5,7 +5,7 @@ description: "Research one role instruction on a frozen receipt batch with fixed
 
 > Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
 
-# Loop: bounded research on one role
+# Loop — bounded research on one role
 
 `/dt:loop <experiment.json>` follows [Karpathy's autoresearch README](https://github.com/karpathy/autoresearch): one editable `train.py`, 5 minutes per training run, one metric (`val_bpb`, lower is better), then keep or discard. Here the editable surface is **one role-instruction file**, and a frozen receipt replay replaces training. This is an instruction workflow, not a bundled experiment runner. Do not claim enforcement from this document alone.
 

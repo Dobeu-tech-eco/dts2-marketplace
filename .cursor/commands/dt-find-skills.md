@@ -17,7 +17,7 @@ Merges, fleet broadcast, hook install, the headless SDK, and paid provider calls
 
 > Cursor edition: run scripts/dt_gate.py from this plugin for every gate. Do not read tokens or credential files. Do not merge, broadcast, install hooks, or spend a provider API. Carry out file work with Read, Edit, Grep, Glob, and git.
 
-# Find skills: rescan, audit, recommend, wire in
+# Find skills — rescan, audit, recommend, wire in
 
 Runnable at any point in a project, not only during the setup deep interview. It never changes anything without a yes.
 

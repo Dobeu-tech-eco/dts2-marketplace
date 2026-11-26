@@ -1,4 +1,4 @@
-# Phase 1: standing rules, inventory, buckets
+# Phase 1 — standing rules, inventory, buckets
 
 ## Standing rules
 Invoking `/dt:pr-sweep` is the user's approval to:

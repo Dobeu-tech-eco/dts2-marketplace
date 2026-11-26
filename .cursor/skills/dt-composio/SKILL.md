@@ -18,7 +18,7 @@ Merges, fleet broadcast, hook install, the headless SDK, and paid provider calls
 
 > Cursor edition: run scripts/dt_gate.py from this plugin for every gate. Do not read tokens or credential files. Do not merge, broadcast, install hooks, or spend a provider API. Carry out file work with Read, Edit, Grep, Glob, and git.
 
-# Composio: one connection for app tools
+# Composio — one connection for app tools
 
 Composio is a third-party tools integration. Memory stays in the knowledge store (`/dt-knowledge`), never in Composio. Credentials are never read, printed or pasted: the CLI keeps them in its own secure config (`~/.composio`). Prune means disable or archive with a backup, never delete.
 

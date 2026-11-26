@@ -3,7 +3,7 @@ name: evolve
 description: "Change the dts2 harness itself in its source repo: edit a skill, agent, hook, script, profile or template, validate, test, bump versions, commit; push only on an explicit yes. Use for evolve, improve the harness, or fix a dts2 skill."
 ---
 
-# Evolve: change the harness at its source
+# Evolve — change the harness at its source
 
 Never edit the installed copy. `plugins/cache` and `plugins/synced` are generated; edits there are lost on the next update and are never made.
 

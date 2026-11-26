@@ -1,6 +1,6 @@
 > Cursor edition: run scripts/dt_gate.py from this plugin for every gate. Do not read tokens or credential files. Do not merge, broadcast, install hooks, or spend a provider API. Carry out file work with Read, Edit, Grep, Glob, and git.
 
-# Phase 2: CI triage
+# Phase 2 — CI triage
 
 ## Required checks
 Read them from branch protection per base branch: `gh api repos/<o>/<r>/branches/<base>/protection`, then `required_status_checks.contexts` and `required_status_checks.checks[].context`. `inventory` already does this and stores them in `inventory.json`. If protection is unreadable (403 or 404), treat every check as required.

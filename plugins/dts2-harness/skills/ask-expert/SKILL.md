@@ -5,7 +5,7 @@ description: "Ask an expert panel whether to keep, fold, sell as a template, arc
 
 > Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
 
-# Ask-expert: should I keep this repo?
+# Ask-expert — should I keep this repo?
 
 `/dt:ask-expert [repo] ["what I'm unsure about"]` reviews one repo in depth and ends with a one-page memo in plain words. It runs on its own, before setup, and changes nothing in the repo. Archiving or deleting is a separate step you confirm yourself.
 

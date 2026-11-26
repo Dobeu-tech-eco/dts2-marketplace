@@ -3,7 +3,7 @@ name: find-skills
 description: Rescan the repo, audit every improvement option (skills, database tooling, hooks, MCP servers, plugins, commands, subagents, permissions, CI, docs), ask one to three questions, recommend a ranked set, and wire in the picks on a yes. Use when the user says find skills or how can I improve this setup.
 ---
 
-# Find skills: rescan, audit, recommend, wire in
+# Find skills — rescan, audit, recommend, wire in
 
 Runnable at any point in a project, not only during the setup deep interview. It never changes anything without a yes.
 

@@ -18,7 +18,7 @@ Merges, fleet broadcast, hook install, the headless SDK, and paid provider calls
 
 > Cursor edition: run scripts/dt_gate.py from this plugin for every gate. Do not read tokens or credential files. Do not merge, broadcast, install hooks, or spend a provider API. Carry out file work with Read, Edit, Grep, Glob, and git.
 
-# Machine prep: scan, prune, set up
+# Machine prep — scan, prune, set up
 
 Follows the agent-startup-blueprint rules. Prune means disable, never delete. Credentials are never read or printed.
 
@@ -41,14 +41,14 @@ If the auditor's report starts with `PARTIAL: hit turn cap at <step>`, the audit
 Show the user: enabled plugins vs the keep-set, budget overruns, forbidden symlinks or sync scripts, and what is missing from the keep-set.
 
 Then explain where plugins are coming from, because this is why disabled plugins come back:
-- `syncedPluginsLoading`: plugins enabled on the user's claude.ai account. Claude Code re-downloads them into `~/.claude/plugins/synced/` at every session start and loads them as `<name>@synced`. New ones arrive enabled. This is usually the bulk of the context cost.
-- `syncedRequiredByOrg`: synced plugins the organization marks required. Only a claude.ai admin can turn these off; say so.
-- `projectEnablesOverridingYou`: plugins the current repo's `.claude/settings.json` enables, which beats the user setting. Fix per repo with `claude plugin disable <id> --scope local`.
+- `syncedPluginsLoading` — plugins enabled on the user's claude.ai account. Claude Code re-downloads them into `~/.claude/plugins/synced/` at every session start and loads them as `<name>@synced`. New ones arrive enabled. This is usually the bulk of the context cost.
+- `syncedRequiredByOrg` — synced plugins the organization marks required. Only a claude.ai admin can turn these off; say so.
+- `projectEnablesOverridingYou` — plugins the current repo's `.claude/settings.json` enables, which beats the user setting. Fix per repo with `claude plugin disable <id> --scope local`.
 
 Then report agents in two separate counts, because the blueprint's 4-agent rule covers only one of them:
-- `claudeUserAgents`: files in `~/.claude/agents/`. This is the blueprint's 4-agent budget. These never sync to or from claude.ai.
-- `claudePluginAgents` and `pluginAgentsBySource`: agents that come inside enabled plugins, including every synced plugin. claude.ai has no separate agent sync; agents arrive only inside plugins, so turning off `syncClaudeAiPlugins` (or disabling the synced plugin) removes them. Budget is 6, which is exactly dts2-harness's own team (lead, builder, reviewer, verifier, scout, auditor). Name the top sources so the user sees which plugins cost the most.
-- `syncClaudeAiSkills` and `syncedSkillsOnDisk`: claude.ai skills sync separately from plugins into `~/.claude/skills/synced/`. Report only; turning it off also removes always-synced skills such as pdf and xlsx, so leave that choice to the user (`"syncClaudeAiSkills": false` in user settings).
+- `claudeUserAgents` — files in `~/.claude/agents/`. This is the blueprint's 4-agent budget. These never sync to or from claude.ai.
+- `claudePluginAgents` and `pluginAgentsBySource` — agents that come inside enabled plugins, including every synced plugin. claude.ai has no separate agent sync; agents arrive only inside plugins, so turning off `syncClaudeAiPlugins` (or disabling the synced plugin) removes them. Budget is 6, which is exactly dts2-harness's own team (lead, builder, reviewer, verifier, scout, auditor). Name the top sources so the user sees which plugins cost the most.
+- `syncClaudeAiSkills` and `syncedSkillsOnDisk` — claude.ai skills sync separately from plugins into `~/.claude/skills/synced/`. Report only; turning it off also removes always-synced skills such as pdf and xlsx, so leave that choice to the user (`"syncClaudeAiSkills": false` in user settings).
 
 ## 3. Pick a tier
 Run `... machine-prep.py plan --tier <light|standard|strict>` for each tier the user is weighing and show the exact diff. Without `--tier` the profile's `claude.defaultTier` (standard) is used. `--days N` sets the usage window (default 30). Show the three tiers in one table:

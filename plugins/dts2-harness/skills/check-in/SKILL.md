@@ -5,7 +5,7 @@ description: Show project progress against the approved end state as a checklist
 
 > Directory edition: do not run bundled scripts or hooks, a package launcher, or a download piped into a shell. Do not read tokens or credential files from the machine. Carry out the step with Read, Edit, Grep, Glob, and git or gh, and write the files the step names.
 
-# Check-in: complete versus outstanding, against the end state
+# Check-in — complete versus outstanding, against the end state
 
 Read-only and runnable any time, mid-run or between runs. It changes no files.
 
