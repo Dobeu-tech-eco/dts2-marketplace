@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""The human-only approval channel (G-63, ruling Q11).
+"""The approval channel (G-63, ruling Q11).
 
-An approval is a key in `.claude/settings.local.json`, which the model cannot write (every son launch denies Edit and Write
-on it, and the sandbox lists it under denyWrite; the head's own instructions say never to edit it). The person edits the file:
+An approval is a key in `.claude/settings.local.json`. A model cannot edit that file directly (every son launch denies Edit and
+Write on it, and the sandbox lists it under denyWrite; the head's own instructions say never to edit it). The person edits the
+file, or `grant()` in this script writes it for one of the entry points below:
 
     {"dts2_approvals": {"merge": ["42"], "recorded_yes": ["step-3"], "lane_override": ["lane-a"], "merge_policy": ["auto-when-green"]}}
 
-`merge_policy: ["auto-when-green"]` is a standing grant: the policy gate then lets a direct `gh pr merge <n> --squash --match-head-commit <sha>`
+`merge_policy: ["auto-when-green"]` is a standing grant: the policy gate then lets a direct `gh pr merge <n> --merge --match-head-commit <sha>`
 through without a per-PR entry once the required checks are green (see policy_gate.py for the conditions).
 A `roadmap` entry is the 12-character scope key printed by `roadmap.py status`. Two ways in, both on the person's own input:
 - In Claude Code, the owner says it in chat, in their own words ("lock it in", "approve the roadmap", or `lock roadmap <key>`).

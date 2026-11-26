@@ -99,6 +99,7 @@ class AutoMergePolicyTests(unittest.TestCase):
     def test_grant_with_direct_merge_and_matching_sha_allows(self) -> None:
         self.assertIsNone(self.decide(self.auto()))
         self.assertIsNone(self.decide(f"gh pr merge 42 --squash --match-head-commit={SHA}"))
+        self.assertIsNone(self.decide(f"gh pr merge 42 --merge --match-head-commit {SHA}"))
         self.assertIsNone(self.decide(f"gh pr merge 42 --match-head-commit {SHA[:9]}"))
         self.assertIsNone(self.decide(f"env -i gh -R o/r pr merge 42 --match-head-commit {SHA}"))
 

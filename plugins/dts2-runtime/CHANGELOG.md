@@ -7,7 +7,7 @@ Released versions live in this file. Work that has not been released yet lives i
 Each version heading is followed by its release date on the first line (`_Released YYYY-MM-DD_`). The repository holds no release tags, so each date is the date of the commit that bumped the version.
 The plugin was renamed twice: `dts2-harness` became `dts2` in 4.0.0 and `dts2` became `dt` in 5.0.0. Older entries keep the command names that were current at the time.
 
-## [5.9.0]
+## [5.10.0]
 
 _Released 2026-11-26_
 
@@ -16,6 +16,20 @@ Gap research joins the loop. Nothing breaking.
 ### Added
 
 - Gap research: a mode of `/dt:loop` that looks for gaps, missed items and useful features in the end state and records each as a suggestion with `scripts/gap_research.py`. It runs before the roadmap is locked and at checkpoints, including `/dt:learn`. Applying a suggestion edits the end state, so the roadmap needs a new lock. Suggestions that need a paid service, account or API key are escalated to the owner as Decisions items and are never applied by an agent.
+
+## [5.9.0]
+
+_Released 2026-11-26_
+
+The harness now merges the way this repository does: with a merge commit. Nothing breaking.
+
+### Changed
+
+- The harness merges a pull request with a merge commit (`gh pr merge --merge`) instead of squashing it.
+- The standing merge grant in the docs, the policy gate message and the approvals header now reads `--merge --match-head-commit <sha>`.
+- Autopilot squashes only when branch protection requires linear history. Otherwise it uses `--merge`.
+- When the roadmap is not locked yet, the next-step hint now includes the key that `approvals.py lock-roadmap` needs.
+- The approvals.py header now says who can write an approval, instead of saying that agents never can.
 
 ## [5.8.0]
 
