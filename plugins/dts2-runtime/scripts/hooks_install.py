@@ -55,6 +55,7 @@ class AgentSpec:
     verified: bool  # False: the format below is an assumption to check against the agent's docs
     source: str  # where the format comes from, or the assumption made
     notes: tuple[str, ...] = ()
+    user_defaults: tuple[tuple[str, Any], ...] = ()  # top-level keys a user-scope file must carry, set only when missing
 
 
 # One table row per agent. Change a path, a layout or an event name here and nothing else needs to move.
@@ -97,12 +98,16 @@ AGENTS: Final[dict[str, AgentSpec]] = {
     ),
     "antigravity": AgentSpec(
         name="antigravity",
-        project_path=(".agent", "hooks.json"), user_path=(".gemini", "antigravity", "hooks.json"),
+        project_path=(".agents", "hooks.json"), user_path=(".gemini", "config", "hooks.json"),
         layout=NESTED,
-        events={e: e for e in ("SessionStart", "SessionEnd", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop")},
+        # Antigravity has no prompt-submit or session events under Claude's names; PreInvocation runs before each model turn.
+        events={"UserPromptSubmit": "PreInvocation", "PreToolUse": "PreToolUse"},
         tools=SAME_TOOLS, keeps_if=False, verified=False,
-        source=("ASSUMPTION: Google Antigravity IDE (not the Gemini CLI) reads Claude-shaped hooks from .agent/hooks.json "
-                "(project) and ~/.gemini/antigravity/hooks.json (user). I could not confirm a documented hook file; check before relying on it."),
+        source=("Google Antigravity IDE (not the Gemini CLI) reads hooks from <project>/.agents/hooks.json and "
+                "~/.gemini/config/hooks.json, with PreInvocation and PreToolUse events. ASSUMPTION: the per-file shape and "
+                "tool names match Claude's."),
+        notes=("Antigravity expects a JSON decision on stdout. The dts2 hooks print one only when they refuse, so an "
+               "allowed call relies on Antigravity treating empty output as allow.",),
     ),
     "grok": AgentSpec(
         name="grok",
@@ -116,12 +121,18 @@ AGENTS: Final[dict[str, AgentSpec]] = {
     ),
     "muse": AgentSpec(
         name="muse",
-        project_path=(".muse", "hooks.json"), user_path=(".muse", "hooks.json"),
+        # User scope is the hooks block inside Muse's own settings file; every other key there is left alone.
+        project_path=(".muse", "hooks.json"), user_path=(".config", "muse", "settings.json"),
         layout=NESTED,
         events={e: e for e in ("SessionStart", "SessionEnd", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop")},
         tools=SAME_TOOLS, keeps_if=False, verified=False,
-        source=("ASSUMPTION: Muse Code (Meta) reads Claude-shaped hooks from .muse/hooks.json and ~/.muse/hooks.json. "
-                "No public hook documentation was available; check before relying on it."),
+        source=("Muse Code (Meta) reads Claude-shaped hooks from <project>/.muse/hooks.json (trusted folders only) and from "
+                "the hooks block of ~/.config/muse/settings.json (schema_version 1). Handler keys: type, command, timeout. "
+                "ASSUMPTION: tool names match Claude's."),
+        notes=("Muse clears the environment to USER and HOME, so commands use absolute paths (this installer always does).",
+               "Muse honours a refusal only with exit code 2. The dts2 hooks print the deny JSON and exit 0, so Muse may "
+               "show the refusal without blocking the call."),
+        user_defaults=(("schema_version", 1),),
     ),
 }
 
@@ -365,6 +376,9 @@ def run_agent(name: str, repo: Path, home: Path, user: bool, dry_run: bool, unin
     desired, skipped = render(spec, root, source if source is not None else load_source())
     original = read_doc(path)
     new_doc = build_doc(spec, original, desired, uninstall)
+    if user and not uninstall:
+        for key, value in spec.user_defaults:
+            new_doc.setdefault(key, value)
     changed = new_doc != original
     remove_file = uninstall and changed and is_blank(spec, new_doc) and path.is_file()
     before, after = count_entries(original), count_entries(new_doc)
