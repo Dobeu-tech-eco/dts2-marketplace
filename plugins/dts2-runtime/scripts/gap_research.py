@@ -132,7 +132,7 @@ def escalate_existing(repo: Path, rows: list[dict[str, Any]], row: dict[str, Any
 
 def add(repo: Path, kind: str, lane: str, text: str, why: str, source: str, needs_service: bool) -> dict[str, Any]:
     rows: list[dict[str, Any]] = read_rows(repo)
-    text, lane = clean(text), clean(lane)
+    text, lane, why = clean(text), clean(lane), clean(why)
     if not text or not lane:
         raise GapError("text and lane must not be empty")
     same: list[dict[str, Any]] = [r for r in rows if r.get("kind") == kind and str(r.get("text", "")).lower() == text.lower()
@@ -141,7 +141,7 @@ def add(repo: Path, kind: str, lane: str, text: str, why: str, source: str, need
     if same:
         retry: bool = escalated or bool(same[0].get("escalation_pending"))
         return escalate_existing(repo, rows, same[0]) if retry else same[0]
-    row: dict[str, Any] = {"id": next_id(rows), "kind": kind, "lane": lane, "text": text, "why": clean(why),
+    row: dict[str, Any] = {"id": next_id(rows), "kind": kind, "lane": lane, "text": text, "why": why,
                            "source": source, "status": STATUS_ESCALATED if escalated else STATUS_PROPOSED,
                            "added": now()}
     if escalated:
@@ -222,7 +222,8 @@ def apply(repo: Path, gap_id: str) -> dict[str, Any]:
     if row["status"] != STATUS_PROPOSED:
         raise GapError(f"{gap_id} is {row['status']}; only proposed suggestions can be applied")
     if NEEDS_SERVICE.search(f"{row['text']} {row.get('why', '')}"):
-        raise GapError(f"{gap_id} needs a new service or account; it goes to the owner, not the roadmap")
+        escalate_existing(repo, rows, row)
+        raise GapError(f"{gap_id} needs a new service or account; it went to the owner, not the roadmap")
     before: str | None = roadmap.read_end_state(repo)
     if before is None:
         raise GapError("no end state")
