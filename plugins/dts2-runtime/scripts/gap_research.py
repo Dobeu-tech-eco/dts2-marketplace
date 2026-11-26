@@ -139,7 +139,8 @@ def add(repo: Path, kind: str, lane: str, text: str, why: str, source: str, need
                                   and r.get("status") != STATUS_REJECTED]
     escalated: bool = needs_service or bool(NEEDS_SERVICE.search(f"{text} {why}"))
     if same:
-        return escalate_existing(repo, rows, same[0]) if escalated else same[0]
+        retry: bool = escalated or bool(same[0].get("escalation_pending"))
+        return escalate_existing(repo, rows, same[0]) if retry else same[0]
     row: dict[str, Any] = {"id": next_id(rows), "kind": kind, "lane": lane, "text": text, "why": clean(why),
                            "source": source, "status": STATUS_ESCALATED if escalated else STATUS_PROPOSED,
                            "added": now()}

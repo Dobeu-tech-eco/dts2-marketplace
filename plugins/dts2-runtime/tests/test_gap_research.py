@@ -188,7 +188,7 @@ class GapResearchTest(unittest.TestCase):
         with self.assertRaises(gap_research.GapError):
             gap_research.apply(self.repo, "G-1")
         (self.repo / ".harness" / "action-items.md").rmdir()
-        retried: dict[str, Any] = self.add("section", "api", "send receipts", needs=True)
+        retried: dict[str, Any] = self.add("section", "api", "send receipts")
         self.assertNotIn("escalation_pending", retried)
         self.assertIn("Gap research G-1", (self.repo / ".harness" / "action-items.md").read_text(encoding="utf-8"))
         self.assertEqual(self.end_state(), END_STATE)
