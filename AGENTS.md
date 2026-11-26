@@ -84,6 +84,10 @@ The plan format is a user-level rule, so it is not repeated here. In short: scan
 - Use the terms in [GLOSSARY.md](GLOSSARY.md) in code, plans, briefs and reviews. A new harness concept gets its row in the same change.
 - When a mistake or review comment recurs, add a deterministic check (a test, a ruff rule or a hook) instead of a new line on this page. Prose here is for judgement calls only; delete a line that changes nothing.
 - Worker briefs, handoffs and run state stay complete and explicit. The short format is for plans a person reads.
+- A bug fix starts with a test that fails on the code before the fix. Quote it failing, then passing, in the receipt's Evidence.
+- Split work that mixes door types into stacked pull requests: two-way doors first, the one-way door last and on its own.
+- A one-way-door diff (approval or lock logic, a release, anything that rewrites user files) also gets one review from a second model family, such as `codex:review`. Filter its findings before acting; cross-model reviewers over-report. Two-way-door diffs skip this.
+- A test that needs a gitignored fixture fails when the fixture is missing. It does not skip, because a worktree has no copy and a skip there reads as a pass.
 
 ### Text rules the tests enforce
 

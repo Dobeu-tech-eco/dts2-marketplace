@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# UserPromptSubmit: when the owner types exactly `lock roadmap <key>`, record the approval. Runs only on typed text, so the model
-# never writes the approvals file itself (G-63). Prints one confirmation line as context. Never blocks a prompt.
+# UserPromptSubmit: when the owner types a lock (`lock roadmap <key>`, or a short message in their own words such as "lock it in"
+# while the roadmap waits for approval), record the approval. Runs only on typed text, so the model never writes the approvals file itself (G-63). Prints one confirmation line as context. Never blocks a prompt.
 set -uo pipefail
 [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] || exit 0
 # shellcheck source-path=SCRIPTDIR source=lib-settings.sh

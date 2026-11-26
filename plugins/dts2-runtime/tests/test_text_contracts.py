@@ -245,7 +245,7 @@ class RunSkillContracts(TextContractMixin):
 
 
 class ReleaseContract(unittest.TestCase):
-    VERSION: Final[str] = "5.6.1"
+    VERSION: Final[str] = "5.7.0"
     SKILL_COUNT: Final[int] = 29
     AGENT_COUNT: Final[int] = 8
     REPO_ROOT: Final[Path] = PLUGIN_ROOT.parent.parent
@@ -275,19 +275,25 @@ class ReleaseContract(unittest.TestCase):
         self.assertEqual(len(list(AGENTS.iterdir())), self.AGENT_COUNT)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class ReceiptFieldsContract(unittest.TestCase):
-    """Every place that builds or describes a receipt names the door and evidence fields."""
+    """Every place that builds or describes a receipt fills the door and evidence fields."""
 
     FIELDS: Final[tuple[str, ...]] = ("merge danger", "evidence")
-    BUILDERS: Final[tuple[Path, ...]] = (
-        PLUGIN_ROOT / "skills" / "ship" / "SKILL.md",
-        PLUGIN_ROOT / "skills" / "run" / "phase-4-ship.md",
-        PLUGIN_ROOT / "templates" / "discipline.md",
-    )
+    # Specific phrases, so unrelated words like "Gather evidence" cannot satisfy the check.
+    BUILDER_PHRASES: Final[dict[Path, tuple[str, ...]]] = {
+        PLUGIN_ROOT / "skills" / "ship" / "SKILL.md": (
+            "`merge danger` (one-way door",
+            "`evidence` (a test that failed before",
+        ),
+        PLUGIN_ROOT / "skills" / "run" / "phase-4-ship.md": (
+            "merge danger (one-way or two-way door",
+            "evidence (before and after from the verifier",
+        ),
+        PLUGIN_ROOT / "templates" / "discipline.md": (
+            "merge danger (one-way or two-way door",
+            "evidence (before and after)",
+        ),
+    }
 
     def test_template_has_fields(self) -> None:
         text: str = _read(PLUGIN_ROOT / "templates" / "receipt.md").lower()
@@ -295,8 +301,12 @@ class ReceiptFieldsContract(unittest.TestCase):
             self.assertIn(f"### {field}", text)
 
     def test_builders_fill_fields(self) -> None:
-        for path in self.BUILDERS:
+        for path, phrases in self.BUILDER_PHRASES.items():
             text: str = _read(path).lower()
-            for field in self.FIELDS:
-                with self.subTest(path=path.name, field=field):
-                    self.assertIn(field, text)
+            for phrase in phrases:
+                with self.subTest(path=path.name, phrase=phrase):
+                    self.assertIn(phrase.lower(), text)
+
+
+if __name__ == "__main__":
+    unittest.main()

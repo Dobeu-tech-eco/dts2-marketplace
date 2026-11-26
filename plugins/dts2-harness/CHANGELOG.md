@@ -13,6 +13,26 @@ _Released 2026-11-07_
 
 Directory edition for the Claude plugin directory. Skills, roles, and documents only. Hooks and scripts stay in the GitHub marketplace install (`plugins/dts2-runtime`), because an unverified organization cannot publish them.
 
+## [5.7.0]
+
+_Released 2026-11-26_
+
+The owner can approve a roadmap from any model, in their own words. Nothing breaking.
+
+### Added
+
+- `approvals.py grant-from-prompt` locks a pending roadmap from the owner's own words in Claude Code, such as "looks good, lock it in". The exact `lock in roadmap <key>` phrase still works. Questions, negations, conditions and a bare "yes" never lock, and a lock only happens while a roadmap is pending.
+- `approvals.py lock-roadmap [key]` locks from the owner's own terminal for tools without the prompt hook, such as Codex, T3 Code and Cursor. It asks the owner to type yes, and it refuses with no terminal or inside a son.
+
+### Changed
+
+- The `blocked_on` text from `next_step.py` and the `/dt:go` skill now name both ways to lock.
+- `AGENTS.md` adds four planning rules: a bug fix starts with a failing test, mixed door types split into stacked pull requests, one-way-door diffs get one review from a second model family, and a test that needs a gitignored fixture fails instead of skipping.
+
+### Fixed
+
+- `tests/test_text_contracts.py`: `ReceiptFieldsContract` checks the receipt fields where the builders now write them.
+
 ## [5.6.1]
 
 _Released 2026-11-26_
