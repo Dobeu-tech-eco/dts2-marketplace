@@ -5,7 +5,7 @@ Read by lead, builder, reviewer and verifier. Copied to `.harness/discipline.md`
 1. **Define done first.**
    Where it bites: the plan checkpoint will not open without a Done section: outcome plus check method (tests, visual, source, review). Lead refuses to plan without it.
 2. **End with a receipt.**
-   Where it bites: `receipt.md` lists tests run with pass/fail counts, review verdict, approver, steps outside the change, open risks, rollback point. Shown at the ship checkpoint and appended to the PR body.
+   Where it bites: `receipt.md` lists tests run with pass/fail counts, merge danger (one-way or two-way door and blast radius), evidence (before and after), review verdict, approver, steps outside the change, open risks, rollback point. Shown at the ship checkpoint and appended to the PR body.
 3. **Cap fix rounds at five.**
    Where it bites: in `run` and per builder. After five rounds (1-3 Sonnet resuming the same worker, 4-5 a fresh worker one tier up on Opus), stop and escalate with what failed; the escalation goes into `.harness/state.md`. On hitting the hard round-5 cap with bugs still failing, first auto-run a fresh `/diagnosing-bugs` pass (`the publisher's installer for https://github.com/mattpocock/skills --skill diagnosing-bugs`) on everything still failing (upstream renamed `diagnose` to `diagnosing-bugs`, so the hard cap reruns that skill from scratch, not the round-2 output), apply its findings, and only then escalate to the user with what still fails.
 4. **Repeat mistake becomes a check.**

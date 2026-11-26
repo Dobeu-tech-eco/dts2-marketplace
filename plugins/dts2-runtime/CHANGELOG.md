@@ -7,6 +7,40 @@ Released versions live in this file. Work that has not been released yet lives i
 Each version heading is followed by its release date on the first line (`_Released YYYY-MM-DD_`). The repository holds no release tags, so each date is the date of the commit that bumped the version.
 The plugin was renamed twice: `dts2-harness` became `dts2` in 4.0.0 and `dts2` became `dt` in 5.0.0. Older entries keep the command names that were current at the time.
 
+## [5.7.0]
+
+_Released 2026-11-26_
+
+The owner can approve a roadmap from any model, in their own words. Nothing breaking.
+
+### Added
+
+- `approvals.py grant-from-prompt` locks a pending roadmap from the owner's own words in Claude Code, such as "looks good, lock it in". The exact `lock in roadmap <key>` phrase still works. Questions, negations, conditions and a bare "yes" never lock, and a lock only happens while a roadmap is pending.
+- `approvals.py lock-roadmap [key]` locks from the owner's own terminal for tools without the prompt hook, such as Codex, T3 Code and Cursor. It asks the owner to type yes, and it refuses with no terminal or inside a son.
+- Implicit locks ignore curly-apostrophe negations ("don’t"), deferrals ("tomorrow", "once CI is green"), quoted or pasted text, multi-line prompts and non-ASCII look-alike letters. `lock-roadmap` also refuses when an agent process (Claude Code, Codex, Gemini, Cursor agent and others) is its parent.
+
+### Changed
+
+- The `blocked_on` text from `next_step.py` and the `/dt:go` skill now name both ways to lock.
+- `AGENTS.md` adds four planning rules: a bug fix starts with a failing test, mixed door types split into stacked pull requests, one-way-door diffs get one review from a second model family, and a test that needs a gitignored fixture fails instead of skipping.
+
+### Fixed
+
+- `lock-roadmap` can open the owner's terminal. It always failed before with "no terminal attached".
+- `hooks/roadmap-lock.sh` writes the approval to the project root (`CLAUDE_PROJECT_DIR`) when the session has changed directory.
+- `tests/test_text_contracts.py`: `ReceiptFieldsContract` checks the receipt fields where the builders now write them.
+
+## [5.6.1]
+
+_Released 2026-11-26_
+
+A fix to 5.6.0. Nothing breaking.
+
+### Fixed
+
+- `/dt:ship` step 1, run phase 4 step 2 and the discipline template rule 2 now tell the builder to fill the receipt's `Merge danger` and `Evidence` fields. 5.6.0 added both sections to the template but no step filled them.
+- `tests/test_text_contracts.py`: `ReceiptFieldsContract` fails if the template or any receipt builder drops either field.
+
 ## [5.6.0]
 
 _Released 2026-11-26_

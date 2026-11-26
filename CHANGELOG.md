@@ -6,6 +6,16 @@ The plugin's full release history lives in [plugins/dts2-runtime/CHANGELOG.md](p
 
 ## Unreleased
 
+## [5.6.1]
+
+_Released 2026-11-26_
+
+A fix to 5.6.0. Full notes are in [plugins/dts2-runtime/CHANGELOG.md](plugins/dts2-runtime/CHANGELOG.md).
+
+### Fixed
+
+- `/dt:ship`, run phase 4 and the discipline rules now fill the receipt's Merge danger and Evidence fields.
+
 ## [5.6.0]
 
 _Released 2026-11-26_

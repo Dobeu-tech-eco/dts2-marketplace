@@ -8,8 +8,11 @@ on it, and the sandbox lists it under denyWrite; the head's own instructions say
 
 `merge_policy: ["auto-when-green"]` is a standing grant: the policy gate then lets a direct `gh pr merge <n> --squash --match-head-commit <sha>`
 through without a per-PR entry once the required checks are green (see policy_gate.py for the conditions).
-A `roadmap` entry is the 12-character scope key printed by `roadmap.py status`. The owner can also type `lock roadmap <key>` in chat:
-the UserPromptSubmit hook (`hooks/roadmap-lock.sh`) runs only on typed text and calls `grant`; the model never writes the file.
+A `roadmap` entry is the 12-character scope key printed by `roadmap.py status`. Two ways in, both on the person's own input:
+- In Claude Code, the owner says it in chat, in their own words ("lock it in", "approve the roadmap", or `lock roadmap <key>`).
+  The UserPromptSubmit hook (`hooks/roadmap-lock.sh`) runs only on typed text and calls `grant`; the model never writes the file.
+- In any other harness or model (Codex, T3 Code, Cursor), the owner runs `approvals.py lock-roadmap` in their own terminal.
+  It asks for a yes on the terminal itself, and refuses inside a son launch or when no terminal is attached.
 
 `is_human_approved(kind, key)` reads only that file. Nothing an agent writes anywhere else counts, and `record_actor` only logs
 who asked (`agent:<session_id>` or `human`), so the log shows when an agent claimed an approval it did not hold."""
@@ -17,11 +20,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import io
 import os
 import re
 import tempfile
 import sys
 import time
+import unicodedata
 from pathlib import Path
 from typing import Any, Final
 
@@ -100,6 +105,20 @@ def deny_rules() -> list[str]:
 
 
 LOCK_PHRASE: Final[re.Pattern[str]] = re.compile(r"^lock roadmap ([0-9a-f]{12})$", re.IGNORECASE)
+KEY_IN_TEXT: Final[re.Pattern[str]] = re.compile(r"\b([0-9a-f]{12})\b", re.IGNORECASE)
+LOCK_INTENT: Final[tuple[re.Pattern[str], ...]] = (
+    re.compile(r"\block(?:ed)?\s+(?:it\s+|that\s+|this\s+)?in\b"),
+    re.compile(r"\block(?:ed)?\s+(?:the\s+|that\s+|this\s+)?roadmap\b"),
+    re.compile(r"\broadmap\s+(?:is\s+)?(?:locked|approved)\b"),
+    re.compile(r"\bapprove(?:d)?\s+(?:the\s+|that\s+|this\s+)?roadmap\b"),
+)
+NOT_LOCK: Final[re.Pattern[str]] = re.compile(
+    r"\b(?:\w+n'?t|do\s+not|not|never|no|nah|nope|wait|hold|stop|cancel|unlock|later|until|before|if|when|unless|after|once|"
+    r"yet|tomorrow|tonight|next|soon|maybe|otherwise|won|should|could|would|can|how|what|why)\b"
+)
+APOSTROPHES: Final[dict[int, str]] = {0x2018: "'", 0x2019: "'", 0x02BC: "'", 0x0060: "'"}
+
+INTENT_MAX_WORDS: Final[int] = 16
 BACKUP_SUFFIX: Final[str] = ".bak"
 
 
@@ -144,24 +163,122 @@ def grant(repo: Path, kind: str, key: str) -> bool:
     return True
 
 
+def lock_intent(prompt: str) -> tuple[bool, str | None]:
+    """(is a lock, typed key or None) for one typed prompt. A lock is the exact `lock roadmap <key>`, or a short message in the
+    owner's own words that says to lock or approve the roadmap ("lock it in", "approved, lock the roadmap"). A question, a
+    negation or a condition ("don't lock it in yet", "lock it in if the tests pass?") is never a lock. A bare "yes" is not one."""
+    text: str = prompt.strip()
+    exact = LOCK_PHRASE.match(text)
+    if exact is not None:
+        return True, exact.group(1).lower()
+    if "\n" in text or "`" in text or '"' in text:
+        return False, None
+    lowered: str = unicodedata.normalize("NFKC", text).translate(APOSTROPHES).lower()
+    if not lowered.isascii() or "?" in lowered or len(lowered.split()) > INTENT_MAX_WORDS or NOT_LOCK.search(lowered):
+        return False, None
+    if re.search(r"(?<![a-z])'\s*lock|lock[^']*'(?![a-z])", lowered):
+        return False, None
+    if not any(pattern.search(lowered) for pattern in LOCK_INTENT):
+        return False, None
+    keys: list[str] = [k.lower() for k in KEY_IN_TEXT.findall(lowered)]
+    return True, keys[0] if keys else None
+
+
 def grant_from_prompt(raw: str, repo: Path) -> str:
-    """The context line for one UserPromptSubmit payload: empty unless the whole prompt is `lock roadmap <key>`."""
+    """The context line for one UserPromptSubmit payload: empty unless the typed prompt is a lock (see `lock_intent`).
+    A lock without a key applies only while the current roadmap is waiting for approval; a typed key must match it."""
     try:
         payload: Any = json.loads(raw)
     except ValueError:
         return ""
     prompt: Any = payload.get("prompt") if isinstance(payload, dict) else None
-    match = LOCK_PHRASE.match(prompt.strip()) if isinstance(prompt, str) else None
-    if match is None:
+    if not isinstance(prompt, str):
+        return ""
+    is_lock, typed = lock_intent(prompt)
+    if not is_lock:
         return ""
     import roadmap  # noqa: PLC0415 (roadmap imports this module)
-    typed: str = match.group(1).lower()
-    current: str | None = roadmap.status(repo)["key"]
+    info: dict[str, Any] = roadmap.status(repo)
+    current: str | None = info["key"]
+    if typed is None:
+        if current is None or info["approved"]:
+            return ""
+        typed = current
     if current != typed:
         return f"dt: roadmap key {typed} does not match the current roadmap {current}; nothing locked"
     if not grant(repo, roadmap.APPROVAL_KIND, typed):
         return f"dt: roadmap {typed} was not locked (the approvals file could not be written)"
     return f"dt: roadmap {typed} locked by the owner"
+
+
+def open_terminal() -> Any:
+    """The controlling terminal for reading and writing, or None when none is attached (a model's shell, CI, a pipe)."""
+    try:
+        raw: io.FileIO = io.FileIO("/dev/tty", "r+")
+    except OSError:
+        return None
+    # A terminal is not seekable, so a plain open(..., "r+") in text mode fails; pair the raw stream instead.
+    return io.TextIOWrapper(io.BufferedRWPair(raw, raw), encoding="utf-8", line_buffering=True)
+
+
+AGENT_PROCESSES: frozenset[str] = frozenset({"claude", "codex", "gemini", "cursor-agent", "aider", "opencode", "goose", "amp"})
+AGENT_ENV: tuple[str, ...] = ("CLAUDECODE", "CODEX_SANDBOX", "CODEX_SANDBOX_NETWORK_DISABLED", "GEMINI_CLI")
+MAX_ANCESTORS: int = 64
+
+
+def agent_ancestor() -> str | None:
+    """The name of an agent CLI this process runs under (by environment marker or /proc ancestry), or None.
+    A command an agent runs is its child; the owner's own shell is the agent's parent, never its child."""
+    for name in AGENT_ENV:
+        if os.environ.get(name):
+            return name
+    pid: int = os.getppid()
+    for _ in range(MAX_ANCESTORS):
+        if pid <= 1:
+            return None
+        try:
+            stat: str = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+        except OSError:
+            return None
+        comm: str = stat[stat.index("(") + 1 : stat.rindex(")")]
+        if comm.lower() in AGENT_PROCESSES:
+            return comm
+        pid = int(stat[stat.rindex(")") + 2 :].split()[1])
+    return None
+
+
+def lock_roadmap(repo: Path, key: str | None = None, terminal: Any = None) -> tuple[int, str]:
+    """(exit code, message) for `approvals.py lock-roadmap`: the owner locks the roadmap from their own terminal, in any harness.
+    Refused inside a son launch, when no terminal is attached, when a given key does not match, or without a typed yes."""
+    if os.environ.get("DTS2_SON"):
+        return 2, "dt: lock-roadmap is refused inside an agent launch; run it in your own terminal"
+    agent: str | None = agent_ancestor() if terminal is None else None
+    if agent is not None:
+        return 2, f"dt: lock-roadmap is refused under an agent ({agent}); run it in your own terminal"
+    import roadmap  # noqa: PLC0415 (roadmap imports this module)
+    info: dict[str, Any] = roadmap.status(repo)
+    current: str | None = info["key"]
+    if current is None:
+        return 1, "dt: the roadmap has no scope to approve"
+    if key is not None and key.lower() != current:
+        return 1, f"dt: roadmap key {key.lower()} does not match the current roadmap {current}; nothing locked"
+    if info["approved"]:
+        return 0, f"dt: roadmap {current} is already locked"
+    tty: Any = terminal if terminal is not None else open_terminal()
+    if tty is None:
+        return 2, "dt: lock-roadmap needs your own terminal (no terminal is attached); nothing locked"
+    try:
+        tty.write(f"Lock roadmap {current} ({info['sections']} sections)? Type yes: ")
+        tty.flush()
+        answer: str = tty.readline().strip().lower()
+    finally:
+        if terminal is None:
+            tty.close()
+    if answer not in ("y", "yes"):
+        return 1, f"dt: roadmap {current} not locked"
+    if not grant(repo, roadmap.APPROVAL_KIND, current):
+        return 1, f"dt: roadmap {current} was not locked (the approvals file could not be written)"
+    return 0, f"dt: roadmap {current} locked by the owner"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -173,9 +290,15 @@ def main(argv: list[str] | None = None) -> int:
     chk.add_argument("key")
     chk.add_argument("--session", default=None)
     sub.add_parser("path")
-    sub.add_parser("grant-from-prompt", help="read a UserPromptSubmit payload on stdin; `lock roadmap <key>` locks the roadmap")
+    sub.add_parser("grant-from-prompt", help="read a UserPromptSubmit payload on stdin; a typed lock (\"lock it in\") locks the roadmap")
+    lock = sub.add_parser("lock-roadmap", help="lock the current roadmap from your own terminal, in any harness; asks for a yes")
+    lock.add_argument("key", nargs="?", default=None)
     args = parser.parse_args(argv)
     repo: Path = Path(args.repo)
+    if args.cmd == "lock-roadmap":
+        code, message = lock_roadmap(repo, args.key)
+        print(message)
+        return code
     if args.cmd == "grant-from-prompt":
         try:
             line: str = grant_from_prompt(sys.stdin.read(), repo)
