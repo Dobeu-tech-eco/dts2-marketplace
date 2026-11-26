@@ -13,6 +13,16 @@ _Released 2026-11-07_
 
 Directory edition for the Claude plugin directory. Skills, roles, and documents only. Hooks and scripts stay in the GitHub marketplace install (`plugins/dts2-runtime`), because an unverified organization cannot publish them.
 
+## [5.9.0]
+
+_Released 2026-11-26_
+
+Gap research joins the loop. Nothing breaking.
+
+### Added
+
+- Gap research: a mode of `/dt:loop` that looks for gaps, missed items and useful features in the end state and records each as a suggestion with `scripts/gap_research.py`. It runs before the roadmap is locked and at checkpoints, including `/dt:learn`. Applying a suggestion edits the end state, so the roadmap needs a new lock. Suggestions that need a paid service, account or API key are escalated to the owner as Decisions items and are never applied by an agent.
+
 ## [5.8.0]
 
 _Released 2026-11-26_
