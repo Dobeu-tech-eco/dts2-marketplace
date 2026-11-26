@@ -13,6 +13,22 @@ _Released 2026-11-07_
 
 Directory edition for the Claude plugin directory. Skills, roles, and documents only. Hooks and scripts stay in the GitHub marketplace install (`plugins/dts2-runtime`), because an unverified organization cannot publish them.
 
+## [5.9.1]
+
+_Released 2026-11-26_
+
+Hooks now install where Antigravity and Muse read them, and Muse blocks the calls the guards refuse. Nothing breaking.
+
+### Fixed
+
+- Antigravity hooks go to `.agents/hooks.json` in the project and `~/.gemini/config/hooks.json` for the user, on the `PreInvocation` and `PreToolUse` events.
+- Muse user hooks go to the `hooks` block in `~/.config/muse/settings.json`. The installer keeps every other key, sets `schema_version` only when it is missing, and never deletes that file.
+- For Muse, the merge guard and the policy gate exit 2 on a refusal and print the reason on stderr, because Muse ignores a JSON deny. Other agents still get the JSON deny with exit 0.
+
+### Upgrade note
+
+If you installed hooks for Antigravity or Muse before this release, delete the old files by hand: `.agent/hooks.json`, `~/.gemini/antigravity/hooks.json` and `~/.muse/hooks.json`.
+
 ## [5.9.0]
 
 _Released 2026-11-26_
