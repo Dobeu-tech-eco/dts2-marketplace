@@ -344,6 +344,34 @@ class ProcessRules(unittest.TestCase):
             self.assertIn("Follows:", text, path.name)
             self.assertIn("merge commit only", text, path.name)
 
+    def test_pr_templates_carry_merge_danger_and_evidence(self) -> None:
+        """Every PR names its door type, blast radius and before/after evidence."""
+        for path in (
+            PLUGIN_ROOT / "templates" / "pr-template.md",
+            PLUGIN_ROOT / "templates" / "receipt.md",
+            REPO_ROOT / ".github" / "pull_request_template.md",
+        ):
+            text: str = path.read_text(encoding="utf-8")
+            self.assertIn("Merge danger: <one-way | two-way> door", text, path.name)
+            self.assertIn("blast radius:", text, path.name)
+            self.assertIn("### Evidence", text, path.name)
+
+    def test_glossary_rows_are_complete_and_linked(self) -> None:
+        """Every glossary row has a term, a meaning and words to avoid; AGENTS.md links the page."""
+        text: str = (REPO_ROOT / "GLOSSARY.md").read_text(encoding="utf-8")
+        rows: list[list[str]] = [
+            [cell.strip() for cell in line.strip().strip("|").split("|")]
+            for line in text.splitlines()
+            if line.startswith("| ") and not line.startswith("| Term ")
+        ]
+        self.assertGreaterEqual(len(rows), 10)
+        terms: list[str] = [row[0] for row in rows]
+        self.assertEqual(len(terms), len(set(terms)), "duplicate glossary term")
+        for row in rows:
+            self.assertEqual(len(row), 3, row)
+            self.assertTrue(all(row), row)
+        self.assertIn("(GLOSSARY.md)", (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8"))
+
     def test_ship_fills_the_follows_and_merge_lines(self) -> None:
         text: str = (SKILLS / "ship" / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("`Follows:` line", text)

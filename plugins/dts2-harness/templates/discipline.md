@@ -10,6 +10,7 @@ Read by lead, builder, reviewer and verifier. Copied to `.harness/discipline.md`
    Where it bites: in `run` and per builder. After five rounds (1-3 Sonnet resuming the same worker, 4-5 a fresh worker one tier up on Opus), stop and escalate with what failed; the escalation goes into `.harness/state.md`. On hitting the hard round-5 cap with bugs still failing, first auto-run a fresh `/diagnosing-bugs` pass (`the publisher's installer for https://github.com/mattpocock/skills --skill diagnosing-bugs`) on everything still failing (upstream renamed `diagnose` to `diagnosing-bugs`, so the hard cap reruns that skill from scratch, not the round-2 output), apply its findings, and only then escalate to the user with what still fails.
 4. **Repeat mistake becomes a check.**
    Where it bites: `learn` detects a lesson seen twice (same normalized text or same file+rule) and offers to promote it: a line in `.harness/checks.sh` (run by the Stop hook), a test skeleton in the repo's test dir, or a line in `review-checklist.md`. It records "lives at <path>" in `lessons.md`.
+   A prose rule is for a judgement call only. When a mistake or review comment recurs, the fix is a lint rule, a test or a hook, not one more line in AGENTS.md or CLAUDE.md. Delete steering lines that change nothing, such as "write clean code".
 5. **State outside the chat.**
    Where it bites: `.harness/state.md` holds decisions, failures and open items, appended by run and learn, and read at session start by `session-lessons.sh`. The file is the record.
 6. **Auto-add the receipt.**

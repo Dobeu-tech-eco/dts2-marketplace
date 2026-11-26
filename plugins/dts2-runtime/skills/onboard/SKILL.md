@@ -75,7 +75,7 @@ After the agent list above, run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/roster.p
 
 ## Where to start
 1. New repo or repos → `setup`. It confirms the agent roster first, then (Round 2d) runs one context scrub that finds duplicate plugins, skills, agents and MCP servers for every rostered agent and disables the extras after a yes. Nothing is pruned before the roster exists.
-2. New machine or a heavy startup (many synced plugins, a large `CLAUDE.md`) → `machine-prep` for the machine-level budget and hygiene. It does not decide which duplicate to drop; that is the setup scrub, once the roster is known.
+2. New machine or a heavy startup (many synced plugins, a large `CLAUDE.md`) → `machine-prep` for the machine-level budget and hygiene. It does not decide which duplicate to drop; that is the setup scrub, once the roster is known. Its last step shows a diff that adds the planning and PR rules to `~/.claude/CLAUDE.md` and writes it only after a yes.
 3. Any multi-file task → `run`.
 4. After a few runs → `learn`.
 5. CI, cron, or a second machine without the desktop app → `sdk`.

@@ -70,6 +70,9 @@ Run `... machine-prep.py apply --tier <chosen>`. It backs up `settings.json` to 
 - Point the user to the blueprint repo's `apply.ps1` (Windows) or `apply.sh` (WSL/Linux) for Codex agents and the weekly budget audit, if they want those too.
 - Remind them to restart Claude Code and to sign in with `claude auth login` on the binary they actually run.
 
+## 7. Add the planning and PR rules to CLAUDE.md
+Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/claude-md-rules.py" plan` and show the user the diff it prints for `~/.claude/CLAUDE.md`. Ask once: add these rules, or skip. Do nothing without a yes. On a yes run `... claude-md-rules.py apply` and report the backup path. The block sits between `<!-- dts2-plan-rules:start -->` and `<!-- dts2-plan-rules:end -->`, so a rerun replaces it in place and never duplicates it; `check` says whether it is current. When `plan` says "already current", skip the question.
+
 ## Guardrails
 - Never uninstall. Uninstall only if the user names the plugin and says uninstall.
 - Never edit `.claude.json`, `auth.json`, or any credential file.

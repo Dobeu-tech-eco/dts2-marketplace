@@ -22,7 +22,7 @@ A Claude Code plugin marketplace that carries one plugin: `dt`, the harness. It 
 | `plugins/dts2-harness/` | The instruction edition for the Claude plugin directory. Written by `plugins/dts2-runtime/scripts/directory_edition.py`. | No |
 | `.cursor/`, `.cursor-plugin/`, and under `plugins/dt-cursor/`: `.cursor-plugin/`, `skills/`, `commands/`, `rules/`, `templates/`, `assets/` | The Cursor surface. Written by `plugins/dts2-runtime/scripts/cursor_surface.py`. | No |
 | `plugins/dt-cursor/README.md`, `plugins/dt-cursor/SUBMISSION.md`, `plugins/dt-cursor/scripts/dt_gate.py` | The hand-written part of the Cursor package. | Yes |
-| `README.md`, `AGENTS.md`, `CHANGELOG.md`, `PRIVACY.md`, `LEGAL.md`, `skills-bundled/` | Marketplace-level pages. | Yes |
+| `README.md`, `AGENTS.md`, `GLOSSARY.md`, `CHANGELOG.md`, `PRIVACY.md`, `LEGAL.md`, `skills-bundled/` | Marketplace-level pages. | Yes |
 | `.harness/ask-expert/` | Committed review memos about public repositories. | Yes, with the privacy rules below |
 
 After any change under `plugins/dts2-runtime/`, regenerate in this order, because the Cursor surface is built from the instruction edition:
@@ -45,6 +45,16 @@ python3 plugins/dts2-runtime/scripts/cursor_surface.py --check
 ```
 
 `make test` runs the suite with `unittest` when pytest is not installed. `pip install -r plugins/dts2-runtime/requirements-dev.txt` adds pytest and Hypothesis.
+
+### Plans and checks
+
+The plan format itself (scan-friendly bullets, files and verification per step, Assumptions and numbered Unresolved questions with a default) is a user-level rule. `plugins/dts2-runtime/scripts/claude-md-rules.py` writes it into `~/.claude/CLAUDE.md`, and `/dt:machine-prep` step 7 offers it. It is not repeated here. In this repository, also:
+
+- A plan step that changes `plugins/dts2-runtime/` names both generator reruns (`directory_edition.py`, then `cursor_surface.py`) and the checks above as its verification.
+- Name every one-way door. Here that includes a merge to `main`, which is public, and any commit that would carry private names into history that cannot be recalled.
+- Use the terms in [GLOSSARY.md](GLOSSARY.md) in code, plans, briefs and reviews. A new harness concept gets its row in the same change.
+- When a mistake or review comment recurs, add a deterministic check (a test, a ruff rule or a hook) instead of a new line on this page. Prose here is for judgement calls only; delete a line that changes nothing.
+- Worker briefs, handoffs and run state stay complete and explicit. The short format is for plans a person reads.
 
 ### Text rules the tests enforce
 
