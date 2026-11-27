@@ -7,7 +7,7 @@ and writes to `.claude/`, `.mcp.json` and `.git/hooks`.
 merge: the plugin-wide gate (Q-15, G-18): a force-push is always refused; `gh pr merge` into, and `git push` to, a
 protected branch is refused unless a lane's merge-go.md names the exact head and the base commit it was cleared against.
 
-A denial is printed as the documented PreToolUse JSON and exits 0; anything the guard cannot parse is allowed through only
+A denial is printed as the documented PreToolUse JSON and exits 0 (2 with --deny-exit-code 2, for Muse); anything the guard cannot parse is allowed through only
 when it is not a command the guard watches (fail closed for the watched commands)."""
 from __future__ import annotations
 
@@ -949,6 +949,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mode", choices=("son", "merge"), required=True)
     parser.add_argument("--cwd", default=".")
+    parser.add_argument("--deny-exit-code", type=int, choices=(0, 2), default=0,
+                        help="exit code on a refusal; 2 for agents that block only on exit 2 (Muse)")
     args = parser.parse_args()
     raw: str = sys.stdin.read()
     try:
@@ -964,10 +966,15 @@ def main() -> int:
         reason = f"the guard failed ({type(exc).__name__}) on a command naming push or merge" if watched(command_of(payload)) else None
     if reason is not None:
         print(deny_output(reason))
+        if args.deny_exit_code:
+            print(reason, file=sys.stderr)
         if args.mode == "merge":
             command: str = command_of(payload)[:300]
-            append_text(cwd / LOG_NAME, json.dumps({"event": "denied", "reason": reason, "command": command}) + "\n")
-    return 0
+            try:  # a failed log write must not turn the refusal into exit 1, which lets the call through
+                append_text(cwd / LOG_NAME, json.dumps({"event": "denied", "reason": reason, "command": command}) + "\n")
+            except OSError:
+                pass
+    return args.deny_exit_code if reason is not None else 0
 
 
 if __name__ == "__main__":

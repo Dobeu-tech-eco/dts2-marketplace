@@ -23,6 +23,21 @@ The completeness loop now runs twice and is enforced by code. Nothing breaking f
 - `lock-roadmap` and the chat lock path refuse (exit 4) until a gap pass has run for the current scope and every gap is resolved or rejected. `/dt:next` names the gap pass when it is the blocker.
 - `release-gate.py` takes `--pr-body`, and CI fails a pull request whose body has no loop gate block. CI also fails a body whose block says the gap pass is missing or an item is not yet fixed or filed, and HTML comments are stripped before the check. Dependabot pull requests are exempt, and the check runs again when a body is edited. A rejected gap is no longer added again by a later gap pass.
 
+## [5.10.3]
+
+_Released 2026-11-26_
+
+Hooks now install where Antigravity and Muse read them, and Muse blocks the calls the guards refuse. Nothing breaking.
+
+### Fixed
+
+- Antigravity hooks go to `.agents/hooks.json` in the project and `~/.gemini/config/hooks.json` for the user, on the `PreInvocation` and `PreToolUse` events.
+- Muse user hooks go to the `hooks` block in `~/.config/muse/settings.json`. The installer keeps every other key, sets `schema_version` only when it is missing, and never deletes that file.
+- For Muse, the merge guard and the policy gate exit 2 on a refusal and print the reason on stderr, because Muse ignores a JSON deny. Other agents still get the JSON deny with exit 0.
+
+### Upgrade note
+
+If you installed hooks for Antigravity or Muse before this release, delete the old files by hand: `.agent/hooks.json`, `~/.gemini/antigravity/hooks.json` and `~/.muse/hooks.json`.
 ## [5.10.2]
 
 _Released 2026-11-26_

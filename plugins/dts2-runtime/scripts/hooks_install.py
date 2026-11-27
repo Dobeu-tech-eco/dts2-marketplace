@@ -39,6 +39,8 @@ CLAUDE_TOOLS: Final[tuple[str, ...]] = (
 SAME_TOOLS: Final[dict[str, str | None]] = {tool: tool for tool in CLAUDE_TOOLS}
 # A matcher alternative that names these (plugin subagent types, the SubagentHandback tool) only exists under Claude Code.
 CLAUDE_ONLY_MATCHER: Final[re.Pattern[str]] = re.compile(r"^dt:|^SubagentHandback$")
+# The hook scripts that refuse tool calls. For an agent with deny_exit_code set they get a flag telling them to exit with it.
+DENY_HOOKS: Final[re.Pattern[str]] = re.compile(r"[/\\]hooks[/\\](?:merge-guard|policy-gate)\.sh\b")
 
 
 @dataclass(frozen=True)
@@ -55,6 +57,8 @@ class AgentSpec:
     verified: bool  # False: the format below is an assumption to check against the agent's docs
     source: str  # where the format comes from, or the assumption made
     notes: tuple[str, ...] = ()
+    user_defaults: tuple[tuple[str, Any], ...] = ()  # top-level keys a user-scope file must carry, set only when missing
+    deny_exit_code: int = 0  # 2: the refusing hooks exit 2 instead of 0 (the agent ignores a JSON deny); no other value is used
 
 
 # One table row per agent. Change a path, a layout or an event name here and nothing else needs to move.
@@ -97,12 +101,16 @@ AGENTS: Final[dict[str, AgentSpec]] = {
     ),
     "antigravity": AgentSpec(
         name="antigravity",
-        project_path=(".agent", "hooks.json"), user_path=(".gemini", "antigravity", "hooks.json"),
+        project_path=(".agents", "hooks.json"), user_path=(".gemini", "config", "hooks.json"),
         layout=NESTED,
-        events={e: e for e in ("SessionStart", "SessionEnd", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop")},
+        # Antigravity has no prompt-submit or session events under Claude's names; PreInvocation runs before each model turn.
+        events={"UserPromptSubmit": "PreInvocation", "PreToolUse": "PreToolUse"},
         tools=SAME_TOOLS, keeps_if=False, verified=False,
-        source=("ASSUMPTION: Google Antigravity IDE (not the Gemini CLI) reads Claude-shaped hooks from .agent/hooks.json "
-                "(project) and ~/.gemini/antigravity/hooks.json (user). I could not confirm a documented hook file; check before relying on it."),
+        source=("Google Antigravity IDE (not the Gemini CLI) reads hooks from <project>/.agents/hooks.json and "
+                "~/.gemini/config/hooks.json, with PreInvocation and PreToolUse events. ASSUMPTION: the per-file shape and "
+                "tool names match Claude's."),
+        notes=("Antigravity expects a JSON decision on stdout. The dts2 hooks print one only when they refuse, so an "
+               "allowed call relies on Antigravity treating empty output as allow.",),
     ),
     "grok": AgentSpec(
         name="grok",
@@ -116,12 +124,19 @@ AGENTS: Final[dict[str, AgentSpec]] = {
     ),
     "muse": AgentSpec(
         name="muse",
-        project_path=(".muse", "hooks.json"), user_path=(".muse", "hooks.json"),
+        # User scope is the hooks block inside Muse's own settings file; every other key there is left alone.
+        project_path=(".muse", "hooks.json"), user_path=(".config", "muse", "settings.json"),
         layout=NESTED,
         events={e: e for e in ("SessionStart", "SessionEnd", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop")},
         tools=SAME_TOOLS, keeps_if=False, verified=False,
-        source=("ASSUMPTION: Muse Code (Meta) reads Claude-shaped hooks from .muse/hooks.json and ~/.muse/hooks.json. "
-                "No public hook documentation was available; check before relying on it."),
+        source=("Muse Code (Meta) reads Claude-shaped hooks from <project>/.muse/hooks.json (trusted folders only) and from "
+                "the hooks block of ~/.config/muse/settings.json (schema_version 1). Handler keys: type, command, timeout. "
+                "ASSUMPTION: tool names match Claude's."),
+        notes=("Muse clears the environment to USER and HOME, so commands use absolute paths (this installer always does).",
+               "Muse honours a refusal only with exit code 2, so the merge guard and policy gate get --deny-exit-code=2: "
+               "they then exit 2 on a refusal and print the reason on stderr."),
+        user_defaults=(("schema_version", 1),),
+        deny_exit_code=2,
     ),
 }
 
@@ -198,6 +213,8 @@ def render(spec: AgentSpec, root: Path, source: dict[str, list[dict[str, Any]]])
                 if not isinstance(hook, dict) or hook.get("type") != "command" or not isinstance(hook.get("command"), str):
                     continue
                 command = hook["command"].replace(ROOT_VAR, root_text)
+                if spec.deny_exit_code == 2 and DENY_HOOKS.search(command):  # the hooks accept only 2
+                    command += f" --deny-exit-code={spec.deny_exit_code}"
                 key = (matcher or "", command, hook.get("if") if spec.keeps_if else None)
                 if key in seen:  # without the `if` filter, copies of one command collapse into one
                     continue
@@ -225,10 +242,18 @@ def render(spec: AgentSpec, root: Path, source: dict[str, list[dict[str, Any]]])
     return out, skipped
 
 
+DENY_FLAG: Final[re.Pattern[str]] = re.compile(r" --deny-exit-code=\d+$")
+
+
+def command_key(command: Any) -> Any:
+    """A command without the deny-exit-code flag, so an install with and without the flag is the same entry."""
+    return DENY_FLAG.sub("", command) if isinstance(command, str) else command
+
+
 def entry_key(layout: str, entry: dict[str, Any]) -> tuple[Any, ...]:
     if layout == NESTED:
-        return (entry.get("matcher"), tuple(h.get("command") for h in entry.get("hooks", []) if isinstance(h, dict)))
-    return (entry.get("matcher"), entry.get("command"))
+        return (entry.get("matcher"), tuple(command_key(h.get("command")) for h in entry.get("hooks", []) if isinstance(h, dict)))
+    return (entry.get("matcher"), command_key(entry.get("command")))
 
 
 def ours_hooks(layout: str, entry: Any) -> bool:
@@ -365,8 +390,13 @@ def run_agent(name: str, repo: Path, home: Path, user: bool, dry_run: bool, unin
     desired, skipped = render(spec, root, source if source is not None else load_source())
     original = read_doc(path)
     new_doc = build_doc(spec, original, desired, uninstall)
+    if user and not uninstall:
+        for key, value in spec.user_defaults:
+            new_doc.setdefault(key, value)
     changed = new_doc != original
-    remove_file = uninstall and changed and is_blank(spec, new_doc) and path.is_file()
+    # A user-scope file with defaults is the agent's own settings file: strip our hooks but never delete it.
+    keep_file = user and bool(spec.user_defaults)
+    remove_file = uninstall and changed and not keep_file and is_blank(spec, new_doc) and path.is_file()
     before, after = count_entries(original), count_entries(new_doc)
     if not changed:
         action = "unchanged"

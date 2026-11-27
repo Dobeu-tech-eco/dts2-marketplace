@@ -653,6 +653,8 @@ def deny_output(reason: str) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cwd", default=".")
+    parser.add_argument("--deny-exit-code", type=int, choices=(0, 2), default=0,
+                        help="exit code on a refusal; 2 for agents that block only on exit 2 (Muse)")
     args = parser.parse_args()
     try:
         payload: Any = json.loads(sys.stdin.read())
@@ -670,9 +672,14 @@ def main() -> int:
                   else f"the policy gate failed ({type(exc).__name__}) for a rules-limited agent" if limited else None)
     if reason is not None:
         print(deny_output(reason))
+        if args.deny_exit_code:
+            print(reason, file=sys.stderr)
         command: str = guard.command_of(payload)[:300]
-        append_text(cwd / LOG_REL, json.dumps({"event": "denied", "reason": reason, "command": command}) + "\n")
-    return 0
+        try:  # a failed log write must not turn the refusal into exit 1, which lets the call through
+            append_text(cwd / LOG_REL, json.dumps({"event": "denied", "reason": reason, "command": command}) + "\n")
+        except OSError:
+            pass
+    return args.deny_exit_code if reason is not None else 0
 
 
 if __name__ == "__main__":
