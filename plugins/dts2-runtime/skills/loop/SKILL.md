@@ -56,3 +56,10 @@ A second mode of this loop looks for gaps instead of tuning a role. It reuses th
 Read `.harness/end-state.md` and look for missing sections, missing acceptance criteria and useful features. Record each finding with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/gap_research.py" <repo> add --kind section|criterion --lane <component> --text "<suggestion>" [--why "<reason>"] [--source loop|learn|checkpoint] [--needs-service]`. Rows go to `.harness/research/gaps.jsonl` as `G-N`. A suggestion that needs a paid service, account, sign-up or API key is stored as `escalated`, and the script adds a Decisions action item for the owner. Do not apply it.
 
 Use `list [--status proposed|escalated|applied|rejected]` to read the rows. `apply <id>` writes a proposed row into the end state and prints the old and new scope keys. `reject <id> --reason "<why>"` closes one. Apply a proposed row only while the roadmap is not locked yet, or when the owner says to. Applying changes the scope key, so the roadmap needs a new lock: show the new key to the owner and let `/dt:go` handle the lock. Gap research never runs `lock-roadmap` itself. When unsure whether a suggestion needs a paid service, pass `--needs-service`. Token spend is not a reason to skip a pass.
+
+## 7. Completeness loop
+
+This is separate from the role-research loop above. It checks that nothing is missing, and it runs at two points.
+
+1. Setup pass, before the roadmap lock: `python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/gap_research.py" . pass`. Every gap it records needs a disposition (`resolve` or `reject`) before `lock-roadmap` will run.
+2. PR-end check, before merge is requested: `python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/pr_loop.py" --repo . check --base origin/main --file-items`. Anything newly missing is fixed in the PR or filed as an action item, never dropped. Both outputs go in the PR body under `## Loop gate`.
