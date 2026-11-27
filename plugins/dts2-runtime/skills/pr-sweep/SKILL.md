@@ -24,6 +24,7 @@ Read the file for a phase only when you reach it; do not read ahead. All files a
 | `phase-4-optimise-ci.md` | Read `phase-4-optimise-ci.md` (same folder) only with `--optimise-ci`, after the sweep is done. |
 
 ## Guardrails
+- Before merge is requested on a PR, run `python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/pr_loop.py" --repo . check --base origin/main --file-items`, fix or file every item, and paste the printed `## Loop gate` block into the PR body. CI fails the release gate without it.
 - Merge commits only. Never `--admin`, never bypass branch protection or a required check or review.
 - Only bucket H waits for the user. Everything else proceeds.
 - The lead coordinates and signs off; every rebase or fix is done by a worker with the model named explicitly.
