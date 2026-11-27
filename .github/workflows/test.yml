@@ -85,7 +85,12 @@ jobs:
           python-version: "3.12"
       - name: Release gate (runtime change into main needs a plugin.json version bump)
         if: github.event_name == 'pull_request' && github.base_ref == 'main'
-        run: python3 plugins/dts2-runtime/scripts/release-gate.py --base "origin/${{ github.base_ref }}"
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          printf '%s' "$PR_BODY" > "$RUNNER_TEMP/pr-body.md"
+          python3 plugins/dts2-runtime/scripts/release-gate.py --base "origin/$BASE_REF" --pr-body "$RUNNER_TEMP/pr-body.md"
       - name: Context tax (always-loaded skill and agent metadata, chars/4 estimate)
         run: python3 plugins/dts2-runtime/scripts/context-tax.py
       - name: Directory edition matches the generator
