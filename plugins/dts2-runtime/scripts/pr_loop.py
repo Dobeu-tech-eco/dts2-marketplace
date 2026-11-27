@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _load  # noqa: E402
 import gap_research  # noqa: E402
 import state_io  # noqa: E402
 
@@ -39,7 +40,8 @@ NOTHING: Final[str] = "Nothing newly missing."
 UNFIXED: Final[str] = "not yet fixed or filed"
 MARKER: Final[re.Pattern[str]] = re.compile(r"\b(" + "TO" + "DO|FIX" + "ME|X" + r"XX)\b")
 ANY_HEADING: Final[re.Pattern[str]] = re.compile(r"^#{1,6} +\S")
-HTML_COMMENT: Final[re.Pattern[str]] = re.compile(r"<!--.*?-->", re.DOTALL)
+HTML_COMMENT: Final[re.Pattern[str]] = re.compile(r"<!--.*?(?:-->|\Z)", re.DOTALL)  # an unclosed comment hides the rest
+LEVEL_TWO: Final[re.Pattern[str]] = re.compile(r"^## ", re.MULTILINE)
 
 
 def git(repo: Path, *args: str) -> str:
@@ -246,6 +248,7 @@ def file_item(repo: Path, text: str) -> str:
 
 
 def filed_items(repo: Path) -> set[str]:
+    """Normalised text of the open action items. Only open items are checked, so an item marked done can be filed again."""
     script: Path = Path(__file__).resolve().parent / "action-items.py"
     done: subprocess.CompletedProcess[str] = subprocess.run(
         [sys.executable, "-I", str(script), str(repo), "list"], capture_output=True, text=True, check=False
@@ -253,9 +256,12 @@ def filed_items(repo: Path) -> set[str]:
     try:
         listing: Any = json.loads(done.stdout)
     except ValueError:
-        return set()
+        listing = None
     items: Any = listing.get("items") if isinstance(listing, dict) else None
-    return {str(row.get("item")) for row in items if isinstance(row, dict)} if isinstance(items, list) else set()
+    if done.returncode != 0 or not isinstance(items, list):
+        raise RuntimeError(f"could not read action items: {done.stdout.strip() or done.stderr.strip()}")
+    clean_text = _load.load("action-items").clean_text
+    return {clean_text(str(row.get("item"))) for row in items if isinstance(row, dict)}
 
 
 def end_section(repo: Path, base: str, head: str, changed: list[str], file_items: bool) -> list[str]:
@@ -265,10 +271,11 @@ def end_section(repo: Path, base: str, head: str, changed: list[str], file_items
         return lines + [NOTHING]
     out: list[str] = lines + [f"Newly missing ({len(items)}):"]
     already: set[str] = filed_items(repo) if file_items else set()
+    clean_text = _load.load("action-items").clean_text
     for item in items:
         status: str = UNFIXED
         if file_items:
-            status = "already filed" if f"{ITEM_PREFIX} {item}" in already else f"filed as {file_item(repo, item)}"
+            status = "already filed" if clean_text(f"{ITEM_PREFIX} {item}") in already else f"filed as {file_item(repo, item)}"
         out.append(f"- {item} ({status})")
     return out
 
@@ -303,10 +310,19 @@ def missing_headings(text: str) -> list[str]:
     return missing
 
 
+def gate_block(text: str) -> str:
+    """The text from the "## Loop gate" heading to the next level-2 heading or the end; empty when there is no such heading."""
+    start: re.Match[str] | None = re.search(rf"^{re.escape(HEADINGS[0])}[ \t]*$", text, re.MULTILINE)
+    if start is None:
+        return ""
+    after: re.Match[str] | None = LEVEL_TWO.search(text, start.end())
+    return text[start.start():after.start() if after else len(text)]
+
+
 def body_problems(text: str) -> list[str]:
     """Why a PR body fails the Loop gate: missing or empty headings, a missing gap pass, or an unfixed item. Empty when it passes."""
     problems: list[str] = [f"{heading} (absent or empty)" for heading in missing_headings(text)]
-    visible: str = HTML_COMMENT.sub("", text)
+    visible: str = gate_block(HTML_COMMENT.sub("", text))
     if MISSING_PASS in visible:
         problems.append(f'the gap pass is missing ("{MISSING_PASS}")')
     if UNFIXED in visible:

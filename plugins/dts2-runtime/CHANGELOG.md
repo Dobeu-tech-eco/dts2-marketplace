@@ -21,7 +21,7 @@ The completeness loop now runs twice and is enforced by code. Nothing breaking f
 ### Changed
 
 - `lock-roadmap` and the chat lock path refuse (exit 4) until a gap pass has run for the current scope and every gap is resolved or rejected. `/dt:next` names the gap pass when it is the blocker.
-- `release-gate.py` takes `--pr-body`, and CI fails a pull request whose body has no loop gate block.
+- `release-gate.py` takes `--pr-body`, and CI fails a pull request whose body has no loop gate block. CI also fails a body whose block says the gap pass is missing or an item is not yet fixed or filed, and HTML comments are stripped before the check. Dependabot pull requests are exempt, and the check runs again when a body is edited. A rejected gap is no longer added again by a later gap pass.
 
 ## [5.10.2]
 

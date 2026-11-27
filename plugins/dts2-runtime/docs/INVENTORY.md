@@ -277,7 +277,7 @@ Stamp-keyed commands:
 | `directory_edition.py` | none | `--check` | Write the Claude directory listing at `plugins/dts2-harness` from this harness. | CI `metadata` job | new |
 | `cursor_surface.py` | none | `--check` | Write the Cursor instruction package at `plugins/dt-cursor` and the repo `.cursor` skills and commands. | CI `metadata` job | new |
 | `changelog-join.py` | none | `--root`, `--version`, `--apply`, `--date` | Join `changelog.d/` fragments into the README changelog; dry run unless `--apply`. | release step | new |
-| `release-gate.py` | none | `--base` (required), `--head` | CI gate on pull requests to main: when shipped plugin files change, the runtime version must be higher than the base and `CHANGELOG.md` must carry a `## [X.Y.Z]` entry for it. JSON verdict; exit 0 pass, 1 fail, 2 error. | CI (`metadata` job) | new |
+| `release-gate.py` | none | `--base` (required), `--head`, `--pr-body` | CI gate on pull requests to main: when shipped plugin files change, the runtime version must be higher than the base and `CHANGELOG.md` must carry a `## [X.Y.Z]` entry for it. JSON verdict; exit 0 pass, 1 fail, 2 error. | CI (`metadata` job) | new |
 | `pr_loop.py` | `check`, `verify-body <path>` | `--repo`; `check`: `--base` (required), `--head`, `--file-items` | The PR-end loop gate: `check` prints the `## Loop gate` block for the PR body (gap pass state plus newly missing items, filed as action items with `--file-items`); `verify-body` exits 1 when that block is absent, empty, reports a missing pass or an item not yet fixed or filed. | CI (`metadata` job, via `release-gate.py --pr-body`); PR authors | new |
 
 ### 4.7 Hook entry points (called by hooks, usable by hand)

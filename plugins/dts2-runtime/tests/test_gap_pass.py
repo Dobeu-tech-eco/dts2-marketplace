@@ -144,6 +144,10 @@ class PassTests(unittest.TestCase):
             "# Roadmap\n\n- scope key: deadbeef0000\n- We assume the vendor stays up.\n", encoding="utf-8")
         self.assertEqual(gap_research.gap_pass(self.repo)["found"], 0)
 
+    def test_roadmap_view_without_a_scope_key_line_is_not_scanned(self) -> None:
+        (self.repo / ".harness" / "roadmap.md").write_text("# Roadmap\n\n- We assume the vendor stays up.\n", encoding="utf-8")
+        self.assertEqual(gap_research.gap_pass(self.repo)["found"], 0)
+
     def test_clean_end_state_finds_nothing(self) -> None:
         repo: Path = make_repo(GAPPY.split("## Notes")[0].replace("TBD", "bob").replace("| - |", "| carol |").replace("| ? |", "| dan |")
                                .replace("|  |", "| erin |").replace("### reports\n\n- [ ] reports render\n", ""))

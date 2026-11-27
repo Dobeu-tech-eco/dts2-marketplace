@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 from typing import Final
 
@@ -206,6 +207,27 @@ class CheckTests(unittest.TestCase):
             self.assertNotIn("filed as D", second.stdout)
             self.assertEqual(ledger_path.read_text(encoding="utf-8").count("[Loop gate]"), filed)
 
+    def test_file_items_dedupes_an_item_whose_text_is_rewritten_when_stored(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = make_repo(tmp)
+            marker: str = "TO" + "DO"
+            write(repo, RT + "scripts/old.py", f"x = 1  # {marker} a | b\n")
+            commit(repo)
+            first = run(repo, "check", "--base", "base", "--file-items")
+            self.assertRegex(first.stdout, r"filed as D\d+")
+            ledger_path = repo / ".harness" / "action-items.md"
+            filed = ledger_path.read_text(encoding="utf-8").count("[Loop gate]")
+            second = run(repo, "check", "--base", "base", "--file-items")
+            self.assertEqual(second.returncode, 0, second.stderr)
+            self.assertNotIn("filed as D", second.stdout)
+            self.assertEqual(ledger_path.read_text(encoding="utf-8").count("[Loop gate]"), filed)
+
+    def test_filed_items_raises_when_action_items_fails(self) -> None:
+        failed = subprocess.CompletedProcess([], 1, stdout="", stderr="boom")
+        with mock.patch.object(pr_loop.subprocess, "run", return_value=failed):
+            with self.assertRaises(RuntimeError):
+                pr_loop.filed_items(Path("."))
+
     def test_paths_with_spaces_are_kept_whole(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = make_repo(tmp)
@@ -257,6 +279,20 @@ class VerifyBodyTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("not yet fixed or filed", result.stderr)
 
+    def test_failing_phrases_outside_the_loop_gate_block_are_ignored(self) -> None:
+        prose = f'Earlier I saw "{pr_loop.MISSING_PASS}" and "not yet fixed or filed" in a log.\n\n'
+        self.assertEqual(self.verify(prose + GOOD_BODY + "\n## Notes\n\nnot yet fixed or filed, said a log\n").returncode, 0)
+
+    def test_failing_phrase_inside_the_block_still_fails_before_a_later_section(self) -> None:
+        body = GOOD_BODY.replace("Nothing newly missing.", "- x (not yet fixed or filed)") + "\n## Notes\n\nok\n"
+        self.assertEqual(self.verify(body).returncode, 1)
+
+    def test_unclosed_comment_hides_the_rest(self) -> None:
+        body = "## Loop gate\n\n### Setup gap pass\n\nNot applicable.\n\n### PR-end check\n\n<!-- Nothing newly missing.\n"
+        result = self.verify(body)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("### PR-end check", result.stderr)
+
     def test_filed_item_passes(self) -> None:
         body = GOOD_BODY.replace("Nothing newly missing.", "Newly missing (1):\n- x changed with no test (filed as D3)")
         self.assertEqual(self.verify(body).returncode, 0)
@@ -274,6 +310,26 @@ class VerifyBodyTests(unittest.TestCase):
             body = Path(tmp) / "body.txt"
             body.write_text(run(repo, "check", "--base", "base").stdout, encoding="utf-8")
             self.assertEqual(run(repo, "verify-body", str(body)).returncode, 0)
+
+
+class WorkflowTextTests(unittest.TestCase):
+    def test_run_blocks_have_no_expression_and_dependabot_is_skipped(self) -> None:
+        text = (PLUGIN_ROOT.parent.parent / ".github" / "workflows" / "test.yml").read_text(encoding="utf-8")
+        in_run = False
+        run_indent = 0
+        for line in text.splitlines():
+            indent = len(line) - len(line.lstrip())
+            if in_run and line.strip() and indent <= run_indent:
+                in_run = False
+            if in_run:
+                self.assertNotIn("${{", line)
+            stripped = line.strip().removeprefix("- ")
+            if stripped.startswith("run:"):
+                if "${{" in stripped:
+                    self.fail(f"expression in run: {line}")
+                in_run = stripped.rstrip().endswith("|")
+                run_indent = indent
+        self.assertIn('"$PR_AUTHOR" != "dependabot[bot]"', text)
 
 
 if __name__ == "__main__":
