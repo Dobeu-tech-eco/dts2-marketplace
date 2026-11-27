@@ -193,6 +193,28 @@ class CliTests(unittest.TestCase):
             code, out = self._run(repo, "--pr-body", self._body(repo, body))
             self.assertEqual((code, out["verdict"]), (0, "pass"))
 
+    def test_cli_pr_body_with_comment_only_section_fails(self) -> None:
+        body = "## Loop gate\n\n### Setup gap pass\n\n<!-- later -->\n\n### PR-end check\n\nNothing newly missing.\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(tmp)
+            code, out = self._run(repo, "--pr-body", self._body(repo, body))
+            self.assertEqual((code, out["verdict"]), (1, "fail"))
+            self.assertIn("### Setup gap pass", str(out["reason"]))
+
+    def test_cli_pr_body_reporting_a_missing_pass_or_unfixed_item_fails(self) -> None:
+        good = (
+            "## Loop gate\n\n### Setup gap pass\n\nNot applicable.\n\n"
+            "### PR-end check\n\nNothing newly missing.\n"
+        )
+        for bad in (
+            good.replace("Not applicable.", "Missing: run gap_research.py pass before requesting merge."),
+            good.replace("Nothing newly missing.", "- x (not yet fixed or filed)"),
+        ):
+            with tempfile.TemporaryDirectory() as tmp:
+                repo = self._repo(tmp)
+                code, out = self._run(repo, "--pr-body", self._body(repo, bad))
+                self.assertEqual((code, out["verdict"]), (1, "fail"))
+
     def test_cli_pr_body_failure_adds_to_version_failure(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = self._repo(tmp)

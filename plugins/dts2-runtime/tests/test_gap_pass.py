@@ -124,18 +124,25 @@ class PassTests(unittest.TestCase):
         self.assertEqual(len(again["open"]), 8)
         self.assertEqual(len(gap_research.read_rows(self.repo)), 8)
 
-    def test_resolved_gap_is_not_added_again_but_a_rejected_one_is(self) -> None:
+    def test_neither_a_resolved_nor_a_rejected_gap_is_added_again(self) -> None:
         gap_research.resolve(self.repo, "G-1", "named an owner")
         gap_research.reject(self.repo, "G-2", "not needed")
         again: dict[str, Any] = gap_research.gap_pass(self.repo)
-        self.assertEqual(again["found"], 1)
+        self.assertEqual(again["found"], 0)
         self.assertNotIn("G-1", again["open"])
         self.assertNotIn("G-2", again["open"])
 
     def test_roadmap_view_is_scanned_when_present(self) -> None:
-        (self.repo / ".harness" / "roadmap.md").write_text("# Roadmap\n\n- We assume the vendor stays up.\n", encoding="utf-8")
+        key: str = str(roadmap.status(self.repo)["key"])
+        (self.repo / ".harness" / "roadmap.md").write_text(
+            f"# Roadmap\n\n- scope key: {key}\n- We assume the vendor stays up.\n", encoding="utf-8")
         again: dict[str, Any] = gap_research.gap_pass(self.repo)
         self.assertEqual(again["found"], 2)
+
+    def test_stale_roadmap_view_is_not_scanned(self) -> None:
+        (self.repo / ".harness" / "roadmap.md").write_text(
+            "# Roadmap\n\n- scope key: deadbeef0000\n- We assume the vendor stays up.\n", encoding="utf-8")
+        self.assertEqual(gap_research.gap_pass(self.repo)["found"], 0)
 
     def test_clean_end_state_finds_nothing(self) -> None:
         repo: Path = make_repo(GAPPY.split("## Notes")[0].replace("TBD", "bob").replace("| - |", "| carol |").replace("| ? |", "| dan |")

@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from pr_loop import missing_headings  # noqa: E402
+from pr_loop import body_problems  # noqa: E402
 
 RUNTIME_PREFIX: Final[str] = "plugins/dts2-runtime/"
 MANIFEST: Final[str] = "plugins/dts2-runtime/.claude-plugin/plugin.json"
@@ -111,13 +111,13 @@ def body_missing(path: str) -> list[str]:
         text: str = Path(path).read_text(encoding="utf-8")
     except OSError as exc:
         raise ValueError(f"cannot read PR body {path}: {exc}") from exc
-    return missing_headings(text)
+    return body_problems(text)
 
 
 def with_body(result: dict[str, object], missing: list[str]) -> dict[str, object]:
     if not missing:
         return result
-    reason: str = "PR body is missing: " + ", ".join(missing)
+    reason: str = "PR body fails the Loop gate: " + "; ".join(missing)
     if result["verdict"] == "fail":
         reason = f"{result['reason']}; {reason}"
     return {**result, "verdict": "fail", "reason": reason, "pr_body_missing": missing}

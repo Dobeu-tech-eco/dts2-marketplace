@@ -11,9 +11,17 @@ import unittest
 from pathlib import Path
 from typing import Final
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+import gap_research  # noqa: E402
+import pr_loop  # noqa: E402
+
 PLUGIN_ROOT: Final[Path] = Path(__file__).resolve().parent.parent
 SCRIPT: Final[Path] = PLUGIN_ROOT / "scripts" / "pr_loop.py"
 RT: Final[str] = "plugins/dts2-runtime/"
+END_STATE: Final[str] = (
+    "# End state\n\n## Sections\n| # | section | serves component | owner | status |\n|---|---|---|---|---|\n"
+    "| 1 | core | api | alice | todo |\n\n## Acceptance criteria\n\n### api\n\n- [ ] records persist\n"
+)
 GOOD_BODY: Final[str] = "## Loop gate\n\n### Setup gap pass\n\nNot applicable.\n\n### PR-end check\n\nNothing newly missing.\n"
 
 
@@ -117,7 +125,7 @@ class CheckTests(unittest.TestCase):
     def test_roadmap_touched_without_pass_is_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = make_repo(tmp)
-            write(repo, "docs/end-state.md", "# end\n")
+            write(repo, ".harness/end-state.md", "# end\n")
             commit(repo)
             out = run(repo, "check", "--base", "base").stdout
             self.assertIn("Missing: run gap_research.py pass before requesting", out)
@@ -148,6 +156,63 @@ class CheckTests(unittest.TestCase):
             self.assertIn("[Loop gate]", ledger)
             self.assertIn("fresh.py", ledger)
 
+    def test_roadmap_touched_matches_only_the_harness_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = make_repo(tmp)
+            write(repo, RT + "templates/end-state.md", "# template\n")
+            commit(repo)
+            self.assertIn("Not applicable", run(repo, "check", "--base", "base").stdout)
+            write(repo, ".harness/end-state.md", END_STATE)
+            commit(repo, "end state")
+            self.assertIn("Missing: run gap_research.py pass", run(repo, "check", "--base", "base").stdout)
+
+    def test_gap_pass_for_an_old_scope_is_stale_and_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = make_repo(tmp)
+            write(repo, ".harness/end-state.md", END_STATE)
+            write(repo, ".harness/research/gap-pass.json", json.dumps(
+                {"key": "oldkey000000", "ran": "2026-11-27T00:00:00Z", "found": 0, "open": [], "counts": {}}))
+            out = run(repo, "check", "--base", "base").stdout
+            self.assertRegex(out, r"Stale: gap pass ran for oldkey000000, scope is now \w{12}; re-run gap_research.py pass\.")
+            self.assertIn("Missing: run gap_research.py pass", out)
+            self.assertNotIn("No open gaps", out)
+            body = Path(tmp) / "rendered.md"
+            body.write_text(out, encoding="utf-8")
+            self.assertEqual(run(repo, "verify-body", str(body)).returncode, 1)
+
+    def test_gap_pass_for_the_current_scope_is_not_stale(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = make_repo(tmp)
+            write(repo, ".harness/end-state.md", END_STATE)
+            key: str = str(gap_research.scope_key(END_STATE))
+            write(repo, ".harness/research/gap-pass.json", json.dumps(
+                {"key": key, "ran": "2026-11-27T00:00:00Z", "found": 0, "open": [], "counts": {}}))
+            out = run(repo, "check", "--base", "base").stdout
+            self.assertNotIn("Stale", out)
+            self.assertIn("No open gaps", out)
+
+    def test_file_items_skips_an_item_that_is_already_filed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = make_repo(tmp)
+            write(repo, RT + "scripts/fresh.py", "x = 1\n")
+            commit(repo)
+            first = run(repo, "check", "--base", "base", "--file-items")
+            self.assertRegex(first.stdout, r"filed as D\d+")
+            ledger_path = repo / ".harness" / "action-items.md"
+            filed = ledger_path.read_text(encoding="utf-8").count("[Loop gate]")
+            second = run(repo, "check", "--base", "base", "--file-items")
+            self.assertEqual(second.returncode, 0, second.stderr)
+            self.assertIn("already filed", second.stdout)
+            self.assertNotIn("filed as D", second.stdout)
+            self.assertEqual(ledger_path.read_text(encoding="utf-8").count("[Loop gate]"), filed)
+
+    def test_paths_with_spaces_are_kept_whole(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = make_repo(tmp)
+            write(repo, "my docs/a b.txt", "x\n")
+            commit(repo)
+            self.assertIn("my docs (1)", run(repo, "check", "--base", "base").stdout)
+
     def test_bad_base_exits_2(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = make_repo(tmp)
@@ -174,6 +239,27 @@ class VerifyBodyTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("### Setup gap pass", result.stderr)
         self.assertNotIn("### PR-end check", result.stderr)
+
+    def test_comment_only_heading_fails(self) -> None:
+        body = "## Loop gate\n\n### Setup gap pass\n\n<!-- paste the output here -->\n\n### PR-end check\n\ntext\n"
+        result = self.verify(body)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("### Setup gap pass", result.stderr)
+
+    def test_missing_gap_pass_line_fails(self) -> None:
+        result = self.verify(GOOD_BODY.replace("Not applicable.", pr_loop.MISSING_PASS))
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("gap pass is missing", result.stderr)
+
+    def test_item_not_yet_fixed_or_filed_fails(self) -> None:
+        body = GOOD_BODY.replace("Nothing newly missing.", "Newly missing (1):\n- x changed with no test (not yet fixed or filed)")
+        result = self.verify(body)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("not yet fixed or filed", result.stderr)
+
+    def test_filed_item_passes(self) -> None:
+        body = GOOD_BODY.replace("Nothing newly missing.", "Newly missing (1):\n- x changed with no test (filed as D3)")
+        self.assertEqual(self.verify(body).returncode, 0)
 
     def test_no_block_fails_all(self) -> None:
         result = self.verify("just a body\n")

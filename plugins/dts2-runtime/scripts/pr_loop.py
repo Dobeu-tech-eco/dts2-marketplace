@@ -4,7 +4,8 @@
 Subcommands:
   check --base REF [--head REF] [--file-items]   print the "## Loop gate" markdown block for the PR body; with --file-items each
                                                  newly missing item is filed in .harness/action-items.md (never dropped)
-  verify-body PATH                               exit 0 when PATH holds the Loop gate headings, each with text; else 1
+  verify-body PATH                               exit 0 when PATH holds the Loop gate headings, each with text (HTML comments
+                                                 do not count) and no failing line ("Missing: ..." or "not yet fixed or filed"); else 1
 
 Global: --repo ROOT (default .). Read-only except --file-items. Stdlib only."""
 from __future__ import annotations
@@ -17,11 +18,15 @@ import sys
 from pathlib import Path
 from typing import Any, Final
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import gap_research  # noqa: E402
+
 PLUGIN: Final[str] = "plugins/dts2-runtime/"
 MANIFEST: Final[str] = PLUGIN + ".claude-plugin/plugin.json"
 CHANGELOG: Final[str] = PLUGIN + "CHANGELOG.md"
 UNSHIPPED: Final[tuple[str, ...]] = (PLUGIN + "tests/", PLUGIN + "changelog.d/")
-ROADMAP_FILES: Final[tuple[str, ...]] = ("end-state.md", "roadmap.md")
+ROADMAP_FILES: Final[tuple[str, ...]] = (".harness/end-state.md", ".harness/roadmap.md")
+END_STATE_REL: Final[str] = ".harness/end-state.md"
 PASS_REL: Final[str] = ".harness/research/gap-pass.json"
 GAPS_REL: Final[str] = ".harness/research/gaps.jsonl"
 OPEN_GAP: Final[tuple[str, ...]] = ("proposed", "escalated")
@@ -31,8 +36,10 @@ HEADINGS: Final[tuple[str, ...]] = ("## Loop gate", "### Setup gap pass", "### P
 NOT_APPLICABLE: Final[str] = "Not applicable: this PR does not change the roadmap scope."
 MISSING_PASS: Final[str] = "Missing: run gap_research.py pass before requesting merge."
 NOTHING: Final[str] = "Nothing newly missing."
+UNFIXED: Final[str] = "not yet fixed or filed"
 MARKER: Final[re.Pattern[str]] = re.compile(r"\b(" + "TO" + "DO|FIX" + "ME|X" + r"XX)\b")
 ANY_HEADING: Final[re.Pattern[str]] = re.compile(r"^#{1,6} +\S")
+HTML_COMMENT: Final[re.Pattern[str]] = re.compile(r"<!--.*?-->", re.DOTALL)
 
 
 def git(repo: Path, *args: str) -> str:
@@ -52,10 +59,10 @@ def show(repo: Path, ref: str, path: str) -> str:
 
 
 def changed_files(repo: Path, base: str, head: str, added_only: bool = False) -> list[str]:
-    args: list[str] = ["diff", "--name-only"]
+    args: list[str] = ["diff", "-z", "--name-only"]
     if added_only:
         args.append("--diff-filter=A")
-    return git(repo, *args, f"{base}...{head}").split()
+    return [path for path in git(repo, *args, f"{base}...{head}").split("\0") if path]
 
 
 def area(path: str) -> str:
@@ -97,13 +104,25 @@ def open_gap_rows(repo: Path) -> list[dict[str, Any]]:
 
 
 def roadmap_touched(changed: list[str]) -> bool:
-    return any(Path(path).name in ROADMAP_FILES for path in changed)
+    return any(path in ROADMAP_FILES for path in changed)
+
+
+def current_key(repo: Path) -> str | None:
+    try:
+        text: str = (repo / END_STATE_REL).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    return gap_research.scope_key(text)
 
 
 def setup_section(repo: Path, changed: list[str]) -> list[str]:
     data: dict[str, Any] | None = read_json(repo / PASS_REL)
     if data is None:
         return [MISSING_PASS if roadmap_touched(changed) else NOT_APPLICABLE]
+    current: str | None = current_key(repo)
+    if current is not None and data.get("key") != current:
+        return [f"Stale: gap pass ran for {data.get('key')}, scope is now {current}; re-run gap_research.py pass.",
+                MISSING_PASS]
     counts: dict[str, Any] = data.get("counts") or {}
     tally: str = ", ".join(f"{name} {counts[name]}" for name in sorted(counts)) or "none"
     lines: list[str] = [
@@ -226,14 +245,30 @@ def file_item(repo: Path, text: str) -> str:
     return str(reply["id"])
 
 
+def filed_items(repo: Path) -> set[str]:
+    script: Path = Path(__file__).resolve().parent / "action-items.py"
+    done: subprocess.CompletedProcess[str] = subprocess.run(
+        [sys.executable, "-I", str(script), str(repo), "list"], capture_output=True, text=True, check=False
+    )
+    try:
+        listing: Any = json.loads(done.stdout)
+    except ValueError:
+        return set()
+    items: Any = listing.get("items") if isinstance(listing, dict) else None
+    return {str(row.get("item")) for row in items if isinstance(row, dict)} if isinstance(items, list) else set()
+
+
 def end_section(repo: Path, base: str, head: str, changed: list[str], file_items: bool) -> list[str]:
     lines: list[str] = scope_lines(changed)
     items: list[str] = find_items(repo, base, head, changed)
     if not items:
         return lines + [NOTHING]
     out: list[str] = lines + [f"Newly missing ({len(items)}):"]
+    already: set[str] = filed_items(repo) if file_items else set()
     for item in items:
-        status: str = f"filed as {file_item(repo, item)}" if file_items else "not yet fixed or filed"
+        status: str = UNFIXED
+        if file_items:
+            status = "already filed" if f"{ITEM_PREFIX} {item}" in already else f"filed as {file_item(repo, item)}"
         out.append(f"- {item} ({status})")
     return out
 
@@ -258,8 +293,8 @@ def section_text(lines: list[str], at: int, to_end: bool) -> bool:
 
 
 def missing_headings(text: str) -> list[str]:
-    """Headings of the Loop gate block that are absent or have no text under them."""
-    lines: list[str] = text.splitlines()
+    """Headings of the Loop gate block that are absent or have no text under them (HTML comments are not text)."""
+    lines: list[str] = HTML_COMMENT.sub("", text).splitlines()
     missing: list[str] = []
     for heading in HEADINGS:
         at: int | None = next((i for i, line in enumerate(lines) if line.strip() == heading), None)
@@ -268,15 +303,26 @@ def missing_headings(text: str) -> list[str]:
     return missing
 
 
+def body_problems(text: str) -> list[str]:
+    """Why a PR body fails the Loop gate: missing or empty headings, a missing gap pass, or an unfixed item. Empty when it passes."""
+    problems: list[str] = [f"{heading} (absent or empty)" for heading in missing_headings(text)]
+    visible: str = HTML_COMMENT.sub("", text)
+    if MISSING_PASS in visible:
+        problems.append(f'the gap pass is missing ("{MISSING_PASS}")')
+    if UNFIXED in visible:
+        problems.append(f'an item is "{UNFIXED}"')
+    return problems
+
+
 def verify_body(path: Path) -> int:
     try:
         text: str = path.read_text(encoding="utf-8")
     except OSError as exc:
         print(f"cannot read {path}: {exc}", file=sys.stderr)
         return 1
-    missing: list[str] = missing_headings(text)
-    if missing:
-        print("PR body is missing: " + ", ".join(missing), file=sys.stderr)
+    problems: list[str] = body_problems(text)
+    if problems:
+        print("PR body fails the Loop gate: " + "; ".join(problems), file=sys.stderr)
         return 1
     return 0
 

@@ -26,6 +26,9 @@ assumption checks read prose and list lines only (a table row names components, 
                 (the "serves component", "lane" or "owner" column)
     dependency  a line mentioning a dependency, service, vendor or API with no price, cost, free or "$" on it
     assumption  a line containing "assume", "assumption" or "unverified" and not the word "verified"
+A rejected or resolved gap is never added again by a later pass. The scope key covers the Sections and Acceptance lines only,
+so prose-only edits do not invalidate a pass. `.harness/roadmap.md` is scanned only while its "scope key:" line matches the
+current key.
 In gap-pass.json, "found" counts new rows, "open" lists every open gap id and "counts" tallies those open rows by category."""
 from __future__ import annotations
 
@@ -432,14 +435,22 @@ def read_text(path: Path, required: bool) -> str | None:
         return None
 
 
+def current_view(view: str | None, key: str | None) -> str | None:
+    """The roadmap view text when its "scope key:" line matches `key`; None when it is stale or has no key line."""
+    if view is None or key is None:
+        return None
+    match: re.Match[str] | None = re.search(r"^- scope key: *(\S+)", view, re.MULTILINE)
+    return view if match and match.group(1) == key else None
+
+
 def gap_pass(repo: Path) -> dict[str, Any]:
     end_state: str | None = read_text(repo / state_io.END_STATE_REL, True)
-    view: str | None = read_text(repo / ROADMAP_VIEW_REL, False)
+    view: str | None = current_view(read_text(repo / ROADMAP_VIEW_REL, False), scope_key(end_state or ""))
     rows: list[dict[str, Any]] = read_rows(repo)
     added: int = 0
     for category, lane, text in pass_findings(end_state or "", view):
         if any(r.get("kind") == GAP_KIND and r.get("category") == category and str(r.get("text", "")).lower() == text.lower()
-               and r.get("status") != STATUS_REJECTED for r in rows):
+               for r in rows):
             continue
         rows.append({"id": next_id(rows), "kind": GAP_KIND, "category": category, "lane": lane, "text": text,
                      "why": f"setup gap pass: {category}", "source": "loop", "status": STATUS_PROPOSED, "added": now()})

@@ -43,3 +43,9 @@ Merge danger: <one-way | two-way> door — blast radius: <who or what breaks if 
 ### Rollback point
 
 <commit SHA or tag>
+
+## Loop gate
+
+Run this from the repo root and paste its whole output here, as the last block of the description. The CI check reads it, so leave the headings it prints as they are:
+
+`python3 plugins/dts2-runtime/scripts/pr_loop.py --repo . check --base origin/main`
