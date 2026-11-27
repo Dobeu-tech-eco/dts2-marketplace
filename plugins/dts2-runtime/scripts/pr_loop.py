@@ -20,15 +20,15 @@ from typing import Any, Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import gap_research  # noqa: E402
+import state_io  # noqa: E402
 
 PLUGIN: Final[str] = "plugins/dts2-runtime/"
 MANIFEST: Final[str] = PLUGIN + ".claude-plugin/plugin.json"
 CHANGELOG: Final[str] = PLUGIN + "CHANGELOG.md"
 UNSHIPPED: Final[tuple[str, ...]] = (PLUGIN + "tests/", PLUGIN + "changelog.d/")
-ROADMAP_FILES: Final[tuple[str, ...]] = (".harness/end-state.md", ".harness/roadmap.md")
-END_STATE_REL: Final[str] = ".harness/end-state.md"
-PASS_REL: Final[str] = ".harness/research/gap-pass.json"
-GAPS_REL: Final[str] = ".harness/research/gaps.jsonl"
+ROADMAP_FILES: Final[tuple[str, ...]] = (state_io.END_STATE_REL, gap_research.ROADMAP_VIEW_REL)
+PASS_REL: Final[str] = gap_research.PASS_REL
+GAPS_REL: Final[str] = gap_research.LEDGER_REL
 OPEN_GAP: Final[tuple[str, ...]] = ("proposed", "escalated")
 ITEMS_GROUP: Final[str] = "Decisions"  # action-items.py has no "Loop gate" group; rows carry the prefix instead
 ITEM_PREFIX: Final[str] = "[Loop gate]"
@@ -109,7 +109,7 @@ def roadmap_touched(changed: list[str]) -> bool:
 
 def current_key(repo: Path) -> str | None:
     try:
-        text: str = (repo / END_STATE_REL).read_text(encoding="utf-8", errors="replace")
+        text: str = (repo / state_io.END_STATE_REL).read_text(encoding="utf-8", errors="replace")
     except OSError:
         return None
     return gap_research.scope_key(text)
