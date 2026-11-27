@@ -236,5 +236,37 @@ class GapResearchTest(unittest.TestCase):
         gap_research.apply(self.repo, "G-1")
         self.assertIn("### web\n\n- [ ] users can sign out\n\n## Assumptions", self.end_state())
 
+    def test_resolve_dispositions_an_open_row_with_a_note(self) -> None:
+        row: dict[str, Any] = self.add("section", "web", "search page")
+        done: dict[str, Any] = gap_research.resolve(self.repo, row["id"], "  covered   by the login page ")
+        self.assertEqual((done["status"], done["note"]), ("resolved", "covered by the login page"))
+        self.assertIn("resolved", done)
+        with self.assertRaises(gap_research.GapError):
+            gap_research.resolve(self.repo, row["id"], "again")
+        with self.assertRaises(gap_research.GapError):
+            gap_research.reject(self.repo, row["id"], "late")
+
+    def test_resolve_needs_a_note(self) -> None:
+        row: dict[str, Any] = self.add("section", "web", "search page")
+        with self.assertRaises(gap_research.GapError):
+            gap_research.resolve(self.repo, row["id"], "  ")
+
+    def test_apply_refuses_a_gap_row(self) -> None:
+        gap_research.write_rows(self.repo, [{"id": "G-1", "kind": "gap", "category": "owner", "lane": "web",
+                                             "text": "login page has no owner", "status": "proposed"}])
+        with self.assertRaises(gap_research.GapError):
+            gap_research.apply(self.repo, "G-1")
+        self.assertEqual(self.end_state(), END_STATE)
+
+    def test_cli_resolve_and_status_filter(self) -> None:
+        row: dict[str, Any] = self.add("section", "web", "search page")
+        done = subprocess.run([sys.executable, "-I", str(SCRIPT), str(self.repo), "resolve", row["id"], "--note", "fine"],
+                              capture_output=True, text=True, check=False)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        listed = subprocess.run([sys.executable, "-I", str(SCRIPT), str(self.repo), "list", "--status", "resolved"],
+                                capture_output=True, text=True, check=False)
+        self.assertEqual([r["id"] for r in json.loads(listed.stdout)], [row["id"]])
+
+
 if __name__ == "__main__":
     unittest.main()
