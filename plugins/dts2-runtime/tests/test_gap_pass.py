@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import io
+import os
 import json
 import subprocess
 import sys
@@ -9,6 +10,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from typing import Any, Final
+from unittest import mock
 
 from helpers import PLUGIN_ROOT
 
@@ -245,6 +247,31 @@ class ApprovalsGateTests(unittest.TestCase):
         clean_pass(self.repo)
         self.assertIn("locked by the owner", approvals.grant_from_prompt(json.dumps({"prompt": "lock it in"}), self.repo))
         self.assertTrue(roadmap.status(self.repo)["approved"])
+
+    def test_agent_route_hits_the_gate_first(self) -> None:
+        with mock.patch.dict(os.environ, {"DTS2_SON": "1"}), \
+                mock.patch.object(approvals, "agent_lock_roadmap", wraps=approvals.agent_lock_roadmap) as agent_lock:
+            code, message = approvals.lock_roadmap(self.repo, self.key)
+        self.assertEqual(code, 4)
+        self.assertIn("dt: gap pass", message)
+        agent_lock.assert_not_called()
+        self.assertFalse(roadmap.status(self.repo)["approved"])
+
+    def test_no_terminal_route_hits_the_gate_first(self) -> None:
+        env: dict[str, str] = {k: v for k, v in os.environ.items() if k != "DTS2_SON"}
+        with mock.patch.dict(os.environ, env, clear=True), \
+                mock.patch.object(approvals, "agent_ancestor", return_value=None), \
+                mock.patch.object(approvals, "open_terminal", return_value=None), \
+                mock.patch.object(approvals, "no_terminal_lock", wraps=approvals.no_terminal_lock) as no_tty:
+            code, message = approvals.lock_roadmap(self.repo, self.key)
+            self.assertEqual(code, 4)
+            self.assertIn("dt: gap pass", message)
+            no_tty.assert_not_called()
+            clean_pass(self.repo)
+            code, _ = approvals.lock_roadmap(self.repo, self.key)
+            self.assertNotEqual(code, 4)
+            no_tty.assert_called_once()
+        self.assertFalse(roadmap.status(self.repo)["approved"])
 
 
 if __name__ == "__main__":

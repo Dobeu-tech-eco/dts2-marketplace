@@ -21,7 +21,7 @@ Directory edition for the Claude plugin directory. Skills, roles, and documents 
 
 ## [5.11.0]
 
-_Released 2026-11-27_
+_Released 2026-11-28_
 
 The completeness loop now runs twice and is enforced by code. Nothing breaking for repositories that run a clean gap pass before they lock.
 
