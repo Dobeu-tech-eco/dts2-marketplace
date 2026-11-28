@@ -13,6 +13,7 @@ from typing import Any, Final
 from helpers import PLUGIN_ROOT
 
 sys.path.insert(0, str(PLUGIN_ROOT / "scripts"))
+import gap_research  # noqa: E402
 import next_step  # noqa: E402
 import roadmap  # noqa: E402
 
@@ -83,6 +84,12 @@ def ready_fixture(*statuses: str, tail: str = "") -> Fixture:
     fixture.end_state(HEADER + sections(*statuses) + tail)
     approve_roadmap(fixture.repo)
     return fixture
+
+
+def clean_pass(repo: Path) -> None:
+    """Run the setup gap pass and resolve its findings, so the roadmap lock gate is open."""
+    for gap_id in gap_research.gap_pass(repo)["open"]:
+        gap_research.resolve(repo, gap_id, "test fixture: reviewed")
 
 
 def run_cli(repo: Path, home: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -157,12 +164,26 @@ class RungTests(unittest.TestCase):
     def test_rung_4_roadmap_not_approved(self) -> None:
         fixture: Fixture = ready_fixture("todo")
         (fixture.repo / ".claude" / "settings.local.json").unlink()
+        clean_pass(fixture.repo)
         result: dict[str, Any] = fixture.decide()
         self.check(result, 4, "roadmap-not-approved", None)
         info: dict[str, Any] = roadmap.status(fixture.repo)
         phrase: str = info["lock_phrase"]
         key: str = info["key"]
         self.assertEqual(result["blocked_on"], f"the owner says \"lock it in\" in chat, or types: {phrase} (any harness: approvals.py lock-roadmap {key})")
+
+    def test_rung_4_names_the_gap_pass_until_it_is_clean(self) -> None:
+        fixture: Fixture = ready_fixture("todo")
+        (fixture.repo / ".claude" / "settings.local.json").unlink()
+        result: dict[str, Any] = fixture.decide()
+        self.check(result, 4, "roadmap-not-approved", None)
+        self.assertTrue(result["blocked_on"].startswith("dt: gap pass"))
+        self.assertIn("pass", result["blocked_on"])
+        fixture.end_state((HEADER + sections("todo")) + "\n- We assume one region.\n")
+        gap_research.gap_pass(fixture.repo)
+        self.assertIn("G-1", fixture.decide()["blocked_on"])
+        clean_pass(fixture.repo)
+        self.assertIn("lock it in", fixture.decide()["blocked_on"])
 
     def test_rung_4_without_scope_says_to_run_setup(self) -> None:
         fixture: Fixture = Fixture()

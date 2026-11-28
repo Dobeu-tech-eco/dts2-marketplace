@@ -108,9 +108,9 @@ class CliTests(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
 
-    def _run(self, repo: Path) -> tuple[int, dict[str, object]]:
+    def _run(self, repo: Path, *extra: str) -> tuple[int, dict[str, object]]:
         done = subprocess.run(
-            [sys.executable, str(SCRIPT), "--base", "base"],
+            [sys.executable, str(SCRIPT), "--base", "base", *extra],
             cwd=repo,
             capture_output=True,
             text=True,
@@ -169,6 +169,67 @@ class CliTests(unittest.TestCase):
             self._git(repo, "commit", "-qam", "change")
             code, out = self._run(repo)
             self.assertEqual((code, out["verdict"]), (1, "fail"))
+
+    def _body(self, repo: Path, text: str) -> str:
+        path: Path = repo.parent / (repo.name + "-body.md")
+        path.write_text(text, encoding="utf-8")
+        self.addCleanup(path.unlink)
+        return str(path)
+
+    def test_cli_pr_body_without_loop_gate_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(tmp)
+            code, out = self._run(repo, "--pr-body", self._body(repo, "plain body\n"))
+            self.assertEqual((code, out["verdict"]), (1, "fail"))
+            self.assertIn("### PR-end check", str(out["reason"]))
+
+    def test_cli_pr_body_with_loop_gate_passes(self) -> None:
+        body = (
+            "## Loop gate\n\n### Setup gap pass\n\nNot applicable.\n\n"
+            "### PR-end check\n\nNothing newly missing.\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(tmp)
+            code, out = self._run(repo, "--pr-body", self._body(repo, body))
+            self.assertEqual((code, out["verdict"]), (0, "pass"))
+
+    def test_cli_pr_body_with_comment_only_section_fails(self) -> None:
+        body = "## Loop gate\n\n### Setup gap pass\n\n<!-- later -->\n\n### PR-end check\n\nNothing newly missing.\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(tmp)
+            code, out = self._run(repo, "--pr-body", self._body(repo, body))
+            self.assertEqual((code, out["verdict"]), (1, "fail"))
+            self.assertIn("### Setup gap pass", str(out["reason"]))
+
+    def test_cli_pr_body_reporting_a_missing_pass_or_unfixed_item_fails(self) -> None:
+        good = (
+            "## Loop gate\n\n### Setup gap pass\n\nNot applicable.\n\n"
+            "### PR-end check\n\nNothing newly missing.\n"
+        )
+        for bad in (
+            good.replace("Not applicable.", "Missing: run gap_research.py pass before requesting merge."),
+            good.replace("Nothing newly missing.", "- x (not yet fixed or filed)"),
+        ):
+            with tempfile.TemporaryDirectory() as tmp:
+                repo = self._repo(tmp)
+                code, out = self._run(repo, "--pr-body", self._body(repo, bad))
+                self.assertEqual((code, out["verdict"]), (1, "fail"))
+
+    def test_cli_pr_body_failure_adds_to_version_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(tmp)
+            self._write(repo, "plugins/dts2-runtime/scripts/a.py", "x = 2\n")
+            self._git(repo, "commit", "-qam", "change")
+            code, out = self._run(repo, "--pr-body", self._body(repo, ""))
+            self.assertEqual(code, 1)
+            self.assertIn("version bump", str(out["reason"]))
+            self.assertIn("## Loop gate", str(out["reason"]))
+
+    def test_cli_unreadable_pr_body_is_an_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(tmp)
+            code, _ = self._run(repo, "--pr-body", str(repo / "missing.md"))
+            self.assertEqual(code, 2)
 
 
 if __name__ == "__main__":

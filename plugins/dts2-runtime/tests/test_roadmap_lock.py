@@ -20,6 +20,7 @@ import approvals  # noqa: E402
 from test_stop_checks_portable import path_without_timeout  # noqa: E402
 import roadmap  # noqa: E402
 import state_io  # noqa: E402
+from test_gap_pass import clean_pass  # noqa: E402
 from test_roadmap import END_STATE  # noqa: E402
 
 HOOK: Final[Path] = PLUGIN_ROOT / "hooks" / "roadmap-lock.sh"
@@ -58,6 +59,7 @@ def make_repo() -> Path:
     path: Path = root / state_io.END_STATE_REL
     path.parent.mkdir(parents=True)
     path.write_text(END_STATE, encoding="utf-8")
+    clean_pass(root)
     return root
 
 

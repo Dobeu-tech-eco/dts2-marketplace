@@ -24,6 +24,7 @@ from typing import Any, Callable, Final
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _load  # noqa: E402
 import contracts  # noqa: E402
+import gap_research  # noqa: E402
 import mdparse  # noqa: E402
 import roadmap  # noqa: E402
 import state_io  # noqa: E402
@@ -148,6 +149,9 @@ def check_roadmap(ctx: Context) -> Verdict | None:
     phrase: str | None = info["lock_phrase"]
     if phrase is None:
         return None, "the roadmap has no scope to approve", NO_SCOPE_BLOCK
+    gate: str | None = gap_research.lock_block(ctx.repo, str(info["key"]))
+    if gate is not None:
+        return None, "the roadmap scope is not approved yet", gate
     blocked: str = f"the owner says \"lock it in\" in chat, or types: {phrase} (any harness: approvals.py lock-roadmap {info['key']})"
     return None, "the roadmap scope is not approved yet", blocked
 

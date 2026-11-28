@@ -19,6 +19,22 @@ _Released 2026-11-07_
 
 Directory edition for the Claude plugin directory. Skills, roles, and documents only. Hooks and scripts stay in the GitHub marketplace install (`plugins/dts2-runtime`), because an unverified organization cannot publish them.
 
+## [5.11.0]
+
+_Released 2026-11-28_
+
+The completeness loop now runs twice and is enforced by code. Nothing breaking for repositories that run a clean gap pass before they lock.
+
+### Added
+
+- Setup gap pass: `gap_research.py <repo> pass` scans the end state and roadmap for unnamed owners, missing sections, unpriced dependencies and unverified assumptions, and records each as a `gap` row in the gap research ledger. `resolve <id> --note` closes a gap.
+- PR-end loop check: `scripts/pr_loop.py check` re-runs the check against a PR's changed files and prints a `## Loop gate` block for the PR body. `--file-items` files anything newly missing as an action item. `verify-body` checks that a PR body holds the block.
+
+### Changed
+
+- `lock-roadmap` and the chat lock path refuse (exit 4) until a gap pass has run for the current scope and every gap is resolved or rejected. `/dt:next` names the gap pass when it is the blocker.
+- `release-gate.py` takes `--pr-body`, and CI fails a pull request whose body has no loop gate block. CI also fails a body whose block says the gap pass is missing or an item is not yet fixed or filed, and HTML comments are stripped before the check. Dependabot pull requests are exempt, and the check runs again when a body is edited. A rejected gap is no longer added again by a later gap pass.
+
 ## [5.10.4]
 
 _Released 2026-11-28_

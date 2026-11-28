@@ -11,7 +11,25 @@ Subcommands:
     add      record a suggestion (section or criterion); prints the row as JSON
     list     print the ledger as JSON, optionally filtered by status
     apply    write a proposed suggestion into the end state; prints the old and new scope keys
-    reject   mark a suggestion rejected with a reason"""
+    reject   mark a suggestion rejected with a reason
+    resolve  mark an open row resolved with a note (how the gap was closed)
+    pass     the setup gap pass: scan the end state and roadmap, add one "gap" row per new finding, and write
+             `.harness/research/gap-pass.json` for the current roadmap scope key
+
+The gap pass is the first loop gate. The roadmap does not lock (approvals.py) until `lock_block` returns None: a pass ran
+for exactly the current scope key and no "gap" row is open. A gap is open while proposed or escalated and is dispositioned
+by `resolve` or `reject` (`apply` refuses a "gap" row). The pass is deterministic and line based, over
+`.harness/end-state.md` and, when present, `.harness/roadmap.md`. Headings are never scanned, and the dependency and
+assumption checks read prose and list lines only (a table row names components, so it would match "api" by accident). The categories:
+    owner       a table row whose owner or lane column (header contains "owner" or "lane") is empty, "-", "tbd" or "?"
+    section     an acceptance criterion under a "### <lane>" heading whose lane no Sections row serves
+                (the "serves component", "lane" or "owner" column)
+    dependency  a line mentioning a dependency, service, vendor or API with no price, cost, free or "$" on it
+    assumption  a line containing "assume", "assumption" or "unverified" and not the word "verified"
+A rejected or resolved gap is never added again by a later pass. The scope key covers the Sections and Acceptance lines only,
+so prose-only edits do not invalidate a pass. `.harness/roadmap.md` is scanned only while its "scope key:" line matches the
+current key.
+In gap-pass.json, "found" counts new rows, "open" lists every open gap id and "counts" tallies those open rows by category."""
 from __future__ import annotations
 
 import argparse
@@ -31,12 +49,29 @@ from state_io import atomic_write  # noqa: E402
 
 LEDGER_REL: Final[str] = state_io.rel("research", "gaps.jsonl")
 KINDS: Final[tuple[str, ...]] = ("section", "criterion")
+GAP_KIND: Final[str] = "gap"
+CATEGORIES: Final[tuple[str, ...]] = ("owner", "section", "dependency", "assumption")
+PASS_REL: Final[str] = state_io.rel("research", "gap-pass.json")
+ROADMAP_VIEW_REL: Final[str] = roadmap.ROADMAP_REL
+PASS_LANE: Final[str] = "setup"
+PLACEHOLDER_MARK: Final[str] = roadmap.PLACEHOLDER_PREFIX
 SOURCES: Final[tuple[str, ...]] = ("loop", "learn", "checkpoint")
 STATUS_PROPOSED: Final[str] = "proposed"
 STATUS_ESCALATED: Final[str] = "escalated"
 STATUS_APPLIED: Final[str] = "applied"
 STATUS_REJECTED: Final[str] = "rejected"
-STATUSES: Final[tuple[str, ...]] = (STATUS_PROPOSED, STATUS_ESCALATED, STATUS_APPLIED, STATUS_REJECTED)
+STATUS_RESOLVED: Final[str] = "resolved"
+STATUSES: Final[tuple[str, ...]] = (STATUS_PROPOSED, STATUS_ESCALATED, STATUS_APPLIED, STATUS_REJECTED, STATUS_RESOLVED)
+OPEN_STATUSES: Final[tuple[str, ...]] = (STATUS_PROPOSED, STATUS_ESCALATED)
+UNSET_CELLS: Final[tuple[str, ...]] = ("", "-", "tbd", "?")
+OWNER_HEADERS: Final[tuple[str, ...]] = ("owner", "lane")
+LANE_HEADERS: Final[tuple[str, ...]] = ("serves component", "lane", "owner")
+DEPENDENCY_WORDS: Final[re.Pattern[str]] = re.compile(r"\b(depend(s|ed|ing|ency|encies)?|services?|vendors?|apis?)\b", re.IGNORECASE)
+PRICED: Final[re.Pattern[str]] = re.compile(r"\$|\b(price[sd]?|pricing|costs?|free)\b", re.IGNORECASE)
+ASSUMPTION_WORDS: Final[re.Pattern[str]] = re.compile(r"\b(assum(e[sd]?|ing|ptions?)|unverified)\b", re.IGNORECASE)
+VERIFIED: Final[re.Pattern[str]] = re.compile(r"(?<![a-z])verified", re.IGNORECASE)
+SEPARATOR_CELL: Final[re.Pattern[str]] = re.compile(r"^:?-{2,}:?$")
+LIST_MARKER: Final[re.Pattern[str]] = re.compile(r"^(- \[[ xX]\] |[-*] )")
 ID_PREFIX: Final[str] = "G-"
 ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"^G-(\d+)$")
 # Fail safe: a false match only sends a suggestion to the owner instead of the roadmap.
@@ -219,6 +254,8 @@ def on_roadmap(lines: list[str], kind: str, text: str) -> bool:
 def apply(repo: Path, gap_id: str) -> dict[str, Any]:
     rows: list[dict[str, Any]] = read_rows(repo)
     row: dict[str, Any] = find_row(rows, gap_id)
+    if row.get("kind") == GAP_KIND:
+        raise GapError(f"{gap_id} is a gap; close it with resolve or reject, not apply")
     if row["status"] != STATUS_PROPOSED:
         raise GapError(f"{gap_id} is {row['status']}; only proposed suggestions can be applied")
     if NEEDS_SERVICE.search(f"{row['text']} {row.get('why', '')}"):
@@ -257,6 +294,8 @@ def reject(repo: Path, gap_id: str, reason: str) -> dict[str, Any]:
     row: dict[str, Any] = find_row(rows, gap_id)
     if row["status"] == STATUS_APPLIED:
         raise GapError(f"{gap_id} is already applied; edit the end state instead")
+    if row["status"] == STATUS_RESOLVED:
+        raise GapError(f"{gap_id} is already resolved")
     current: str | None = roadmap.read_end_state(repo)
     pending: str | None = row.get("pending_key_after")
     if pending is not None and current is not None and pending == scope_key(current):
@@ -264,6 +303,185 @@ def reject(repo: Path, gap_id: str, reason: str) -> dict[str, Any]:
     row.update(status=STATUS_REJECTED, reason=clean(reason), rejected=now())
     write_rows(repo, rows)
     return row
+
+
+def resolve(repo: Path, gap_id: str, note: str) -> dict[str, Any]:
+    rows: list[dict[str, Any]] = read_rows(repo)
+    row: dict[str, Any] = find_row(rows, gap_id)
+    if row["status"] not in OPEN_STATUSES:
+        raise GapError(f"{gap_id} is already {row['status']}; only an open row can be resolved")
+    if not clean(note):
+        raise GapError("a resolution needs a note")
+    row.update(status=STATUS_RESOLVED, note=clean(note), resolved=now())
+    write_rows(repo, rows)
+    return row
+
+
+def open_gaps(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [row for row in rows if row.get("kind") == GAP_KIND and row.get("status") in OPEN_STATUSES]
+
+
+def is_unset(cell: str) -> bool:
+    return cell.strip().lower() in UNSET_CELLS
+
+
+def table_blocks(lines: list[str]) -> list[list[list[str]]]:
+    """Each table as a list of cell rows, header first, separator rows dropped."""
+    blocks: list[list[list[str]]] = []
+    current: list[list[str]] = []
+    for line in [*lines, ""]:
+        if line.startswith(TABLE_PREFIX):
+            cells: list[str] = table_cells(line)
+            if not all(SEPARATOR_CELL.match(cell) for cell in cells if cell) or not any(cells):
+                current.append(cells)
+        elif current:
+            blocks.append(current)
+            current = []
+    return blocks
+
+
+def column(header: list[str], names: tuple[str, ...], exact: bool = False) -> int | None:
+    lowered: list[str] = [cell.lower() for cell in header]
+    for index, cell in enumerate(lowered):
+        if cell in names if exact else any(name in cell for name in names):
+            return index
+    return None
+
+
+def owner_findings(lines: list[str]) -> list[tuple[str, str, str]]:
+    found: list[tuple[str, str, str]] = []
+    for block in table_blocks(lines):
+        header, rows = block[0], block[1:]
+        owner: int | None = column(header, OWNER_HEADERS)
+        name: int | None = column(header, ("section", "item", "name"), exact=True)
+        if owner is None:
+            continue
+        for cells in rows:
+            if len(cells) <= owner or not is_unset(cells[owner]) or cells[0].startswith(PLACEHOLDER_MARK):
+                continue
+            label: str = cells[name] if name is not None and len(cells) > name else cells[min(1, len(cells) - 1)]
+            if label and not label.startswith(PLACEHOLDER_MARK):
+                found.append(("owner", PASS_LANE, f"{clean(label)} has no owner"))
+    return found
+
+
+def served_lanes(lines: list[str]) -> set[str]:
+    lanes: set[str] = set()
+    for block in table_blocks(lines):
+        index: int | None = column(block[0], LANE_HEADERS, exact=True)
+        if index is not None and column(block[0], ("section",), exact=True) is not None:
+            lanes |= {cells[index].lower() for cells in block[1:] if len(cells) > index and not is_unset(cells[index])}
+    return lanes
+
+
+def section_findings(end_state: str) -> list[tuple[str, str, str]]:
+    lanes: set[str] = served_lanes(end_state.splitlines())
+    if not lanes:
+        return []
+    found: list[tuple[str, str, str]] = []
+    in_acceptance: bool = False
+    lane: str = ""
+    for line in end_state.splitlines():
+        if line.startswith(LEVEL_TWO):
+            in_acceptance = line.strip() == ACCEPTANCE_HEADING
+            lane = ""
+        elif in_acceptance and line.startswith(LEVEL_THREE):
+            lane = line[len(LEVEL_THREE):].strip()
+        elif in_acceptance and lane and BOX_PATTERN.match(line) and lane.lower() not in lanes:
+            text: str = clean(BOX_PATTERN.sub("", line))
+            if text and not text.startswith(PLACEHOLDER_MARK):
+                found.append(("section", lane, f"no section serves lane {lane}: {text}"))
+    return found
+
+
+def line_findings(lines: list[str]) -> list[tuple[str, str, str]]:
+    found: list[tuple[str, str, str]] = []
+    for line in lines:
+        if line.startswith((TABLE_PREFIX, "#")):
+            continue
+        text: str = clean(LIST_MARKER.sub("", line))
+        if not text or text.startswith(PLACEHOLDER_MARK):
+            continue
+        if DEPENDENCY_WORDS.search(text) and not PRICED.search(text):
+            found.append(("dependency", PASS_LANE, f"{text} has no price or cost"))
+        if ASSUMPTION_WORDS.search(text) and not VERIFIED.search(text):
+            found.append(("assumption", PASS_LANE, f"{text} is unverified"))
+    return found
+
+
+def pass_findings(end_state: str, roadmap_view: str | None) -> list[tuple[str, str, str]]:
+    """(category, lane, text) for every gap in the end state and the roadmap view, in a stable order, without repeats."""
+    found: list[tuple[str, str, str]] = []
+    for text in (end_state, roadmap_view or ""):
+        lines: list[str] = text.splitlines()
+        found += owner_findings(lines) + line_findings(lines)
+    found += section_findings(end_state)
+    seen: set[tuple[str, str]] = set()
+    unique: list[tuple[str, str, str]] = []
+    for item in found:
+        marker: tuple[str, str] = (item[0], item[2].lower())
+        if marker not in seen:
+            seen.add(marker)
+            unique.append(item)
+    return unique
+
+
+def read_text(path: Path, required: bool) -> str | None:
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError as error:
+        if required:
+            raise GapError(f"cannot read {path}: {error}") from error
+        return None
+
+
+def current_view(view: str | None, key: str | None) -> str | None:
+    """The roadmap view text when its "scope key:" line matches `key`; None when it is stale or has no key line."""
+    if view is None or key is None:
+        return None
+    match: re.Match[str] | None = re.search(r"^- scope key: *(\S+)", view, re.MULTILINE)
+    return view if match and match.group(1) == key else None
+
+
+def gap_pass(repo: Path) -> dict[str, Any]:
+    end_state: str | None = read_text(repo / state_io.END_STATE_REL, True)
+    view: str | None = current_view(read_text(repo / ROADMAP_VIEW_REL, False), scope_key(end_state or ""))
+    rows: list[dict[str, Any]] = read_rows(repo)
+    added: int = 0
+    for category, lane, text in pass_findings(end_state or "", view):
+        if any(r.get("kind") == GAP_KIND and r.get("category") == category and str(r.get("text", "")).lower() == text.lower()
+               for r in rows):
+            continue
+        rows.append({"id": next_id(rows), "kind": GAP_KIND, "category": category, "lane": lane, "text": text,
+                     "why": f"setup gap pass: {category}", "source": "loop", "status": STATUS_PROPOSED, "added": now()})
+        added += 1
+    write_rows(repo, rows)
+    still_open: list[dict[str, Any]] = open_gaps(rows)
+    result: dict[str, Any] = {"key": scope_key(end_state or ""), "ran": now(), "found": added,
+                              "open": [str(row["id"]) for row in still_open],
+                              "counts": {name: sum(1 for row in still_open if row.get("category") == name) for name in CATEGORIES}}
+    atomic_write(repo / PASS_REL, json.dumps(result, sort_keys=True) + "\n")
+    return result
+
+
+def lock_block(repo: Path, key: str) -> str | None:
+    """None when a gap pass ran for exactly this roadmap key and no "gap" row is open; else a one-line reason."""
+    command: str = f"gap_research.py {repo} pass"
+    try:
+        recorded: Any = json.loads((repo / PASS_REL).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return f"dt: gap pass has not run for roadmap {key}; run `{command}`, then resolve or reject each open gap"
+    if not isinstance(recorded, dict) or recorded.get("key") != key:
+        ran: str = str(recorded.get("key")) if isinstance(recorded, dict) else "none"
+        return f"dt: gap pass ran for roadmap {ran}, not {key}; run `{command}` again"
+    try:
+        ids: list[str] = [str(row["id"]) for row in open_gaps(read_rows(repo))]
+    except GapError as error:
+        return f"dt: gap pass cannot read the gap ledger ({error}); fix it, then run `{command}`"
+    if ids:
+        return (f"dt: gap pass has {len(ids)} open gap(s): {', '.join(ids)}; "
+                f"run `gap_research.py {repo} resolve <id> --note <how>` or `reject <id> --reason <why>` for each")
+    return None
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -282,6 +500,10 @@ def build_parser() -> argparse.ArgumentParser:
     drop: argparse.ArgumentParser = sub.add_parser("reject")
     drop.add_argument("id")
     drop.add_argument("--reason", required=True)
+    done: argparse.ArgumentParser = sub.add_parser("resolve")
+    done.add_argument("id")
+    done.add_argument("--note", required=True)
+    sub.add_parser("pass")
     return parser
 
 
@@ -293,6 +515,10 @@ def run(args: argparse.Namespace) -> Any:
         return [row for row in read_rows(repo) if args.status in (None, row["status"])]
     if args.command == "apply":
         return apply(repo, args.id)
+    if args.command == "resolve":
+        return resolve(repo, args.id, args.note)
+    if args.command == "pass":
+        return gap_pass(repo)
     return reject(repo, args.id, args.reason)
 
 

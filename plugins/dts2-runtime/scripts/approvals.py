@@ -9,7 +9,9 @@ file, or `grant()` in this script writes it for one of the entry points below:
 
 `merge_policy: ["auto-when-green"]` is a standing grant: the policy gate then lets a direct `gh pr merge <n> --merge --match-head-commit <sha>`
 through without a per-PR entry once the required checks are green (see policy_gate.py for the conditions).
-A `roadmap` entry is the 12-character scope key printed by `roadmap.py status`. Two ways in, both on the person's own input:
+A `roadmap` entry is the 12-character scope key printed by `roadmap.py status`. No lock, by any route below, is granted until
+the setup gap pass has run for that key and no gap is open (`gap_research.py <repo> pass`; see `gap_research.lock_block`).
+Two ways in, both on the person's own input:
 - In Claude Code, the owner says it in chat, in their own words ("lock it in", "approve the roadmap", or `lock roadmap <key>`).
   The UserPromptSubmit hook (`hooks/roadmap-lock.sh`) runs only on typed text and calls `grant`; the model never writes the file.
 - In any other harness or model (Codex, T3 Code, Cursor), the owner runs `approvals.py lock-roadmap` in their own terminal.
@@ -214,6 +216,11 @@ def grant_from_prompt(raw: str, repo: Path) -> str:
         typed = current
     if current != typed:
         return f"dt: roadmap key {typed} does not match the current roadmap {current}; nothing locked"
+    if not info["approved"]:
+        import gap_research  # noqa: PLC0415 (gap_research imports roadmap, which imports this module)
+        blocked: str | None = gap_research.lock_block(Path(repo), typed)
+        if blocked is not None:
+            return f"{blocked}; nothing locked"
     if not grant(repo, roadmap.APPROVAL_KIND, typed):
         return f"dt: roadmap {typed} was not locked (the approvals file could not be written)"
     return f"dt: roadmap {typed} locked by the owner"
@@ -380,8 +387,9 @@ def lock_roadmap(repo: Path, key: str | None = None, terminal: Any = None, overr
     the agent passes the current roadmap key, two providers have signed that key (or an override with a reason is given),
     and the roadmap is not locked yet; the lock is logged as `agent:<name>`. When no agent is detected and no interactive
     terminal is attached (Codex or Gemini sessions, WSL, Windows), the same recorded sign-off route applies, logged as
-    `agent:undetected`, and the owner prompt is skipped, so nothing blocks. Refused when a given key does not match,
-    when a key is missing or the sign-offs are, or without the owner's typed yes."""
+    `agent:undetected`, and the owner prompt is skipped, so nothing blocks. Every route is refused with exit code 4 until
+    the setup gap pass has run for this key and every gap it found is resolved or rejected (`gap_research.lock_block`).
+    Refused when a given key does not match, when a key is missing or the sign-offs are, or without the owner's typed yes."""
     agent: str | None = "son" if os.environ.get("DTS2_SON") else (agent_ancestor() if terminal is None else None)
     import roadmap  # noqa: PLC0415 (roadmap imports this module)
     info: dict[str, Any] = roadmap.status(repo)
@@ -392,6 +400,10 @@ def lock_roadmap(repo: Path, key: str | None = None, terminal: Any = None, overr
         return 1, f"dt: roadmap key {key.lower()} does not match the current roadmap {current}; nothing locked"
     if info["approved"]:
         return 0, f"dt: roadmap {current} is already locked"
+    import gap_research  # noqa: PLC0415 (gap_research imports roadmap, which imports this module)
+    blocked: str | None = gap_research.lock_block(Path(repo), current)
+    if blocked is not None:
+        return 4, f"{blocked}; nothing locked"
     if agent is not None:
         return agent_lock_roadmap(repo, current, key, agent, override)
     tty: Any = terminal if terminal is not None else open_terminal()
