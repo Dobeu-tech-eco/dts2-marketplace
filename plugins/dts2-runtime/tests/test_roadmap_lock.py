@@ -319,6 +319,7 @@ class LockRoadmapTests(unittest.TestCase):
         import pty  # noqa: PLC0415
         pid, fd = pty.fork()
         if pid == 0:
+            sys.stdin = open(0, closefd=False)  # the child's stdin is the pty; pytest replaced sys.stdin in the parent
             os._exit(0 if approvals.open_terminal() is not None else 1)
         status: int = os.waitpid(pid, 0)[1]  # close the master only after the child is done, or its terminal hangs up
         os.close(fd)

@@ -35,6 +35,18 @@ The completeness loop now runs twice and is enforced by code. Nothing breaking f
 - `lock-roadmap` and the chat lock path refuse (exit 4) until a gap pass has run for the current scope and every gap is resolved or rejected. `/dt:next` names the gap pass when it is the blocker.
 - `release-gate.py` takes `--pr-body`, and CI fails a pull request whose body has no loop gate block. CI also fails a body whose block says the gap pass is missing or an item is not yet fixed or filed, and HTML comments are stripped before the check. Dependabot pull requests are exempt, and the check runs again when a body is edited. A rejected gap is no longer added again by a later gap pass.
 
+## [5.10.4]
+
+_Released 2026-11-28_
+
+A fix to `approvals.py lock-roadmap` for agent runs with no terminal. Nothing breaking.
+
+### Fixed
+
+- `approvals.py lock-roadmap` no longer blocks forever in a non-Claude agent run with no terminal (for example `codex exec`, Gemini, WSL through `wsl.exe`, or native Windows) when agent detection fails. With no terminal attached it never prompts: it locks on the recorded sign-offs (two different providers, or an override with a reason) and logs the lock as `agent:undetected`. A missing key exits 2 and names the key; missing sign-offs exit 3 and say how many providers signed and how many are still needed.
+- When a terminal is attached, the owner's "Type yes" prompt times out after 120 seconds with exit 2. Set `DTS2_LOCK_TTY_TIMEOUT` to change the limit.
+- The Claude in-flow lock (`lock roadmap <key>`) and the detected-agent path are unchanged.
+
 ## [5.10.3]
 
 _Released 2026-11-26_

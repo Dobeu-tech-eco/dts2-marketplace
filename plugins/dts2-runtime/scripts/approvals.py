@@ -15,7 +15,7 @@ Two ways in, both on the person's own input:
 - In Claude Code, the owner says it in chat, in their own words ("lock it in", "approve the roadmap", or `lock roadmap <key>`).
   The UserPromptSubmit hook (`hooks/roadmap-lock.sh`) runs only on typed text and calls `grant`; the model never writes the file.
 - In any other harness or model (Codex, T3 Code, Cursor), the owner runs `approvals.py lock-roadmap` in their own terminal.
-  It asks for a yes on the terminal itself, and refuses when no terminal is attached.
+  It asks for a yes on the terminal itself. With no interactive terminal it never waits: it locks only from recorded sign-offs.
 - An agent may run `approvals.py lock-roadmap <key>` itself once agents from two different providers have signed the same
   key with `approvals.py sign-roadmap <key>`. No prompt is shown, and the log records the lock as `agent:<name>`.
   `--skip-review <reason>` (the owner said to skip the review or not to wait) and `--single-provider <reason>` (only one
@@ -226,14 +226,72 @@ def grant_from_prompt(raw: str, repo: Path) -> str:
     return f"dt: roadmap {typed} locked by the owner"
 
 
+LOCK_TTY_TIMEOUT_DEFAULT: Final[int] = 120
+LOCK_TTY_TIMEOUT_ENV: Final[str] = "DTS2_LOCK_TTY_TIMEOUT"
+UNDETECTED_AGENT: Final[str] = "undetected"
+
+
+class Terminal(io.TextIOWrapper):
+    """The controlling terminal as a text stream whose fileno() is the underlying descriptor (so it can be select()ed)."""
+
+    def __init__(self, raw: io.FileIO) -> None:
+        # A terminal is not seekable, so a plain open(..., "r+") in text mode fails; pair the raw stream instead.
+        super().__init__(io.BufferedRWPair(raw, raw), encoding="utf-8", line_buffering=True)
+        self.raw_fd: int = raw.fileno()
+
+    def fileno(self) -> int:
+        return self.raw_fd
+
+
+def stdin_is_tty() -> bool:
+    """True when sys.stdin exists, is open, and is a terminal."""
+    stream: Any = sys.stdin
+    if stream is None:
+        return False
+    try:
+        return bool(stream.isatty())
+    except (ValueError, OSError):
+        return False
+
+
 def open_terminal() -> Any:
-    """The controlling terminal for reading and writing, or None when none is attached (a model's shell, CI, a pipe)."""
+    """The controlling terminal for reading and writing, or None when no interactive one is attached (a model's shell, CI,
+    a pipe, Windows, a /dev/tty that opens with no person behind it). It needs /dev/tty to open, to be a tty, and stdin to be one."""
     try:
         raw: io.FileIO = io.FileIO("/dev/tty", "r+")
     except OSError:
         return None
-    # A terminal is not seekable, so a plain open(..., "r+") in text mode fails; pair the raw stream instead.
-    return io.TextIOWrapper(io.BufferedRWPair(raw, raw), encoding="utf-8", line_buffering=True)
+    try:
+        usable: bool = os.isatty(raw.fileno()) and stdin_is_tty()
+    except OSError:
+        usable = False
+    if not usable:
+        raw.close()
+        return None
+    return Terminal(raw)
+
+
+def lock_tty_timeout() -> int:
+    """Seconds to wait for the owner's answer: DTS2_LOCK_TTY_TIMEOUT when it is a positive integer, else the default."""
+    try:
+        seconds: int = int(os.environ.get(LOCK_TTY_TIMEOUT_ENV, ""))
+    except ValueError:
+        return LOCK_TTY_TIMEOUT_DEFAULT
+    return seconds if seconds > 0 else LOCK_TTY_TIMEOUT_DEFAULT
+
+
+def read_line_with_timeout(tty: Any, seconds: float) -> str | None:
+    """One line from `tty`, or None when nothing arrives within `seconds`. A stream with no usable descriptor (or Windows)
+    is simply read."""
+    if os.name != "nt":
+        import select  # noqa: PLC0415 (POSIX only)
+        try:
+            ready: list[Any] = select.select([tty.fileno()], [], [], seconds)[0]
+        except (AttributeError, OSError, ValueError):
+            return tty.readline()
+        if not ready:
+            return None
+    return tty.readline()
 
 
 AGENT_PROCESSES: frozenset[str] = frozenset({"claude", "codex", "gemini", "cursor-agent", "aider", "opencode", "goose", "amp", "antigravity", "grok", "muse"})
@@ -324,12 +382,14 @@ def sign_roadmap(repo: Path, key: str, provider: str | None = None, note: str = 
 
 def lock_roadmap(repo: Path, key: str | None = None, terminal: Any = None, override: tuple[str, str] | None = None) -> tuple[int, str]:
     """(exit code, message) for `approvals.py lock-roadmap`, in any harness.
-    The owner runs it in their own terminal and types yes. An agent launch (a son, or a process under an agent CLI) may
-    run it too, with no prompt, when the roadmap has a scope, the agent passes the current roadmap key, two providers
-    have signed that key (or an override with a reason is given), and the roadmap is not locked yet; the lock is logged
-    as `agent:<name>`. Refused with exit code 4, for the owner and an agent alike, until the setup gap pass has run for this
-    key and every gap it found is resolved or rejected (`gap_research.lock_block`). Refused when a given key does not match, when an agent gives no key or lacks the sign-offs, when
-    no terminal is attached for the owner, or without the owner's typed yes."""
+    The owner runs it in their own terminal and types yes (the read gives up after DTS2_LOCK_TTY_TIMEOUT seconds, default 120).
+    An agent launch (a son, or a process under an agent CLI) may run it too, with no prompt, when the roadmap has a scope,
+    the agent passes the current roadmap key, two providers have signed that key (or an override with a reason is given),
+    and the roadmap is not locked yet; the lock is logged as `agent:<name>`. When no agent is detected and no interactive
+    terminal is attached (Codex or Gemini sessions, WSL, Windows), the same recorded sign-off route applies, logged as
+    `agent:undetected`, and the owner prompt is skipped, so nothing blocks. Every route is refused with exit code 4 until
+    the setup gap pass has run for this key and every gap it found is resolved or rejected (`gap_research.lock_block`).
+    Refused when a given key does not match, when a key is missing or the sign-offs are, or without the owner's typed yes."""
     agent: str | None = "son" if os.environ.get("DTS2_SON") else (agent_ancestor() if terminal is None else None)
     import roadmap  # noqa: PLC0415 (roadmap imports this module)
     info: dict[str, Any] = roadmap.status(repo)
@@ -348,20 +408,40 @@ def lock_roadmap(repo: Path, key: str | None = None, terminal: Any = None, overr
         return agent_lock_roadmap(repo, current, key, agent, override)
     tty: Any = terminal if terminal is not None else open_terminal()
     if tty is None:
-        return 2, "dt: lock-roadmap needs your own terminal (no terminal is attached); nothing locked"
+        return no_terminal_lock(repo, current, key, override)
+    timeout: int = lock_tty_timeout()
     try:
         signed: list[str] = signoffs(repo, current)
         tty.write(f"Lock roadmap {current} ({info['sections']} sections, signed by {', '.join(signed) or 'no agent yet'})? Type yes: ")
         tty.flush()
-        answer: str = tty.readline().strip().lower()
+        line: str | None = read_line_with_timeout(tty, timeout) if terminal is None else tty.readline()
     finally:
         if terminal is None:
             tty.close()
+    if line is None:
+        return 2, f"dt: no answer at the terminal within {timeout}s; nothing locked"
+    answer: str = line.strip().lower()
     if answer not in ("y", "yes"):
         return 1, f"dt: roadmap {current} not locked"
     if not grant(repo, roadmap.APPROVAL_KIND, current):
         return 1, f"dt: roadmap {current} was not locked (the approvals file could not be written)"
     return 0, f"dt: roadmap {current} locked by the owner"
+
+
+def no_terminal_lock(repo: Path, current: str, key: str | None, override: tuple[str, str] | None) -> tuple[int, str]:
+    """Lock when no agent was detected and no interactive terminal exists: only recorded sign-offs (or an override) count."""
+    signed: list[str] = signoffs(repo, current)
+    if key is None:
+        return 2, (f"dt: no terminal is attached, so the owner prompt was skipped; pass the roadmap key: approvals.py lock-roadmap {current} "
+                   f"(sign-offs {len(signed)}/{REQUIRED_PROVIDERS}: {', '.join(signed) or 'none'}); nothing locked")
+    if override is None and len(signed) < REQUIRED_PROVIDERS:
+        return 3, (f"dt: no terminal is attached, so the owner prompt was skipped; roadmap {current} needs {REQUIRED_PROVIDERS - len(signed)} more "
+                   f"sign-off(s) from other providers (has {len(signed)}/{REQUIRED_PROVIDERS}: {', '.join(signed) or 'none'}); "
+                   f"run approvals.py sign-roadmap {current} from another provider; nothing locked")
+    code, message = agent_lock_roadmap(repo, current, key, UNDETECTED_AGENT, override)
+    if code == 0 and override is None:
+        return 0, f"dt: roadmap {current} locked from recorded sign-offs ({', '.join(signed)})"
+    return code, message
 
 
 def agent_lock_roadmap(repo: Path, current: str, key: str | None, agent: str, override: tuple[str, str] | None = None) -> tuple[int, str]:
