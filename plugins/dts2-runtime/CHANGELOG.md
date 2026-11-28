@@ -7,6 +7,18 @@ Released versions live in this file. Work that has not been released yet lives i
 Each version heading is followed by its release date on the first line (`_Released YYYY-MM-DD_`). The repository holds no release tags, so each date is the date of the commit that bumped the version.
 The plugin was renamed twice: `dts2-harness` became `dts2` in 4.0.0 and `dts2` became `dt` in 5.0.0. Older entries keep the command names that were current at the time.
 
+## [5.10.4]
+
+_Released 2026-11-28_
+
+A fix to `approvals.py lock-roadmap` for agent runs with no terminal. Nothing breaking.
+
+### Fixed
+
+- `approvals.py lock-roadmap` no longer blocks forever in a non-Claude agent run with no terminal (for example `codex exec`, Gemini, WSL through `wsl.exe`, or native Windows) when agent detection fails. With no terminal attached it never prompts: it locks on the recorded sign-offs (two different providers, or an override with a reason) and logs the lock as `agent:undetected`. A missing key exits 2 and names the key; missing sign-offs exit 3 and say how many providers signed and how many are still needed.
+- When a terminal is attached, the owner's "Type yes" prompt times out after 120 seconds with exit 2. Set `DTS2_LOCK_TTY_TIMEOUT` to change the limit.
+- The Claude in-flow lock (`lock roadmap <key>`) and the detected-agent path are unchanged.
+
 ## [5.10.3]
 
 _Released 2026-11-26_
